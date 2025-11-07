@@ -24,6 +24,14 @@ app.use(cookieParser()); // Parse cookies
 connectDB();
 
 // Routes
+app.use('/api/patients/auth', require('./routes/patient-routes/auth.routes'));
+app.use('/api/doctors/auth', require('./routes/doctor-routes/auth.routes'));
+app.use('/api/laboratories/auth', require('./routes/laboratory-routes/auth.routes'));
+app.use('/api/pharmacies/auth', require('./routes/pharmacy-routes/auth.routes'));
+app.use('/api/admin/auth', require('./routes/admin-routes/auth.routes'));
+app.use('/api/admin/approvals', require('./routes/admin-routes/approval.routes'));
+app.use('/api/payments', require('./routes/payment-routes/payment.routes'));
+
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Healiinn Backend API',
