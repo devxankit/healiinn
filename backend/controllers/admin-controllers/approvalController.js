@@ -2,6 +2,7 @@ const asyncHandler = require('../../middleware/asyncHandler');
 const { getModelForRole, ROLES } = require('../../utils/getModelForRole');
 const { APPROVAL_STATUS } = require('../../utils/constants');
 const { sendRoleApprovalEmail } = require('../../services/emailService');
+const { publishNotification } = require('../../services/notificationPublisher');
 
 const APPROVABLE_ROLES = [ROLES.DOCTOR, ROLES.LABORATORY, ROLES.PHARMACY];
 
@@ -68,6 +69,27 @@ exports.approveRequest = asyncHandler(async (req, res) => {
     status: APPROVAL_STATUS.APPROVED,
   });
 
+  try {
+    await publishNotification({
+      type: 'ACCOUNT_APPROVED',
+      recipients: [
+        {
+          role,
+          userId: record._id,
+        },
+      ],
+      context: {
+        role,
+      },
+      data: {
+        role,
+        entityId: record._id.toString(),
+      },
+    });
+  } catch (error) {
+    console.error('Failed to send account approved notification', error);
+  }
+
   return res.status(200).json({
     success: true,
     message: `${role} registration approved successfully.`,
@@ -108,6 +130,29 @@ exports.rejectRequest = asyncHandler(async (req, res) => {
     status: APPROVAL_STATUS.REJECTED,
     reason: record.rejectionReason,
   });
+
+  try {
+    await publishNotification({
+      type: 'ACCOUNT_REJECTED',
+      recipients: [
+        {
+          role,
+          userId: record._id,
+        },
+      ],
+      context: {
+        role,
+        reason: record.rejectionReason,
+      },
+      data: {
+        role,
+        reason: record.rejectionReason,
+        entityId: record._id.toString(),
+      },
+    });
+  } catch (error) {
+    console.error('Failed to send account rejection notification', error);
+  }
 
   return res.status(200).json({
     success: true,

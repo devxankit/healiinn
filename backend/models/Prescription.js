@@ -32,6 +32,7 @@ const prescriptionSchema = new mongoose.Schema(
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor' },
     appointment: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment' },
     appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment' },
+    consultation: { type: mongoose.Schema.Types.ObjectId, ref: 'Consultation' },
     status: { type: String, enum: PRESCRIPTION_STATUS, default: 'issued', index: true },
     medications: [medicationSchema],
     investigations: [investigationSchema],
@@ -53,6 +54,8 @@ const prescriptionSchema = new mongoose.Schema(
       pulse: Number,
       bmi: Number,
       temperatureC: Number,
+      pdfPath: { type: String, trim: true },
+      signature: { type: String },
     },
   },
   {

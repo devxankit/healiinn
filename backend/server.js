@@ -1,11 +1,18 @@
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+const { Server } = require('socket.io');
+const { createAdapter } = require('@socket.io/redis-adapter');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
+const { redis, pub, sub, connectRedis, isRedisEnabled } = require('./config/redis');
+const registerSockets = require('./sockets');
+const { initWorkers, scheduleRecurringJobs } = require('./services/jobQueue');
+const rateLimiter = require('./middleware/rateLimiter');
 
 const app = express();
 
@@ -13,12 +20,13 @@ const app = express();
 app.use(helmet()); // Security headers
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
+  credentials: true,
 }));
 app.use(morgan('dev')); // Logging
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(cookieParser()); // Parse cookies
+app.use(rateLimiter);
 
 // Connect to database
 connectDB();
@@ -31,6 +39,12 @@ app.use('/api/pharmacies/auth', require('./routes/pharmacy-routes/auth.routes'))
 app.use('/api/admin/auth', require('./routes/admin-routes/auth.routes'));
 app.use('/api/admin/approvals', require('./routes/admin-routes/approval.routes'));
 app.use('/api/payments', require('./routes/payment-routes/payment.routes'));
+app.use('/api/notifications', require('./routes/notification.routes'));
+app.use('/api/appointments', require('./routes/appointment.routes'));
+app.use('/api/consultations', require('./routes/consultation.routes'));
+app.use('/api/prescriptions', require('./routes/prescription.routes'));
+app.use('/api/labs', require('./routes/lab.routes'));
+app.use('/api/pharmacy', require('./routes/pharmacy.routes'));
 
 app.get('/', (req, res) => {
   res.json({ 
@@ -69,9 +83,44 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+
+const server = http.createServer(app);
+
+const allowedSocketOrigins = (process.env.SOCKET_CORS_ORIGIN || process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const io = new Server(server, {
+  cors: {
+    origin: allowedSocketOrigins.length ? allowedSocketOrigins : '*',
+    credentials: true,
+  },
+});
+
+app.set('io', io);
+app.set('redis', redis);
+
+registerSockets(io);
+
+if (isRedisEnabled && redis && pub && sub) {
+  connectRedis()
+    .then(() => {
+      io.adapter(createAdapter(pub, sub));
+      initWorkers(io);
+      scheduleRecurringJobs().catch((error) => {
+        console.error('Failed to schedule recurring jobs', error);
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to initialize Redis adapter', error);
+    });
+} else {
+  console.warn('[Redis] Disabled - sockets running without Redis adapter.');
+}
+
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
