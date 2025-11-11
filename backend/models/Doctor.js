@@ -11,7 +11,7 @@ const doctorSchema = new mongoose.Schema(
     phone: { type: String, required: true, unique: true, trim: true },
     password: { type: String, required: true, minlength: 8 },
     specialization: { type: String, required: true, trim: true },
-    gender: { type: String, enum: ['male', 'female', 'other', 'prefer_not_to_say'] },
+    gender: { type: String,required: true, enum: ['male', 'female', 'other', 'prefer_not_to_say'] },
     licenseNumber: { type: String, required: true, trim: true, unique: true },
     experienceYears: { type: Number, min: 0 },
     education: [{ institution: String, degree: String, year: Number }],
@@ -27,6 +27,26 @@ const doctorSchema = new mongoose.Schema(
         state: { type: String, trim: true },
         postalCode: { type: String, trim: true },
         country: { type: String, trim: true },
+      },
+      location: {
+        type: {
+          type: String,
+          enum: ['Point'],
+          default: 'Point',
+        },
+        coordinates: {
+          type: [Number],
+          validate: {
+            validator(value) {
+              return Array.isArray(value) && value.length === 2;
+            },
+            message: 'Clinic location coordinates must be [lng, lat].',
+          },
+        },
+      },
+      locationSource: {
+        type: String,
+        enum: ['manual', 'gps'],
       },
     },
     bio: { type: String, trim: true },
@@ -86,6 +106,9 @@ doctorSchema.pre('save', async function encryptPassword(next) {
 doctorSchema.methods.comparePassword = async function comparePassword(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
+
+doctorSchema.index({ specialization: 1, status: 1 });
+doctorSchema.index({ 'clinicDetails.location': '2dsphere' });
 
 const Doctor = mongoose.model('Doctor', doctorSchema);
 

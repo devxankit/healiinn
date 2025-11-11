@@ -171,22 +171,6 @@ const notifyPatientLabReportReady = async ({ patientId, testName, testBookingId 
     data: { testBookingId },
   });
 
-const notifyPharmacyNewOrder = async ({ pharmacyId, patientName, orderId }) =>
-  publishNotification({
-    type: 'PHARMACY_NEW_ORDER',
-    recipients: [{ role: ROLES.PHARMACY, userId: pharmacyId }],
-    context: { patientName },
-    data: { orderId },
-  });
-
-const notifyPatientOrderStatusUpdate = async ({ patientId, orderNumber, status, orderId }) =>
-  publishNotification({
-    type: 'ORDER_STATUS_UPDATED',
-    recipients: [{ role: ROLES.PATIENT, userId: patientId }],
-    context: { orderNumber, status },
-    data: { orderId, status },
-  });
-
 const notifyPrescriptionReady = async ({ patientId, doctorName, prescriptionId }) =>
   publishNotification({
     type: 'PRESCRIPTION_READY',
@@ -201,8 +185,6 @@ module.exports = {
   notifyDoctorOfNewAppointment,
   notifyLabOfTestRequest,
   notifyPatientLabReportReady,
-  notifyPharmacyNewOrder,
-  notifyPatientOrderStatusUpdate,
   notifyTokenCalled,
   notifyTokenRecalled,
   notifyTokenSkipped,

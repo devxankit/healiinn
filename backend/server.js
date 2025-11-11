@@ -38,6 +38,7 @@ app.use('/api/laboratories/auth', require('./routes/laboratory-routes/auth.route
 app.use('/api/pharmacies/auth', require('./routes/pharmacy-routes/auth.routes'));
 app.use('/api/admin/auth', require('./routes/admin-routes/auth.routes'));
 app.use('/api/admin/approvals', require('./routes/admin-routes/approval.routes'));
+app.use('/api/admin/settings', require('./routes/admin-routes/settings.routes'));
 app.use('/api/payments', require('./routes/payment-routes/payment.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/appointments', require('./routes/appointment.routes'));
@@ -45,6 +46,7 @@ app.use('/api/consultations', require('./routes/consultation.routes'));
 app.use('/api/prescriptions', require('./routes/prescription.routes'));
 app.use('/api/labs', require('./routes/lab.routes'));
 app.use('/api/pharmacy', require('./routes/pharmacy.routes'));
+app.use('/api/discovery', require('./routes/discovery.routes'));
 
 app.get('/', (req, res) => {
   res.json({ 

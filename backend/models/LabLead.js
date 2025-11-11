@@ -51,10 +51,6 @@ const labLeadSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    acceptedQuote: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'LabQuote',
-    },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
     },

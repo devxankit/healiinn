@@ -19,6 +19,26 @@ const laboratorySchema = new mongoose.Schema(
       state: { type: String, trim: true },
       postalCode: { type: String, trim: true },
       country: { type: String, trim: true },
+      location: {
+        type: {
+          type: String,
+          enum: ['Point'],
+          default: 'Point',
+        },
+        coordinates: {
+          type: [Number],
+          validate: {
+            validator(value) {
+              return Array.isArray(value) && value.length === 2;
+            },
+            message: 'Address location coordinates must be [lng, lat].',
+          },
+        },
+      },
+      locationSource: {
+        type: String,
+        enum: ['manual', 'gps'],
+      },
     },
     servicesOffered: [{ type: String, trim: true }],
     testsOffered: [
@@ -85,6 +105,9 @@ laboratorySchema.pre('save', async function encryptPassword(next) {
 laboratorySchema.methods.comparePassword = async function comparePassword(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
+
+laboratorySchema.index({ status: 1, labName: 1 });
+laboratorySchema.index({ 'address.location': '2dsphere' });
 
 const Laboratory = mongoose.model('Laboratory', laboratorySchema);
 

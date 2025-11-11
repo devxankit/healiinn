@@ -4,8 +4,6 @@ const { promisify } = require('util');
 const PDFDocument = require('pdfkit');
 const Consultation = require('../models/Consultation');
 const Prescription = require('../models/Prescription');
-const LabLead = require('../models/LabLead');
-const PharmacyLead = require('../models/PharmacyLead');
 const { TOKEN_EVENTS } = require('../utils/constants');
 const { notifyPrescriptionReady } = require('./notificationEvents');
 
@@ -38,7 +36,51 @@ const generatePrescriptionPdf = async ({ prescription, doctor, patient }) => {
 
   doc.fontSize(12).text(`Prescription ID: ${prescription._id}`);
   doc.text(`Doctor: ${doctor?.firstName || ''} ${doctor?.lastName || ''}`.trim());
+  if (doctor?.phone) {
+    doc.text(`Doctor Mobile: ${doctor.phone}`);
+  }
+  const clinic = doctor?.clinicDetails || {};
+  if (clinic.name) {
+    doc.text(`Clinic: ${clinic.name}`);
+  }
+  if (clinic.address) {
+    const clinicAddress = [
+      clinic.address.line1,
+      clinic.address.line2,
+      clinic.address.city,
+      clinic.address.state,
+      clinic.address.postalCode,
+      clinic.address.country,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    if (clinicAddress) {
+      doc.text(`Clinic Address: ${clinicAddress}`);
+    }
+  }
+
   doc.text(`Patient: ${patient?.firstName || ''} ${patient?.lastName || ''}`.trim());
+  if (patient?.phone) {
+    doc.text(`Patient Mobile: ${patient.phone}`);
+  }
+  if (patient?.email) {
+    doc.text(`Patient Email: ${patient.email}`);
+  }
+  if (patient?.address) {
+    const patientAddress = [
+      patient.address.line1,
+      patient.address.line2,
+      patient.address.city,
+      patient.address.state,
+      patient.address.postalCode,
+      patient.address.country,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    if (patientAddress) {
+      doc.text(`Patient Address: ${patientAddress}`);
+    }
+  }
   doc.text(`Date: ${new Date().toLocaleString('en-IN')}`);
   doc.moveDown();
 
@@ -93,8 +135,8 @@ const createPrescription = async ({
   io,
 }) => {
   const consultation = await Consultation.findById(consultationId)
-    .populate('doctor', 'firstName lastName')
-    .populate('patient', 'firstName lastName email')
+    .populate('doctor', 'firstName lastName phone clinicDetails email')
+    .populate('patient', 'firstName lastName phone email address')
     .populate('session')
     .populate('token');
 
@@ -142,38 +184,6 @@ const createPrescription = async ({
   prescription.metadata.pdfPath = pdfPath;
   await prescription.save();
 
-  const labLead =
-    prescription.investigations && prescription.investigations.length
-      ? await LabLead.create({
-          prescription: prescription._id,
-          consultation: consultation._id,
-          doctor: consultation.doctor._id,
-          patient: consultation.patient._id,
-          tests: prescription.investigations.map((item) => ({
-            testName: item.name,
-            description: item.notes,
-            notes: item.notes,
-            priority: 'normal',
-          })),
-        })
-      : null;
-
-  const pharmacyLead =
-    prescription.medications && prescription.medications.length
-      ? await PharmacyLead.create({
-          prescription: prescription._id,
-          consultation: consultation._id,
-          doctor: consultation.doctor._id,
-          patient: consultation.patient._id,
-          medicines: prescription.medications.map((item) => ({
-            name: item.name,
-            dosage: item.dosage,
-            quantity: item.duration ? Number.parseInt(item.duration, 10) || 1 : 1,
-            instructions: item.instructions,
-          })),
-        })
-      : null;
-
   if (io && consultation.session) {
     io.to(`session:${consultation.session._id}`).emit(TOKEN_EVENTS.PRESCRIPTION_READY, {
       sessionId: consultation.session._id.toString(),
@@ -188,11 +198,7 @@ const createPrescription = async ({
     prescriptionId: prescription._id,
   });
 
-  return {
-    prescription,
-    labLead,
-    pharmacyLead,
-  };
+  return { prescription };
 };
 
 module.exports = {

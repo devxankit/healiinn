@@ -10,6 +10,12 @@ const {
 const { getProfileByRoleAndId, updateProfileByRoleAndId } = require('../../services/profileService');
 const { notifyAdminsOfPendingSignup } = require('../../services/adminNotificationService');
 const { ROLES, APPROVAL_STATUS } = require('../../utils/constants');
+const {
+  LOCATION_SOURCES,
+  normalizeLocationSource,
+  parseGeoPoint,
+  extractAddressLocation,
+} = require('../../utils/locationUtils');
 
 const parseName = ({ firstName, lastName, name }) => {
   if (firstName) {
@@ -60,6 +66,13 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     clinicName,
     clinicAddress,
     clinicDetails,
+    clinicLocation,
+    clinicCoordinates,
+    clinicLatitude,
+    clinicLongitude,
+    clinicLat,
+    clinicLng,
+    clinicLocationSource,
     bio,
     documents,
     consultationFee,
@@ -96,12 +109,128 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
 
   const clinicPayload = clinicDetails ? { ...clinicDetails } : {};
 
+  const rawClinicAddressInput =
+    clinicAddress !== undefined ? clinicAddress : clinicPayload.address;
+
+  const {
+    address: normalizedClinicAddress,
+    addressProvided: clinicAddressProvided,
+    location: addressDerivedLocation,
+    locationProvided: addressLocationProvided,
+    locationSource: addressLocationSource,
+    locationSourceProvided: addressLocationSourceProvided,
+    error: addressLocationError,
+  } = extractAddressLocation(rawClinicAddressInput);
+
+  if (addressLocationError) {
+    return res.status(400).json({
+      success: false,
+      message: addressLocationError,
+    });
+  }
+
+  if (clinicAddressProvided) {
+    if (normalizedClinicAddress) {
+      clinicPayload.address = normalizedClinicAddress;
+    } else {
+      delete clinicPayload.address;
+    }
+  }
+
   if (clinicName) {
     clinicPayload.name = clinicName;
   }
 
-  if (clinicAddress) {
-    clinicPayload.address = clinicAddress;
+  const legacyLocation = parseGeoPoint({
+    location: clinicLocation ?? clinicDetails?.location,
+    coordinates: clinicCoordinates,
+    lat: clinicLat ?? clinicLatitude,
+    lng: clinicLng ?? clinicLongitude,
+    latitude: clinicLatitude,
+    longitude: clinicLongitude,
+  });
+
+  if (legacyLocation.error) {
+    return res.status(400).json({
+      success: false,
+      message: legacyLocation.error,
+    });
+  }
+
+  delete clinicPayload.location;
+  delete clinicPayload.locationSource;
+
+  let clinicGeoPoint;
+  let clinicLocationProvided = false;
+
+  if (legacyLocation.provided) {
+    clinicGeoPoint = legacyLocation.point;
+    clinicLocationProvided = true;
+  } else if (addressLocationProvided) {
+    clinicGeoPoint = addressDerivedLocation;
+    clinicLocationProvided = true;
+  }
+
+  if (clinicGeoPoint) {
+    clinicPayload.location = clinicGeoPoint;
+  } else if (clinicLocationProvided) {
+    delete clinicPayload.location;
+  }
+
+  let locationSourceValue;
+  let locationSourceProvided = false;
+
+  if (clinicLocationSource !== undefined) {
+    const normalizedSource = normalizeLocationSource(clinicLocationSource);
+    if (normalizedSource && !LOCATION_SOURCES.includes(normalizedSource)) {
+      return res.status(400).json({
+        success: false,
+        message: `clinicLocationSource must be one of: ${LOCATION_SOURCES.join(
+          ', '
+        )}.`,
+      });
+    }
+    locationSourceValue =
+      normalizedSource === null ? undefined : normalizedSource;
+    locationSourceProvided = true;
+  } else if (clinicDetails?.locationSource !== undefined) {
+    const normalizedSource = normalizeLocationSource(
+      clinicDetails.locationSource
+    );
+    if (normalizedSource && !LOCATION_SOURCES.includes(normalizedSource)) {
+      return res.status(400).json({
+        success: false,
+        message: `clinicLocationSource must be one of: ${LOCATION_SOURCES.join(
+          ', '
+        )}.`,
+      });
+    }
+    locationSourceValue =
+      normalizedSource === null ? undefined : normalizedSource;
+    locationSourceProvided = true;
+  } else if (addressLocationSourceProvided) {
+    if (
+      addressLocationSource &&
+      !LOCATION_SOURCES.includes(addressLocationSource)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `clinicLocationSource must be one of: ${LOCATION_SOURCES.join(
+          ', '
+        )}.`,
+      });
+    }
+    locationSourceValue =
+      addressLocationSource === null ? undefined : addressLocationSource;
+    locationSourceProvided = true;
+  }
+
+  if (locationSourceProvided) {
+    if (locationSourceValue) {
+      clinicPayload.locationSource = locationSourceValue;
+    } else {
+      delete clinicPayload.locationSource;
+    }
   }
 
   const doctor = await Doctor.create({
@@ -219,13 +348,141 @@ exports.updateDoctorProfile = asyncHandler(async (req, res) => {
     updates.availableTimings = [updates.availableTimings];
   }
 
-  if (updates.clinicAddress || updates.clinicName) {
+  if (updates.clinicAddress !== undefined || updates.clinicName !== undefined) {
     updates.clinicDetails = updates.clinicDetails || {};
-    if (updates.clinicName) {
+    if (updates.clinicName !== undefined) {
       updates.clinicDetails.name = updates.clinicName;
     }
-    if (updates.clinicAddress) {
-      updates.clinicDetails.address = updates.clinicAddress;
+  }
+
+  const rawClinicAddressUpdate =
+    updates.clinicAddress !== undefined
+      ? updates.clinicAddress
+      : updates.clinicDetails?.address;
+
+  const {
+    address: normalizedClinicAddress,
+    addressProvided: clinicAddressProvided,
+    location: addressDerivedLocation,
+    locationProvided: addressLocationProvided,
+    locationSource: addressLocationSource,
+    locationSourceProvided: addressLocationSourceProvided,
+    error: addressLocationError,
+  } = extractAddressLocation(rawClinicAddressUpdate);
+
+  if (addressLocationError) {
+    return res.status(400).json({
+      success: false,
+      message: addressLocationError,
+    });
+  }
+
+  if (clinicAddressProvided) {
+    updates.clinicDetails = updates.clinicDetails || {};
+    if (normalizedClinicAddress) {
+      updates.clinicDetails.address = normalizedClinicAddress;
+    } else {
+      updates.clinicDetails.address = undefined;
+    }
+  }
+
+  const legacyLocation = parseGeoPoint({
+    location: updates.clinicLocation ?? updates.clinicDetails?.location,
+    coordinates: updates.clinicCoordinates,
+    lat: updates.clinicLat ?? updates.clinicLatitude,
+    lng: updates.clinicLng ?? updates.clinicLongitude,
+    latitude: updates.clinicLatitude,
+    longitude: updates.clinicLongitude,
+  });
+
+  if (legacyLocation.error) {
+    return res.status(400).json({
+      success: false,
+      message: legacyLocation.error,
+    });
+  }
+
+  let locationShouldClear = false;
+  let updatedClinicLocation;
+
+  if (legacyLocation.provided) {
+    updatedClinicLocation = legacyLocation.point;
+    locationShouldClear = legacyLocation.point === null;
+  } else if (addressLocationProvided) {
+    updatedClinicLocation = addressDerivedLocation;
+    locationShouldClear = addressDerivedLocation === null;
+  } else if (
+    updates.clinicDetails &&
+    updates.clinicDetails.location === null
+  ) {
+    locationShouldClear = true;
+  }
+
+  if (updatedClinicLocation || locationShouldClear) {
+    updates.clinicDetails = updates.clinicDetails || {};
+    if (updatedClinicLocation) {
+      updates.clinicDetails.location = updatedClinicLocation;
+    } else {
+      updates.clinicDetails.location = undefined;
+    }
+  }
+
+  let locationSourceValue;
+  let locationSourceUpdateProvided = false;
+
+  if (updates.clinicLocationSource !== undefined) {
+    const normalizedSource = normalizeLocationSource(
+      updates.clinicLocationSource
+    );
+    if (normalizedSource && !LOCATION_SOURCES.includes(normalizedSource)) {
+      return res.status(400).json({
+        success: false,
+        message: `clinicLocationSource must be one of: ${LOCATION_SOURCES.join(
+          ', '
+        )}.`,
+      });
+    }
+    locationSourceValue =
+      normalizedSource === null ? undefined : normalizedSource;
+    locationSourceUpdateProvided = true;
+  } else if (updates.clinicDetails?.locationSource !== undefined) {
+    const normalizedSource = normalizeLocationSource(
+      updates.clinicDetails.locationSource
+    );
+    if (normalizedSource && !LOCATION_SOURCES.includes(normalizedSource)) {
+      return res.status(400).json({
+        success: false,
+        message: `clinicLocationSource must be one of: ${LOCATION_SOURCES.join(
+          ', '
+        )}.`,
+      });
+    }
+    locationSourceValue =
+      normalizedSource === null ? undefined : normalizedSource;
+    locationSourceUpdateProvided = true;
+  } else if (addressLocationSourceProvided) {
+    if (
+      addressLocationSource &&
+      !LOCATION_SOURCES.includes(addressLocationSource)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `clinicLocationSource must be one of: ${LOCATION_SOURCES.join(
+          ', '
+        )}.`,
+      });
+    }
+    locationSourceValue =
+      addressLocationSource === null ? undefined : addressLocationSource;
+    locationSourceUpdateProvided = true;
+  }
+
+  if (locationSourceUpdateProvided) {
+    updates.clinicDetails = updates.clinicDetails || {};
+    if (locationSourceValue) {
+      updates.clinicDetails.locationSource = locationSourceValue;
+    } else {
+      updates.clinicDetails.locationSource = undefined;
     }
   }
 
@@ -233,6 +490,13 @@ exports.updateDoctorProfile = asyncHandler(async (req, res) => {
   delete updates.experience;
   delete updates.clinicName;
   delete updates.clinicAddress;
+  delete updates.clinicLocation;
+  delete updates.clinicCoordinates;
+  delete updates.clinicLatitude;
+  delete updates.clinicLongitude;
+  delete updates.clinicLat;
+  delete updates.clinicLng;
+  delete updates.clinicLocationSource;
 
   const doctor = await updateProfileByRoleAndId(ROLES.DOCTOR, req.auth.id, updates);
 

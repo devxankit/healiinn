@@ -52,10 +52,6 @@ const pharmacyLeadSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    acceptedQuote: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'PharmacyQuote',
-    },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
     },

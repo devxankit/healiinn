@@ -55,28 +55,12 @@ const LAB_LEAD_STATUS = {
   CLOSED: 'closed',
 };
 
-const LAB_ORDER_STATUS = {
-  PENDING: 'pending',
-  IN_PROGRESS: 'in_progress',
-  COMPLETED: 'completed',
-  CANCELLED: 'cancelled',
-};
-
 const PHARMACY_LEAD_STATUS = {
   NEW: 'new',
   QUOTED: 'quoted',
   ACCEPTED: 'accepted',
   REJECTED: 'rejected',
   CLOSED: 'closed',
-};
-
-const PHARMACY_ORDER_STATUS = {
-  PENDING: 'pending',
-  PREPARING: 'preparing',
-  READY: 'ready',
-  DISPATCHED: 'dispatched',
-  DELIVERED: 'delivered',
-  CANCELLED: 'cancelled',
 };
 
 const JOB_NAMES = {
@@ -101,9 +85,7 @@ module.exports = {
   CONSULTATION_STATUS,
   TOKEN_EVENTS,
   LAB_LEAD_STATUS,
-  LAB_ORDER_STATUS,
   PHARMACY_LEAD_STATUS,
-  PHARMACY_ORDER_STATUS,
   JOB_NAMES,
   PASSWORD_RESET_CONFIG,
 };
