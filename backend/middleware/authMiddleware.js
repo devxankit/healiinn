@@ -57,8 +57,8 @@ const protect = (...allowedRoles) =>
       throw createError(403, 'Account is not approved yet');
     }
 
-    if (role === ROLES.ADMIN && user.isActive === false) {
-      throw createError(403, 'Admin account is disabled');
+    if (Object.prototype.hasOwnProperty.call(user, 'isActive') && user.isActive === false) {
+      throw createError(403, 'Account is inactive');
     }
 
     req.auth = { id, role };

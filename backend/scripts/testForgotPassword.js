@@ -72,6 +72,16 @@ const ROLE_FLOW = [
       specialization: 'General Physician',
       licenseNumber: randomString('DOC'),
       experienceYears: 3,
+      gender: 'male',
+      clinicName: 'Forgot Clinic',
+      clinicAddress: {
+        line1: '12 Health Avenue',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '410010',
+        country: 'India',
+      },
+      clinicCoordinates: [77.5946, 12.9716],
     }),
   },
   {
@@ -86,6 +96,17 @@ const ROLE_FLOW = [
       password: 'InitialPass123!',
       licenseNumber: randomString('LAB'),
       servicesOffered: ['Blood Test'],
+      address: {
+        line1: '123 Lab Street',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '400001',
+        country: 'India',
+        location: {
+          type: 'Point',
+          coordinates: [73.8567, 18.5204],
+        },
+      },
     }),
   },
   {
@@ -100,6 +121,18 @@ const ROLE_FLOW = [
       password: 'InitialPass123!',
       licenseNumber: randomString('DRUG'),
       gstNumber: '29ABCDE1234F1Z5',
+      address: {
+        line1: '456 Pharma Avenue',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '400002',
+        country: 'India',
+        location: {
+          type: 'Point',
+          coordinates: [73.858, 18.521],
+        },
+      },
+      deliveryOptions: ['pickup'],
     }),
   },
   {

@@ -65,6 +65,11 @@ const laboratorySchema = new mongoose.Schema(
       closing: { type: String, trim: true },
       days: [{ type: String }],
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
     status: {
       type: String,
       enum: Object.values(APPROVAL_STATUS),

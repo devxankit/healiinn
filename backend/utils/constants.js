@@ -49,19 +49,31 @@ const TOKEN_EVENTS = {
 
 const LAB_LEAD_STATUS = {
   NEW: 'new',
-  QUOTED: 'quoted',
-  ACCEPTED: 'accepted',
-  REJECTED: 'rejected',
-  CLOSED: 'closed',
+  HOME_COLLECTION_REQUESTED: 'home_collection_requested',
+  SAMPLE_COLLECTED: 'sample_collected',
+  TEST_COMPLETED: 'test_completed',
+  REPORT_UPLOADED: 'report_uploaded',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
 };
 
 const PHARMACY_LEAD_STATUS = {
   NEW: 'new',
-  QUOTED: 'quoted',
-  ACCEPTED: 'accepted',
-  REJECTED: 'rejected',
-  CLOSED: 'closed',
+  PATIENT_ARRIVED: 'patient_arrived',
+  DELIVERY_REQUESTED: 'delivery_requested',
+  DELIVERED: 'delivered',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
 };
+
+const WITHDRAWAL_STATUS = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  PAID: 'paid',
+};
+
+const COMMISSION_RATE = Number(process.env.DOCTOR_COMMISSION_RATE || 0.1);
 
 const JOB_NAMES = {
   ETA_RECALCULATION: 'queue:eta:recalculate',
@@ -86,6 +98,8 @@ module.exports = {
   TOKEN_EVENTS,
   LAB_LEAD_STATUS,
   PHARMACY_LEAD_STATUS,
+  WITHDRAWAL_STATUS,
+  COMMISSION_RATE,
   JOB_NAMES,
   PASSWORD_RESET_CONFIG,
 };

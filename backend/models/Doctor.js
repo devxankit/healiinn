@@ -71,6 +71,11 @@ const doctorSchema = new mongoose.Schema(
       default: APPROVAL_STATUS.PENDING,
       index: true,
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
     rejectionReason: { type: String, trim: true },
     approvedAt: { type: Date },
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },

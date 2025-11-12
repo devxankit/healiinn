@@ -200,6 +200,16 @@ const main = async () => {
       consultationFee: 500,
       consultationModes: ['video', 'chat'],
       languages: ['English'],
+      gender: 'male',
+      clinicName: 'QA Heart Clinic',
+      clinicAddress: {
+        line1: '123 Care Street',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '410011',
+        country: 'India',
+      },
+      clinicCoordinates: [77.5946, 12.9716],
     });
     summary.push(['Doctor signup', report('Doctor signup', doctorSignup)]);
 
@@ -242,6 +252,16 @@ const main = async () => {
       password: 'SecurePass123!',
       specialization: 'Dermatologist',
       licenseNumber: randomString('REJLIC'),
+      gender: 'female',
+      clinicName: 'QA Skin Clinic',
+      clinicAddress: {
+        line1: '456 Skin Avenue',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '410012',
+        country: 'India',
+      },
+      clinicCoordinates: [77.6, 12.96],
     });
     summary.push(['Doctor signup (reject case)', report('Doctor signup (reject case)', doctorRejectSignup)]);
 
@@ -280,6 +300,17 @@ const main = async () => {
       licenseNumber: randomString('LABLIC'),
       servicesOffered: ['Blood Test'],
       timings: ['24x7'],
+      address: {
+        line1: '456 Lab Street',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '410001',
+        country: 'India',
+        location: {
+          type: 'Point',
+          coordinates: [73.8567, 18.5204],
+        },
+      },
     });
     summary.push(['Laboratory signup', report('Laboratory signup', labSignup)]);
 
@@ -321,6 +352,17 @@ const main = async () => {
       phone: `6${crypto.randomInt(100000000, 999999999)}`,
       password: 'SecurePass123!',
       licenseNumber: randomString('LABREJ'),
+      address: {
+        line1: '789 Reject Lane',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '410002',
+        country: 'India',
+        location: {
+          type: 'Point',
+          coordinates: [73.8581, 18.521],
+        },
+      },
     });
     summary.push(['Laboratory signup (reject case)', report('Laboratory signup (reject case)', labRejectSignup)]);
 
@@ -359,6 +401,18 @@ const main = async () => {
       licenseNumber: randomString('PHARMLIC'),
       gstNumber: '22AAAAA0000A1Z5',
       timings: ['Mon-Sun 08:00-22:00'],
+      address: {
+        line1: '321 Pharma Road',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '410003',
+        country: 'India',
+        location: {
+          type: 'Point',
+          coordinates: [73.8595, 18.522],
+        },
+      },
+      deliveryOptions: ['pickup'],
     });
     summary.push(['Pharmacy signup', report('Pharmacy signup', pharmacySignup)]);
 
@@ -400,6 +454,18 @@ const main = async () => {
       phone: `5${crypto.randomInt(100000000, 999999999)}`,
       password: 'SecurePass123!',
       licenseNumber: randomString('PHARREJ'),
+      address: {
+        line1: '654 Reject Road',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '410004',
+        country: 'India',
+        location: {
+          type: 'Point',
+          coordinates: [73.8602, 18.523],
+        },
+      },
+      deliveryOptions: ['pickup'],
     });
     summary.push(['Pharmacy signup (reject case)', report('Pharmacy signup (reject case)', pharmacyRejectSignup)]);
 

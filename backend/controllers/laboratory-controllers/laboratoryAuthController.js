@@ -233,6 +233,13 @@ exports.loginLaboratory = asyncHandler(async (req, res) => {
     });
   }
 
+  if (laboratory.isActive === false) {
+    return res.status(403).json({
+      success: false,
+      message: 'Account is inactive. Please contact support.',
+    });
+  }
+
   laboratory.lastLoginAt = new Date();
   await laboratory.save({ validateBeforeSave: false });
 

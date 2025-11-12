@@ -44,7 +44,14 @@ const sendEmail = async ({ to, subject, text, html }) => {
     html,
   };
 
-  return transporter.sendMail(mailOptions);
+  try {
+    return await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error(
+      `Failed to send email to ${to}: ${error.message || error}`
+    );
+    return null;
+  }
 };
 
 const formatRoleName = (role) => role.charAt(0).toUpperCase() + role.slice(1);

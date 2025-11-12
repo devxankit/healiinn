@@ -13,6 +13,60 @@ const Laboratory = require('../../models/Laboratory');
 const Pharmacy = require('../../models/Pharmacy');
 const { createPrescription } = require('../../services/prescriptionService');
 
+const buildStatusHistoryEntry = ({
+  status,
+  notes,
+  actorId,
+  actorRole,
+  billing,
+  report,
+}) => {
+  const entry = {
+    status,
+    notes: notes || undefined,
+    updatedBy: actorId || undefined,
+    updatedByRole: actorRole || undefined,
+    updatedAt: new Date(),
+  };
+
+  if (billing) {
+    const snapshot = {};
+    if (billing.totalAmount !== undefined) {
+      snapshot.totalAmount = billing.totalAmount;
+    }
+    if (billing.deliveryCharge !== undefined) {
+      snapshot.deliveryCharge = billing.deliveryCharge;
+    }
+    if (billing.homeCollectionCharge !== undefined) {
+      snapshot.homeCollectionCharge = billing.homeCollectionCharge;
+    }
+    if (billing.currency) {
+      snapshot.currency = billing.currency;
+    }
+    if (Object.keys(snapshot).length) {
+      entry.billingSnapshot = snapshot;
+    }
+  }
+
+  if (report) {
+    const snapshot = {};
+    if (report.fileUrl) {
+      snapshot.fileUrl = report.fileUrl;
+    }
+    if (report.fileName) {
+      snapshot.fileName = report.fileName;
+    }
+    if (report.mimeType) {
+      snapshot.mimeType = report.mimeType;
+    }
+    if (Object.keys(snapshot).length) {
+      entry.reportSnapshot = snapshot;
+    }
+  }
+
+  return entry;
+};
+
 const ensureRole = (role, allowed) => {
   if (!allowed.includes(role)) {
     const error = new Error('You do not have access to this resource');
@@ -71,6 +125,44 @@ const buildLabLeadSummary = (lead) => {
       address: lab.address,
     })),
     tests: lead.tests || [],
+    statusHistory: (lead.statusHistory || []).map((entry) => ({
+      status: entry.status,
+      notes: entry.notes || null,
+      updatedAt: entry.updatedAt,
+      updatedByRole: entry.updatedByRole || null,
+      billingSnapshot: entry.billingSnapshot
+        ? {
+            totalAmount: entry.billingSnapshot.totalAmount ?? null,
+            homeCollectionCharge: entry.billingSnapshot.homeCollectionCharge ?? null,
+            currency: entry.billingSnapshot.currency || 'INR',
+          }
+        : null,
+      reportSnapshot: entry.reportSnapshot
+        ? {
+            fileUrl: entry.reportSnapshot.fileUrl || null,
+            fileName: entry.reportSnapshot.fileName || null,
+            mimeType: entry.reportSnapshot.mimeType || null,
+          }
+        : null,
+    })),
+    billingSummary: lead.billingSummary
+      ? {
+          totalAmount: lead.billingSummary.totalAmount ?? null,
+          homeCollectionCharge: lead.billingSummary.homeCollectionCharge ?? null,
+          currency: lead.billingSummary.currency || 'INR',
+          notes: lead.billingSummary.notes || null,
+          updatedAt: lead.billingSummary.updatedAt || null,
+        }
+      : null,
+    reportDetails: lead.reportDetails
+      ? {
+          fileUrl: lead.reportDetails.fileUrl || null,
+          fileName: lead.reportDetails.fileName || null,
+          mimeType: lead.reportDetails.mimeType || null,
+          notes: lead.reportDetails.notes || null,
+          uploadedAt: lead.reportDetails.uploadedAt || null,
+        }
+      : null,
     updatedAt: lead.updatedAt,
   };
 };
@@ -91,6 +183,21 @@ const buildPharmacyLeadSummary = (lead) => {
       address: pharmacy.address,
     })),
     medicines: lead.medicines || [],
+    statusHistory: (lead.statusHistory || []).map((entry) => ({
+      status: entry.status,
+      notes: entry.notes || null,
+      updatedAt: entry.updatedAt,
+      updatedByRole: entry.updatedByRole || null,
+    })),
+    billingSummary: lead.billingSummary
+      ? {
+          totalAmount: lead.billingSummary.totalAmount ?? null,
+          deliveryCharge: lead.billingSummary.deliveryCharge ?? null,
+          currency: lead.billingSummary.currency || 'INR',
+          notes: lead.billingSummary.notes || null,
+          updatedAt: lead.billingSummary.updatedAt || null,
+        }
+      : null,
     updatedAt: lead.updatedAt,
   };
 };
@@ -310,11 +417,30 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
         preferredLaboratories: laboratories.map((lab) => lab._id),
         tests,
         status: LAB_LEAD_STATUS.NEW,
+        statusHistory: [
+          buildStatusHistoryEntry({
+            status: LAB_LEAD_STATUS.NEW,
+            notes: 'Prescription shared with laboratory',
+            actorId: req.auth.id,
+            actorRole: req.auth.role,
+          }),
+        ],
       });
     } else {
       lead.preferredLaboratories = laboratories.map((lab) => lab._id);
       lead.tests = tests;
       lead.status = LAB_LEAD_STATUS.NEW;
+      lead.billingSummary = null;
+      lead.reportDetails = null;
+      lead.statusHistory = [
+        ...(lead.statusHistory || []),
+        buildStatusHistoryEntry({
+          status: LAB_LEAD_STATUS.NEW,
+          notes: 'Prescription re-shared with laboratory',
+          actorId: req.auth.id,
+          actorRole: req.auth.role,
+        }),
+      ];
     }
 
     await lead.save();
@@ -353,11 +479,29 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
         preferredPharmacies: pharmacies.map((pharmacy) => pharmacy._id),
         medicines,
         status: PHARMACY_LEAD_STATUS.NEW,
+        statusHistory: [
+          buildStatusHistoryEntry({
+            status: PHARMACY_LEAD_STATUS.NEW,
+            notes: 'Prescription shared with pharmacy',
+            actorId: req.auth.id,
+            actorRole: req.auth.role,
+          }),
+        ],
       });
     } else {
       lead.preferredPharmacies = pharmacies.map((pharmacy) => pharmacy._id);
       lead.medicines = medicines;
       lead.status = PHARMACY_LEAD_STATUS.NEW;
+      lead.billingSummary = null;
+      lead.statusHistory = [
+        ...(lead.statusHistory || []),
+        buildStatusHistoryEntry({
+          status: PHARMACY_LEAD_STATUS.NEW,
+          notes: 'Prescription re-shared with pharmacy',
+          actorId: req.auth.id,
+          actorRole: req.auth.role,
+        }),
+      ];
     }
 
     await lead.save();

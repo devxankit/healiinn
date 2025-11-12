@@ -7,5 +7,11 @@ const router = express.Router();
 
 router.get('/leads', protect(ROLES.LABORATORY), controller.listLeads);
 
+router.patch(
+  '/leads/:leadId/status',
+  protect(ROLES.LABORATORY),
+  controller.updateStatus
+);
+
 module.exports = router;
 

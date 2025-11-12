@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { PHARMACY_LEAD_STATUS } = require('../utils/constants');
+const { PHARMACY_LEAD_STATUS, ROLES } = require('../utils/constants');
 
 const pharmacyLeadSchema = new mongoose.Schema(
   {
@@ -51,6 +51,40 @@ const pharmacyLeadSchema = new mongoose.Schema(
     remarks: {
       type: String,
       trim: true,
+    },
+    statusHistory: [
+      {
+        status: {
+          type: String,
+          enum: Object.values(PHARMACY_LEAD_STATUS),
+          required: true,
+        },
+        notes: { type: String, trim: true },
+        updatedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+        },
+        updatedByRole: {
+          type: String,
+          enum: Object.values(ROLES),
+        },
+        billingSnapshot: {
+          totalAmount: { type: Number, min: 0 },
+          deliveryCharge: { type: Number, min: 0 },
+          currency: { type: String, trim: true },
+        },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
+    billingSummary: {
+      totalAmount: { type: Number, min: 0 },
+      deliveryCharge: { type: Number, min: 0 },
+      currency: { type: String, trim: true, default: 'INR' },
+      notes: { type: String, trim: true },
+      updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Pharmacy',
+      },
+      updatedAt: { type: Date },
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed,

@@ -227,6 +227,13 @@ exports.loginPharmacy = asyncHandler(async (req, res) => {
     });
   }
 
+  if (pharmacy.isActive === false) {
+    return res.status(403).json({
+      success: false,
+      message: 'Account is inactive. Please contact support.',
+    });
+  }
+
   pharmacy.lastLoginAt = new Date();
   await pharmacy.save({ validateBeforeSave: false });
 

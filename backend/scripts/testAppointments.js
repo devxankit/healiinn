@@ -133,6 +133,16 @@ const main = async () => {
       specialization: 'General',
       licenseNumber: randomString('LIC'),
       consultationFee: 500,
+      gender: 'male',
+      clinicName: 'Queue Care Clinic',
+      clinicAddress: {
+        line1: '45 Queue Street',
+        city: 'Test City',
+        state: 'TS',
+        postalCode: '410005',
+        country: 'India',
+      },
+      clinicCoordinates: [77.5946, 12.9716],
     });
     summary.push(['Doctor signup', report('Doctor signup', doctorSignup)]);
     const doctorId = doctorSignup.data?.data?.doctor?._id;
