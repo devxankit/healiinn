@@ -3,7 +3,15 @@ const Appointment = require('../../models/Appointment');
 const WalletTransaction = require('../../models/WalletTransaction');
 const asyncHandler = require('../../middleware/asyncHandler');
 const { createOrder, verifySignature } = require('../../services/razorpayService');
-const { COMMISSION_RATE } = require('../../utils/constants');
+const { COMMISSION_RATE, ROLES } = require('../../utils/constants');
+
+const ROLE_TO_MODEL = {
+  [ROLES.PATIENT]: 'Patient',
+  [ROLES.DOCTOR]: 'Doctor',
+  [ROLES.LABORATORY]: 'Laboratory',
+  [ROLES.PHARMACY]: 'Pharmacy',
+  [ROLES.ADMIN]: 'Admin',
+};
 
 exports.createPaymentOrder = asyncHandler(async (req, res) => {
   const { amount, currency = 'INR', receipt, notes, type = 'appointment', metadata } = req.body;
@@ -17,14 +25,19 @@ exports.createPaymentOrder = asyncHandler(async (req, res) => {
 
   const order = await createOrder({ amount, currency, receipt, notes });
 
+  const userId = req.auth?.id;
+  const role = req.auth?.role;
+  const userModel = role ? ROLE_TO_MODEL[role] : undefined;
+
   await Payment.create({
     orderId: order.id,
     amount,
     currency,
     type,
     status: 'pending',
-    user: req.auth?.id,
-    userId: req.auth?.id,
+    user: userId,
+    userModel,
+    role,
     metadata,
     razorpayResponse: order,
   });

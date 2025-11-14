@@ -12,6 +12,7 @@ const PharmacyLead = require('../../models/PharmacyLead');
 const Laboratory = require('../../models/Laboratory');
 const Pharmacy = require('../../models/Pharmacy');
 const { createPrescription } = require('../../services/prescriptionService');
+const subscriptionService = require('../../services/subscriptionService');
 
 const buildStatusHistoryEntry = ({
   status,
@@ -393,7 +394,19 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
       .select('labName phone email address')
       .lean();
 
-    if (!laboratories.length) {
+    const eligibleLabs = (
+      await Promise.all(
+        laboratories.map(async (lab) => {
+          const hasActive = await subscriptionService.hasActiveSubscription({
+            subscriberId: lab._id,
+            role: ROLES.LABORATORY,
+          });
+          return hasActive ? lab : null;
+        })
+      )
+    ).filter(Boolean);
+
+    if (!eligibleLabs.length) {
       const error = new Error('No approved laboratories selected.');
       error.status = 400;
       throw error;
@@ -414,7 +427,7 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
         consultation: consultationId,
         doctor: prescription.doctor._id,
         patient: prescription.patient._id,
-        preferredLaboratories: laboratories.map((lab) => lab._id),
+        preferredLaboratories: eligibleLabs.map((lab) => lab._id),
         tests,
         status: LAB_LEAD_STATUS.NEW,
         statusHistory: [
@@ -427,7 +440,7 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
         ],
       });
     } else {
-      lead.preferredLaboratories = laboratories.map((lab) => lab._id);
+      lead.preferredLaboratories = eligibleLabs.map((lab) => lab._id);
       lead.tests = tests;
       lead.status = LAB_LEAD_STATUS.NEW;
       lead.billingSummary = null;
@@ -454,7 +467,19 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
       .select('pharmacyName phone email address')
       .lean();
 
-    if (!pharmacies.length) {
+    const eligiblePharmacies = (
+      await Promise.all(
+        pharmacies.map(async (pharmacy) => {
+          const hasActive = await subscriptionService.hasActiveSubscription({
+            subscriberId: pharmacy._id,
+            role: ROLES.PHARMACY,
+          });
+          return hasActive ? pharmacy : null;
+        })
+      )
+    ).filter(Boolean);
+
+    if (!eligiblePharmacies.length) {
       const error = new Error('No approved pharmacies selected.');
       error.status = 400;
       throw error;
@@ -476,7 +501,7 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
         consultation: consultationId,
         doctor: prescription.doctor._id,
         patient: prescription.patient._id,
-        preferredPharmacies: pharmacies.map((pharmacy) => pharmacy._id),
+        preferredPharmacies: eligiblePharmacies.map((pharmacy) => pharmacy._id),
         medicines,
         status: PHARMACY_LEAD_STATUS.NEW,
         statusHistory: [
@@ -489,7 +514,7 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
         ],
       });
     } else {
-      lead.preferredPharmacies = pharmacies.map((pharmacy) => pharmacy._id);
+      lead.preferredPharmacies = eligiblePharmacies.map((pharmacy) => pharmacy._id);
       lead.medicines = medicines;
       lead.status = PHARMACY_LEAD_STATUS.NEW;
       lead.billingSummary = null;

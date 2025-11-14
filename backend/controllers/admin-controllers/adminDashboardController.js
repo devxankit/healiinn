@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
 const asyncHandler = require('../../middleware/asyncHandler');
-const { ROLES } = require('../../utils/constants');
+const {
+  ROLES,
+  APPROVAL_STATUS,
+  SESSION_STATUS,
+  TOKEN_STATUS,
+  LAB_LEAD_STATUS,
+  PHARMACY_LEAD_STATUS,
+} = require('../../utils/constants');
 const Patient = require('../../models/Patient');
 const Doctor = require('../../models/Doctor');
 const Laboratory = require('../../models/Laboratory');
@@ -10,6 +17,11 @@ const Consultation = require('../../models/Consultation');
 const Prescription = require('../../models/Prescription');
 const LabLead = require('../../models/LabLead');
 const Notification = require('../../models/Notification');
+const ClinicSession = require('../../models/ClinicSession');
+const SessionToken = require('../../models/SessionToken');
+const PharmacyLead = require('../../models/PharmacyLead');
+const WalletTransaction = require('../../models/WalletTransaction');
+const AdminWalletTransaction = require('../../models/AdminWalletTransaction');
 const {
   getAdminWalletOverview,
 } = require('../../services/walletService');
@@ -119,6 +131,45 @@ const aggregateMonthlyCounts = async ({ Model, match = {}, dateField, start }) =
 
 const mergeMonthlySeries = (months, series) =>
   months.map((month) => series[month] || 0);
+
+const computeRevenueBreakdown = async (start, end) => {
+  const [appointmentAgg] = await WalletTransaction.aggregate([
+    {
+      $match: {
+        creditedAt: { $gte: start, $lt: end },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        commissionRevenue: { $sum: '$commissionAmount' },
+      },
+    },
+  ]);
+
+  const [subscriptionAgg] = await AdminWalletTransaction.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: start, $lt: end },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        subscriptionRevenue: { $sum: '$amount' },
+      },
+    },
+  ]);
+
+  const commissionRevenue = appointmentAgg?.commissionRevenue || 0;
+  const subscriptionRevenue = subscriptionAgg?.subscriptionRevenue || 0;
+
+  return {
+    appointmentRevenue: commissionRevenue,
+    subscriptionRevenue,
+    total: commissionRevenue + subscriptionRevenue,
+  };
+};
 
 exports.getDashboardOverview = asyncHandler(async (req, res) => {
   const now = new Date();
@@ -346,6 +397,156 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
     }),
   ]);
 
+  const [
+    totalVerifiedDoctors,
+    liveClinicSessions,
+    tokensCompletedToday,
+    tokensIssuedToday,
+    tokensNoShowToday,
+    waitTimeAggregation,
+    repeatPatientAggregation,
+    bookingsToday,
+    cancellationsToday,
+    labOrdersCompletedTotal,
+    labOrdersCompletedToday,
+    pharmacyOrdersCompletedTotal,
+    pharmacyOrdersCompletedToday,
+    revenueTodayBreakdown,
+    revenueWeekBreakdown,
+    revenueMonthBreakdown,
+    revenueYearBreakdown,
+  ] = await Promise.all([
+    Doctor.countDocuments({ status: APPROVAL_STATUS.APPROVED }),
+    ClinicSession.countDocuments({ status: SESSION_STATUS.LIVE }),
+    SessionToken.countDocuments({
+      status: TOKEN_STATUS.COMPLETED,
+      completedAt: { $gte: dayStart, $lt: dayEnd },
+    }),
+    SessionToken.countDocuments({
+      createdAt: { $gte: dayStart, $lt: dayEnd },
+    }),
+    SessionToken.countDocuments({
+      status: TOKEN_STATUS.NO_SHOW,
+      noShowAt: { $gte: dayStart, $lt: dayEnd },
+    }),
+    SessionToken.aggregate([
+      {
+        $match: {
+          visitedAt: { $gte: dayStart, $lt: dayEnd },
+          calledAt: { $ne: null },
+        },
+      },
+      {
+        $project: {
+          waitMillis: { $subtract: ['$visitedAt', '$calledAt'] },
+          etaDelta: {
+            $cond: [
+              { $and: ['$eta', '$visitedAt'] },
+              { $abs: { $subtract: ['$visitedAt', '$eta'] } },
+              null,
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          avgWaitMillis: { $avg: '$waitMillis' },
+          withinAccuracy: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ['$etaDelta', null] },
+                    { $lte: ['$etaDelta', 10 * 60 * 1000] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          etaSamples: {
+            $sum: {
+              $cond: [{ $ne: ['$etaDelta', null] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]),
+    Appointment.aggregate([
+      {
+        $match: {
+          patient: { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: '$patient',
+          totalAppointments: { $sum: 1 },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          repeat: {
+            $sum: {
+              $cond: [{ $gt: ['$totalAppointments', 1] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]),
+    Appointment.countDocuments({
+      scheduledFor: { $gte: dayStart, $lt: dayEnd },
+      status: { $nin: ['cancelled', 'no_show'] },
+    }),
+    Appointment.countDocuments({
+      status: 'cancelled',
+      updatedAt: { $gte: dayStart, $lt: dayEnd },
+    }),
+    LabLead.countDocuments({ status: LAB_LEAD_STATUS.COMPLETED }),
+    LabLead.countDocuments({
+      status: LAB_LEAD_STATUS.COMPLETED,
+      updatedAt: { $gte: dayStart, $lt: dayEnd },
+    }),
+    PharmacyLead.countDocuments({ status: PHARMACY_LEAD_STATUS.COMPLETED }),
+    PharmacyLead.countDocuments({
+      status: PHARMACY_LEAD_STATUS.COMPLETED,
+      updatedAt: { $gte: dayStart, $lt: dayEnd },
+    }),
+    computeRevenueBreakdown(dayStart, dayEnd),
+    computeRevenueBreakdown(weekStart, weekEnd),
+    computeRevenueBreakdown(monthStart, monthEnd),
+    computeRevenueBreakdown(yearStart, yearEnd),
+  ]);
+
+  const waitStats = waitTimeAggregation[0] || {
+    avgWaitMillis: 0,
+    withinAccuracy: 0,
+    etaSamples: 0,
+  };
+
+  const repeatStats = repeatPatientAggregation[0] || {
+    total: 0,
+    repeat: 0,
+  };
+
+  const avgWaitTimeMinutes = waitStats.avgWaitMillis
+    ? waitStats.avgWaitMillis / 60000
+    : 0;
+  const etaAccuracyPercent =
+    waitStats.etaSamples > 0
+      ? (waitStats.withinAccuracy / waitStats.etaSamples) * 100
+      : 0;
+  const repeatPatientPercentage =
+    repeatStats.total > 0 ? (repeatStats.repeat / repeatStats.total) * 100 : 0;
+  const noShowRate =
+    tokensIssuedToday > 0
+      ? (tokensNoShowToday / tokensIssuedToday) * 100
+      : 0;
+
   const topSpecializations = await Doctor.aggregate([
     { $match: { specialization: { $exists: true, $ne: '' }, status: 'approved' } },
     {
@@ -439,6 +640,68 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
         pharmacies: {
           active: activePharmacies,
           inactive: inactivePharmacies,
+        },
+      },
+    },
+    doctorMetrics: {
+      totalVerified: totalVerifiedDoctors,
+      pendingVerifications: pendingDoctorVerifications,
+      activeSessions: liveClinicSessions,
+      tokensServedToday: tokensCompletedToday,
+      noShowRate: Number(noShowRate.toFixed(2)),
+    },
+    patientMetrics: {
+      bookingsToday,
+      cancellationsToday,
+      avgWaitTimeMinutes: Number(avgWaitTimeMinutes.toFixed(2)),
+      etaAccuracyPercent: Number(etaAccuracyPercent.toFixed(2)),
+      repeatPatientPercentage: Number(repeatPatientPercentage.toFixed(2)),
+    },
+    labMarketplaceMetrics: {
+      totalOrdersCompleted: labOrdersCompletedTotal,
+      ordersCompletedToday: labOrdersCompletedToday,
+    },
+    pharmacyMarketplaceMetrics: {
+      totalOrdersCompleted: pharmacyOrdersCompletedTotal,
+      ordersCompletedToday: pharmacyOrdersCompletedToday,
+    },
+    financialMetrics: {
+      revenue: {
+        today: {
+          total: Number(revenueTodayBreakdown.total.toFixed(2)),
+          appointment: Number(
+            revenueTodayBreakdown.appointmentRevenue.toFixed(2)
+          ),
+          subscription: Number(
+            revenueTodayBreakdown.subscriptionRevenue.toFixed(2)
+          ),
+        },
+        week: {
+          total: Number(revenueWeekBreakdown.total.toFixed(2)),
+          appointment: Number(
+            revenueWeekBreakdown.appointmentRevenue.toFixed(2)
+          ),
+          subscription: Number(
+            revenueWeekBreakdown.subscriptionRevenue.toFixed(2)
+          ),
+        },
+        month: {
+          total: Number(revenueMonthBreakdown.total.toFixed(2)),
+          appointment: Number(
+            revenueMonthBreakdown.appointmentRevenue.toFixed(2)
+          ),
+          subscription: Number(
+            revenueMonthBreakdown.subscriptionRevenue.toFixed(2)
+          ),
+        },
+        year: {
+          total: Number(revenueYearBreakdown.total.toFixed(2)),
+          appointment: Number(
+            revenueYearBreakdown.appointmentRevenue.toFixed(2)
+          ),
+          subscription: Number(
+            revenueYearBreakdown.subscriptionRevenue.toFixed(2)
+          ),
         },
       },
     },

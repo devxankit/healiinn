@@ -6,6 +6,13 @@ const ROLES = {
   ADMIN: 'admin',
 };
 
+const SUBSCRIPTION_STATUS = {
+  PENDING: 'pending',
+  ACTIVE: 'active',
+  EXPIRED: 'expired',
+  CANCELLED: 'cancelled',
+};
+
 const APPROVAL_STATUS = {
   PENDING: 'pending',
   APPROVED: 'approved',
@@ -80,6 +87,7 @@ const JOB_NAMES = {
   AUTO_NOSHOW: 'queue:token:auto-noshow',
   NOTIFICATION_DISPATCH: 'notification:dispatch',
   PAYOUT_RECONCILIATION: 'payments:reconcile',
+  SUBSCRIPTION_EXPIRY: 'subscription:auto-expire',
 };
 
 const PASSWORD_RESET_CONFIG = {
@@ -91,6 +99,7 @@ const PASSWORD_RESET_CONFIG = {
 
 module.exports = {
   ROLES,
+  SUBSCRIPTION_STATUS,
   APPROVAL_STATUS,
   SESSION_STATUS,
   TOKEN_STATUS,

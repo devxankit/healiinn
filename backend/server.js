@@ -42,6 +42,7 @@ app.use('/api/admin/settings', require('./routes/admin-routes/settings.routes'))
 app.use('/api/admin/activation', require('./routes/admin-routes/activation.routes'));
 app.use('/api/admin/dashboard', require('./routes/admin-routes/dashboard.routes'));
 app.use('/api/admin/wallet', require('./routes/admin-routes/wallet.routes'));
+app.use('/api/admin/subscriptions', require('./routes/admin-routes/subscription.routes'));
 app.use('/api/payments', require('./routes/payment-routes/payment.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/appointments', require('./routes/appointment.routes'));
@@ -53,6 +54,7 @@ app.use('/api/doctors/dashboard', require('./routes/doctor-routes/dashboard.rout
 app.use('/api/doctors/wallet', require('./routes/doctor-routes/wallet.routes'));
 app.use('/api/reviews', require('./routes/review.routes'));
 app.use('/api/discovery', require('./routes/discovery.routes'));
+app.use('/api/subscriptions', require('./routes/subscription.routes'));
 
 app.get('/', (req, res) => {
   res.json({ 
