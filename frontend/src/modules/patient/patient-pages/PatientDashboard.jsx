@@ -91,6 +91,7 @@ const hospitals = [
     distance: '1.2 km',
     image:
       'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=600&q=80',
+    doctors: ['doc-1', 'doc-4'], // Doctor IDs associated with this hospital
   },
   {
     id: 'dentacare',
@@ -99,41 +100,19 @@ const hospitals = [
     distance: '2.0 km',
     image:
       'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=600&q=80',
-  },
-]
-
-const recentActivity = [
-  {
-    id: 'consultation',
-    title: 'Consultation Completed',
-    description: 'Dental checkup with Dr. Alana Rueter',
-    date: '2 days ago',
-    status: 'completed',
-    icon: IoCheckmarkCircleOutline,
-    color: 'text-emerald-600',
-    bgColor: 'bg-emerald-50',
-    borderColor: 'border-emerald-100',
-  },
-  {
-    id: 'prescription',
-    title: 'Prescription Issued',
-    description: 'New prescription added to your records',
-    date: '3 days ago',
-    status: 'completed',
-    icon: IoDocumentTextOutline,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-100',
+    doctors: ['doc-1', 'doc-5'], // Doctor IDs associated with this hospital
   },
 ]
 
 const PatientDashboard = () => {
   const navigate = useNavigate()
+  
   const todayLabel = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
   }).format(new Date())
+
 
   return (
     <section className="space-y-6 pb-4">
@@ -209,7 +188,10 @@ const PatientDashboard = () => {
           </div>
         </article>
 
-        <article className="relative overflow-hidden rounded-3xl border border-blue-100/60 bg-gradient-to-br from-blue-50/90 via-white to-blue-50/70 p-4 shadow-sm shadow-blue-100/50 backdrop-blur-sm">
+        <article 
+          onClick={() => navigate('/patient/prescriptions')}
+          className="relative overflow-hidden rounded-3xl border border-blue-100/60 bg-gradient-to-br from-blue-50/90 via-white to-blue-50/70 p-4 shadow-sm shadow-blue-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+        >
           <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-200/30 blur-2xl" />
           <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-blue-300/20 blur-2xl" />
           <div className="relative flex items-center justify-between">
@@ -237,6 +219,7 @@ const PatientDashboard = () => {
           </div>
           <button
             type="button"
+            onClick={() => navigate('/patient/upcoming-schedules')}
             className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
           >
             See all
@@ -346,6 +329,7 @@ const PatientDashboard = () => {
           </h2>
           <button
             type="button"
+            onClick={() => navigate('/patient/specialties')}
             className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
           >
             See all
@@ -356,7 +340,19 @@ const PatientDashboard = () => {
             <button
               key={id}
               type="button"
-              className="group relative shrink-0 snap-start flex flex-col items-center gap-2.5 px-1.5 py-1.5 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              onClick={() => {
+                // Map dashboard specialty IDs to specialty doctors page
+                const specialtyMap = {
+                  'dentist': 'dentist',
+                  'cardio': 'cardio',
+                  'ortho': 'ortho',
+                  'neuro': 'neuro',
+                  'vaccine': 'all', // Vaccine doesn't have a direct match, show all
+                }
+                const specialtyId = specialtyMap[id] || 'all'
+                navigate(`/patient/specialties/${specialtyId}/doctors`)
+              }}
+              className="group relative shrink-0 snap-start flex flex-col items-center gap-2.5 px-1.5 py-1.5 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 cursor-pointer"
             >
               <div className={`relative flex h-14 w-14 items-center justify-center rounded-xl ${iconBg} shadow-md ${shadowColor} transition-transform group-active:scale-110`}>
                 <div className={`absolute inset-0 rounded-xl bg-gradient-to-br ${gradient} opacity-0 transition-opacity group-active:opacity-10`} />
@@ -375,6 +371,7 @@ const PatientDashboard = () => {
           </h2>
           <button
             type="button"
+            onClick={() => navigate('/patient/hospitals')}
             className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
           >
             See all
@@ -387,7 +384,15 @@ const PatientDashboard = () => {
               className="snap-start w-[240px] shrink-0 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm"
             >
               <figure className="relative h-32 w-full overflow-hidden">
-                <img src={image} alt={name} className="h-full w-full object-cover" />
+                <img 
+                  src={image} 
+                  alt={name} 
+                  className="h-full w-full object-cover bg-slate-100" 
+                  onError={(e) => {
+                    e.target.onerror = null
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=3b82f6&color=fff&size=128&bold=true`
+                  }}
+                />
                 <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm">
                   ⭐ {rating}
                 </span>
@@ -397,6 +402,7 @@ const PatientDashboard = () => {
                 <p className="text-xs text-slate-500">Distance {distance}</p>
                 <button
                   type="button"
+                  onClick={() => navigate(`/patient/hospitals/${id}/doctors`)}
                   className="w-full rounded-2xl bg-blue-500 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-transform active:scale-[0.98]"
                 >
                   Book appointment
@@ -407,47 +413,7 @@ const PatientDashboard = () => {
         </div>
       </section>
 
-      <section aria-labelledby="activity-title" className="space-y-3 pb-3">
-        <header className="flex items-center justify-between">
-          <h2 id="activity-title" className="text-base font-semibold text-slate-900">
-            Recent Activity
-          </h2>
-          <button
-            type="button"
-            className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
-          >
-            View all
-          </button>
-        </header>
 
-        <div className="space-y-3">
-          {recentActivity.map(({ id, title, description, date, status, icon: Icon, color, bgColor, borderColor }) => (
-            <article
-              key={id}
-              className={`group relative overflow-hidden rounded-3xl border ${borderColor} ${bgColor} p-4 shadow-sm backdrop-blur transition-all active:scale-[0.98]`}
-            >
-              <div className="flex items-start gap-3">
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${bgColor} ${color} shadow-sm`}>
-                  <Icon className="text-xl" aria-hidden="true" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-                      <p className="mt-1 text-xs text-slate-600">{description}</p>
-                    </div>
-                    <IoArrowForwardOutline className="text-slate-400 group-active:text-slate-600 transition-colors" aria-hidden="true" />
-                  </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <IoCalendarOutline className={`text-xs ${color}`} aria-hidden="true" />
-                    <span className={`text-xs font-medium ${color}`}>{date}</span>
-                  </div>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
     </section>
   )
 }

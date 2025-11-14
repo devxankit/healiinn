@@ -1,28 +1,15 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
-  IoSearchOutline,
+  IoArrowBackOutline,
   IoLocationOutline,
   IoStar,
   IoStarOutline,
   IoCalendarOutline,
   IoTimeOutline,
   IoCheckmarkCircleOutline,
-  IoPulseOutline,
-  IoHeartOutline,
 } from 'react-icons/io5'
-import { TbStethoscope } from 'react-icons/tb'
-import { MdOutlineEscalatorWarning } from 'react-icons/md'
 
-const specialties = [
-  { id: 'all', label: 'All Specialties', icon: TbStethoscope },
-  { id: 'dentist', label: 'Dentist', icon: TbStethoscope },
-  { id: 'cardio', label: 'Cardiology', icon: IoHeartOutline },
-  { id: 'ortho', label: 'Orthopedic', icon: MdOutlineEscalatorWarning },
-  { id: 'neuro', label: 'Neurology', icon: IoPulseOutline },
-  { id: 'general', label: 'General', icon: TbStethoscope },
-]
-
+// Mock doctors data - matching with PatientDoctors page
 const mockDoctors = [
   {
     id: 'doc-1',
@@ -39,6 +26,22 @@ const mockDoctors = [
     image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
     languages: ['English', 'Spanish'],
     education: 'MD, Dental Surgery',
+  },
+  {
+    id: 'doc-6',
+    name: 'Dr. Priya Sharma',
+    specialty: 'Dentist',
+    experience: '8 years',
+    rating: 4.5,
+    reviewCount: 67,
+    consultationFee: 450,
+    distance: '2.3 km',
+    location: 'Smile Dental Studio, New York',
+    availability: 'Available tomorrow',
+    nextSlot: '09:30 AM',
+    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?auto=format&fit=crop&w=400&q=80',
+    languages: ['English', 'Hindi'],
+    education: 'BDS, Dental Surgery',
   },
   {
     id: 'doc-2',
@@ -104,23 +107,15 @@ const mockDoctors = [
     languages: ['English', 'Spanish'],
     education: 'MD, General Medicine',
   },
-  {
-    id: 'doc-6',
-    name: 'Dr. Priya Sharma',
-    specialty: 'Dentist',
-    experience: '8 years',
-    rating: 4.5,
-    reviewCount: 67,
-    consultationFee: 450,
-    distance: '2.3 km',
-    location: 'Smile Dental Studio, New York',
-    availability: 'Available tomorrow',
-    nextSlot: '09:30 AM',
-    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'Hindi'],
-    education: 'BDS, Dental Surgery',
-  },
 ]
+
+const specialtyLabels = {
+  'dentist': 'Dentist',
+  'cardio': 'Cardiology',
+  'ortho': 'Orthopedic',
+  'neuro': 'Neurology',
+  'general': 'General',
+}
 
 const renderStars = (rating) => {
   const stars = []
@@ -128,80 +123,35 @@ const renderStars = (rating) => {
   const hasHalfStar = rating % 1 !== 0
 
   for (let i = 0; i < fullStars; i++) {
-    stars.push(<IoStar key={i} className="h-3 w-3 text-amber-400" />)
+    stars.push(<IoStar key={i} className="h-3 w-3 text-yellow-400 fill-current" />)
   }
-
   if (hasHalfStar) {
-    stars.push(<IoStarOutline key="half" className="h-3 w-3 text-amber-400" />)
+    stars.push(<IoStarOutline key="half" className="h-3 w-3 text-yellow-400" />)
   }
-
-  const remainingStars = 5 - Math.ceil(rating)
-  for (let i = 0; i < remainingStars; i++) {
-    stars.push(<IoStarOutline key={`empty-${i}`} className="h-3 w-3 text-slate-300" />)
+  for (let i = stars.length; i < 5; i++) {
+    stars.push(<IoStarOutline key={i} className="h-3 w-3 text-slate-300" />)
   }
-
   return stars
 }
 
-const PatientDoctors = () => {
+const PatientSpecialtyDoctors = () => {
+  const { specialtyId } = useParams()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedSpecialty, setSelectedSpecialty] = useState('all')
-  const [sortBy, setSortBy] = useState('relevance')
-
-  // Set specialty from URL query parameter
-  useEffect(() => {
-    const specialtyFromUrl = searchParams.get('specialty')
-    if (specialtyFromUrl) {
-      setSelectedSpecialty(specialtyFromUrl)
+  
+  const specialtyLabel = specialtyLabels[specialtyId] || 'All Specialties'
+  
+  // Filter doctors by specialty
+  const filteredDoctors = mockDoctors.filter((doctor) => {
+    if (specialtyId === 'all') return true
+    const specialtyMap = {
+      'dentist': 'Dentist',
+      'cardio': 'Cardiology',
+      'ortho': 'Orthopedic',
+      'neuro': 'Neurology',
+      'general': 'General',
     }
-  }, [searchParams])
-
-  const filteredDoctors = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase()
-
-    return mockDoctors
-      .filter((doctor) => {
-        if (selectedSpecialty !== 'all' && doctor.specialty.toLowerCase() !== selectedSpecialty) {
-          return false
-        }
-
-        if (normalizedSearch) {
-          const searchableText = [
-            doctor.name,
-            doctor.specialty,
-            doctor.location,
-            doctor.education,
-            ...doctor.languages,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase()
-
-          return searchableText.includes(normalizedSearch)
-        }
-
-        return true
-      })
-      .sort((a, b) => {
-        if (sortBy === 'rating') {
-          return b.rating - a.rating
-        }
-        if (sortBy === 'fee-low') {
-          return a.consultationFee - b.consultationFee
-        }
-        if (sortBy === 'fee-high') {
-          return b.consultationFee - a.consultationFee
-        }
-        if (sortBy === 'distance') {
-          const aDist = parseFloat(a.distance.replace(' km', ''))
-          const bDist = parseFloat(b.distance.replace(' km', ''))
-          return aDist - bDist
-        }
-        return b.rating - a.rating
-      })
-  }, [searchTerm, selectedSpecialty, sortBy])
+    return doctor.specialty.toLowerCase() === specialtyMap[specialtyId]?.toLowerCase()
+  })
 
   const handleCardClick = (doctorId) => {
     navigate(`/patient/doctors/${doctorId}`)
@@ -209,50 +159,24 @@ const PatientDoctors = () => {
 
   return (
     <section className="flex flex-col gap-4 pb-4">
-      {/* Search Bar - Outside Card */}
-      <div className="relative">
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sky-500">
-            <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <input
-            id="doctor-search"
-            type="search"
-            placeholder="Search by name, specialty, or location..."
-            className="w-full rounded-lg border border-sky-200/60 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-sky-300 hover:bg-white hover:shadow-md focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400/30 sm:text-base"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
+        >
+          <IoArrowBackOutline className="h-5 w-5" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{specialtyLabel} Doctors</h1>
+          <p className="text-sm text-slate-600">{filteredDoctors.length} doctor(s) available</p>
         </div>
       </div>
 
-      {/* Specialty Filters - Scrollable */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch]">
-        {specialties.map((specialty) => {
-          const Icon = specialty.icon
-          const isSelected = selectedSpecialty === specialty.id
-          return (
-            <button
-              key={specialty.id}
-              type="button"
-              onClick={() => setSelectedSpecialty(specialty.id)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all sm:text-sm ${
-                isSelected
-                  ? 'bg-blue-500 text-white shadow-sm shadow-blue-400/40'
-                  : 'bg-white text-slate-700 border border-sky-200/60 hover:bg-white hover:border-sky-300 hover:shadow-sm'
-              }`}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              <span>{specialty.label}</span>
-            </button>
-          )
-        })}
-      </div>
-
+      {/* Doctors List */}
       {filteredDoctors.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm font-medium text-slate-600">No doctors found matching your criteria.</p>
-          <p className="mt-1 text-xs text-slate-500">Try adjusting your search or filters.</p>
+          <p className="text-sm font-medium text-slate-600">No doctors found in this specialty.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -311,11 +235,6 @@ const PatientDoctors = () => {
                       </span>
                     )}
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <IoCalendarOutline className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-                    <span>{doctor.experience} experience</span>
-                  </div>
                 </div>
 
                 <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
@@ -327,7 +246,7 @@ const PatientDoctors = () => {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      navigate(`/patient/doctors/${doctor.id}?book=true`)
+                      navigate(`/patient/doctors/${doctor.id}`)
                     }}
                     className="flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 active:scale-95 sm:text-sm"
                   >
@@ -344,5 +263,5 @@ const PatientDoctors = () => {
   )
 }
 
-export default PatientDoctors
+export default PatientSpecialtyDoctors
 
