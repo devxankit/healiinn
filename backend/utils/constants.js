@@ -6,6 +6,13 @@ const ROLES = {
   ADMIN: 'admin',
 };
 
+const SUBSCRIPTION_STATUS = {
+  PENDING: 'pending',
+  ACTIVE: 'active',
+  EXPIRED: 'expired',
+  CANCELLED: 'cancelled',
+};
+
 const APPROVAL_STATUS = {
   PENDING: 'pending',
   APPROVED: 'approved',
@@ -49,41 +56,38 @@ const TOKEN_EVENTS = {
 
 const LAB_LEAD_STATUS = {
   NEW: 'new',
-  QUOTED: 'quoted',
-  ACCEPTED: 'accepted',
-  REJECTED: 'rejected',
-  CLOSED: 'closed',
-};
-
-const LAB_ORDER_STATUS = {
-  PENDING: 'pending',
-  IN_PROGRESS: 'in_progress',
+  HOME_COLLECTION_REQUESTED: 'home_collection_requested',
+  SAMPLE_COLLECTED: 'sample_collected',
+  TEST_COMPLETED: 'test_completed',
+  REPORT_UPLOADED: 'report_uploaded',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
 };
 
 const PHARMACY_LEAD_STATUS = {
   NEW: 'new',
-  QUOTED: 'quoted',
-  ACCEPTED: 'accepted',
-  REJECTED: 'rejected',
-  CLOSED: 'closed',
-};
-
-const PHARMACY_ORDER_STATUS = {
-  PENDING: 'pending',
-  PREPARING: 'preparing',
-  READY: 'ready',
-  DISPATCHED: 'dispatched',
+  PATIENT_ARRIVED: 'patient_arrived',
+  DELIVERY_REQUESTED: 'delivery_requested',
   DELIVERED: 'delivered',
+  COMPLETED: 'completed',
   CANCELLED: 'cancelled',
 };
+
+const WITHDRAWAL_STATUS = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  PAID: 'paid',
+};
+
+const COMMISSION_RATE = Number(process.env.DOCTOR_COMMISSION_RATE || 0.1);
 
 const JOB_NAMES = {
   ETA_RECALCULATION: 'queue:eta:recalculate',
   AUTO_NOSHOW: 'queue:token:auto-noshow',
   NOTIFICATION_DISPATCH: 'notification:dispatch',
   PAYOUT_RECONCILIATION: 'payments:reconcile',
+  SUBSCRIPTION_EXPIRY: 'subscription:auto-expire',
 };
 
 const PASSWORD_RESET_CONFIG = {
@@ -95,15 +99,16 @@ const PASSWORD_RESET_CONFIG = {
 
 module.exports = {
   ROLES,
+  SUBSCRIPTION_STATUS,
   APPROVAL_STATUS,
   SESSION_STATUS,
   TOKEN_STATUS,
   CONSULTATION_STATUS,
   TOKEN_EVENTS,
   LAB_LEAD_STATUS,
-  LAB_ORDER_STATUS,
   PHARMACY_LEAD_STATUS,
-  PHARMACY_ORDER_STATUS,
+  WITHDRAWAL_STATUS,
+  COMMISSION_RATE,
   JOB_NAMES,
   PASSWORD_RESET_CONFIG,
 };

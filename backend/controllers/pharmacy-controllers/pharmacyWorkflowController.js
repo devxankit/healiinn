@@ -1,5 +1,5 @@
 const asyncHandler = require('../../middleware/asyncHandler');
-const { ROLES } = require('../../utils/constants');
+const { ROLES, PHARMACY_LEAD_STATUS } = require('../../utils/constants');
 const pharmacyWorkflowService = require('../../services/pharmacyWorkflowService');
 
 const ensureRole = (role, allowed) => {
@@ -10,65 +10,128 @@ const ensureRole = (role, allowed) => {
   }
 };
 
+const sanitizePharmacyLead = (lead) => {
+  if (!lead) {
+    return lead;
+  }
+
+  const leadId =
+    lead.leadId || (lead._id && typeof lead._id.toString === 'function'
+      ? lead._id.toString()
+      : lead._id);
+
+  return {
+    leadId,
+    ...lead,
+    statusHistory: (lead.statusHistory || []).map((entry) => ({
+      status: entry.status,
+      notes: entry.notes || null,
+      updatedAt: entry.updatedAt,
+      updatedByRole: entry.updatedByRole || null,
+    })),
+    billingSummary: lead.billingSummary
+      ? {
+          totalAmount: lead.billingSummary.totalAmount ?? null,
+          deliveryCharge: lead.billingSummary.deliveryCharge ?? null,
+          currency: lead.billingSummary.currency || 'INR',
+          notes: lead.billingSummary.notes || null,
+          updatedAt: lead.billingSummary.updatedAt || null,
+        }
+      : null,
+  };
+};
+
 exports.listLeads = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.PHARMACY]);
 
+  const statusFilter = req.query.status;
+
+  if (
+    statusFilter &&
+    statusFilter !== 'all' &&
+    !Object.values(PHARMACY_LEAD_STATUS).includes(statusFilter)
+  ) {
+    const error = new Error('Invalid status filter specified.');
+    error.status = 400;
+    throw error;
+  }
+
   const leads = await pharmacyWorkflowService.listLeadsForPharmacy({
     pharmacyId: req.auth.id,
+    status: statusFilter,
   });
 
   res.json({
     success: true,
-    leads,
+    leads: leads.map(sanitizePharmacyLead),
   });
 });
 
-exports.createQuote = asyncHandler(async (req, res) => {
+const parseBillingPayload = (billing) => {
+  if (!billing) {
+    return undefined;
+  }
+
+  const parsed = {};
+
+  if (billing.totalAmount !== undefined) {
+    const value = Number(billing.totalAmount);
+    if (Number.isNaN(value) || value < 0) {
+      const error = new Error('totalAmount must be a non-negative number');
+      error.status = 400;
+      throw error;
+    }
+    parsed.totalAmount = value;
+  }
+
+  if (billing.deliveryCharge !== undefined) {
+    const value = Number(billing.deliveryCharge);
+    if (Number.isNaN(value) || value < 0) {
+      const error = new Error('deliveryCharge must be a non-negative number');
+      error.status = 400;
+      throw error;
+    }
+    parsed.deliveryCharge = value;
+  }
+
+  if (billing.currency) {
+    parsed.currency = String(billing.currency).trim().toUpperCase();
+  }
+
+  if (billing.notes) {
+    parsed.notes = String(billing.notes).trim();
+  }
+
+  return parsed;
+};
+
+exports.updateStatus = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.PHARMACY]);
 
-  const quote = await pharmacyWorkflowService.createQuote({
-    leadId: req.params.leadId,
+  const { leadId } = req.params;
+  const { status, notes, billing } = req.body;
+
+  if (!status) {
+    const error = new Error('status is required');
+    error.status = 400;
+    throw error;
+  }
+
+  const billingPayload = parseBillingPayload(billing);
+
+  const updatedLead = await pharmacyWorkflowService.updateLeadStatus({
+    leadId,
     pharmacyId: req.auth.id,
-    medicines: req.body.medicines,
-    totalAmount: req.body.totalAmount,
-    currency: req.body.currency,
-    expiresAt: req.body.expiresAt,
-    remarks: req.body.remarks,
-  });
-
-  res.status(201).json({
-    success: true,
-    quote,
-  });
-});
-
-exports.acceptQuote = asyncHandler(async (req, res) => {
-  ensureRole(req.auth.role, [ROLES.PATIENT, ROLES.ADMIN]);
-
-  const result = await pharmacyWorkflowService.acceptQuote({
-    quoteId: req.params.quoteId,
-    actorRole: req.auth.role,
+    status,
+    notes,
+    billing: billingPayload,
     actorId: req.auth.id,
-    deliveryType: req.body.deliveryType,
-    scheduledAt: req.body.scheduledAt,
+    actorRole: req.auth.role,
   });
 
   res.json({
     success: true,
-    ...result,
-  });
-});
-
-exports.listOrders = asyncHandler(async (req, res) => {
-  ensureRole(req.auth.role, [ROLES.PHARMACY]);
-
-  const orders = await pharmacyWorkflowService.listOrdersForPharmacy({
-    pharmacyId: req.auth.id,
-  });
-
-  res.json({
-    success: true,
-    orders,
+    lead: sanitizePharmacyLead(updatedLead),
   });
 });
 

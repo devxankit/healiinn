@@ -9,7 +9,14 @@ const {
 } = require('../../services/passwordResetService');
 const { getProfileByRoleAndId, updateProfileByRoleAndId } = require('../../services/profileService');
 const { notifyAdminsOfPendingSignup } = require('../../services/adminNotificationService');
+const subscriptionService = require('../../services/subscriptionService');
 const { ROLES, APPROVAL_STATUS } = require('../../utils/constants');
+const {
+  LOCATION_SOURCES,
+  normalizeLocationSource,
+  parseGeoPoint,
+  extractAddressLocation,
+} = require('../../utils/locationUtils');
 
 const buildAuthResponse = (user) => {
   const payload = { id: user._id, role: ROLES.LABORATORY };
@@ -68,6 +75,100 @@ exports.registerLaboratory = asyncHandler(async (req, res) => {
 
   const normalizedTimings = Array.isArray(timings) ? timings : timings ? [timings] : undefined;
 
+  const {
+    address: normalizedAddress,
+    addressProvided,
+    location: addressLocation,
+    locationProvided: addressLocationProvided,
+    locationSource: addressLocationSource,
+    locationSourceProvided: addressLocationSourceProvided,
+    error: addressLocationError,
+  } = extractAddressLocation(address);
+
+  if (addressLocationError) {
+    return res.status(400).json({
+      success: false,
+      message: addressLocationError,
+    });
+  }
+
+  const legacyLocation = parseGeoPoint({
+    location: req.body.location,
+    coordinates: req.body.coordinates,
+    lat: req.body.lat ?? req.body.latitude,
+    lng: req.body.lng ?? req.body.longitude,
+    latitude: req.body.latitude,
+    longitude: req.body.longitude,
+  });
+
+  if (legacyLocation.error) {
+    return res.status(400).json({
+      success: false,
+      message: legacyLocation.error,
+    });
+  }
+
+  let laboratoryLocation;
+  let shouldClearLocation = false;
+
+  if (legacyLocation.provided) {
+    laboratoryLocation = legacyLocation.point;
+    shouldClearLocation = legacyLocation.point === null;
+  } else if (addressLocationProvided) {
+    laboratoryLocation = addressLocation;
+    shouldClearLocation = addressLocation === null;
+  }
+
+  let addressPayload =
+    normalizedAddress || laboratoryLocation || shouldClearLocation || addressLocationSourceProvided
+      ? { ...(normalizedAddress || {}) }
+      : normalizedAddress;
+
+  if (laboratoryLocation) {
+    addressPayload = addressPayload || {};
+    addressPayload.location = laboratoryLocation;
+  } else if (shouldClearLocation && addressPayload) {
+    addressPayload.location = undefined;
+  }
+
+  let locationSourceValue;
+  let locationSourceProvided = false;
+
+  if (req.body.locationSource !== undefined) {
+    const normalizedSource = normalizeLocationSource(req.body.locationSource);
+    if (normalizedSource && !LOCATION_SOURCES.includes(normalizedSource)) {
+      return res.status(400).json({
+        success: false,
+        message: `locationSource must be one of: ${LOCATION_SOURCES.join(', ')}.`,
+      });
+    }
+    locationSourceValue =
+      normalizedSource === null ? undefined : normalizedSource;
+    locationSourceProvided = true;
+  } else if (addressLocationSourceProvided) {
+    if (
+      addressLocationSource &&
+      !LOCATION_SOURCES.includes(addressLocationSource)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `locationSource must be one of: ${LOCATION_SOURCES.join(', ')}.`,
+      });
+    }
+    locationSourceValue =
+      addressLocationSource === null ? undefined : addressLocationSource;
+    locationSourceProvided = true;
+  }
+
+  if (locationSourceProvided) {
+    addressPayload = addressPayload || {};
+    if (locationSourceValue) {
+      addressPayload.locationSource = locationSourceValue;
+    } else {
+      addressPayload.locationSource = undefined;
+    }
+  }
+
   const laboratory = await Laboratory.create({
     labName,
     ownerName,
@@ -76,7 +177,7 @@ exports.registerLaboratory = asyncHandler(async (req, res) => {
     password,
     licenseNumber,
     certifications,
-    address,
+    address: addressPayload,
     servicesOffered: normalizedServices,
     timings: normalizedTimings,
     contactPerson,
@@ -133,10 +234,21 @@ exports.loginLaboratory = asyncHandler(async (req, res) => {
     });
   }
 
+  if (laboratory.isActive === false) {
+    return res.status(403).json({
+      success: false,
+      message: 'Account is inactive. Please contact support.',
+    });
+  }
+
   laboratory.lastLoginAt = new Date();
   await laboratory.save({ validateBeforeSave: false });
 
   const tokens = buildAuthResponse(laboratory);
+  const activeSubscription = await subscriptionService.getActiveSubscriptionFor({
+    subscriberId: laboratory._id,
+    role: ROLES.LABORATORY,
+  });
 
   return res.status(200).json({
     success: true,
@@ -144,6 +256,9 @@ exports.loginLaboratory = asyncHandler(async (req, res) => {
     data: {
       laboratory,
       tokens,
+      subscription: {
+        active: activeSubscription,
+      },
     },
   });
 });
@@ -168,6 +283,131 @@ exports.updateLaboratoryProfile = asyncHandler(async (req, res) => {
   if (updates.labLogo && !updates.profileImage) {
     updates.profileImage = updates.labLogo;
   }
+
+  const rawAddressUpdate = updates.address;
+
+  const {
+    address: normalizedAddress,
+    addressProvided,
+    location: addressLocation,
+    locationProvided: addressLocationProvided,
+    locationSource: addressLocationSource,
+    locationSourceProvided: addressLocationSourceProvided,
+    error: addressLocationError,
+  } = extractAddressLocation(rawAddressUpdate);
+
+  if (addressLocationError) {
+    return res.status(400).json({
+      success: false,
+      message: addressLocationError,
+    });
+  }
+
+  let addressPayload =
+    normalizedAddress !== undefined ? { ...normalizedAddress } : undefined;
+
+  if (addressProvided && addressPayload === undefined) {
+    addressPayload = {};
+  }
+
+  const legacyLocation = parseGeoPoint({
+    location: updates.location,
+    coordinates: updates.coordinates,
+    lat: updates.lat ?? updates.latitude,
+    lng: updates.lng ?? updates.longitude,
+    latitude: updates.latitude,
+    longitude: updates.longitude,
+  });
+
+  if (legacyLocation.error) {
+    return res.status(400).json({
+      success: false,
+      message: legacyLocation.error,
+    });
+  }
+
+  let locationValue;
+  let shouldClearLocation = false;
+
+  if (legacyLocation.provided) {
+    locationValue = legacyLocation.point;
+    shouldClearLocation = legacyLocation.point === null;
+  } else if (addressLocationProvided) {
+    locationValue = addressLocation;
+    shouldClearLocation = addressLocation === null;
+  } else if (updates.address && updates.address.location === null) {
+    shouldClearLocation = true;
+  }
+
+  if (locationValue) {
+    addressPayload = addressPayload || {};
+    addressPayload.location = locationValue;
+  } else if (shouldClearLocation && addressPayload) {
+    addressPayload.location = undefined;
+  }
+
+  let locationSourceValue;
+  let locationSourceProvided = false;
+
+  if (updates.locationSource !== undefined) {
+    const normalizedSource = normalizeLocationSource(updates.locationSource);
+    if (normalizedSource && !LOCATION_SOURCES.includes(normalizedSource)) {
+      return res.status(400).json({
+        success: false,
+        message: `locationSource must be one of: ${LOCATION_SOURCES.join(', ')}.`,
+      });
+    }
+    locationSourceValue =
+      normalizedSource === null ? undefined : normalizedSource;
+    locationSourceProvided = true;
+  } else if (addressLocationSourceProvided) {
+    if (
+      addressLocationSource &&
+      !LOCATION_SOURCES.includes(addressLocationSource)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `locationSource must be one of: ${LOCATION_SOURCES.join(', ')}.`,
+      });
+    }
+    locationSourceValue =
+      addressLocationSource === null ? undefined : addressLocationSource;
+    locationSourceProvided = true;
+  } else if (updates.address && updates.address.locationSource !== undefined) {
+    const normalizedSource = normalizeLocationSource(
+      updates.address.locationSource
+    );
+    if (normalizedSource && !LOCATION_SOURCES.includes(normalizedSource)) {
+      return res.status(400).json({
+        success: false,
+        message: `locationSource must be one of: ${LOCATION_SOURCES.join(', ')}.`,
+      });
+    }
+    locationSourceValue =
+      normalizedSource === null ? undefined : normalizedSource;
+    locationSourceProvided = true;
+  }
+
+  if (locationSourceProvided) {
+    addressPayload = addressPayload || {};
+    if (locationSourceValue) {
+      addressPayload.locationSource = locationSourceValue;
+    } else {
+      addressPayload.locationSource = undefined;
+    }
+  }
+
+  if (addressPayload !== undefined) {
+    updates.address = addressPayload;
+  }
+
+  delete updates.location;
+  delete updates.coordinates;
+  delete updates.lat;
+  delete updates.lng;
+  delete updates.latitude;
+  delete updates.longitude;
+  delete updates.locationSource;
 
   delete updates.labLogo;
 

@@ -6,6 +6,24 @@ const controller = require('../controllers/appointment-controller/consultationCo
 const router = express.Router();
 
 router.get(
+  '/doctor/list',
+  protect(ROLES.DOCTOR),
+  controller.listDoctorConsultations
+);
+
+router.get(
+  '/doctor/patient/:patientId',
+  protect(ROLES.DOCTOR),
+  controller.getDoctorPatientRecord
+);
+
+router.get(
+  '/token/:tokenId',
+  protect(ROLES.DOCTOR, ROLES.PATIENT, ROLES.ADMIN),
+  controller.getConsultationsForToken
+);
+
+router.get(
   '/:consultationId',
   protect(ROLES.DOCTOR, ROLES.PATIENT, ROLES.ADMIN),
   controller.getConsultation
@@ -21,18 +39,6 @@ router.put(
   '/:consultationId/complete',
   protect(ROLES.DOCTOR),
   controller.completeConsultation
-);
-
-router.get(
-  '/doctor/list',
-  protect(ROLES.DOCTOR),
-  controller.listDoctorConsultations
-);
-
-router.get(
-  '/token/:tokenId',
-  protect(ROLES.DOCTOR, ROLES.PATIENT, ROLES.ADMIN),
-  controller.getConsultationsForToken
 );
 
 module.exports = router;

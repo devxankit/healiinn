@@ -19,6 +19,26 @@ const pharmacySchema = new mongoose.Schema(
       state: { type: String, trim: true },
       postalCode: { type: String, trim: true },
       country: { type: String, trim: true },
+      location: {
+        type: {
+          type: String,
+          enum: ['Point'],
+          default: 'Point',
+        },
+        coordinates: {
+          type: [Number],
+          validate: {
+            validator(value) {
+              return Array.isArray(value) && value.length === 2;
+            },
+            message: 'Address location coordinates must be [lng, lat].',
+          },
+        },
+      },
+      locationSource: {
+        type: String,
+        enum: ['manual', 'gps'],
+      },
     },
     deliveryOptions: [{ type: String, enum: ['pickup', 'delivery', 'both'] }],
     serviceRadiusKm: { type: Number, default: 0 },
@@ -47,6 +67,11 @@ const pharmacySchema = new mongoose.Schema(
       type: String,
       enum: Object.values(APPROVAL_STATUS),
       default: APPROVAL_STATUS.PENDING,
+      index: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
       index: true,
     },
     rejectionReason: { type: String, trim: true },
@@ -83,6 +108,9 @@ pharmacySchema.pre('save', async function encryptPassword(next) {
 pharmacySchema.methods.comparePassword = async function comparePassword(candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
+
+pharmacySchema.index({ status: 1, pharmacyName: 1 });
+pharmacySchema.index({ 'address.location': '2dsphere' });
 
 const Pharmacy = mongoose.model('Pharmacy', pharmacySchema);
 

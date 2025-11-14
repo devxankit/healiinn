@@ -59,6 +59,10 @@ const appointmentSchema = new mongoose.Schema(
       razorpayOrderId: { type: String, trim: true },
       razorpayPaymentId: { type: String, trim: true },
       razorpaySignature: { type: String, trim: true },
+      paidAt: { type: Date },
+      commissionRate: { type: Number, default: 0.1 },
+      commissionAmount: { type: Number, default: 0 },
+      netAmount: { type: Number, default: 0 },
     },
   },
   {

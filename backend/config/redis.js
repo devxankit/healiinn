@@ -5,15 +5,12 @@ const normalize = (value = '') => value.trim();
 const nodeEnv = normalize(process.env.NODE_ENV).toLowerCase();
 const enableFlag = normalize(process.env.ENABLE_REDIS).toLowerCase();
 
-const configuredUrl = normalize(process.env.REDIS_URL);
 const localFallbackUrl = normalize(process.env.REDIS_URL_LOCAL);
 const prodFallbackUrl = normalize(process.env.REDIS_URL_PROD);
 
 let resolvedRedisUrl = '';
 
-if (configuredUrl) {
-  resolvedRedisUrl = configuredUrl;
-} else if (nodeEnv === 'production' && prodFallbackUrl) {
+if (nodeEnv === 'production' && prodFallbackUrl) {
   resolvedRedisUrl = prodFallbackUrl;
 } else if (localFallbackUrl) {
   resolvedRedisUrl = localFallbackUrl;

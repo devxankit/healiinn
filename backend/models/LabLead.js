@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { LAB_LEAD_STATUS } = require('../utils/constants');
+const { LAB_LEAD_STATUS, ROLES } = require('../utils/constants');
 
 const labLeadSchema = new mongoose.Schema(
   {
@@ -51,9 +51,55 @@ const labLeadSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    acceptedQuote: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'LabQuote',
+    statusHistory: [
+      {
+        status: {
+          type: String,
+          enum: Object.values(LAB_LEAD_STATUS),
+          required: true,
+        },
+        notes: { type: String, trim: true },
+        updatedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+        },
+        updatedByRole: {
+          type: String,
+          enum: Object.values(ROLES),
+        },
+        billingSnapshot: {
+          totalAmount: { type: Number, min: 0 },
+          homeCollectionCharge: { type: Number, min: 0 },
+          currency: { type: String, trim: true },
+        },
+        reportSnapshot: {
+          fileUrl: { type: String, trim: true },
+          fileName: { type: String, trim: true },
+          mimeType: { type: String, trim: true },
+        },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
+    billingSummary: {
+      totalAmount: { type: Number, min: 0 },
+      homeCollectionCharge: { type: Number, min: 0 },
+      currency: { type: String, trim: true, default: 'INR' },
+      notes: { type: String, trim: true },
+      updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Laboratory',
+      },
+      updatedAt: { type: Date },
+    },
+    reportDetails: {
+      fileUrl: { type: String, trim: true },
+      fileName: { type: String, trim: true },
+      mimeType: { type: String, trim: true },
+      notes: { type: String, trim: true },
+      uploadedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Laboratory',
+      },
+      uploadedAt: { type: Date },
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed,

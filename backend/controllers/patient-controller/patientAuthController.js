@@ -145,6 +145,13 @@ exports.loginPatient = asyncHandler(async (req, res) => {
     });
   }
 
+  if (patient.isActive === false) {
+    return res.status(403).json({
+      success: false,
+      message: 'Account is inactive. Please contact support.',
+    });
+  }
+
   patient.lastLoginAt = new Date();
   await patient.save({ validateBeforeSave: false });
 

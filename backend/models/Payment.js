@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
 const PAYMENT_STATUS = ['pending', 'success', 'failed'];
-const PAYMENT_TYPE = ['appointment', 'medicine', 'lab-test'];
 
 const paymentSchema = new mongoose.Schema(
   {
@@ -9,9 +8,16 @@ const paymentSchema = new mongoose.Schema(
     paymentId: { type: String, trim: true },
     amount: { type: Number, required: true, min: 0 },
     currency: { type: String, default: 'INR' },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', index: true },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient' },
-    type: { type: String, enum: PAYMENT_TYPE, default: 'appointment' },
+    user: { type: mongoose.Schema.Types.ObjectId, refPath: 'userModel', index: true },
+    userModel: {
+      type: String,
+      enum: ['Patient', 'Doctor', 'Laboratory', 'Pharmacy', 'Admin'],
+    },
+    role: {
+      type: String,
+      enum: ['patient', 'doctor', 'laboratory', 'pharmacy', 'admin'],
+    },
+    type: { type: String, enum: ['appointment', 'subscription'], default: 'appointment' },
     status: { type: String, enum: PAYMENT_STATUS, default: 'pending' },
     metadata: { type: mongoose.Schema.Types.Mixed },
     razorpayResponse: { type: mongoose.Schema.Types.Mixed },

@@ -42,24 +42,14 @@ const templates = {
     data: { category: 'appointment' },
   }),
   LAB_TEST_REQUESTED: ({ patientName }) => ({
-    title: 'New test order',
-    body: `You received a new test request for ${patientName}.`,
+    title: 'New lab request',
+    body: `You received a new lab request for ${patientName}.`,
     data: { category: 'laboratory' },
   }),
   LAB_REPORT_READY: ({ testName }) => ({
     title: 'Lab report ready',
     body: `Your ${testName || 'lab'} report is now available.`,
     data: { category: 'laboratory' },
-  }),
-  PHARMACY_NEW_ORDER: ({ patientName }) => ({
-    title: 'New medicine order',
-    body: `New order request received${patientName ? ` from ${patientName}` : ''}.`,
-    data: { category: 'pharmacy' },
-  }),
-  ORDER_STATUS_UPDATED: ({ orderNumber, status }) => ({
-    title: 'Order update',
-    body: `Your order${orderNumber ? ` #${orderNumber}` : ''} is now ${status}.`,
-    data: { category: 'pharmacy' },
   }),
   ADMIN_KYC_SUBMITTED: ({ name, role }) => ({
     title: 'New verification submitted',
