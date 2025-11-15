@@ -16,7 +16,6 @@ const {
   parseGeoPoint,
   extractAddressLocation,
 } = require('../../utils/locationUtils');
-const subscriptionService = require('../../services/subscriptionService');
 
 const buildAuthResponse = (user) => {
   const payload = { id: user._id, role: ROLES.PHARMACY };
@@ -239,10 +238,6 @@ exports.loginPharmacy = asyncHandler(async (req, res) => {
   await pharmacy.save({ validateBeforeSave: false });
 
   const tokens = buildAuthResponse(pharmacy);
-  const activeSubscription = await subscriptionService.getActiveSubscriptionFor({
-    subscriberId: pharmacy._id,
-    role: ROLES.PHARMACY,
-  });
 
   return res.status(200).json({
     success: true,
@@ -250,9 +245,6 @@ exports.loginPharmacy = asyncHandler(async (req, res) => {
     data: {
       pharmacy,
       tokens,
-      subscription: {
-        active: activeSubscription,
-      },
     },
   });
 });

@@ -5,10 +5,6 @@ const {
   getAdminDoctorSummaries,
   buildWithdrawalHistoryEntry,
 } = require('../../services/walletService');
-const {
-  getSubscriptionWalletOverview,
-  listSubscriptionTransactions,
-} = require('../../services/adminWalletService');
 const { WITHDRAWAL_STATUS } = require('../../utils/constants');
 
 exports.getOverview = asyncHandler(async (req, res) => {
@@ -26,25 +22,6 @@ exports.listDoctorSummaries = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     doctors: summaries,
-  });
-});
-
-exports.getSubscriptionEarnings = asyncHandler(async (req, res) => {
-  const overview = await getSubscriptionWalletOverview();
-
-  res.json({
-    success: true,
-    overview,
-  });
-});
-
-exports.listSubscriptionTransactions = asyncHandler(async (req, res) => {
-  const { role, page, limit } = req.query;
-  const result = await listSubscriptionTransactions({ role, page, limit });
-
-  res.json({
-    success: true,
-    ...result,
   });
 });
 

@@ -147,27 +147,11 @@ const computeRevenueBreakdown = async (start, end) => {
     },
   ]);
 
-  const [subscriptionAgg] = await AdminWalletTransaction.aggregate([
-    {
-      $match: {
-        createdAt: { $gte: start, $lt: end },
-      },
-    },
-    {
-      $group: {
-        _id: null,
-        subscriptionRevenue: { $sum: '$amount' },
-      },
-    },
-  ]);
-
   const commissionRevenue = appointmentAgg?.commissionRevenue || 0;
-  const subscriptionRevenue = subscriptionAgg?.subscriptionRevenue || 0;
 
   return {
     appointmentRevenue: commissionRevenue,
-    subscriptionRevenue,
-    total: commissionRevenue + subscriptionRevenue,
+    total: commissionRevenue,
   };
 };
 
@@ -672,17 +656,11 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
           appointment: Number(
             revenueTodayBreakdown.appointmentRevenue.toFixed(2)
           ),
-          subscription: Number(
-            revenueTodayBreakdown.subscriptionRevenue.toFixed(2)
-          ),
         },
         week: {
           total: Number(revenueWeekBreakdown.total.toFixed(2)),
           appointment: Number(
             revenueWeekBreakdown.appointmentRevenue.toFixed(2)
-          ),
-          subscription: Number(
-            revenueWeekBreakdown.subscriptionRevenue.toFixed(2)
           ),
         },
         month: {
@@ -690,17 +668,11 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
           appointment: Number(
             revenueMonthBreakdown.appointmentRevenue.toFixed(2)
           ),
-          subscription: Number(
-            revenueMonthBreakdown.subscriptionRevenue.toFixed(2)
-          ),
         },
         year: {
           total: Number(revenueYearBreakdown.total.toFixed(2)),
           appointment: Number(
             revenueYearBreakdown.appointmentRevenue.toFixed(2)
-          ),
-          subscription: Number(
-            revenueYearBreakdown.subscriptionRevenue.toFixed(2)
           ),
         },
       },

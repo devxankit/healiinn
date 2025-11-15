@@ -9,7 +9,6 @@ const {
 } = require('../../services/passwordResetService');
 const { getProfileByRoleAndId, updateProfileByRoleAndId } = require('../../services/profileService');
 const { notifyAdminsOfPendingSignup } = require('../../services/adminNotificationService');
-const subscriptionService = require('../../services/subscriptionService');
 const { ROLES, APPROVAL_STATUS } = require('../../utils/constants');
 const {
   LOCATION_SOURCES,
@@ -245,10 +244,6 @@ exports.loginLaboratory = asyncHandler(async (req, res) => {
   await laboratory.save({ validateBeforeSave: false });
 
   const tokens = buildAuthResponse(laboratory);
-  const activeSubscription = await subscriptionService.getActiveSubscriptionFor({
-    subscriberId: laboratory._id,
-    role: ROLES.LABORATORY,
-  });
 
   return res.status(200).json({
     success: true,
@@ -256,9 +251,6 @@ exports.loginLaboratory = asyncHandler(async (req, res) => {
     data: {
       laboratory,
       tokens,
-      subscription: {
-        active: activeSubscription,
-      },
     },
   });
 });

@@ -17,7 +17,7 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       enum: ['patient', 'doctor', 'laboratory', 'pharmacy', 'admin'],
     },
-    type: { type: String, enum: ['appointment', 'subscription'], default: 'appointment' },
+    type: { type: String, enum: ['appointment'], default: 'appointment' },
     status: { type: String, enum: PAYMENT_STATUS, default: 'pending' },
     metadata: { type: mongoose.Schema.Types.Mixed },
     razorpayResponse: { type: mongoose.Schema.Types.Mixed },

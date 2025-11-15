@@ -267,4 +267,55 @@ exports.patientResetPassword = asyncHandler(async (req, res) => {
   return res.status(200).json({ success: true, message: 'Password reset successfully.' });
 });
 
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'currentPassword, newPassword, and confirmPassword are required.',
+    });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password and confirmation do not match.',
+    });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password must be at least 8 characters long.',
+    });
+  }
+
+  const patient = await Patient.findById(req.auth.id);
+
+  if (!patient) {
+    return res.status(404).json({
+      success: false,
+      message: 'Patient not found.',
+    });
+  }
+
+  const isCurrentPasswordValid = await patient.comparePassword(currentPassword);
+
+  if (!isCurrentPasswordValid) {
+    return res.status(401).json({
+      success: false,
+      message: 'Current password is incorrect.',
+    });
+  }
+
+  patient.password = newPassword;
+  await patient.save();
+
+  return res.status(200).json({
+    success: true,
+    message: 'Password changed successfully.',
+  });
+});
+
 

@@ -1,8 +1,6 @@
 const mongoose = require('mongoose');
 const { ROLES } = require('../utils/constants');
 
-const ADMIN_WALLET_SOURCES = ['subscription'];
-
 const adminWalletTransactionSchema = new mongoose.Schema(
   {
     amount: {
@@ -15,12 +13,6 @@ const adminWalletTransactionSchema = new mongoose.Schema(
       default: 'INR',
       uppercase: true,
       trim: true,
-    },
-    source: {
-      type: String,
-      enum: ADMIN_WALLET_SOURCES,
-      required: true,
-      index: true,
     },
     role: {
       type: String,
@@ -38,12 +30,6 @@ const adminWalletTransactionSchema = new mongoose.Schema(
       type: String,
       enum: ['Doctor', 'Laboratory', 'Pharmacy'],
       required: true,
-    },
-    subscription: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subscription',
-      required: true,
-      index: true,
     },
     payment: {
       type: mongoose.Schema.Types.ObjectId,

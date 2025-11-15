@@ -51,13 +51,13 @@ const PatientHospitals = () => {
       </div>
 
       {/* Hospitals Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {hospitals.map((hospital) => (
           <article
             key={hospital.id}
-            className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
+            className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
           >
-            <figure className="relative h-48 w-full overflow-hidden">
+            <figure className="relative h-32 w-full overflow-hidden">
               <img 
                 src={hospital.image} 
                 alt={hospital.name} 
@@ -67,24 +67,24 @@ const PatientHospitals = () => {
                   e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(hospital.name)}&background=3b82f6&color=fff&size=128&bold=true`
                 }}
               />
-              <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm">
+              <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm">
                 ⭐ {hospital.rating}
               </span>
             </figure>
-            <div className="space-y-3 p-4">
+            <div className="space-y-2 p-3">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">{hospital.name}</h3>
-                <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
-                  <IoLocationOutline className="h-4 w-4" />
+                <h3 className="text-base font-semibold text-slate-900">{hospital.name}</h3>
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                  <IoLocationOutline className="h-3.5 w-3.5" />
                   <span>Distance {hospital.distance}</span>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => navigate(`/patient/hospitals/${hospital.id}/doctors`)}
-                className="w-full rounded-2xl bg-blue-500 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-transform hover:bg-blue-600 active:scale-[0.98]"
+                className="w-full rounded-xl bg-blue-500 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-400/40 transition-transform hover:bg-blue-600 active:scale-[0.98]"
               >
-                <IoCalendarOutline className="inline h-4 w-4 mr-1.5" />
+                <IoCalendarOutline className="inline h-3.5 w-3.5 mr-1.5" />
                 Book appointment
               </button>
             </div>
