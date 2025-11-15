@@ -30,32 +30,6 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-slate-50 text-slate-900">
-        <PatientNavbar />
-
-        <main className="px-4 pb-24 pt-20 sm:px-6">
-          <Routes>
-            <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
-            <Route path="/patient/login" element={<PatientLogin />} />
-            <Route path="/patient/dashboard" element={<PatientDashboard />} />
-            <Route path="/patient/pharmacy" element={<PatientPharmacy />} />
-            <Route path="/patient/doctors" element={<PatientDoctors />} />
-            <Route path="/patient/doctors/:id" element={<PatientDoctorDetails />} />
-            <Route path="/patient/laboratory" element={<PatientLaboratory />} />
-            <Route path="/patient/profile" element={<PatientProfile />} />
-            <Route path="/patient/locations" element={<PatientLocations />} />
-            <Route path="/patient/prescriptions" element={<PatientPrescriptions />} />
-            <Route path="/patient/reports" element={<PatientReports />} />
-            <Route path="/patient/requests" element={<PatientRequests />} />
-            <Route path="/patient/hospitals" element={<PatientHospitals />} />
-            <Route path="/patient/hospitals/:hospitalId/doctors" element={<PatientHospitalDoctors />} />
-            <Route path="/patient/specialties" element={<PatientSpecialties />} />
-            <Route path="/patient/specialties/:specialtyId/doctors" element={<PatientSpecialtyDoctors />} />
-            <Route path="/patient/upcoming-schedules" element={<PatientUpcomingSchedules />} />
-            <Route path="/patient/transactions" element={<PatientTransactions />} />
-            <Route path="/patient/appointments" element={<PatientAppointments />} />
-            <Route path="/patient/orders" element={<PatientOrders />} />
-          </Routes>
-        </main>
         <Routes>
           {/* Patient Routes */}
           <Route
@@ -80,6 +54,11 @@ function App() {
                     <Route path="/specialties" element={<PatientSpecialties />} />
                     <Route path="/specialties/:specialtyId/doctors" element={<PatientSpecialtyDoctors />} />
                     <Route path="/upcoming-schedules" element={<PatientUpcomingSchedules />} />
+                    <Route path="/reports" element={<PatientReports />} />
+                    <Route path="/requests" element={<PatientRequests />} />
+                    <Route path="/transactions" element={<PatientTransactions />} />
+                    <Route path="/appointments" element={<PatientAppointments />} />
+                    <Route path="/orders" element={<PatientOrders />} />
                   </Routes>
                 </main>
               </>
