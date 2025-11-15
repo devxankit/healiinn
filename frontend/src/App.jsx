@@ -21,10 +21,13 @@ import PatientAppointments from './modules/patient/patient-pages/PatientAppointm
 import PatientOrders from './modules/patient/patient-pages/PatientOrders'
 import DoctorDashboard from './modules/doctor/doctor-pages/DoctorDashboard'
 import DoctorProfile from './modules/doctor/doctor-pages/DoctorProfile'
-import DoctorAppointments from './modules/doctor/doctor-pages/DoctorAppointments'
-import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
 import DoctorWallet from './modules/doctor/doctor-pages/DoctorWallet'
-import DoctorClinics from './modules/doctor/doctor-pages/DoctorClinics'
+import WalletBalance from './modules/doctor/doctor-pages/WalletBalance'
+import WalletEarning from './modules/doctor/doctor-pages/WalletEarning'
+import WalletWithdraw from './modules/doctor/doctor-pages/WalletWithdraw'
+import WalletTransaction from './modules/doctor/doctor-pages/WalletTransaction'
+import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
+import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
 
 function App() {
   return (
@@ -67,11 +70,14 @@ function App() {
 
           {/* Doctor Routes */}
           <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-          <Route path="/doctor/profile" element={<DoctorProfile />} />
-          <Route path="/doctor/appointments" element={<DoctorAppointments />} />
-          <Route path="/doctor/consultations" element={<DoctorConsultations />} />
           <Route path="/doctor/wallet" element={<DoctorWallet />} />
-          <Route path="/doctor/clinics" element={<DoctorClinics />} />
+          <Route path="/doctor/wallet/balance" element={<WalletBalance />} />
+          <Route path="/doctor/wallet/earning" element={<WalletEarning />} />
+          <Route path="/doctor/wallet/withdraw" element={<WalletWithdraw />} />
+          <Route path="/doctor/wallet/transaction" element={<WalletTransaction />} />
+          <Route path="/doctor/patients" element={<DoctorPatients />} />
+          <Route path="/doctor/consultations" element={<DoctorConsultations />} />
+          <Route path="/doctor/profile" element={<DoctorProfile />} />
 
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />

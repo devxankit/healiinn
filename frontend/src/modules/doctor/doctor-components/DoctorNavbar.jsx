@@ -2,28 +2,26 @@ import { useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   IoHomeOutline,
-  IoCalendarOutline,
-  IoDocumentTextOutline,
-  IoWalletOutline,
-  IoBusinessOutline,
   IoPersonCircleOutline,
   IoMenuOutline,
   IoNotificationsOutline,
+  IoWalletOutline,
+  IoDocumentTextOutline,
+  IoPeopleOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import DoctorSidebar from './DoctorSidebar'
 
 const allNavItems = [
   { id: 'home', label: 'Dashboard', to: '/doctor/dashboard', Icon: IoHomeOutline },
-  { id: 'appointments', label: 'Appointments', to: '/doctor/appointments', Icon: IoCalendarOutline },
   { id: 'consultations', label: 'Consultations', to: '/doctor/consultations', Icon: IoDocumentTextOutline },
+  { id: 'patients', label: 'Patients', to: '/doctor/patients', Icon: IoPeopleOutline },
   { id: 'wallet', label: 'Wallet', to: '/doctor/wallet', Icon: IoWalletOutline },
-  { id: 'clinics', label: 'Clinics', to: '/doctor/clinics', Icon: IoBusinessOutline },
   { id: 'profile', label: 'Profile', to: '/doctor/profile', Icon: IoPersonCircleOutline },
 ]
 
-// Navbar items (without Wallet - Wallet only in sidebar)
-const navbarItems = allNavItems.filter(item => item.id !== 'wallet')
+// Navbar items for mobile bottom nav (Wallet, Dashboard, Patients, Consultations, Profile)
+const navbarItems = allNavItems
 
 const DoctorNavbar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
