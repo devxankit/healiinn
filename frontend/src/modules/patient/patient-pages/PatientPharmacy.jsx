@@ -622,6 +622,7 @@ const PatientPharmacy = () => {
   const [bookingStep, setBookingStep] = useState(1) // 1: Prescription, 2: Confirmation
   const [serviceType, setServiceType] = useState('pickup') // 'pickup' or 'delivery'
   const [selectedPrescription, setSelectedPrescription] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const detailPharmacy = useMemo(
     () => mockOverview.pharmacies.find((pharmacy) => pharmacy.id === detailPharmacyId) || null,
@@ -1419,17 +1420,83 @@ const PatientPharmacy = () => {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => {
-                      // Handle booking confirmation
-                      alert(`Booking confirmed for ${bookingPharmacy.pharmacyName}`)
-                      setBookingPharmacyId(null)
-                      setBookingStep(1)
-                      setSelectedPrescription(null)
+                    onClick={async () => {
+                      if (!bookingPharmacy || !selectedPrescription) return
+                      
+                      setIsSubmitting(true)
+                      
+                      // Prepare booking request data
+                      const bookingRequest = {
+                        pharmacyId: bookingPharmacy.id,
+                        pharmacyName: bookingPharmacy.pharmacyName,
+                        pharmacyAddress: bookingPharmacy.address,
+                        pharmacyPhone: bookingPharmacy.phone,
+                        pharmacyEmail: bookingPharmacy.email,
+                        serviceType: serviceType, // 'pickup' or 'delivery'
+                        patientDetails: {
+                          firstName: mockPatientData.firstName,
+                          lastName: mockPatientData.lastName,
+                          email: mockPatientData.email,
+                          phone: mockPatientData.phone,
+                          bloodGroup: mockPatientData.bloodGroup,
+                          address: mockPatientData.address,
+                        },
+                        doctorDetails: {
+                          name: selectedPrescription.doctor.name,
+                          specialty: selectedPrescription.doctor.specialty,
+                          phone: selectedPrescription.doctor.phone,
+                          email: selectedPrescription.doctor.email,
+                        },
+                        prescriptionDetails: {
+                          id: selectedPrescription.id,
+                          diagnosis: selectedPrescription.diagnosis,
+                          issuedAt: selectedPrescription.issuedAt,
+                          doctor: selectedPrescription.doctor,
+                          // Include full prescription data
+                          medications: selectedPrescription.medications || [],
+                          investigations: selectedPrescription.investigations || [],
+                          advice: selectedPrescription.advice || '',
+                        },
+                        requestDate: new Date().toISOString(),
+                        status: 'pending',
+                      }
+                      
+                      // Simulate API call to send request to pharmacy
+                      try {
+                        await new Promise((resolve) => setTimeout(resolve, 1500))
+                        
+                        // Log the booking request (in real app, this would be an API call)
+                        console.log('Booking request sent to pharmacy:', bookingRequest)
+                        
+                        // Show success message
+                        alert(`Booking request sent successfully to ${bookingPharmacy.pharmacyName}!\n\nThey will review your request and respond with availability and pricing.`)
+                        
+                        // Close modal and reset state
+                        setBookingPharmacyId(null)
+                        setBookingStep(1)
+                        setSelectedPrescription(null)
+                        setServiceType('pickup')
+                      } catch (error) {
+                        console.error('Error sending booking request:', error)
+                        alert('Failed to send booking request. Please try again.')
+                      } finally {
+                        setIsSubmitting(false)
+                      }
                     }}
-                    className="ml-auto flex items-center gap-2 rounded-lg bg-blue-500 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600"
+                    disabled={isSubmitting || !bookingPharmacy || !selectedPrescription}
+                    className="ml-auto flex items-center gap-2 rounded-lg bg-blue-500 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Confirm Booking
-                    <IoCheckmarkCircleOutline className="h-4 w-4" />
+                    {isSubmitting ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        Confirm Booking
+                        <IoCheckmarkCircleOutline className="h-4 w-4" />
+                      </>
+                    )}
                   </button>
                 )}
               </div>

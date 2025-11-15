@@ -265,14 +265,12 @@ const seedDashboardData = async ({ now }) => {
   await AdminWalletTransaction.create({
     amount: 200,
     currency: 'INR',
-    source: 'subscription',
     role: 'laboratory',
     subscriber: laboratory._id,
     subscriberModel: 'Laboratory',
-    subscription: new mongoose.Types.ObjectId(),
     payment: new mongoose.Types.ObjectId(),
-    orderId: 'sub_order_dashboard',
-    description: 'Test subscription',
+    orderId: 'test_order_dashboard',
+    description: 'Test transaction',
   });
 };
 

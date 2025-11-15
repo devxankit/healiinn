@@ -8,12 +8,17 @@ import PatientLaboratory from './modules/patient/patient-pages/PatientLaboratory
 import PatientProfile from './modules/patient/patient-pages/PatientProfile'
 import PatientLocations from './modules/patient/patient-pages/PatientLocations'
 import PatientPrescriptions from './modules/patient/patient-pages/PatientPrescriptions'
+import PatientReports from './modules/patient/patient-pages/PatientReports'
+import PatientRequests from './modules/patient/patient-pages/PatientRequests'
 import PatientHospitals from './modules/patient/patient-pages/PatientHospitals'
 import PatientHospitalDoctors from './modules/patient/patient-pages/PatientHospitalDoctors'
 import PatientSpecialties from './modules/patient/patient-pages/PatientSpecialties'
 import PatientSpecialtyDoctors from './modules/patient/patient-pages/PatientSpecialtyDoctors'
 import PatientUpcomingSchedules from './modules/patient/patient-pages/PatientUpcomingSchedules'
 import PatientLogin from './modules/patient/patient-pages/PatientLogin'
+import PatientTransactions from './modules/patient/patient-pages/PatientTransactions'
+import PatientAppointments from './modules/patient/patient-pages/PatientAppointments'
+import PatientOrders from './modules/patient/patient-pages/PatientOrders'
 
 function App() {
   return (
@@ -33,11 +38,16 @@ function App() {
             <Route path="/patient/profile" element={<PatientProfile />} />
             <Route path="/patient/locations" element={<PatientLocations />} />
             <Route path="/patient/prescriptions" element={<PatientPrescriptions />} />
+            <Route path="/patient/reports" element={<PatientReports />} />
+            <Route path="/patient/requests" element={<PatientRequests />} />
             <Route path="/patient/hospitals" element={<PatientHospitals />} />
             <Route path="/patient/hospitals/:hospitalId/doctors" element={<PatientHospitalDoctors />} />
             <Route path="/patient/specialties" element={<PatientSpecialties />} />
             <Route path="/patient/specialties/:specialtyId/doctors" element={<PatientSpecialtyDoctors />} />
             <Route path="/patient/upcoming-schedules" element={<PatientUpcomingSchedules />} />
+            <Route path="/patient/transactions" element={<PatientTransactions />} />
+            <Route path="/patient/appointments" element={<PatientAppointments />} />
+            <Route path="/patient/orders" element={<PatientOrders />} />
           </Routes>
         </main>
       </div>

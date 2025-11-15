@@ -11,6 +11,11 @@ import {
   IoDocumentTextOutline,
   IoCheckmarkCircleOutline,
   IoArrowForwardOutline,
+  IoReceiptOutline,
+  IoBagHandleOutline,
+  IoFlaskOutline,
+  IoShareSocialOutline,
+  IoNotificationsOutline,
 } from 'react-icons/io5'
 import { TbStethoscope, TbVaccine } from 'react-icons/tb'
 import { MdOutlineEscalatorWarning } from 'react-icons/md'
@@ -172,8 +177,11 @@ const PatientDashboard = () => {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <article className="relative overflow-hidden rounded-3xl border border-emerald-100/60 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/70 p-4 shadow-sm shadow-emerald-100/50 backdrop-blur-sm">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <article 
+          onClick={() => navigate('/patient/appointments')}
+          className="relative overflow-hidden rounded-3xl border border-emerald-100/60 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/70 p-4 shadow-sm shadow-emerald-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+        >
           <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-200/30 blur-2xl" />
           <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-emerald-300/20 blur-2xl" />
           <div className="relative flex items-center justify-between">
@@ -184,6 +192,24 @@ const PatientDashboard = () => {
             </div>
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-lg shadow-emerald-300/50">
               <IoCalendarOutline className="text-xl" aria-hidden="true" />
+            </div>
+          </div>
+        </article>
+
+        <article 
+          onClick={() => navigate('/patient/orders')}
+          className="relative overflow-hidden rounded-3xl border border-orange-100/60 bg-gradient-to-br from-orange-50/90 via-white to-orange-50/70 p-4 shadow-sm shadow-orange-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+        >
+          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-orange-200/30 blur-2xl" />
+          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-orange-300/20 blur-2xl" />
+          <div className="relative flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-orange-700">Orders</p>
+              <p className="text-2xl font-bold text-slate-900">6</p>
+              <p className="text-xs text-slate-600">Lab & Pharmacy</p>
+            </div>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-lg shadow-orange-300/50">
+              <IoBagHandleOutline className="text-xl" aria-hidden="true" />
             </div>
           </div>
         </article>
@@ -202,6 +228,60 @@ const PatientDashboard = () => {
             </div>
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-400 to-blue-500 text-white shadow-lg shadow-blue-300/50">
               <IoDocumentTextOutline className="text-xl" aria-hidden="true" />
+            </div>
+          </div>
+        </article>
+
+        <article 
+          onClick={() => navigate('/patient/transactions')}
+          className="relative overflow-hidden rounded-3xl border border-purple-100/60 bg-gradient-to-br from-purple-50/90 via-white to-purple-50/70 p-4 shadow-sm shadow-purple-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+        >
+          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-purple-200/30 blur-2xl" />
+          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-purple-300/20 blur-2xl" />
+          <div className="relative flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-purple-700">Transactions</p>
+              <p className="text-2xl font-bold text-slate-900">5</p>
+              <p className="text-xs text-slate-600">Recent transactions</p>
+            </div>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-400 to-purple-500 text-white shadow-lg shadow-purple-300/50">
+              <IoReceiptOutline className="text-xl" aria-hidden="true" />
+            </div>
+          </div>
+        </article>
+
+        <article 
+          onClick={() => navigate('/patient/reports')}
+          className="relative overflow-hidden rounded-3xl border border-teal-100/60 bg-gradient-to-br from-teal-50/90 via-white to-teal-50/70 p-4 shadow-sm shadow-teal-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+        >
+          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-teal-200/30 blur-2xl" />
+          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-teal-300/20 blur-2xl" />
+          <div className="relative flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-teal-700">Lab Reports</p>
+              <p className="text-2xl font-bold text-slate-900">4</p>
+              <p className="text-xs text-slate-600">Ready to share</p>
+            </div>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-teal-500 text-white shadow-lg shadow-teal-300/50">
+              <IoFlaskOutline className="text-xl" aria-hidden="true" />
+            </div>
+          </div>
+        </article>
+
+        <article 
+          onClick={() => navigate('/patient/requests')}
+          className="relative overflow-hidden rounded-3xl border border-pink-100/60 bg-gradient-to-br from-pink-50/90 via-white to-pink-50/70 p-4 shadow-sm shadow-pink-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+        >
+          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-pink-200/30 blur-2xl" />
+          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-pink-300/20 blur-2xl" />
+          <div className="relative flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-pink-700">Requests & Responses</p>
+              <p className="text-2xl font-bold text-slate-900">2</p>
+              <p className="text-xs text-slate-600">Pending payment</p>
+            </div>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-400 to-pink-500 text-white shadow-lg shadow-pink-300/50">
+              <IoNotificationsOutline className="text-xl" aria-hidden="true" />
             </div>
           </div>
         </article>

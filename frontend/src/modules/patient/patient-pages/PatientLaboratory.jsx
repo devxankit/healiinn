@@ -289,6 +289,8 @@ const PatientLaboratory = () => {
   const [bookingStep, setBookingStep] = useState(1) // 1: Prescription, 2: Confirmation
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [detailLabId, setDetailLabId] = useState(null)
+  const [showAllReports, setShowAllReports] = useState(false)
+  const [showAllTests, setShowAllTests] = useState(false)
 
   const detailLab = useMemo(
     () => mockLabs.find((lab) => lab.id === detailLabId) || null,
@@ -391,20 +393,64 @@ const PatientLaboratory = () => {
   }
 
   const handleConfirmBooking = async () => {
+    if (!selectedLab || !selectedPrescription) return
+    
     setIsSubmitting(true)
-    // Simulate API call - Share prescription with lab including patient and doctor details
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    console.log('Test booking confirmed and shared:', {
+    
+    // Prepare booking request data with all details
+    const bookingRequest = {
       labId: selectedLab.id,
-      collectionType,
-      prescription: selectedPrescription,
-      patientDetails: mockPatientData,
-      doctorDetails: selectedPrescription?.doctor,
-    })
-    setIsSubmitting(false)
-    setTimeout(() => {
+      labName: selectedLab.labName,
+      labAddress: selectedLab.location,
+      labPhone: selectedLab.phone,
+      labEmail: selectedLab.email || '',
+      collectionType: collectionType, // 'lab' or 'home'
+      patientDetails: {
+        firstName: mockPatientData.firstName,
+        lastName: mockPatientData.lastName,
+        email: mockPatientData.email,
+        phone: mockPatientData.phone,
+        bloodGroup: mockPatientData.bloodGroup,
+        address: mockPatientData.address,
+      },
+      doctorDetails: {
+        name: selectedPrescription.doctor.name,
+        specialty: selectedPrescription.doctor.specialty,
+        phone: selectedPrescription.doctor.phone,
+        email: selectedPrescription.doctor.email,
+      },
+      prescriptionDetails: {
+        id: selectedPrescription.id,
+        diagnosis: selectedPrescription.diagnosis,
+        issuedAt: selectedPrescription.issuedAt,
+        doctor: selectedPrescription.doctor,
+        // Include full prescription data
+        medications: selectedPrescription.medications || [],
+        investigations: selectedPrescription.investigations || [],
+        advice: selectedPrescription.advice || '',
+      },
+      requestDate: new Date().toISOString(),
+      status: 'pending',
+    }
+    
+    // Simulate API call to send request to lab
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      
+      // Log the booking request (in real app, this would be an API call)
+      console.log('Booking request sent to lab:', bookingRequest)
+      
+      // Show success message
+      alert(`Booking request sent successfully to ${selectedLab.labName}!\n\nThey will review your request and respond with availability and pricing.`)
+      
+      // Close modal and reset state
       handleCloseModal()
-    }, 2000)
+    } catch (error) {
+      console.error('Error sending booking request:', error)
+      alert('Failed to send booking request. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -509,21 +555,14 @@ const PatientLaboratory = () => {
             <h2 className="text-lg font-semibold text-slate-900">Recent Reports</h2>
             <button
               type="button"
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-              onClick={() => {
-                // Navigate to reports page or show all reports
-                // For now, scroll to reports section or could create a dedicated page
-                const reportsSection = document.getElementById('reports-section')
-                if (reportsSection) {
-                  reportsSection.scrollIntoView({ behavior: 'smooth' })
-                }
-              }}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+              onClick={() => setShowAllReports(!showAllReports)}
             >
-              View All
+              {showAllReports ? 'Show Less' : 'View All'}
             </button>
           </div>
           <div className="space-y-2">
-            {mockReports.slice(0, 2).map((report) => (
+            {(showAllReports ? mockReports : mockReports.slice(0, 2)).map((report) => (
               <div
                 key={report.id}
                 className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-slate-300 hover:bg-slate-100"
@@ -543,10 +582,164 @@ const PatientLaboratory = () => {
                   >
                     {report.status === 'completed' ? 'Ready' : 'Pending'}
                   </span>
-                  {report.downloadUrl && (
+                  {report.status === 'completed' && (
                     <button
                       type="button"
-                      className="rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-600"
+                      onClick={() => {
+                        // Generate and download PDF report
+                        const downloadPDF = () => {
+                          // Create PDF content
+                          const pdfContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Medical Report - ${report.testName}</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .header {
+      border-bottom: 3px solid #3b82f6;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #1e40af;
+      margin: 0;
+      font-size: 28px;
+    }
+    .header .subtitle {
+      color: #64748b;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    .section {
+      margin-bottom: 25px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #1e293b;
+      margin-bottom: 15px;
+      border-left: 4px solid #3b82f6;
+      padding-left: 10px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .info-label {
+      font-weight: 600;
+      color: #475569;
+    }
+    .info-value {
+      color: #1e293b;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      background-color: #d1fae5;
+      color: #065f46;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 2px solid #e2e8f0;
+      text-align: center;
+      color: #64748b;
+      font-size: 12px;
+    }
+    @media print {
+      body { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Medical Test Report</h1>
+    <div class="subtitle">Healiinn - Your Health Partner</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Report Information</div>
+    <div class="info-row">
+      <span class="info-label">Test Name:</span>
+      <span class="info-value">${report.testName}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Laboratory:</span>
+      <span class="info-value">${report.labName}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Report Date:</span>
+      <span class="info-value">${formatDate(report.date)}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Status:</span>
+      <span class="info-value">
+        <span class="status-badge">${report.status === 'completed' ? 'Ready' : 'Pending'}</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Test Details</div>
+    <div class="info-row">
+      <span class="info-label">Report ID:</span>
+      <span class="info-value">${report.id}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Issued Date:</span>
+      <span class="info-value">${formatDate(report.date)}</span>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>This is an electronically generated report.</p>
+    <p>For any queries, please contact ${report.labName}</p>
+    <p>Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+  </div>
+</body>
+</html>
+                          `
+                          
+                          // Create blob
+                          const blob = new Blob([pdfContent], { type: 'text/html' })
+                          
+                          // Try to use browser's print to PDF if available
+                          const printWindow = window.open('', '_blank')
+                          printWindow.document.write(pdfContent)
+                          printWindow.document.close()
+                          
+                          // Wait for content to load, then trigger print
+                          setTimeout(() => {
+                            printWindow.focus()
+                            printWindow.print()
+                            
+                            // Also provide a download link as fallback
+                            const link = document.createElement('a')
+                            const blobPDF = new Blob([pdfContent], { type: 'application/pdf' })
+                            link.href = URL.createObjectURL(blobPDF)
+                            link.download = `${report.testName.replace(/\s+/g, '_')}_Report_${report.date}.pdf`
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                            URL.revokeObjectURL(link.href)
+                          }, 250)
+                        }
+                        
+                        downloadPDF()
+                      }}
+                      className="rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-600 transition-colors active:scale-95"
                     >
                       Download
                     </button>
@@ -565,21 +758,14 @@ const PatientLaboratory = () => {
             <h2 className="text-lg font-semibold text-slate-900">Upcoming Tests</h2>
             <button
               type="button"
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-              onClick={() => {
-                // Navigate to tests page or show all tests
-                // For now, scroll to tests section or could create a dedicated page
-                const testsSection = document.getElementById('tests-section')
-                if (testsSection) {
-                  testsSection.scrollIntoView({ behavior: 'smooth' })
-                }
-              }}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+              onClick={() => setShowAllTests(!showAllTests)}
             >
-              View All
+              {showAllTests ? 'Show Less' : 'View All'}
             </button>
           </div>
           <div className="space-y-2">
-            {mockUpcomingTests.map((test) => (
+            {(showAllTests ? mockUpcomingTests : mockUpcomingTests.slice(0, 2)).map((test) => (
               <div
                 key={test.id}
                 className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-slate-300 hover:bg-slate-100"
@@ -1035,17 +1221,17 @@ const PatientLaboratory = () => {
                     type="button"
                     onClick={handleConfirmBooking}
                     disabled={isSubmitting}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-400/40 transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isSubmitting ? (
                       <>
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        Sharing...
+                        Sending...
                       </>
                     ) : (
                       <>
-                        <IoShareSocialOutline className="h-5 w-5" />
-                        Share & Confirm
+                        <IoCheckmarkCircleOutline className="h-5 w-5" />
+                        Confirm Booking
                       </>
                     )}
                   </button>

@@ -1,7 +1,6 @@
 const { Queue, Worker } = require('bullmq');
 const { redisUrl, isRedisEnabled } = require('../config/redis');
 const appointmentQueueService = require('./appointmentQueueService');
-const subscriptionService = require('./subscriptionService');
 const { JOB_NAMES } = require('../utils/constants');
 
 const queues = {};
@@ -47,9 +46,6 @@ const initWorkers = (io) => {
         case JOB_NAMES.PAYOUT_RECONCILIATION:
           // Placeholder: integrate with Razorpay payouts
           break;
-        case JOB_NAMES.SUBSCRIPTION_EXPIRY:
-          await subscriptionService.expireElapsedSubscriptions();
-          break;
         default:
           break;
       }
@@ -87,16 +83,6 @@ const scheduleRecurringJobs = async () => {
     {
       repeat: {
         cron: process.env.QUEUE_NOSHOW_CRON || '*/10 * * * *',
-      },
-    }
-  );
-
-  await queue.add(
-    JOB_NAMES.SUBSCRIPTION_EXPIRY,
-    {},
-    {
-      repeat: {
-        cron: process.env.SUBSCRIPTION_EXPIRY_CRON || '0 1 * * *',
       },
     }
   );

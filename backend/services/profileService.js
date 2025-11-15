@@ -32,7 +32,12 @@ const mergeObjects = (existingValue, newValue) => {
 const applyPatientUpdates = async (doc, updates, Model) => {
   const allowedScalars = ['firstName', 'lastName', 'dateOfBirth', 'gender', 'bloodGroup', 'profileImage'];
   const mergeFields = ['address', 'emergencyContact'];
-  const arrayReplaceFields = ['medicalHistory'];
+  const arrayReplaceFields = ['medicalHistory', 'allergies'];
+
+  if (updates.email && updates.email !== doc.email) {
+    await ensureUniqueField(Model, 'email', updates.email, doc._id, 'Email already registered.');
+    doc.email = updates.email.toLowerCase().trim();
+  }
 
   if (updates.phone && updates.phone !== doc.phone) {
     await ensureUniqueField(Model, 'phone', updates.phone, doc._id, 'Phone number already registered.');

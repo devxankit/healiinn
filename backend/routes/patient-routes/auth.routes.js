@@ -9,6 +9,7 @@ const {
   patientVerifyOtp,
   patientResetPassword,
   getPatientById,
+  changePassword,
 } = require('../../controllers/patient-controller/patientAuthController');
 const { protect } = require('../../middleware/authMiddleware');
 const { ROLES } = require('../../utils/constants');
@@ -19,6 +20,7 @@ router.post('/signup', registerPatient);
 router.post('/login', loginPatient);
 router.get('/me', protect(ROLES.PATIENT), getPatientProfile);
 router.put('/me', protect(ROLES.PATIENT), updatePatientProfile);
+router.put('/change-password', protect(ROLES.PATIENT), changePassword);
 router.post('/logout', protect(ROLES.PATIENT), logoutPatient);
 router.post('/forgot-password', patientForgotPassword);
 router.post('/verify-otp', patientVerifyOtp);
