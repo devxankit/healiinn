@@ -148,20 +148,11 @@ const PatientLogin = () => {
         <div className="absolute right-0 bottom-0 h-96 w-96 rounded-full bg-[rgba(17,73,108,0.06)] blur-3xl" />
       </div>
 
-      {/* Header Section */}
-      <header className="relative z-10 border-b border-slate-100 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <h1 className="text-xl font-bold text-[#11496c]">Healiinn</h1>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="flex flex-1 flex-col">
-        <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-8 sm:px-6 sm:py-8 md:px-8">
           {/* Mode Toggle */}
-          <div className="mb-8 flex items-center justify-center">
+          <div className="mb-6 flex items-center justify-center sm:mb-8">
             <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-50 p-1.5">
               <button
                 type="button"
@@ -191,13 +182,13 @@ const PatientLogin = () => {
           </div>
 
           {/* Form Section */}
-          <div className="mx-auto w-full max-w-2xl">
+          <div className="mx-auto w-full max-w-lg">
             {/* Title */}
-            <div className="mb-8 text-center">
-              <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
+            <div className="mb-6 text-center sm:mb-8">
+              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 {isLogin ? 'Welcome Back' : 'Create Your Account'}
               </h2>
-              <p className="mt-3 text-base text-slate-600">
+              <p className="mt-2 text-sm text-slate-600 sm:mt-3 sm:text-base">
                 {isLogin
                   ? 'Sign in to access your appointments, prescriptions, and personalized care.'
                   : 'Join Healiinn to manage your health journey with ease.'}
@@ -205,7 +196,7 @@ const PatientLogin = () => {
             </div>
 
             {isLogin ? (
-              <form className="flex flex-col gap-6" onSubmit={handleLoginSubmit}>
+              <form className="flex flex-col gap-5 sm:gap-6" onSubmit={handleLoginSubmit}>
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="login-email" className="text-sm font-semibold text-slate-700">
                     Email Address
@@ -316,8 +307,8 @@ const PatientLogin = () => {
                 </p>
               </form>
             ) : (
-              <form className="flex flex-col gap-6" onSubmit={handleSignupSubmit}>
-                <section className="grid gap-4 sm:grid-cols-2">
+              <form className="flex flex-col gap-5 sm:gap-6" onSubmit={handleSignupSubmit}>
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="firstName" className="text-sm font-semibold text-slate-700">
                       First Name
@@ -396,7 +387,7 @@ const PatientLogin = () => {
                   </div>
                 </section>
 
-                <section className="grid gap-4 sm:grid-cols-2">
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="signup-password" className="text-sm font-semibold text-slate-700">
                       Password
@@ -458,7 +449,7 @@ const PatientLogin = () => {
                   </div>
                 </section>
 
-                <section className="grid gap-4 sm:grid-cols-2">
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="dateOfBirth" className="text-sm font-semibold text-slate-700">
                       Date of Birth
@@ -523,7 +514,7 @@ const PatientLogin = () => {
                   </div>
                 </section>
 
-                <section className="grid gap-4 sm:grid-cols-2">
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5 sm:col-span-2">
                     <label htmlFor="address.line1" className="text-sm font-semibold text-slate-700">
                       Address Line 1
@@ -615,7 +606,7 @@ const PatientLogin = () => {
                   </div>
                 </section>
 
-                <section className="grid gap-4 sm:grid-cols-3">
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-3">
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="emergencyContact.name" className="text-sm font-semibold text-slate-700">
                       Emergency Contact Name
@@ -720,7 +711,7 @@ const PatientLogin = () => {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-100 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-3 px-4 py-6 text-center text-xs text-slate-500 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 px-4 py-4 text-center text-xs text-slate-500 sm:px-6 sm:py-5 md:px-8">
           <span>Secure patient access powered by Healiinn</span>
           <span>
             Need help? Contact your{' '}

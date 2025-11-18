@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import PatientNavbar from './modules/patient/patient-components/PatientNavbar'
 import PatientDashboard from './modules/patient/patient-pages/PatientDashboard'
 import PatientPharmacy from './modules/patient/patient-pages/PatientPharmacy'
@@ -29,22 +29,18 @@ import WalletTransaction from './modules/doctor/doctor-pages/WalletTransaction'
 import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
 import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
 
-function App() {
+function PatientRoutes() {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/patient/login'
+  
   return (
-    <Router>
-      <div className="min-h-screen bg-slate-50 text-slate-900">
+    <>
+      {!isLoginPage && <PatientNavbar />}
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
         <Routes>
-          {/* Patient Routes */}
-          <Route
-            path="/patient/*"
-            element={
-              <>
-                <PatientNavbar />
-                <main className="px-4 pb-24 pt-20 sm:px-6">
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
-                    <Route path="/login" element={<PatientLogin />} />
-                    <Route path="/dashboard" element={<PatientDashboard />} />
+          <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
+          <Route path="/login" element={<PatientLogin />} />
+          <Route path="/dashboard" element={<PatientDashboard />} />
                     <Route path="/pharmacy" element={<PatientPharmacy />} />
                     <Route path="/doctors" element={<PatientDoctors />} />
                     <Route path="/doctors/:id" element={<PatientDoctorDetails />} />
@@ -61,12 +57,20 @@ function App() {
                     <Route path="/requests" element={<PatientRequests />} />
                     <Route path="/transactions" element={<PatientTransactions />} />
                     <Route path="/appointments" element={<PatientAppointments />} />
-                    <Route path="/orders" element={<PatientOrders />} />
-                  </Routes>
-                </main>
-              </>
-            }
-          />
+          <Route path="/orders" element={<PatientOrders />} />
+        </Routes>
+      </main>
+    </>
+  )
+}
+
+function App() {
+  return (
+    <Router>
+      <div className="min-h-screen bg-slate-50 text-slate-900">
+        <Routes>
+          {/* Patient Routes */}
+          <Route path="/patient/*" element={<PatientRoutes />} />
 
           {/* Doctor Routes */}
           <Route path="/doctor/dashboard" element={<DoctorDashboard />} />

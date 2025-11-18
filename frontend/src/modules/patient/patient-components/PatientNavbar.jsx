@@ -28,6 +28,8 @@ const PatientNavbar = () => {
   
   // Hide top header only on dashboard page
   const isDashboardPage = location.pathname === '/patient/dashboard' || location.pathname === '/patient/'
+  // Hide navbar completely on login page
+  const isLoginPage = location.pathname === '/patient/login'
 
   const mobileLinkBase =
     'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2'
@@ -62,8 +64,8 @@ const PatientNavbar = () => {
 
   return (
     <>
-      {/* Top Header - Hidden only on dashboard page */}
-      {!isDashboardPage && (
+      {/* Top Header - Hidden on dashboard and login pages */}
+      {!isDashboardPage && !isLoginPage && (
         <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/95 px-4 py-3 backdrop-blur shadow md:px-6">
           <div className="flex items-center">
             <img
@@ -123,7 +125,8 @@ const PatientNavbar = () => {
         onLogout={handleLogout}
       />
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around gap-1 border-t border-slate-200 bg-white/95 px-3 py-2 backdrop-blur md:hidden">
+      {!isLoginPage && (
+        <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around gap-1 border-t border-slate-200 bg-white/95 px-3 py-2 backdrop-blur md:hidden">
         {navItems.map(({ id, label, to, Icon }) => (
           <NavLink
             key={id}
@@ -153,7 +156,8 @@ const PatientNavbar = () => {
             )}
           </NavLink>
         ))}
-      </nav>
+        </nav>
+      )}
     </>
   )
 }
