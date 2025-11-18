@@ -29,8 +29,9 @@ const DoctorNavbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
   
-  // Hide header on dashboard page
+  // Hide header on dashboard and login pages
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
+  const isLoginPage = location.pathname === '/doctor/login'
 
   const mobileLinkBase =
     'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[rgba(17,73,108,0.7)] focus-visible:ring-offset-2'
@@ -63,7 +64,7 @@ const DoctorNavbar = () => {
 
   return (
     <>
-      {!isDashboardPage && (
+      {!isDashboardPage && !isLoginPage && (
         <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/95 px-4 py-3 backdrop-blur shadow md:px-6">
         <div className="flex items-center">
           <img
@@ -123,6 +124,7 @@ const DoctorNavbar = () => {
         onLogout={handleLogout}
       />
 
+      {!isLoginPage && (
       <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around gap-1 border-t border-slate-200 bg-white/95 px-3 py-2 backdrop-blur md:hidden">
         {navbarItems.map(({ id, label, to, Icon }) => (
           <NavLink
@@ -154,6 +156,7 @@ const DoctorNavbar = () => {
           </NavLink>
         ))}
       </nav>
+      )}
     </>
   )
 }

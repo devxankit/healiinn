@@ -28,6 +28,8 @@ import WalletWithdraw from './modules/doctor/doctor-pages/WalletWithdraw'
 import WalletTransaction from './modules/doctor/doctor-pages/WalletTransaction'
 import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
 import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
+import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
+import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
 
 function PatientRoutes() {
   const location = useLocation()
@@ -64,6 +66,32 @@ function PatientRoutes() {
   )
 }
 
+function DoctorRoutes() {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/doctor/login'
+  
+  return (
+    <>
+      {!isLoginPage && <DoctorNavbar />}
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/doctor/dashboard" replace />} />
+          <Route path="/login" element={<DoctorLogin />} />
+          <Route path="/dashboard" element={<DoctorDashboard />} />
+          <Route path="/wallet" element={<DoctorWallet />} />
+          <Route path="/wallet/balance" element={<WalletBalance />} />
+          <Route path="/wallet/earning" element={<WalletEarning />} />
+          <Route path="/wallet/withdraw" element={<WalletWithdraw />} />
+          <Route path="/wallet/transaction" element={<WalletTransaction />} />
+          <Route path="/patients" element={<DoctorPatients />} />
+          <Route path="/consultations" element={<DoctorConsultations />} />
+          <Route path="/profile" element={<DoctorProfile />} />
+        </Routes>
+      </main>
+    </>
+  )
+}
+
 function App() {
   return (
     <Router>
@@ -73,15 +101,7 @@ function App() {
           <Route path="/patient/*" element={<PatientRoutes />} />
 
           {/* Doctor Routes */}
-          <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-          <Route path="/doctor/wallet" element={<DoctorWallet />} />
-          <Route path="/doctor/wallet/balance" element={<WalletBalance />} />
-          <Route path="/doctor/wallet/earning" element={<WalletEarning />} />
-          <Route path="/doctor/wallet/withdraw" element={<WalletWithdraw />} />
-          <Route path="/doctor/wallet/transaction" element={<WalletTransaction />} />
-          <Route path="/doctor/patients" element={<DoctorPatients />} />
-          <Route path="/doctor/consultations" element={<DoctorConsultations />} />
-          <Route path="/doctor/profile" element={<DoctorProfile />} />
+          <Route path="/doctor/*" element={<DoctorRoutes />} />
 
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />

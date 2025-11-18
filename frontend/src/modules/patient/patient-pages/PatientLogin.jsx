@@ -11,6 +11,7 @@ import {
   IoPersonOutline,
   IoCalendarClearOutline,
 } from 'react-icons/io5'
+import healinnLogo from '../../../assets/images/logo.png'
 
 const initialSignupState = {
   firstName: '',
@@ -151,6 +152,16 @@ const PatientLogin = () => {
       {/* Main Content */}
       <main className="flex flex-1 flex-col">
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-8 sm:px-6 sm:py-8 md:px-8">
+          {/* Logo */}
+          <div className="mb-6 flex items-center justify-center sm:mb-8">
+            <img
+              src={healinnLogo}
+              alt="Healiinn"
+              className="h-10 w-auto object-contain sm:h-12"
+              loading="lazy"
+            />
+          </div>
+
           {/* Mode Toggle */}
           <div className="mb-6 flex items-center justify-center sm:mb-8">
             <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-50 p-1.5">
