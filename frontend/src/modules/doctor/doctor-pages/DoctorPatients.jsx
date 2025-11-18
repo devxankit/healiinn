@@ -226,7 +226,7 @@ const DoctorPatients = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search patients by name or reason..."
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
               />
             </div>
           </div>
@@ -245,131 +245,114 @@ const DoctorPatients = () => {
                   key={appointment.id}
                   className={`rounded-xl border bg-white p-3 shadow-sm transition-all ${
                     appointment.status === 'in-consultation'
-                      ? 'border-blue-500 bg-blue-50/30'
+                      ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                       : appointment.status === 'no-show'
                       ? 'border-red-200 bg-red-50/30'
                       : 'border-slate-200 hover:shadow-md'
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    {/* Queue Number */}
-                    <div className="flex shrink-0 flex-col items-center gap-1.5">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-lg font-bold text-base ${
-                          appointment.status === 'in-consultation'
-                            ? 'bg-blue-500 text-white'
-                            : appointment.status === 'no-show'
-                            ? 'bg-red-500 text-white'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {appointment.queueNumber}
-                      </div>
-                      {appointment.status === 'waiting' && (
-                        <div className="flex flex-col gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleMoveUp(appointment.id)}
-                            disabled={appointment.queueNumber === 1}
-                            className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Move up"
-                          >
-                            <IoArrowBackOutline className="h-3 w-3 rotate-90" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveDown(appointment.id)}
-                            disabled={appointment.queueNumber === filteredAppointments.length}
-                            className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-600 transition hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Move down"
-                          >
-                            <IoArrowForwardOutline className="h-3 w-3 rotate-90" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Patient Info */}
-                    <div className="flex flex-1 items-start gap-2.5 min-w-0">
-                      <img
-                        src={appointment.patientImage}
-                        alt={appointment.patientName}
-                        className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                        onError={(e) => {
-                          e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=3b82f6&color=fff&size=160`
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-slate-900 truncate">
-                          {appointment.patientName.split(' ')[0].charAt(0)}.
-                        </h3>
-                        <p className="mt-0.5 text-xs text-slate-600">{appointment.age} years</p>
-                        <p className="mt-0.5 text-xs text-slate-600 truncate">{appointment.gender.charAt(0).toUpperCase()}.</p>
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              appointment.appointmentType === 'New'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-emerald-100 text-emerald-700'
-                            }`}
-                          >
-                            {appointment.appointmentType === 'New' ? 'New' : 'Follow up'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleViewHistory(appointment)}
-                            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50"
-                          >
-                            <IoDocumentTextOutline className="h-3 w-3" />
-                            History
-                          </button>
+                  <div className="flex flex-col gap-3">
+                    {/* Top Row: Queue, Image, Patient Info, Time & Call Next */}
+                    <div className="flex items-start gap-3">
+                      {/* Queue Number */}
+                      <div className="flex shrink-0">
+                        <div
+                          className={`flex h-10 w-10 items-center justify-center rounded-lg font-bold text-base ${
+                            appointment.status === 'in-consultation'
+                              ? 'bg-[#11496c] text-white'
+                              : appointment.status === 'no-show'
+                              ? 'bg-red-500 text-white'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {appointment.queueNumber}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Time and Action Buttons */}
-                    <div className="flex shrink-0 flex-col items-end gap-2">
-                      <div className="text-xs font-medium text-slate-700">
-                        {formatTime(appointment.appointmentTime)}
+                      {/* Patient Info */}
+                      <div className="flex flex-1 items-start gap-2.5 min-w-0">
+                        <img
+                          src={appointment.patientImage}
+                          alt={appointment.patientName}
+                          className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=3b82f6&color=fff&size=160`
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-bold text-slate-900 truncate">
+                            {appointment.patientName.split(' ')[0].charAt(0)}.
+                          </h3>
+                          <p className="mt-0.5 text-xs text-slate-600">{appointment.age} years</p>
+                          <p className="mt-0.5 text-xs text-slate-600 truncate">{appointment.gender.charAt(0).toUpperCase()}.</p>
+                        </div>
                       </div>
-                      {appointment.status === 'waiting' && (
-                        <>
+
+                      {/* Time and Call Next Button - Right Side */}
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <div className="text-xs font-medium text-slate-700">
+                          {formatTime(appointment.appointmentTime)}
+                        </div>
+                        {appointment.status === 'waiting' && (
                           <button
                             type="button"
                             onClick={() => handleCallNext(appointment.id)}
-                            className="flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-600 active:scale-95"
+                            className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
                           >
                             <IoPlayOutline className="h-3.5 w-3.5" />
                             Call Next
                           </button>
-                          <div className="flex gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleSkip(appointment.id)}
-                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
-                            >
-                              Skip
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleNoShow(appointment.id)}
-                              className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
-                            >
-                              No Show
-                            </button>
-                          </div>
+                        )}
+                        {(appointment.status === 'in-consultation' || appointment.status === 'no-show') && (
+                          <button
+                            type="button"
+                            onClick={() => handleViewHistory(appointment)}
+                            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                          >
+                            <IoDocumentTextOutline className="h-3.5 w-3.5" />
+                            History
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Follow up, History, Skip, No Show - All in one row */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          appointment.appointmentType === 'New'
+                            ? 'bg-[rgba(17,73,108,0.15)] text-[#11496c]'
+                            : 'bg-emerald-100 text-emerald-700'
+                        }`}
+                      >
+                        {appointment.appointmentType === 'New' ? 'New' : 'Follow up'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleViewHistory(appointment)}
+                        className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <IoDocumentTextOutline className="h-3 w-3" />
+                        History
+                      </button>
+                      {appointment.status === 'waiting' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleSkip(appointment.id)}
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-0.5 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                          >
+                            Skip
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleNoShow(appointment.id)}
+                            className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-0.5 text-[10px] font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
+                          >
+                            No Show
+                          </button>
                         </>
-                      )}
-                      {(appointment.status === 'in-consultation' || appointment.status === 'no-show') && (
-                        <button
-                          type="button"
-                          onClick={() => handleViewHistory(appointment)}
-                          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
-                        >
-                          <IoDocumentTextOutline className="h-3.5 w-3.5" />
-                          History
-                        </button>
                       )}
                     </div>
                   </div>
@@ -420,7 +403,7 @@ const DoctorPatients = () => {
               {/* Medical Conditions */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <IoMedicalOutline className="h-4 w-4 text-blue-600" />
+                  <IoMedicalOutline className="h-4 w-4 text-[#11496c]" />
                   Medical Conditions
                 </h3>
                 {medicalHistory.conditions.length > 0 ? (
@@ -428,7 +411,7 @@ const DoctorPatients = () => {
                     {medicalHistory.conditions.map((condition, idx) => (
                       <span
                         key={idx}
-                        className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700"
+                        className="rounded-full bg-[rgba(17,73,108,0.15)] px-3 py-1 text-xs font-semibold text-[#11496c]"
                       >
                         {condition}
                       </span>

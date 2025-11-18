@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
+import DoctorSidebar from '../doctor-components/DoctorSidebar'
 import {
   IoPeopleOutline,
   IoDocumentTextOutline,
@@ -8,16 +10,16 @@ import {
   IoTimeOutline,
   IoStarOutline,
   IoCheckmarkCircleOutline,
-  IoCloseCircleOutline,
   IoArrowForwardOutline,
   IoLocationOutline,
   IoCallOutline,
   IoVideocamOutline,
-  IoChatbubbleOutline,
-  IoPersonOutline,
   IoTrendingUpOutline,
   IoTrendingDownOutline,
   IoNotificationsOutline,
+  IoMenuOutline,
+  IoHomeOutline,
+  IoPersonCircleOutline,
 } from 'react-icons/io5'
 
 const mockStats = {
@@ -197,6 +199,7 @@ const getTypeIcon = (type) => {
 
 const DoctorDashboard = () => {
   const navigate = useNavigate()
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   const todayLabel = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
@@ -207,33 +210,97 @@ const DoctorDashboard = () => {
   const earningsChange = ((mockStats.thisMonthEarnings - mockStats.lastMonthEarnings) / mockStats.lastMonthEarnings) * 100
   const consultationsChange = ((mockStats.thisMonthConsultations - mockStats.lastMonthConsultations) / mockStats.lastMonthConsultations) * 100
 
+  // Sidebar navigation items
+  const sidebarNavItems = [
+    { id: 'home', label: 'Dashboard', to: '/doctor/dashboard', Icon: IoHomeOutline },
+    { id: 'consultations', label: 'Consultations', to: '/doctor/consultations', Icon: IoDocumentTextOutline },
+    { id: 'patients', label: 'Patients', to: '/doctor/patients', Icon: IoPeopleOutline },
+    { id: 'wallet', label: 'Wallet', to: '/doctor/wallet', Icon: IoWalletOutline },
+    { id: 'profile', label: 'Profile', to: '/doctor/profile', Icon: IoPersonCircleOutline },
+  ]
+
+  const handleSidebarToggle = () => {
+    setIsSidebarOpen(!isSidebarOpen)
+  }
+
+  const handleSidebarClose = () => {
+    setIsSidebarOpen(false)
+  }
+
+  const handleLogout = () => {
+    handleSidebarClose()
+    localStorage.removeItem('doctorAuthToken')
+    sessionStorage.removeItem('doctorAuthToken')
+    navigate('/', { replace: true })
+  }
+
   return (
     <>
       <DoctorNavbar />
-      <div className="min-h-screen bg-slate-50 pt-20 pb-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-600">Overview of your practice</p>
+      <DoctorSidebar
+        isOpen={isSidebarOpen}
+        onClose={handleSidebarClose}
+        navItems={sidebarNavItems}
+        onLogout={handleLogout}
+      />
+      <div className="min-h-screen bg-slate-50 pt-0 pb-24">
+        {/* New Gradient Header - Full Width */}
+        <div className="mb-6 rounded-b-xl sm:rounded-b-2xl overflow-hidden bg-gradient-to-r from-[#11496c] via-[#1a5f7a] to-[#2a8ba8] shadow-lg">
+          <div className="relative p-4 sm:p-5 lg:p-6">
+            {/* Top Section - Doctor Info */}
+            <div className="flex items-start justify-between mb-4 sm:mb-5">
+              <div className="flex-1">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-1 sm:mb-2">
+                  Dr. Rajesh Kumar
+                </h1>
+                <p className="text-sm sm:text-base text-white/90">
+                  Shivaji Nagar Clinic • <span className="text-white font-medium">Online</span>
+                </p>
+              </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={handleSidebarToggle}
+                  className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
+                  aria-label="Menu"
+                >
+                  <IoMenuOutline className="h-5 w-5 sm:h-6 sm:w-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Queue Status Button */}
+            <div className="flex justify-center">
+              <div className="w-full max-w-xs sm:max-w-sm rounded-lg bg-white/20 backdrop-blur-sm px-4 sm:px-6 py-2.5 sm:py-3 border border-white/30">
+                <p className="text-center text-xs sm:text-sm font-semibold text-white uppercase tracking-wide">
+                  Queue Status: <span className="text-white font-bold">ACTIVE</span>
+                </p>
+              </div>
+            </div>
           </div>
+        </div>
+
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
           {/* Stats Cards Grid */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 sm:gap-x-2.5 sm:gap-y-2 lg:grid-cols-3 mb-4 sm:mb-6">
             {/* Total Patients */}
             <article
               onClick={() => navigate('/doctor/patients')}
-              className="relative overflow-hidden rounded-3xl border border-blue-100/60 bg-gradient-to-br from-blue-50/90 via-white to-blue-50/70 p-4 shadow-sm shadow-blue-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+              className="relative overflow-hidden aspect-square rounded-lg sm:rounded-xl border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.05)] p-2 sm:p-2.5 shadow-sm shadow-[rgba(17,73,108,0.1)] backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
             >
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-200/30 blur-2xl" />
-              <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-blue-300/20 blur-2xl" />
-              <div className="relative flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-blue-700">Total Patients</p>
-                  <p className="text-2xl font-bold text-slate-900">{mockStats.totalPatients}</p>
-                  <p className="text-xs text-slate-600">Active patients</p>
+              <div className="absolute -right-3 -top-3 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-[rgba(17,73,108,0.15)] blur-xl" />
+              <div className="absolute -bottom-2 left-2 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-[rgba(17,73,108,0.1)] blur-xl" />
+              <div className="relative h-full flex flex-col justify-between">
+                <div className="flex-1 flex flex-col justify-center">
+                  <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1">Total Patients</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-none">{mockStats.totalPatients}</p>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-400 to-blue-500 text-white shadow-lg shadow-blue-300/50">
-                  <IoPeopleOutline className="text-xl" aria-hidden="true" />
+                <div className="flex items-center justify-between pt-2 border-t border-[rgba(17,73,108,0.1)]">
+                  <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Active patients</p>
+                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-br from-[#11496c] to-[#11496c] text-white shadow-md shadow-[rgba(17,73,108,0.3)]">
+                    <IoPeopleOutline className="text-sm sm:text-base" aria-hidden="true" />
+                  </div>
                 </div>
               </div>
             </article>
@@ -241,18 +308,20 @@ const DoctorDashboard = () => {
             {/* Total Consultations */}
             <article
               onClick={() => navigate('/doctor/consultations')}
-              className="relative overflow-hidden rounded-3xl border border-emerald-100/60 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/70 p-4 shadow-sm shadow-emerald-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+              className="relative overflow-hidden aspect-square rounded-lg sm:rounded-xl border border-emerald-100/60 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/70 p-2 sm:p-2.5 shadow-sm shadow-emerald-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
             >
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-200/30 blur-2xl" />
-              <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-emerald-300/20 blur-2xl" />
-              <div className="relative flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-700">Total Consultations</p>
-                  <p className="text-2xl font-bold text-slate-900">{mockStats.totalConsultations}</p>
-                  <p className="text-xs text-slate-600">All time</p>
+              <div className="absolute -right-3 -top-3 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-emerald-200/30 blur-xl" />
+              <div className="absolute -bottom-2 left-2 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-emerald-300/20 blur-xl" />
+              <div className="relative h-full flex flex-col justify-between">
+                <div className="flex-1 flex flex-col justify-center">
+                  <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1">Total Consultations</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-none">{mockStats.totalConsultations}</p>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-lg shadow-emerald-300/50">
-                  <IoDocumentTextOutline className="text-xl" aria-hidden="true" />
+                <div className="flex items-center justify-between pt-2 border-t border-emerald-100/50">
+                  <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">All time</p>
+                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-md shadow-emerald-300/50">
+                    <IoDocumentTextOutline className="text-sm sm:text-base" aria-hidden="true" />
+                  </div>
                 </div>
               </div>
             </article>
@@ -260,18 +329,20 @@ const DoctorDashboard = () => {
             {/* Today's Appointments */}
             <article
               onClick={() => navigate('/doctor/consultations')}
-              className="relative overflow-hidden rounded-3xl border border-purple-100/60 bg-gradient-to-br from-purple-50/90 via-white to-purple-50/70 p-4 shadow-sm shadow-purple-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+              className="relative overflow-hidden aspect-square rounded-lg sm:rounded-xl border border-purple-100/60 bg-gradient-to-br from-purple-50/90 via-white to-purple-50/70 p-2 sm:p-2.5 shadow-sm shadow-purple-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
             >
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-purple-200/30 blur-2xl" />
-              <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-purple-300/20 blur-2xl" />
-              <div className="relative flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-purple-700">Today's Appointments</p>
-                  <p className="text-2xl font-bold text-slate-900">{mockStats.todayAppointments}</p>
-                  <p className="text-xs text-slate-600">{todayLabel}</p>
+              <div className="absolute -right-3 -top-3 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-purple-200/30 blur-xl" />
+              <div className="absolute -bottom-2 left-2 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-purple-300/20 blur-xl" />
+              <div className="relative h-full flex flex-col justify-between">
+                <div className="flex-1 flex flex-col justify-center">
+                  <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Today's Appointments</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-none">{mockStats.todayAppointments}</p>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-400 to-purple-500 text-white shadow-lg shadow-purple-300/50">
-                  <IoCalendarOutline className="text-xl" aria-hidden="true" />
+                <div className="flex items-center justify-between pt-2 border-t border-purple-100/50">
+                  <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight line-clamp-1">{todayLabel}</p>
+                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-400 to-purple-500 text-white shadow-md shadow-purple-300/50">
+                    <IoCalendarOutline className="text-sm sm:text-base" aria-hidden="true" />
+                  </div>
                 </div>
               </div>
             </article>
@@ -279,31 +350,33 @@ const DoctorDashboard = () => {
             {/* Total Earnings */}
             <article
               onClick={() => navigate('/doctor/wallet')}
-              className="relative overflow-hidden rounded-3xl border border-amber-100/60 bg-gradient-to-br from-amber-50/90 via-white to-amber-50/70 p-4 shadow-sm shadow-amber-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+              className="relative overflow-hidden aspect-square rounded-lg sm:rounded-xl border border-amber-100/60 bg-gradient-to-br from-amber-50/90 via-white to-amber-50/70 p-2 sm:p-2.5 shadow-sm shadow-amber-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
             >
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-200/30 blur-2xl" />
-              <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-amber-300/20 blur-2xl" />
-              <div className="relative flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-amber-700">Total Earnings</p>
-                  <p className="text-2xl font-bold text-slate-900">{formatCurrency(mockStats.totalEarnings)}</p>
-                  <div className="flex items-center gap-1 text-xs">
+              <div className="absolute -right-3 -top-3 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-amber-200/30 blur-xl" />
+              <div className="absolute -bottom-2 left-2 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-amber-300/20 blur-xl" />
+              <div className="relative h-full flex flex-col justify-between">
+                <div className="flex-1 flex flex-col justify-center">
+                  <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-amber-700 leading-tight mb-1">Total Earnings</p>
+                  <p className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 leading-none">{formatCurrency(mockStats.totalEarnings)}</p>
+                  <div className="flex items-center gap-1 mt-1 text-[9px] sm:text-[10px]">
                     {earningsChange >= 0 ? (
                       <>
-                        <IoTrendingUpOutline className="h-3 w-3 text-emerald-600" />
-                        <span className="text-emerald-600">+{earningsChange.toFixed(1)}%</span>
+                        <IoTrendingUpOutline className="h-2 w-2 sm:h-2.5 sm:w-2.5 text-emerald-600" />
+                        <span className="text-emerald-600 font-semibold">+{earningsChange.toFixed(1)}%</span>
                       </>
                     ) : (
                       <>
-                        <IoTrendingDownOutline className="h-3 w-3 text-red-600" />
-                        <span className="text-red-600">{earningsChange.toFixed(1)}%</span>
+                        <IoTrendingDownOutline className="h-2 w-2 sm:h-2.5 sm:w-2.5 text-red-600" />
+                        <span className="text-red-600 font-semibold">{earningsChange.toFixed(1)}%</span>
                       </>
                     )}
-                    <span className="text-slate-500">vs last month</span>
                   </div>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-lg shadow-amber-300/50">
-                  <IoWalletOutline className="text-xl" aria-hidden="true" />
+                <div className="flex items-center justify-between pt-2 border-t border-amber-100/50">
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 leading-tight">vs last month</p>
+                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-md shadow-amber-300/50">
+                    <IoWalletOutline className="text-sm sm:text-base" aria-hidden="true" />
+                  </div>
                 </div>
               </div>
             </article>
@@ -311,44 +384,48 @@ const DoctorDashboard = () => {
             {/* Pending Consultations */}
             <article
               onClick={() => navigate('/doctor/consultations')}
-              className="relative overflow-hidden rounded-3xl border border-orange-100/60 bg-gradient-to-br from-orange-50/90 via-white to-orange-50/70 p-4 shadow-sm shadow-orange-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+              className="relative overflow-hidden aspect-square rounded-lg sm:rounded-xl border border-orange-100/60 bg-gradient-to-br from-orange-50/90 via-white to-orange-50/70 p-2 sm:p-2.5 shadow-sm shadow-orange-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
             >
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-orange-200/30 blur-2xl" />
-              <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-orange-300/20 blur-2xl" />
-              <div className="relative flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-orange-700">Pending Consultations</p>
-                  <p className="text-2xl font-bold text-slate-900">{mockStats.pendingConsultations}</p>
-                  <p className="text-xs text-slate-600">Requires attention</p>
+              <div className="absolute -right-3 -top-3 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-orange-200/30 blur-xl" />
+              <div className="absolute -bottom-2 left-2 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-orange-300/20 blur-xl" />
+              <div className="relative h-full flex flex-col justify-between">
+                <div className="flex-1 flex flex-col justify-center">
+                  <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-orange-700 leading-tight mb-1">Pending Consultations</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-none">{mockStats.pendingConsultations}</p>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-lg shadow-orange-300/50">
-                  <IoNotificationsOutline className="text-xl" aria-hidden="true" />
+                <div className="flex items-center justify-between pt-2 border-t border-orange-100/50">
+                  <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Requires attention</p>
+                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md shadow-orange-300/50">
+                    <IoNotificationsOutline className="text-sm sm:text-base" aria-hidden="true" />
+                  </div>
                 </div>
               </div>
             </article>
 
             {/* Average Rating */}
-            <article className="relative overflow-hidden rounded-3xl border border-pink-100/60 bg-gradient-to-br from-pink-50/90 via-white to-pink-50/70 p-4 shadow-sm shadow-pink-100/50 backdrop-blur-sm">
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-pink-200/30 blur-2xl" />
-              <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-pink-300/20 blur-2xl" />
-              <div className="relative flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-pink-700">Average Rating</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-2xl font-bold text-slate-900">{mockStats.averageRating}</p>
+            <article className="relative overflow-hidden aspect-square rounded-lg sm:rounded-xl border border-pink-100/60 bg-gradient-to-br from-pink-50/90 via-white to-pink-50/70 p-2 sm:p-2.5 shadow-sm shadow-pink-100/50 backdrop-blur-sm">
+              <div className="absolute -right-3 -top-3 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-pink-200/30 blur-xl" />
+              <div className="absolute -bottom-2 left-2 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-pink-300/20 blur-xl" />
+              <div className="relative h-full flex flex-col justify-between">
+                <div className="flex-1 flex flex-col justify-center">
+                  <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-pink-700 leading-tight mb-1">Average Rating</p>
+                  <div className="flex items-center gap-1">
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 leading-none">{mockStats.averageRating}</p>
                     <div className="flex items-center">
                       {[...Array(5)].map((_, i) => (
                         <IoStarOutline
                           key={i}
-                          className={`h-4 w-4 ${i < Math.floor(mockStats.averageRating) ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}`}
+                          className={`h-2.5 w-2.5 sm:h-3 sm:w-3 ${i < Math.floor(mockStats.averageRating) ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}`}
                         />
                       ))}
                     </div>
                   </div>
-                  <p className="text-xs text-slate-600">Based on patient reviews</p>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-400 to-pink-500 text-white shadow-lg shadow-pink-300/50">
-                  <IoStarOutline className="text-xl" aria-hidden="true" />
+                <div className="flex items-center justify-between pt-2 border-t border-pink-100/50">
+                  <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Based on patient reviews</p>
+                  <div className="flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-br from-pink-400 to-pink-500 text-white shadow-md shadow-pink-300/50">
+                    <IoStarOutline className="text-sm sm:text-base" aria-hidden="true" />
+                  </div>
                 </div>
               </div>
             </article>
@@ -361,14 +438,14 @@ const DoctorDashboard = () => {
                 <h2 id="schedule-title" className="text-base font-semibold text-slate-900">
                   Today's Schedule
                 </h2>
-                <span className="flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-blue-100 px-2 text-xs font-medium text-blue-600">
+                <span className="flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)] px-2 text-xs font-medium text-[#11496c]">
                   {todayAppointments.length}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => navigate('/doctor/consultations')}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
+                className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
               >
                 See all
               </button>
@@ -449,7 +526,7 @@ const DoctorDashboard = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/doctor/consultations')}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
+                  className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
                 >
                   See all
                 </button>
@@ -523,7 +600,7 @@ const DoctorDashboard = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/doctor/patients')}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
+                  className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
                 >
                   See all
                 </button>
@@ -580,7 +657,7 @@ const DoctorDashboard = () => {
               <button
                 type="button"
                 onClick={() => navigate('/doctor/wallet')}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
+                className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
               >
                 View details
               </button>
@@ -633,8 +710,8 @@ const DoctorDashboard = () => {
                       <span className="text-slate-500">vs last month</span>
                     </div>
                   </div>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
-                    <IoDocumentTextOutline className="h-6 w-6 text-blue-600" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.15)]">
+                    <IoDocumentTextOutline className="h-6 w-6 text-[#11496c]" />
                   </div>
                 </div>
               </article>

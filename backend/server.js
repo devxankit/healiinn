@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const { Server } = require('socket.io');
 const { createAdapter } = require('@socket.io/redis-adapter');
+const os = require('os');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
@@ -136,8 +137,37 @@ if (isRedisEnabled && redis && pub && sub) {
   console.warn('[Redis] Disabled - sockets running without Redis adapter.');
 }
 
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Listen on all network interfaces (0.0.0.0) to allow network access
+server.listen(PORT, '0.0.0.0', () => {
+  const networkInterfaces = os.networkInterfaces();
+  const addresses = [];
+  
+  // Get localhost address
+  addresses.push(`http://localhost:${PORT}`);
+  addresses.push(`http://127.0.0.1:${PORT}`);
+  
+  // Get network IP addresses
+  Object.keys(networkInterfaces).forEach((interfaceName) => {
+    networkInterfaces[interfaceName].forEach((iface) => {
+      // Skip internal (loopback) and non-IPv4 addresses
+      // Handle both string 'IPv4' and number 4 (Windows compatibility)
+      const isIPv4 = iface.family === 'IPv4' || iface.family === 4;
+      if (isIPv4 && !iface.internal) {
+        const address = `http://${iface.address}:${PORT}`;
+        // Avoid duplicates
+        if (!addresses.includes(address)) {
+          addresses.push(address);
+        }
+      }
+    });
+  });
+  
+  console.log(`\n🚀 Server is running on port ${PORT}`);
+  console.log(`\n📍 Available at:`);
+  addresses.forEach((address) => {
+    console.log(`   ${address}`);
+  });
+  console.log('');
 });
 
 module.exports = app;

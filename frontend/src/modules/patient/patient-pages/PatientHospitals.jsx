@@ -67,7 +67,7 @@ const PatientHospitals = () => {
                   e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(hospital.name)}&background=3b82f6&color=fff&size=128&bold=true`
                 }}
               />
-              <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm">
+              <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-[#11496c] shadow-sm">
                 ⭐ {hospital.rating}
               </span>
             </figure>
@@ -82,7 +82,7 @@ const PatientHospitals = () => {
               <button
                 type="button"
                 onClick={() => navigate(`/patient/hospitals/${hospital.id}/doctors`)}
-                className="w-full rounded-xl bg-blue-500 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-400/40 transition-transform hover:bg-blue-600 active:scale-[0.98]"
+                className="w-full rounded-xl bg-[#11496c] py-2 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-transform hover:bg-[#0d3a52] active:scale-[0.98]"
               >
                 <IoCalendarOutline className="inline h-3.5 w-3.5 mr-1.5" />
                 Book appointment

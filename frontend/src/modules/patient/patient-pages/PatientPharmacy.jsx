@@ -467,16 +467,16 @@ const CustomDropdown = ({ id, value, onChange, options, className = '' }) => {
           onClick={handleToggle}
           className={`flex w-full items-center justify-between rounded-lg border bg-white/95 backdrop-blur-sm px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-all ${
             isOpen
-              ? 'border-sky-400 bg-white shadow-md ring-2 ring-sky-400/30'
-              : 'border-sky-200/60 hover:border-sky-300 hover:bg-white hover:shadow-md focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30'
+              ? 'bg-white shadow-md ring-2'
+              : 'border-[rgba(17,73,108,0.3)] hover:border-[rgba(17,73,108,0.4)] hover:bg-white hover:shadow-md focus:border-[#11496c] focus:outline-none focus:ring-2'
           }`}
           aria-haspopup="listbox"
           aria-expanded={isOpen}
         >
           <span className="truncate text-xs">{selectedOption?.label || 'Select...'}</span>
           <HiChevronDown
-            className={`ml-1.5 h-3 w-3 flex-shrink-0 text-sky-500 transition-all duration-200 ${
-              isOpen ? 'rotate-180 text-sky-600' : ''
+            className={`ml-1.5 h-3 w-3 flex-shrink-0 text-[#11496c] transition-all duration-200 ${
+              isOpen ? 'rotate-180 text-[#11496c]' : ''
             }`}
           />
         </button>
@@ -490,7 +490,7 @@ const CustomDropdown = ({ id, value, onChange, options, className = '' }) => {
           />
           <div 
             ref={menuRef}
-            className="fixed z-[9999] rounded-lg border-2 border-sky-300 bg-white shadow-2xl"
+            className="fixed z-[9999] rounded-lg border-2 border-[rgba(17,73,108,0.4)] bg-white shadow-2xl"
             style={{
               top: position.top > 0 ? `${position.top}px` : '50%',
               left: position.left > 0 ? `${position.left}px` : '50%',
@@ -523,8 +523,8 @@ const CustomDropdown = ({ id, value, onChange, options, className = '' }) => {
                   }}
                   className={`cursor-pointer px-3 py-2 text-xs font-medium transition-colors ${
                     value === option.value
-                      ? 'bg-sky-100 text-sky-700 font-semibold'
-                      : 'bg-white text-slate-700 hover:bg-sky-50'
+                      ? 'bg-[rgba(17,73,108,0.15)] text-[#11496c] font-semibold'
+                      : 'bg-white text-slate-700 hover:bg-[rgba(17,73,108,0.1)]'
                   }`}
                 >
                   {option.label}
@@ -743,14 +743,14 @@ const PatientPharmacy = () => {
       {/* Search Bar - Outside Card */}
       <div className="relative">
         <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sky-500">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#11496c]">
             <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
           </span>
           <input
             id="pharmacy-directory-search"
             type="search"
             placeholder="Search by name, service, or medicine..."
-            className="w-full rounded-lg border border-sky-200/60 bg-white py-2 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-sky-300 hover:bg-white hover:shadow-md focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400/30 sm:text-base"
+            className="w-full rounded-lg border border-[rgba(17,73,108,0.3)] bg-white py-2 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-[rgba(17,73,108,0.4)] hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)] sm:text-base"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
           />
@@ -865,7 +865,7 @@ const PatientPharmacy = () => {
                   </span>
                 ))}
                 {pharmacy.responseTimeMinutes && (
-                  <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-600">
+                  <span className="rounded-full bg-[rgba(17,73,108,0.1)] px-2 py-1 text-[10px] font-medium text-[#11496c]">
                     ~{pharmacy.responseTimeMinutes} min response
                   </span>
                 )}
@@ -882,7 +882,7 @@ const PatientPharmacy = () => {
                   onClick={() => {
                     setBookingPharmacyId(pharmacy.id)
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 active:scale-95"
+                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
                 >
                   <IoCalendarOutline className="h-4 w-4" aria-hidden="true" />
                   Book
@@ -966,7 +966,7 @@ const PatientPharmacy = () => {
                     </span>
                   ))}
                   {detailPharmacy.responseTimeMinutes && (
-                    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-sky-600">
+                    <span className="rounded-full bg-[rgba(17,73,108,0.1)] px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-[#11496c]">
                       ~{detailPharmacy.responseTimeMinutes} min response
                     </span>
                   )}
@@ -985,7 +985,7 @@ const PatientPharmacy = () => {
                       <span className="text-slate-500 min-w-[70px] sm:min-w-[80px] shrink-0">Phone:</span>
                       <a
                         href={`tel:${normalizePhone(detailPharmacy.phone)}`}
-                        className="font-semibold text-blue-600 hover:text-blue-700 hover:underline break-all"
+                        className="font-semibold text-[#11496c] hover:text-[#0d3a52] hover:underline break-all"
                       >
                         {detailPharmacy.phone}
                       </a>
@@ -994,7 +994,7 @@ const PatientPharmacy = () => {
                       <span className="text-slate-500 min-w-[70px] sm:min-w-[80px] shrink-0">Email:</span>
                       <a
                         href={`mailto:${detailPharmacy.email}`}
-                        className="font-semibold text-blue-600 hover:text-blue-700 hover:underline break-all"
+                        className="font-semibold text-[#11496c] hover:text-[#0d3a52] hover:underline break-all"
                       >
                         {detailPharmacy.email}
                       </a>
@@ -1076,7 +1076,7 @@ const PatientPharmacy = () => {
                 <button
                   type="button"
                   onClick={() => setDetailPharmacyId(null)}
-                  className="flex flex-1 items-center justify-center rounded-lg bg-blue-500 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-semibold text-white transition hover:bg-blue-600"
+                  className="flex flex-1 items-center justify-center rounded-lg bg-[#11496c] px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-semibold text-white transition hover:bg-[#0d3a52]"
                 >
                   Close
                 </button>
@@ -1102,10 +1102,10 @@ const PatientPharmacy = () => {
         >
           <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
             {/* Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-6 py-3 sm:py-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Book Medicine</h2>
-                <p className="text-sm text-slate-600">{bookingPharmacy.pharmacyName}</p>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">Book Medicine</h2>
+                <p className="text-xs sm:text-sm text-slate-600">{bookingPharmacy.pharmacyName}</p>
               </div>
               <button
                 type="button"
@@ -1114,20 +1114,20 @@ const PatientPharmacy = () => {
                   setBookingStep(1)
                   setSelectedPrescription(null)
                 }}
-                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                className="rounded-full p-1.5 sm:p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
               >
-                <IoCloseOutline className="h-5 w-5" />
+                <IoCloseOutline className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
             </div>
 
             {/* Progress Steps */}
-            <div className="flex items-center justify-center gap-2 border-b border-slate-200 bg-slate-50 px-6 py-3">
+            <div className="flex items-center justify-center gap-2 border-b border-slate-200 bg-slate-50 px-3 sm:px-6 py-2 sm:py-3">
               {[1, 2].map((step) => (
                 <div key={step} className="flex items-center gap-2">
                   <div
                     className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition ${
                       bookingStep >= step
-                        ? 'bg-blue-500 text-white'
+                        ? 'bg-[#11496c] text-white'
                         : 'bg-slate-200 text-slate-500'
                     }`}
                   >
@@ -1136,7 +1136,7 @@ const PatientPharmacy = () => {
                   {step < 2 && (
                     <div
                       className={`h-1 w-12 transition ${
-                        bookingStep > step ? 'bg-blue-500' : 'bg-slate-200'
+                        bookingStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
                       }`}
                     />
                   )}
@@ -1145,61 +1145,61 @@ const PatientPharmacy = () => {
             </div>
 
             {/* Content */}
-            <div className="p-6">
+            <div className="p-3 sm:p-6">
               {/* Step 1: Select Service Type & Prescription */}
               {bookingStep === 1 && (
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {/* Service Type */}
                   <div>
-                    <label className="mb-3 block text-sm font-semibold text-slate-700">Service Type</label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <label className="mb-2 sm:mb-3 block text-xs sm:text-sm font-semibold text-slate-700">Service Type</label>
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <button
                         type="button"
                         onClick={() => setServiceType('pickup')}
-                        className={`flex items-center gap-3 rounded-xl border-2 p-4 transition ${
+                        className={`flex items-center gap-2 sm:gap-3 rounded-lg sm:rounded-xl border-2 p-2.5 sm:p-4 transition ${
                           serviceType === 'pickup'
-                            ? 'border-blue-500 bg-blue-50'
+                            ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                             : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                         }`}
                       >
                         <div
-                          className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                          className={`flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full shrink-0 ${
                             serviceType === 'pickup'
-                              ? 'bg-blue-500 text-white'
+                              ? 'bg-[#11496c] text-white'
                               : 'bg-slate-100 text-slate-600'
                           }`}
                         >
-                          <IoBagHandleOutline className="h-5 w-5" />
+                          <IoBagHandleOutline className="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <span className="text-sm font-semibold text-slate-900">In-Pharmacy Pickup</span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-900">In-Pharmacy Pickup</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setServiceType('delivery')}
                         disabled={!bookingPharmacy.deliveryOptions?.includes('delivery') && !bookingPharmacy.deliveryOptions?.includes('both')}
-                        className={`flex items-center gap-3 rounded-xl border-2 p-4 transition ${
+                        className={`flex items-center gap-2 sm:gap-3 rounded-lg sm:rounded-xl border-2 p-2.5 sm:p-4 transition ${
                           serviceType === 'delivery'
-                            ? 'border-blue-500 bg-blue-50'
+                            ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                             : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                         } ${!bookingPharmacy.deliveryOptions?.includes('delivery') && !bookingPharmacy.deliveryOptions?.includes('both') ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <div
-                          className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                          className={`flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full shrink-0 ${
                             serviceType === 'delivery'
-                              ? 'bg-blue-500 text-white'
+                              ? 'bg-[#11496c] text-white'
                               : 'bg-slate-100 text-slate-600'
                           }`}
                         >
-                          <IoHomeOutline className="h-5 w-5" />
+                          <IoHomeOutline className="h-4 w-4 sm:h-5 sm:w-5" />
                         </div>
-                        <span className="text-sm font-semibold text-slate-900">Home Delivery</span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-900">Home Delivery</span>
                       </button>
                     </div>
                   </div>
 
                   {/* Select Prescription */}
                   <div>
-                    <h3 className="mb-4 text-lg font-semibold text-slate-900">Select Prescription</h3>
+                    <h3 className="mb-3 sm:mb-4 text-base sm:text-lg font-semibold text-slate-900">Select Prescription</h3>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                       {mockPrescriptions.map((prescription) => {
                         const isSelected = selectedPrescription?.id === prescription.id
@@ -1208,28 +1208,28 @@ const PatientPharmacy = () => {
                             key={prescription.id}
                             type="button"
                             onClick={() => setSelectedPrescription(prescription)}
-                            className={`w-full flex items-center gap-3 rounded-xl border-2 p-4 transition text-left ${
+                            className={`w-full flex items-center gap-2 sm:gap-3 rounded-lg sm:rounded-xl border-2 p-2.5 sm:p-4 transition text-left ${
                               isSelected
-                                ? 'border-blue-500 bg-blue-50'
+                                ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                                 : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                             }`}
                           >
                             <img
                               src={prescription.doctor.image}
                               alt={prescription.doctor.name}
-                              className="h-12 w-12 rounded-xl object-cover bg-slate-100"
+                              className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg sm:rounded-xl object-cover bg-slate-100 shrink-0"
                               onError={(e) => {
                                 e.target.onerror = null
                                 e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
                               }}
                             />
-                            <div className="flex-1">
-                              <p className="text-sm font-semibold text-slate-900">{prescription.doctor.name}</p>
-                              <p className="text-xs text-blue-600">{prescription.doctor.specialty}</p>
-                              <p className="mt-1 text-xs text-slate-600">Diagnosis: {prescription.diagnosis}</p>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{prescription.doctor.name}</p>
+                              <p className="text-[10px] sm:text-xs text-[#11496c]">{prescription.doctor.specialty}</p>
+                              <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-slate-600">Diagnosis: {prescription.diagnosis}</p>
                             </div>
                             {isSelected && (
-                              <IoCheckmarkCircleOutline className="h-5 w-5 text-blue-600 shrink-0" />
+                              <IoCheckmarkCircleOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] shrink-0" />
                             )}
                           </button>
                         )
@@ -1241,49 +1241,49 @@ const PatientPharmacy = () => {
 
               {/* Step 2: Confirmation */}
               {bookingStep === 2 && (
-                <div className="space-y-6">
+                <div className="space-y-3 sm:space-y-4">
                   <div className="text-center">
-                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-                      <IoShareSocialOutline className="h-10 w-10 text-blue-600" />
+                    <div className="mx-auto mb-2 sm:mb-3 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)]">
+                      <IoShareSocialOutline className="h-6 w-6 sm:h-8 sm:w-8 text-[#11496c]" />
                     </div>
-                    <h3 className="mb-2 text-xl font-bold text-slate-900">Share & Confirm Booking</h3>
-                    <p className="text-sm text-slate-600">Prescription and details will be shared with the pharmacy</p>
+                    <h3 className="mb-1 sm:mb-2 text-lg sm:text-xl font-bold text-slate-900">Share & Confirm Booking</h3>
+                    <p className="text-xs sm:text-sm text-slate-600">Prescription and details will be shared with the pharmacy</p>
                   </div>
 
                   {/* Patient Details */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <h4 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-900">
-                      <IoPersonOutline className="h-5 w-5 text-slate-600" />
+                  <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
+                    <h4 className="mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base font-semibold text-slate-900">
+                      <IoPersonOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" />
                       Patient Details
                     </h4>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <span className="text-sm font-medium text-slate-600">Name</span>
-                        <span className="text-sm font-semibold text-slate-900 text-right">
+                    <div className="space-y-2 sm:space-y-2.5">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 sm:pb-2.5">
+                        <span className="text-xs sm:text-sm font-medium text-slate-600">Name</span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-900 text-right">
                           {mockPatientData.firstName} {mockPatientData.lastName}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <span className="text-sm font-medium text-slate-600">Email</span>
-                        <span className="text-sm font-semibold text-slate-900 text-right max-w-[55%] break-all">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 sm:pb-2.5">
+                        <span className="text-xs sm:text-sm font-medium text-slate-600">Email</span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-900 text-right max-w-[55%] break-all">
                           {mockPatientData.email}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <span className="text-sm font-medium text-slate-600">Phone</span>
-                        <span className="text-sm font-semibold text-slate-900 text-right">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 sm:pb-2.5">
+                        <span className="text-xs sm:text-sm font-medium text-slate-600">Phone</span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-900 text-right">
                           {mockPatientData.phone}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <span className="text-sm font-medium text-slate-600">Blood Group</span>
-                        <span className="text-sm font-semibold text-slate-900 text-right">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 sm:pb-2.5">
+                        <span className="text-xs sm:text-sm font-medium text-slate-600">Blood Group</span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-900 text-right">
                           {mockPatientData.bloodGroup}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-600">Address</span>
-                        <span className="text-sm font-semibold text-slate-900 text-right max-w-[55%] break-words">
+                        <span className="text-xs sm:text-sm font-medium text-slate-600">Address</span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-900 text-right max-w-[55%] break-words">
                           {mockPatientData.address.line1}, {mockPatientData.address.city}
                         </span>
                       </div>
@@ -1292,49 +1292,49 @@ const PatientPharmacy = () => {
 
                   {/* Doctor Details */}
                   {selectedPrescription && (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                      <h4 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-900">
-                        <IoMedicalOutline className="h-5 w-5 text-slate-600" />
+                    <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
+                      <h4 className="mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base font-semibold text-slate-900">
+                        <IoMedicalOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" />
                         Doctor Details
                       </h4>
-                      <div className="flex flex-col items-center gap-4">
+                      <div className="flex flex-col items-center gap-2 sm:gap-3">
                         <img
                           src={selectedPrescription.doctor.image}
                           alt={selectedPrescription.doctor.name}
-                          className="h-20 w-20 rounded-xl object-cover ring-2 ring-slate-100 bg-slate-100"
+                          className="h-14 w-14 sm:h-16 sm:w-16 rounded-lg sm:rounded-xl object-cover ring-2 ring-slate-100 bg-slate-100"
                           onError={(e) => {
                             e.target.onerror = null
                             e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPrescription.doctor.name)}&background=3b82f6&color=fff&size=160&bold=true`
                           }}
                         />
-                        <div className="w-full space-y-3">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <span className="text-sm font-medium text-slate-600">Name</span>
-                            <span className="text-sm font-semibold text-slate-900 text-right">
+                        <div className="w-full space-y-2 sm:space-y-2.5">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2 sm:pb-2.5">
+                            <span className="text-xs sm:text-sm font-medium text-slate-600">Name</span>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-900 text-right">
                               {selectedPrescription.doctor.name}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <span className="text-sm font-medium text-slate-600">Specialty</span>
-                            <span className="text-sm font-semibold text-blue-600 text-right">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2 sm:pb-2.5">
+                            <span className="text-xs sm:text-sm font-medium text-slate-600">Specialty</span>
+                            <span className="text-xs sm:text-sm font-semibold text-[#11496c] text-right">
                               {selectedPrescription.doctor.specialty}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <span className="text-sm font-medium text-slate-600">Phone</span>
-                            <span className="text-sm font-semibold text-slate-900 text-right">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2 sm:pb-2.5">
+                            <span className="text-xs sm:text-sm font-medium text-slate-600">Phone</span>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-900 text-right">
                               {selectedPrescription.doctor.phone}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <span className="text-sm font-medium text-slate-600">Email</span>
-                            <span className="text-sm font-semibold text-slate-900 text-right max-w-[55%] break-all">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2 sm:pb-2.5">
+                            <span className="text-xs sm:text-sm font-medium text-slate-600">Email</span>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-900 text-right max-w-[55%] break-all">
                               {selectedPrescription.doctor.email}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-slate-600">Diagnosis</span>
-                            <span className="text-sm font-semibold text-slate-900 text-right max-w-[55%] break-words">
+                            <span className="text-xs sm:text-sm font-medium text-slate-600">Diagnosis</span>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-900 text-right max-w-[55%] break-words">
                               {selectedPrescription.diagnosis}
                             </span>
                           </div>
@@ -1344,38 +1344,38 @@ const PatientPharmacy = () => {
                   )}
 
                   {/* Pharmacy & Prescription PDF */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="space-y-4">
+                  <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
+                    <div className="space-y-2 sm:space-y-3">
                       <div>
-                        <h4 className="mb-2 text-base font-semibold text-slate-900">{bookingPharmacy.pharmacyName}</h4>
-                        <p className="text-sm text-slate-600">{formatAddress(bookingPharmacy.address)}</p>
+                        <h4 className="mb-1 sm:mb-2 text-sm sm:text-base font-semibold text-slate-900">{bookingPharmacy.pharmacyName}</h4>
+                        <p className="text-xs sm:text-sm text-slate-600">{formatAddress(bookingPharmacy.address)}</p>
                       </div>
 
-                      <div className="space-y-3 border-t border-slate-200 pt-4">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                          <span className="text-sm font-medium text-slate-600">Service Type</span>
-                          <span className="text-sm font-semibold text-slate-900">
+                      <div className="space-y-2 sm:space-y-3 border-t border-slate-200 pt-2 sm:pt-3">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2 sm:pb-2.5">
+                          <span className="text-xs sm:text-sm font-medium text-slate-600">Service Type</span>
+                          <span className="text-xs sm:text-sm font-semibold text-slate-900">
                             {serviceType === 'delivery' ? 'Home Delivery' : 'In-Pharmacy Pickup'}
                           </span>
                         </div>
                         <div>
-                          <p className="mb-3 text-sm font-medium text-slate-600">Prescription PDF</p>
-                          <div className="rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-50">
-                                <IoDocumentTextOutline className="h-6 w-6 text-red-600" />
+                          <p className="mb-2 sm:mb-2.5 text-xs sm:text-sm font-medium text-slate-600">Prescription PDF</p>
+                          <div className="rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-2.5 sm:p-3">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg bg-red-50 shrink-0">
+                                <IoDocumentTextOutline className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
                               </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-semibold text-slate-900">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">
                                   {selectedPrescription?.doctor.name} - Prescription
                                 </p>
-                                <p className="text-xs text-slate-600">
+                                <p className="text-[10px] sm:text-xs text-slate-600">
                                   Issued: {selectedPrescription?.issuedAt ? formatDate(selectedPrescription.issuedAt) : '—'}
                                 </p>
                               </div>
                               <button
                                 type="button"
-                                className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100"
+                                className="rounded-lg bg-[rgba(17,73,108,0.1)] px-2.5 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-semibold text-[#11496c] hover:bg-[rgba(17,73,108,0.15)] shrink-0"
                               >
                                 View PDF
                               </button>
@@ -1390,15 +1390,15 @@ const PatientPharmacy = () => {
             </div>
 
             {/* Footer */}
-            <div className="sticky bottom-0 border-t border-slate-200 bg-white px-6 py-4">
-              <div className="flex items-center justify-between gap-3">
+            <div className="sticky bottom-0 border-t border-slate-200 bg-white px-3 sm:px-6 py-3 sm:py-4">
+              <div className="flex items-center justify-between gap-2 sm:gap-3">
                 {bookingStep > 1 && (
                   <button
                     type="button"
                     onClick={() => {
                       setBookingStep(bookingStep - 1)
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    className="rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                   >
                     Back
                   </button>
@@ -1412,10 +1412,10 @@ const PatientPharmacy = () => {
                       }
                     }}
                     disabled={!selectedPrescription}
-                    className="ml-auto flex items-center gap-2 rounded-lg bg-blue-500 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="ml-auto flex items-center gap-1.5 sm:gap-2 rounded-lg bg-[#11496c] px-4 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white transition hover:bg-[#0d3a52] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next
-                    <IoArrowForwardOutline className="h-4 w-4" />
+                    <IoArrowForwardOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </button>
                 ) : (
                   <button
@@ -1484,17 +1484,19 @@ const PatientPharmacy = () => {
                       }
                     }}
                     disabled={isSubmitting || !bookingPharmacy || !selectedPrescription}
-                    className="ml-auto flex items-center gap-2 rounded-lg bg-blue-500 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="ml-auto flex items-center gap-1.5 sm:gap-2 rounded-lg bg-[#11496c] px-4 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white transition hover:bg-[#0d3a52] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSubmitting ? (
                       <>
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        Sending...
+                        <div className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        <span className="hidden sm:inline">Sending...</span>
+                        <span className="sm:hidden">Sending</span>
                       </>
                     ) : (
                       <>
-                        Confirm Booking
-                        <IoCheckmarkCircleOutline className="h-4 w-4" />
+                        <span className="hidden sm:inline">Confirm Booking</span>
+                        <span className="sm:hidden">Confirm</span>
+                        <IoCheckmarkCircleOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       </>
                     )}
                   </button>
