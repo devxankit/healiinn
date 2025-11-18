@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   IoEyeOffOutline,
   IoEyeOutline,
@@ -39,6 +39,7 @@ const initialSignupState = {
 }
 
 const PatientLogin = () => {
+  const navigate = useNavigate()
   const [mode, setMode] = useState('login')
   const [loginData, setLoginData] = useState({ email: '', password: '', remember: true })
   const [signupData, setSignupData] = useState(initialSignupState)
@@ -111,8 +112,11 @@ const PatientLogin = () => {
     if (isSubmitting) return
 
     setIsSubmitting(true)
+    // Simulate login API call
     window.setTimeout(() => {
       setIsSubmitting(false)
+      // Redirect to patient dashboard after successful login
+      navigate('/patient/dashboard', { replace: true })
     }, 1200)
   }
 
@@ -137,52 +141,67 @@ const PatientLogin = () => {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.05)]">
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute left-6 top-10 h-40 w-40 rounded-full bg-[rgba(17,73,108,0.15)] blur-2xl" />
-        <div className="absolute right-6 bottom-14 h-48 w-48 rounded-full bg-[rgba(17,73,108,0.15)] blur-3xl" />
+    <div className="relative flex min-h-screen flex-col bg-white">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 -z-10 opacity-30">
+        <div className="absolute left-0 top-0 h-64 w-64 rounded-full bg-[rgba(17,73,108,0.08)] blur-3xl" />
+        <div className="absolute right-0 bottom-0 h-96 w-96 rounded-full bg-[rgba(17,73,108,0.06)] blur-3xl" />
       </div>
 
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-4 py-10 sm:px-6 lg:px-8">
-        <div className="relative overflow-hidden rounded-3xl border bg-white shadow-2xl" style={{ borderColor: 'rgba(17, 73, 108, 0.2)', boxShadow: '0 25px 50px -12px rgba(17, 73, 108, 0.15)' }}>
-          <div className="absolute -left-16 bottom-0 h-28 w-28 rounded-full bg-[rgba(17,73,108,0.35)] blur-3xl" />
-          <div className="absolute -right-20 -top-20 h-44 w-44 rounded-full bg-[rgba(17,73,108,0.35)] blur-3xl" />
+      {/* Header Section */}
+      <header className="relative z-10 border-b border-slate-100 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <div>
+            <h1 className="text-xl font-bold text-[#11496c]">Healiinn</h1>
+          </div>
+        </div>
+      </header>
 
-          <div className="relative z-10 flex flex-col gap-6 px-6 py-8 sm:px-10">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-semibold text-slate-900">
-                  {isLogin ? 'Sign in to your care account' : 'Create your Healiinn patient profile'}
-                </h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  {isLogin
-                    ? 'Access appointments, prescriptions, and personalized guidance.'
-                    : 'Tell us a bit about yourself so we can personalize your care experience.'}
-                </p>
-              </div>
+      {/* Main Content */}
+      <main className="flex flex-1 flex-col">
+        <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-8 sm:px-6 lg:px-8">
+          {/* Mode Toggle */}
+          <div className="mb-8 flex items-center justify-center">
+            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-50 p-1.5">
+              <button
+                type="button"
+                onClick={() => handleModeChange('login')}
+                className={`rounded-xl px-6 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                  isLogin
+                    ? 'bg-white text-[#11496c] shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                style={isLogin ? { boxShadow: '0 1px 3px 0 rgba(17, 73, 108, 0.1)' } : {}}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange('signup')}
+                className={`rounded-xl px-6 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                  !isLogin
+                    ? 'bg-white text-[#11496c] shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                style={!isLogin ? { boxShadow: '0 1px 3px 0 rgba(17, 73, 108, 0.1)' } : {}}
+              >
+                Sign Up
+              </button>
+            </div>
+          </div>
 
-              <div className="mx-auto flex items-center gap-3 rounded-full bg-[rgba(17,73,108,0.05)] px-2 py-2 text-xs font-semibold uppercase tracking-[0.3em] sm:mx-0" style={{ color: '#11496c' }}>
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('login')}
-                  className={`rounded-full px-3 py-1 transition ${
-                    isLogin ? 'text-white shadow-sm' : 'hover:bg-[rgba(17,73,108,0.35)]'
-                  }`}
-                  style={isLogin ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : { color: '#11496c' }}
-                >
-                  Login
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('signup')}
-                  className={`rounded-full px-3 py-1 transition ${
-                    !isLogin ? 'text-white shadow-sm' : 'hover:bg-[rgba(17,73,108,0.35)]'
-                  }`}
-                  style={!isLogin ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : { color: '#11496c' }}
-                >
-                  Signup
-                </button>
-              </div>
+          {/* Form Section */}
+          <div className="mx-auto w-full max-w-2xl">
+            {/* Title */}
+            <div className="mb-8 text-center">
+              <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
+                {isLogin ? 'Welcome Back' : 'Create Your Account'}
+              </h2>
+              <p className="mt-3 text-base text-slate-600">
+                {isLogin
+                  ? 'Sign in to access your appointments, prescriptions, and personalized care.'
+                  : 'Join Healiinn to manage your health journey with ease.'}
+              </p>
             </div>
 
             {isLogin ? (
@@ -204,7 +223,8 @@ const PatientLogin = () => {
                       autoComplete="email"
                       required
                       placeholder="you@example.com"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                 </div>
@@ -246,7 +266,8 @@ const PatientLogin = () => {
                       autoComplete="current-password"
                       required
                       placeholder="Enter your password"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                 </div>
@@ -270,7 +291,8 @@ const PatientLogin = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex h-12 items-center justify-center gap-2 rounded-2xl text-base font-semibold text-white shadow-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                  style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
                 >
                   {isSubmitting ? (
                     'Signing in...'
@@ -282,12 +304,12 @@ const PatientLogin = () => {
                   )}
                 </button>
 
-                <p className="text-center text-sm text-slate-500">
+                <p className="text-center text-sm text-slate-600">
                   New to Healiinn?{' '}
                   <button
                     type="button"
                     onClick={() => handleModeChange('signup')}
-                    className="font-semibold text-[#11496c] hover:text-[#0d3a52]"
+                    className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
                   >
                     Create an account
                   </button>
@@ -311,7 +333,8 @@ const PatientLogin = () => {
                         onChange={handleSignupChange}
                         required
                         placeholder="Jane"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
                     </div>
                   </div>
@@ -325,7 +348,8 @@ const PatientLogin = () => {
                       value={signupData.lastName}
                       onChange={handleSignupChange}
                       placeholder="Doe"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -345,7 +369,8 @@ const PatientLogin = () => {
                         autoComplete="email"
                         required
                         placeholder="you@example.com"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
                     </div>
                   </div>
@@ -364,7 +389,8 @@ const PatientLogin = () => {
                         onChange={handleSignupChange}
                         required
                         placeholder="+91 98765 43210"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
                     </div>
                   </div>
@@ -388,7 +414,8 @@ const PatientLogin = () => {
                         minLength={8}
                         required
                         placeholder="Create a secure password"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
                       <button
                         type="button"
@@ -416,7 +443,8 @@ const PatientLogin = () => {
                         onChange={handleSignupChange}
                         required
                         placeholder="Re-enter your password"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
                       <button
                         type="button"
@@ -445,7 +473,8 @@ const PatientLogin = () => {
                         type="date"
                         value={signupData.dateOfBirth}
                         onChange={handleSignupChange}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
                     </div>
                   </div>
@@ -458,7 +487,8 @@ const PatientLogin = () => {
                       name="gender"
                       value={signupData.gender}
                       onChange={handleSignupChange}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     >
                       <option value="">Select one</option>
                       <option value="male">Male</option>
@@ -476,7 +506,8 @@ const PatientLogin = () => {
                       name="bloodGroup"
                       value={signupData.bloodGroup}
                       onChange={handleSignupChange}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     >
                       <option value="">Select blood group</option>
                       <option value="A+">A+</option>
@@ -507,7 +538,8 @@ const PatientLogin = () => {
                         value={signupData.address.line1}
                         onChange={handleSignupChange}
                         placeholder="123 Wellness Street"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
                     </div>
                   </div>
@@ -521,7 +553,8 @@ const PatientLogin = () => {
                       value={signupData.address.line2}
                       onChange={handleSignupChange}
                       placeholder="Apartment or suite"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -534,7 +567,8 @@ const PatientLogin = () => {
                       value={signupData.address.city}
                       onChange={handleSignupChange}
                       placeholder="Mumbai"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -547,7 +581,8 @@ const PatientLogin = () => {
                       value={signupData.address.state}
                       onChange={handleSignupChange}
                       placeholder="Maharashtra"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -560,7 +595,8 @@ const PatientLogin = () => {
                       value={signupData.address.postalCode}
                       onChange={handleSignupChange}
                       placeholder="400001"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -573,7 +609,8 @@ const PatientLogin = () => {
                       value={signupData.address.country}
                       onChange={handleSignupChange}
                       placeholder="India"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                 </section>
@@ -589,7 +626,8 @@ const PatientLogin = () => {
                       value={signupData.emergencyContact.name}
                       onChange={handleSignupChange}
                       placeholder="Rahul Sharma"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -606,7 +644,8 @@ const PatientLogin = () => {
                         value={signupData.emergencyContact.phone}
                         onChange={handleSignupChange}
                         placeholder="+91 98765 43100"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
                     </div>
                   </div>
@@ -620,18 +659,19 @@ const PatientLogin = () => {
                       value={signupData.emergencyContact.relation}
                       onChange={handleSignupChange}
                       placeholder="Spouse"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:outline-none focus:ring-2"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                 </section>
 
-                <label className="flex items-start gap-3 rounded-2xl bg-[rgba(17,73,108,0.05)]/70 px-4 py-3 text-sm text-slate-600">
+                <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
                   <input
                     type="checkbox"
                     name="termsAccepted"
                     checked={signupData.termsAccepted}
                     onChange={handleSignupChange}
-                    className="mt-1 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
                   />
                   <span>
                     I have read and agree to Healiinn's{' '}
@@ -649,7 +689,8 @@ const PatientLogin = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex h-12 items-center justify-center gap-2 rounded-2xl text-base font-semibold text-white shadow-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                  style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
                 >
                   {isSubmitting ? (
                     'Submitting application...'
@@ -661,12 +702,12 @@ const PatientLogin = () => {
                   )}
                 </button>
 
-                <p className="text-center text-sm text-slate-500">
+                <p className="text-center text-sm text-slate-600">
                   Already have an account?{' '}
                   <button
                     type="button"
                     onClick={() => handleModeChange('login')}
-                    className="font-semibold text-[#11496c] hover:text-[#0d3a52]"
+                    className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
                   >
                     Sign in instead
                   </button>
@@ -675,17 +716,20 @@ const PatientLogin = () => {
             )}
           </div>
         </div>
+      </main>
 
-        <footer className="mt-8 space-y-4 text-center text-xs text-slate-500">
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-slate-100 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-3 px-4 py-6 text-center text-xs text-slate-500 sm:px-6 lg:px-8">
           <span>Secure patient access powered by Healiinn</span>
           <span>
             Need help? Contact your{' '}
-            <Link to="/patient/support" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+            <Link to="/patient/support" className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition">
               care coordinator
             </Link>
           </span>
-        </footer>
-      </div>
+        </div>
+      </footer>
     </div>
   )
 }
