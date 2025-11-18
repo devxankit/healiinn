@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoArrowBackOutline,
@@ -99,11 +99,13 @@ const WalletEarning = () => {
     return true
   })
 
+  const location = useLocation()
+  const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
+
   return (
     <>
       <DoctorNavbar />
-      <div className="min-h-screen bg-slate-50 pt-14 sm:pt-20 pb-20 sm:pb-24">
-        <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-8">
+      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
           {/* Header */}
           <div className="mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
             <button
@@ -277,8 +279,7 @@ const WalletEarning = () => {
               )}
             </div>
           </section>
-        </div>
-      </div>
+      </section>
     </>
   )
 }

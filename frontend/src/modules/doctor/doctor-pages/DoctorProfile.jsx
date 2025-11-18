@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoPersonOutline,
@@ -79,6 +80,9 @@ const mockDoctorData = {
 }
 
 const DoctorProfile = () => {
+  const location = useLocation()
+  const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
+  
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
   const [formData, setFormData] = useState(mockDoctorData)
@@ -176,9 +180,7 @@ const DoctorProfile = () => {
   return (
     <>
       <DoctorNavbar />
-      <div className="min-h-screen bg-slate-50 pt-14 sm:pt-20 pb-20 sm:pb-24">
-        <div className="mx-auto max-w-4xl px-3 sm:px-4 lg:px-8">
-          <section className="flex flex-col gap-4 sm:gap-6 pb-4">
+      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
             {/* Profile Header */}
             <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-indigo-50/85 to-[rgba(17,73,108,0.05)] backdrop-blur-md p-4 sm:p-6 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-white/50">
               <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-[rgba(17,73,108,0.1)] blur-3xl pointer-events-none" />
@@ -1076,9 +1078,7 @@ const DoctorProfile = () => {
                 </div>
               )}
           </div>
-          </section>
-        </div>
-      </div>
+      </section>
     </>
   )
 }

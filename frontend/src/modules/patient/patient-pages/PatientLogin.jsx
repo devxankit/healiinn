@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   IoEyeOffOutline,
   IoEyeOutline,
@@ -11,7 +12,6 @@ import {
   IoPersonOutline,
   IoCalendarClearOutline,
 } from 'react-icons/io5'
-import healinnLogo from '../../../assets/images/logo.png'
 
 const initialSignupState = {
   firstName: '',
@@ -152,45 +152,8 @@ const PatientLogin = () => {
       {/* Main Content */}
       <main className="flex flex-1 flex-col">
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-8 sm:px-6 sm:py-8 md:px-8">
-          {/* Logo */}
-          <div className="mb-6 flex items-center justify-center sm:mb-8">
-            <img
-              src={healinnLogo}
-              alt="Healiinn"
-              className="h-10 w-auto object-contain sm:h-12"
-              loading="lazy"
-            />
-          </div>
-
-          {/* Mode Toggle */}
-          <div className="mb-6 flex items-center justify-center sm:mb-8">
-            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-50 p-1.5">
-              <button
-                type="button"
-                onClick={() => handleModeChange('login')}
-                className={`rounded-xl px-6 py-2.5 text-sm font-semibold transition-all duration-200 ${
-                  isLogin
-                    ? 'bg-white text-[#11496c] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                style={isLogin ? { boxShadow: '0 1px 3px 0 rgba(17, 73, 108, 0.1)' } : {}}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModeChange('signup')}
-                className={`rounded-xl px-6 py-2.5 text-sm font-semibold transition-all duration-200 ${
-                  !isLogin
-                    ? 'bg-white text-[#11496c] shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                style={!isLogin ? { boxShadow: '0 1px 3px 0 rgba(17, 73, 108, 0.1)' } : {}}
-              >
-                Sign Up
-              </button>
-            </div>
-          </div>
+          {/* Top spacing (replaces logo space) */}
+          <div className="mb-6 sm:mb-8"></div>
 
           {/* Form Section */}
           <div className="mx-auto w-full max-w-lg">
@@ -206,8 +169,66 @@ const PatientLogin = () => {
               </p>
             </div>
 
-            {isLogin ? (
-              <form className="flex flex-col gap-5 sm:gap-6" onSubmit={handleLoginSubmit}>
+            {/* Mode Toggle */}
+            <div className="mb-6 flex items-center justify-center sm:mb-8">
+              <div className="relative inline-flex items-center gap-1 rounded-2xl bg-slate-100 p-1.5 shadow-inner">
+                {/* Sliding background indicator */}
+                <motion.div
+                  layoutId="patientLoginSignupToggle"
+                  className="absolute rounded-xl bg-[#11496c] shadow-md shadow-[#11496c]/15"
+                  style={{
+                    left: isLogin ? '0.375rem' : '50%',
+                    width: 'calc(50% - 0.375rem)',
+                    height: 'calc(100% - 0.75rem)',
+                  }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 300,
+                    damping: 30,
+                  }}
+                />
+                <motion.button
+                  type="button"
+                  onClick={() => handleModeChange('login')}
+                  className={`relative z-10 rounded-xl px-6 py-2.5 text-sm font-semibold sm:px-8 sm:py-3 sm:text-base ${
+                    isLogin
+                      ? 'text-white'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  Sign In
+                </motion.button>
+                <motion.button
+                  type="button"
+                  onClick={() => handleModeChange('signup')}
+                  className={`relative z-10 rounded-xl px-6 py-2.5 text-sm font-semibold sm:px-8 sm:py-3 sm:text-base ${
+                    !isLogin
+                      ? 'text-white'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  Sign Up
+                </motion.button>
+              </div>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {isLogin ? (
+                <motion.form
+                  key="login"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="flex flex-col gap-5 sm:gap-6"
+                  onSubmit={handleLoginSubmit}
+                >
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="login-email" className="text-sm font-semibold text-slate-700">
                     Email Address
@@ -316,9 +337,17 @@ const PatientLogin = () => {
                     Create an account
                   </button>
                 </p>
-              </form>
+              </motion.form>
             ) : (
-              <form className="flex flex-col gap-5 sm:gap-6" onSubmit={handleSignupSubmit}>
+              <motion.form
+                key="signup"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="flex flex-col gap-5 sm:gap-6"
+                onSubmit={handleSignupSubmit}
+              >
                 <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="firstName" className="text-sm font-semibold text-slate-700">
@@ -714,8 +743,9 @@ const PatientLogin = () => {
                     Sign in instead
                   </button>
                 </p>
-              </form>
+              </motion.form>
             )}
+            </AnimatePresence>
           </div>
         </div>
       </main>

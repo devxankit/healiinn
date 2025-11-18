@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoDocumentTextOutline,
@@ -104,6 +105,9 @@ const formatDate = (dateString) => {
 }
 
 const DoctorConsultations = () => {
+  const location = useLocation()
+  const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
+  
   const [consultations, setConsultations] = useState(mockConsultations)
   const [selectedConsultation, setSelectedConsultation] = useState(consultations[0])
   const [activeTab, setActiveTab] = useState('vitals') // vitals, prescription, history, saved
@@ -275,8 +279,7 @@ const DoctorConsultations = () => {
   return (
     <>
       <DoctorNavbar />
-      <div className="min-h-screen bg-slate-50 pt-20 pb-24 overflow-x-hidden">
-        <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-8">
+      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
           {selectedConsultation ? (
             <div className="grid gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
               {/* Left Column - Patient Info & History */}
@@ -1137,8 +1140,7 @@ const DoctorConsultations = () => {
               <p className="mt-1 text-xs text-slate-500">Select a patient from the Patients tab to start</p>
             </div>
           )}
-        </div>
-      </div>
+      </section>
 
       {/* Add Medication Modal */}
       {showAddMedication && (
@@ -1295,9 +1297,9 @@ const DoctorConsultations = () => {
                 <IoCheckmarkCircleOutline className="h-4 w-4 sm:h-5 sm:w-5" />
                 Add
               </button>
+            </div>
           </div>
         </div>
-      </div>
       )}
     </>
   )

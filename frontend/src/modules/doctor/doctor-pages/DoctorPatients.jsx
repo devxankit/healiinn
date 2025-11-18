@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoPeopleOutline,
@@ -129,6 +130,9 @@ const formatDate = (dateString) => {
 }
 
 const DoctorPatients = () => {
+  const location = useLocation()
+  const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
+  
   const [appointments, setAppointments] = useState(mockAppointments)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState(null)
@@ -215,8 +219,7 @@ const DoctorPatients = () => {
   return (
     <>
       <DoctorNavbar />
-      <div className="min-h-screen bg-slate-50 pt-20 pb-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
           {/* Search Bar */}
           <div className="mb-4">
             <div className="relative">
@@ -360,8 +363,7 @@ const DoctorPatients = () => {
               ))
             )}
           </div>
-        </div>
-      </div>
+      </section>
 
       {/* Medical History Modal */}
       {showHistoryModal && selectedPatient && medicalHistory && (

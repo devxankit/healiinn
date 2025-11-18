@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoWalletOutline,
@@ -32,12 +32,13 @@ const formatCurrency = (amount) => {
 
 const DoctorWallet = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
 
   return (
     <>
       <DoctorNavbar />
-      <div className="min-h-screen bg-slate-50 pt-14 sm:pt-20 pb-20 sm:pb-24">
-        <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-8">
+      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
           {/* Header */}
           <div className="mb-3 sm:mb-6">
             <h1 className="text-lg sm:text-2xl font-bold text-slate-900">Wallet</h1>
@@ -153,8 +154,7 @@ const DoctorWallet = () => {
               </div>
             </button>
           </div>
-        </div>
-      </div>
+      </section>
     </>
   )
 }
