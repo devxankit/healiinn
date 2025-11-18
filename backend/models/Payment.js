@@ -17,7 +17,7 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       enum: ['patient', 'doctor', 'laboratory', 'pharmacy', 'admin'],
     },
-    type: { type: String, enum: ['appointment'], default: 'appointment' },
+    type: { type: String, enum: ['appointment', 'lab_booking', 'pharmacy_booking'], default: 'appointment' },
     status: { type: String, enum: PAYMENT_STATUS, default: 'pending' },
     metadata: { type: mongoose.Schema.Types.Mixed },
     razorpayResponse: { type: mongoose.Schema.Types.Mixed },
@@ -29,5 +29,6 @@ const paymentSchema = new mongoose.Schema(
 );
 
 paymentSchema.index({ user: 1, createdAt: -1 });
+paymentSchema.index({ paymentId: 1, status: 1, type: 1 });
 
 module.exports = mongoose.model('Payment', paymentSchema);

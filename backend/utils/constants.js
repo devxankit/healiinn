@@ -49,6 +49,7 @@ const TOKEN_EVENTS = {
 
 const LAB_LEAD_STATUS = {
   NEW: 'new',
+  ACCEPTED: 'accepted', // Lab accepted with availability and billing
   HOME_COLLECTION_REQUESTED: 'home_collection_requested',
   SAMPLE_COLLECTED: 'sample_collected',
   TEST_COMPLETED: 'test_completed',
@@ -59,6 +60,7 @@ const LAB_LEAD_STATUS = {
 
 const PHARMACY_LEAD_STATUS = {
   NEW: 'new',
+  ACCEPTED: 'accepted', // Pharmacy accepted with availability and billing
   PATIENT_ARRIVED: 'patient_arrived',
   DELIVERY_REQUESTED: 'delivery_requested',
   DELIVERED: 'delivered',

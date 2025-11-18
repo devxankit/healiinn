@@ -3,9 +3,11 @@ const WithdrawalRequest = require('../../models/WithdrawalRequest');
 const {
   getAdminWalletOverview,
   getAdminDoctorSummaries,
+  getAdminProviderSummaries,
   buildWithdrawalHistoryEntry,
 } = require('../../services/walletService');
-const { WITHDRAWAL_STATUS } = require('../../utils/constants');
+const { WITHDRAWAL_STATUS, ROLES } = require('../../utils/constants');
+const { getModelForRole } = require('../../utils/getModelForRole');
 
 exports.getOverview = asyncHandler(async (req, res) => {
   const overview = await getAdminWalletOverview();
@@ -25,8 +27,27 @@ exports.listDoctorSummaries = asyncHandler(async (req, res) => {
   });
 });
 
+exports.listProviderSummaries = asyncHandler(async (req, res) => {
+  const { role } = req.query;
+
+  if (!role || ![ROLES.DOCTOR, ROLES.LABORATORY, ROLES.PHARMACY].includes(role)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Valid role (doctor, laboratory, pharmacy) is required.',
+    });
+  }
+
+  const summaries = await getAdminProviderSummaries(role);
+
+  res.json({
+    success: true,
+    providers: summaries,
+  });
+});
+
 exports.listWithdrawals = asyncHandler(async (req, res) => {
   const status = req.query.status;
+  const role = req.query.role; // Filter by provider role
   const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
   const skip = (page - 1) * limit;
@@ -35,16 +56,32 @@ exports.listWithdrawals = asyncHandler(async (req, res) => {
   if (status && Object.values(WITHDRAWAL_STATUS).includes(status)) {
     match.status = status;
   }
+  if (role && Object.values(ROLES).includes(role) && [ROLES.DOCTOR, ROLES.LABORATORY, ROLES.PHARMACY].includes(role)) {
+    match.providerRole = role;
+  }
 
-  const [requests, total] = await Promise.all([
-    WithdrawalRequest.find(match)
-      .populate('doctor', 'firstName lastName email phone specialization')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-    WithdrawalRequest.countDocuments(match),
-  ]);
+  const requests = await WithdrawalRequest.find(match)
+    .populate('provider', '-password')
+    .populate('doctor', 'firstName lastName email phone specialization') // Legacy support
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  // Populate provider details based on providerModel
+  for (const request of requests) {
+    if (request.providerModel && request.provider) {
+      const Model = getModelForRole(request.providerRole);
+      if (Model) {
+        const provider = await Model.findById(request.provider).select('-password').lean();
+        if (provider) {
+          request.providerDetails = provider;
+        }
+      }
+    }
+  }
+
+  const total = await WithdrawalRequest.countDocuments(match);
 
   res.json({
     success: true,
@@ -146,6 +183,21 @@ exports.updateWithdrawalStatus = asyncHandler(async (req, res) => {
   );
 
   await request.save();
+
+  // Notify provider about withdrawal status update
+  try {
+    const { notifyWithdrawalStatusUpdated } = require('../../services/notificationEvents');
+    await notifyWithdrawalStatusUpdated({
+      providerId: request.provider,
+      providerRole: request.providerRole,
+      status,
+      amount: request.amount,
+      withdrawalId: request._id,
+      adminNote: adminNote || request.adminNote,
+    });
+  } catch (notificationError) {
+    console.error('Failed to send withdrawal status update notification:', notificationError);
+  }
 
   res.json({
     success: true,

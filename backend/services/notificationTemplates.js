@@ -102,6 +102,92 @@ const templates = {
     body: `Your prescription from ${doctorName || 'your doctor'} is ready to view.`,
     data: { category: 'prescription' },
   }),
+  LAB_REQUEST_RECEIVED: ({ patientName }) => ({
+    title: 'New lab request',
+    body: `You received a new lab test request from ${patientName || 'a patient'}. Please review and accept.`,
+    data: { category: 'laboratory' },
+  }),
+  PHARMACY_REQUEST_RECEIVED: ({ patientName }) => ({
+    title: 'New pharmacy request',
+    body: `You received a new medicine order from ${patientName || 'a patient'}. Please review and accept.`,
+    data: { category: 'pharmacy' },
+  }),
+  LAB_REQUEST_ACCEPTED: ({ laboratoryName, totalAmount }) => ({
+    title: 'Lab request accepted',
+    body: `${laboratoryName || 'Laboratory'} has accepted your request. Total amount: ₹${totalAmount || 0}. Please proceed with payment.`,
+    data: { category: 'laboratory' },
+  }),
+  PHARMACY_REQUEST_ACCEPTED: ({ pharmacyName, totalAmount }) => ({
+    title: 'Pharmacy request accepted',
+    body: `${pharmacyName || 'Pharmacy'} has accepted your order. Total amount: ₹${totalAmount || 0}. Please proceed with payment.`,
+    data: { category: 'pharmacy' },
+  }),
+  LAB_LEAD_STATUS_CHANGED: ({ status, notes }) => ({
+    title: 'Lab request update',
+    body: `Your lab request status has been updated to ${titleCase(status || '')}.${notes ? ` ${notes}` : ''}`,
+    data: { category: 'laboratory' },
+  }),
+  PHARMACY_LEAD_STATUS_CHANGED: ({ status, notes }) => ({
+    title: 'Pharmacy order update',
+    body: `Your pharmacy order status has been updated to ${titleCase(status || '')}.${notes ? ` ${notes}` : ''}`,
+    data: { category: 'pharmacy' },
+  }),
+  LAB_REPORT_READY: ({ laboratoryName }) => ({
+    title: 'Lab report ready',
+    body: `Your lab report from ${laboratoryName || 'laboratory'} is ready. You can now view and share it.`,
+    data: { category: 'laboratory' },
+  }),
+  LAB_REPORT_SHARED: ({ shareType }) => ({
+    title: shareType === 'direct' ? 'Report shared with doctor' : 'Report shared via appointment',
+    body: shareType === 'direct'
+      ? 'Your lab report has been shared with the prescribing doctor.'
+      : 'Your lab report has been shared with the doctor through your appointment.',
+    data: { category: 'laboratory' },
+  }),
+  WITHDRAWAL_REQUESTED: ({ amount, providerRole, isProvider, isAdmin }) => {
+    const roleName = providerRole === 'doctor' ? 'Doctor' : providerRole === 'laboratory' ? 'Laboratory' : 'Pharmacy';
+    if (isAdmin) {
+      return {
+        title: 'New withdrawal request',
+        body: `New withdrawal request of ₹${amount || 0} from ${roleName}. Please review.`,
+        data: { category: 'wallet' },
+      };
+    }
+    return {
+      title: 'Withdrawal request submitted',
+      body: `Your withdrawal request of ₹${amount || 0} has been submitted and is under review.`,
+      data: { category: 'wallet' },
+    };
+  },
+  WITHDRAWAL_STATUS_UPDATED: ({ status, amount, adminNote }) => {
+    const statusMessages = {
+      approved: `Your withdrawal request of ₹${amount || 0} has been approved.${adminNote ? ` ${adminNote}` : ''}`,
+      rejected: `Your withdrawal request of ₹${amount || 0} has been rejected.${adminNote ? ` Reason: ${adminNote}` : ''}`,
+      paid: `Your withdrawal of ₹${amount || 0} has been processed and paid.`,
+      pending: `Your withdrawal request of ₹${amount || 0} is pending review.`,
+    };
+    return {
+      title: 'Withdrawal status updated',
+      body: statusMessages[status] || `Your withdrawal request status has been updated to ${titleCase(status || '')}.`,
+      data: { category: 'wallet' },
+    };
+  },
+  TRANSACTION_CREDITED: ({ amount, netAmount, commissionAmount, bookingType }) => {
+    const bookingTypeName = bookingType === 'appointment' ? 'appointment' : bookingType === 'lab_booking' ? 'lab booking' : 'pharmacy order';
+    return {
+      title: 'Payment received',
+      body: `You received ₹${netAmount || 0} from ${bookingTypeName}. Gross: ₹${amount || 0}, Commission: ₹${commissionAmount || 0}.`,
+      data: { category: 'wallet' },
+    };
+  },
+  PAYMENT_RECEIVED: ({ amount, bookingType }) => {
+    const bookingTypeName = bookingType === 'appointment' ? 'appointment' : bookingType === 'lab_booking' ? 'lab booking' : 'pharmacy order';
+    return {
+      title: 'Payment confirmed',
+      body: `Payment of ₹${amount || 0} for ${bookingTypeName} has been confirmed and credited to your wallet.`,
+      data: { category: 'wallet' },
+    };
+  },
 };
 
 const getTemplate = (type) => templates[type];

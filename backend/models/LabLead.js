@@ -33,6 +33,11 @@ const labLeadSchema = new mongoose.Schema(
         ref: 'Laboratory',
       },
     ],
+    acceptedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Laboratory',
+      index: true,
+    },
     status: {
       type: String,
       enum: Object.values(LAB_LEAD_STATUS),
@@ -45,6 +50,9 @@ const labLeadSchema = new mongoose.Schema(
         description: { type: String, trim: true },
         notes: { type: String, trim: true },
         priority: { type: String, enum: ['normal', 'urgent'], default: 'normal' },
+        available: { type: Boolean, default: true }, // Lab sets this
+        price: { type: Number, min: 0 }, // Lab sets price per test
+        availabilityNotes: { type: String, trim: true }, // Lab notes about availability
       },
     ],
     remarks: {
@@ -89,6 +97,19 @@ const labLeadSchema = new mongoose.Schema(
         ref: 'Laboratory',
       },
       updatedAt: { type: Date },
+    },
+    payment: {
+      paid: { type: Boolean, default: false },
+      paymentStatus: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
+      paymentId: { type: String, trim: true },
+      transactionId: { type: String, trim: true },
+      razorpayOrderId: { type: String, trim: true },
+      razorpayPaymentId: { type: String, trim: true },
+      razorpaySignature: { type: String, trim: true },
+      paidAt: { type: Date },
+      commissionRate: { type: Number, default: 0.1 },
+      commissionAmount: { type: Number, default: 0 },
+      netAmount: { type: Number, default: 0 },
     },
     reportDetails: {
       fileUrl: { type: String, trim: true },

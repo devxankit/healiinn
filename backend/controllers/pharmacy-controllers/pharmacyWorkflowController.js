@@ -109,7 +109,7 @@ exports.updateStatus = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.PHARMACY]);
 
   const { leadId } = req.params;
-  const { status, notes, billing } = req.body;
+  const { status, notes, billing, medicines } = req.body;
 
   if (!status) {
     const error = new Error('status is required');
@@ -125,6 +125,7 @@ exports.updateStatus = asyncHandler(async (req, res) => {
     status,
     notes,
     billing: billingPayload,
+    medicines, // Medicines with availability and prices
     actorId: req.auth.id,
     actorRole: req.auth.role,
   });

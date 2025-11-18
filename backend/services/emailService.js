@@ -28,7 +28,7 @@ const ensureTransporter = () => {
   return cachedTransporter;
 };
 
-const sendEmail = async ({ to, subject, text, html }) => {
+const sendEmail = async ({ to, subject, text, html }, retries = 3) => {
   const transporter = ensureTransporter();
 
   if (!transporter) {
@@ -44,14 +44,45 @@ const sendEmail = async ({ to, subject, text, html }) => {
     html,
   };
 
-  try {
-    return await transporter.sendMail(mailOptions);
-  } catch (error) {
-    console.error(
-      `Failed to send email to ${to}: ${error.message || error}`
-    );
-    return null;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await transporter.sendMail(mailOptions);
+    } catch (error) {
+      const isRateLimitError = 
+        error.message?.includes('Too many login attempts') ||
+        error.message?.includes('454') ||
+        error.responseCode === 454 ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ECONNRESET';
+
+      // If it's a rate limit error and we have retries left, wait and retry
+      if (isRateLimitError && attempt < retries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
+        console.warn(
+          `Email rate limited (attempt ${attempt}/${retries}). Retrying in ${delay}ms...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+
+      // If it's the last attempt or non-rate-limit error, log and fail
+      if (attempt === retries || !isRateLimitError) {
+        // In test/development mode, don't log every email failure as error
+        const isTestEnv = process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development';
+        if (isRateLimitError && isTestEnv) {
+          console.warn(
+            `Failed to send email to ${to}: Rate limit exceeded. Email functionality working but Gmail is rate limiting.`
+          );
+        } else {
+          console.error(
+            `Failed to send email to ${to}: ${error.message || error}`
+          );
+        }
+      }
+    }
   }
+
+  return null;
 };
 
 const formatRoleName = (role) => role.charAt(0).toUpperCase() + role.slice(1);

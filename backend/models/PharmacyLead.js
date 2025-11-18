@@ -33,6 +33,11 @@ const pharmacyLeadSchema = new mongoose.Schema(
         ref: 'Pharmacy',
       },
     ],
+    acceptedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Pharmacy',
+      index: true,
+    },
     status: {
       type: String,
       enum: Object.values(PHARMACY_LEAD_STATUS),
@@ -46,6 +51,10 @@ const pharmacyLeadSchema = new mongoose.Schema(
         quantity: { type: Number, min: 1, default: 1 },
         instructions: { type: String, trim: true },
         priority: { type: String, enum: ['normal', 'urgent'], default: 'normal' },
+        available: { type: Boolean, default: true }, // Pharmacy sets this
+        price: { type: Number, min: 0 }, // Pharmacy sets price per medicine
+        availableQuantity: { type: Number, min: 0 }, // Available stock
+        availabilityNotes: { type: String, trim: true }, // Pharmacy notes about availability
       },
     ],
     remarks: {
@@ -85,6 +94,19 @@ const pharmacyLeadSchema = new mongoose.Schema(
         ref: 'Pharmacy',
       },
       updatedAt: { type: Date },
+    },
+    payment: {
+      paid: { type: Boolean, default: false },
+      paymentStatus: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
+      paymentId: { type: String, trim: true },
+      transactionId: { type: String, trim: true },
+      razorpayOrderId: { type: String, trim: true },
+      razorpayPaymentId: { type: String, trim: true },
+      razorpaySignature: { type: String, trim: true },
+      paidAt: { type: Date },
+      commissionRate: { type: Number, default: 0.1 },
+      commissionAmount: { type: Number, default: 0 },
+      netAmount: { type: Number, default: 0 },
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed,

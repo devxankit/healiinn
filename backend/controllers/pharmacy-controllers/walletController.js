@@ -2,16 +2,16 @@ const asyncHandler = require('../../middleware/asyncHandler');
 const WalletTransaction = require('../../models/WalletTransaction');
 const WithdrawalRequest = require('../../models/WithdrawalRequest');
 const {
-  getDoctorWalletSummary,
-  getDoctorTransactions,
-  getDoctorWithdrawals,
+  getProviderWalletSummary,
+  getProviderTransactions,
+  getProviderWithdrawals,
   buildWithdrawalHistoryEntry,
   COMMISSION_RATE,
 } = require('../../services/walletService');
 const { WITHDRAWAL_STATUS, ROLES } = require('../../utils/constants');
 
 exports.getWalletSummary = asyncHandler(async (req, res) => {
-  const summary = await getDoctorWalletSummary(req.auth.id);
+  const summary = await getProviderWalletSummary(req.auth.id, ROLES.PHARMACY);
 
   res.json({
     success: true,
@@ -27,9 +27,14 @@ exports.listTransactions = asyncHandler(async (req, res) => {
   const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
   const skip = (page - 1) * limit;
 
+  const matchQuery = {
+    provider: req.auth.id,
+    providerRole: ROLES.PHARMACY,
+  };
+
   const [transactions, total] = await Promise.all([
-    getDoctorTransactions({ doctorId: req.auth.id, limit, skip }),
-    WalletTransaction.countDocuments({ doctor: req.auth.id }),
+    getProviderTransactions({ providerId: req.auth.id, providerRole: ROLES.PHARMACY, limit, skip }),
+    WalletTransaction.countDocuments(matchQuery),
   ]);
 
   res.json({
@@ -51,10 +56,8 @@ exports.listWithdrawals = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const match = {
-    $or: [
-      { provider: req.auth.id, providerRole: ROLES.DOCTOR },
-      { doctor: req.auth.id }, // Legacy support
-    ],
+    provider: req.auth.id,
+    providerRole: ROLES.PHARMACY,
   };
   if (status && Object.values(WITHDRAWAL_STATUS).includes(status)) {
     match.status = status;
@@ -91,7 +94,7 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     });
   }
 
-  const summary = await getDoctorWalletSummary(req.auth.id);
+  const summary = await getProviderWalletSummary(req.auth.id, ROLES.PHARMACY);
 
   if (amount > summary.availableBalance) {
     return res.status(400).json({
@@ -105,9 +108,8 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
 
   const request = await WithdrawalRequest.create({
     provider: req.auth.id,
-    providerModel: 'Doctor',
-    providerRole: ROLES.DOCTOR,
-    doctor: req.auth.id, // Legacy support
+    providerModel: 'Pharmacy',
+    providerRole: ROLES.PHARMACY,
     amount,
     currency: req.body.currency || 'INR',
     payoutMethod,
@@ -116,7 +118,7 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
       buildWithdrawalHistoryEntry({
         status: WITHDRAWAL_STATUS.PENDING,
         actorId: req.auth.id,
-        actorRole: 'doctor',
+        actorRole: 'pharmacy',
         note: notes,
       }),
     ],
@@ -127,7 +129,7 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     const { notifyWithdrawalRequested } = require('../../services/notificationEvents');
     await notifyWithdrawalRequested({
       providerId: req.auth.id,
-      providerRole: ROLES.DOCTOR,
+      providerRole: ROLES.PHARMACY,
       amount,
       withdrawalId: request._id,
     });
@@ -140,5 +142,4 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     withdrawal: request,
   });
 });
-
 

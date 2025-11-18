@@ -106,9 +106,10 @@ const formatDate = (dateString) => {
 const DoctorConsultations = () => {
   const [consultations, setConsultations] = useState(mockConsultations)
   const [selectedConsultation, setSelectedConsultation] = useState(consultations[0])
-  const [activeTab, setActiveTab] = useState('vitals') // vitals, prescription, history
+  const [activeTab, setActiveTab] = useState('vitals') // vitals, prescription, history, saved
   const [showAddMedication, setShowAddMedication] = useState(false)
   const [showAddInvestigation, setShowAddInvestigation] = useState(false)
+  const [savedPrescriptions, setSavedPrescriptions] = useState([])
 
   // Form states
   const [vitals, setVitals] = useState({
@@ -205,19 +206,70 @@ const DoctorConsultations = () => {
 
     // Simulate API call
     const prescriptionData = {
+      id: Date.now().toString(),
       consultationId: selectedConsultation.id,
       patientId: selectedConsultation.patientId,
+      patientName: selectedConsultation.patientName,
+      patientImage: selectedConsultation.patientImage,
       diagnosis,
       vitals,
-      medications,
-      investigations,
+      medications: [...medications],
+      investigations: [...investigations],
       advice,
       attachments: attachments.map((att) => ({ name: att.name, type: att.type })),
       date: new Date().toISOString(),
+      savedAt: new Date().toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
     }
+
+    // Save prescription to state
+    setSavedPrescriptions((prev) => [prescriptionData, ...prev])
+    
+    // Update consultation status
+    setConsultations((prev) =>
+      prev.map((cons) =>
+        cons.id === selectedConsultation.id
+          ? {
+              ...cons,
+              status: 'completed',
+              diagnosis,
+              vitals,
+              medications,
+              investigations,
+              advice,
+              attachments,
+            }
+          : cons
+      )
+    )
+
+    // Reset form
+    setDiagnosis('')
+    setMedications([])
+    setInvestigations([])
+    setAdvice('')
+    setAttachments([])
+    setVitals({
+      bloodPressure: { systolic: '', diastolic: '' },
+      temperature: '',
+      pulse: '',
+      respiratoryRate: '',
+      oxygenSaturation: '',
+      weight: '',
+      height: '',
+      bmi: '',
+    })
 
     console.log('Prescription saved:', prescriptionData)
     alert('Prescription saved successfully!')
+    
+    // Switch to saved prescriptions tab
+    setActiveTab('saved')
   }
 
   return (
@@ -225,12 +277,6 @@ const DoctorConsultations = () => {
       <DoctorNavbar />
       <div className="min-h-screen bg-slate-50 pt-20 pb-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Consultations</h1>
-            <p className="mt-1 text-sm text-slate-600">View and manage patient consultations</p>
-          </div>
-
           {selectedConsultation ? (
             <div className="grid gap-6 lg:grid-cols-3">
               {/* Left Column - Patient Info & History */}
@@ -399,6 +445,22 @@ const DoctorConsultations = () => {
                   >
                     History
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('saved')}
+                    className={`shrink-0 rounded-xl px-5 py-3 text-sm font-bold transition-all duration-200 relative ${
+                      activeTab === 'saved'
+                        ? 'bg-blue-500 text-white shadow-md shadow-blue-400/40 scale-105'
+                        : 'bg-white text-slate-600 shadow-md shadow-slate-200/50 hover:bg-slate-50 hover:shadow-lg hover:shadow-slate-200/60 border border-slate-200/80'
+                    }`}
+                  >
+                    Saved Prescriptions
+                    {savedPrescriptions.length > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-white">
+                        {savedPrescriptions.length}
+                      </span>
+                    )}
+                  </button>
                 </div>
 
                 {/* Vitals & Examination Tab */}
@@ -525,12 +587,26 @@ const DoctorConsultations = () => {
                         <div className="flex items-center gap-2">
                           <input
                             type="number"
-                            value={vitals.weight}
+                            value={vitals.weight || ''}
                             onChange={(e) => {
-                              setVitals({ ...vitals, weight: e.target.value })
-                              setTimeout(handleCalculateBMI, 100)
+                              const weightValue = e.target.value
+                              setVitals((prev) => {
+                                const updated = { ...prev, weight: weightValue }
+                                if (updated.height && weightValue) {
+                                  setTimeout(() => {
+                                    const heightInMeters = parseFloat(updated.height) / 100
+                                    const weightInKg = parseFloat(weightValue)
+                                    if (heightInMeters > 0 && weightInKg > 0) {
+                                      const bmi = (weightInKg / (heightInMeters * heightInMeters)).toFixed(1)
+                                      setVitals((prevVitals) => ({ ...prevVitals, bmi }))
+                                    }
+                                  }, 100)
+                                }
+                                return updated
+                              })
                             }}
                             placeholder="70"
+                            min="0"
                             step="0.1"
                             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                           />
@@ -547,12 +623,27 @@ const DoctorConsultations = () => {
                         <div className="flex items-center gap-2">
                           <input
                             type="number"
-                            value={vitals.height}
+                            value={vitals.height || ''}
                             onChange={(e) => {
-                              setVitals({ ...vitals, height: e.target.value })
-                              setTimeout(handleCalculateBMI, 100)
+                              const heightValue = e.target.value
+                              setVitals((prev) => {
+                                const updated = { ...prev, height: heightValue }
+                                if (updated.weight && heightValue) {
+                                  setTimeout(() => {
+                                    const heightInMeters = parseFloat(heightValue) / 100
+                                    const weightInKg = parseFloat(updated.weight)
+                                    if (heightInMeters > 0 && weightInKg > 0) {
+                                      const bmi = (weightInKg / (heightInMeters * heightInMeters)).toFixed(1)
+                                      setVitals((prevVitals) => ({ ...prevVitals, bmi }))
+                                    }
+                                  }, 100)
+                                }
+                                return updated
+                              })
                             }}
                             placeholder="170"
+                            min="0"
+                            step="0.1"
                             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                           />
                           <span className="text-xs text-slate-500">cm</span>
@@ -748,6 +839,190 @@ const DoctorConsultations = () => {
                         <IoCheckmarkCircleOutline className="h-5 w-5" />
                         Save Prescription
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Saved Prescriptions Tab */}
+                {activeTab === 'saved' && (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-md shadow-slate-200/50">
+                      <div className="mb-5 flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-slate-900">Saved Prescriptions</h3>
+                        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                          {savedPrescriptions.length} {savedPrescriptions.length === 1 ? 'Prescription' : 'Prescriptions'}
+                        </span>
+                      </div>
+
+                      {savedPrescriptions.length === 0 ? (
+                        <div className="py-12 text-center">
+                          <IoDocumentTextOutline className="mx-auto h-16 w-16 text-slate-300" />
+                          <p className="mt-4 text-sm font-medium text-slate-600">No saved prescriptions yet</p>
+                          <p className="mt-1 text-xs text-slate-500">Prescriptions you save will appear here</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {savedPrescriptions.map((prescription) => (
+                            <div
+                              key={prescription.id}
+                              className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow"
+                            >
+                              <div className="flex items-start gap-4">
+                                <img
+                                  src={prescription.patientImage}
+                                  alt={prescription.patientName}
+                                  className="h-12 w-12 rounded-lg object-cover ring-2 ring-slate-100"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="text-base font-bold text-slate-900">{prescription.patientName}</h4>
+                                      <p className="mt-1 text-xs text-slate-600">
+                                        Saved on {prescription.savedAt}
+                                      </p>
+                                    </div>
+                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
+                                      Saved
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-4 space-y-3">
+                                    {/* Diagnosis */}
+                                    <div>
+                                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">
+                                        Diagnosis
+                                      </p>
+                                      <p className="text-sm font-semibold text-slate-900">{prescription.diagnosis}</p>
+                                    </div>
+
+                                    {/* Medications */}
+                                    {prescription.medications.length > 0 && (
+                                      <div>
+                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                                          Medications ({prescription.medications.length})
+                                        </p>
+                                        <div className="space-y-2">
+                                          {prescription.medications.map((med, idx) => (
+                                            <div
+                                              key={idx}
+                                              className="rounded-lg bg-emerald-50 border border-emerald-100 p-2.5"
+                                            >
+                                              <p className="text-sm font-semibold text-emerald-900">{med.name}</p>
+                                              <p className="text-xs text-emerald-700">
+                                                {med.dosage} • {med.frequency}
+                                                {med.duration && ` • ${med.duration}`}
+                                              </p>
+                                              {med.instructions && (
+                                                <p className="mt-1 text-xs text-emerald-600">{med.instructions}</p>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Investigations */}
+                                    {prescription.investigations.length > 0 && (
+                                      <div>
+                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                                          Investigations ({prescription.investigations.length})
+                                        </p>
+                                        <div className="space-y-2">
+                                          {prescription.investigations.map((inv, idx) => (
+                                            <div
+                                              key={idx}
+                                              className="rounded-lg bg-blue-50 border border-blue-100 p-2.5"
+                                            >
+                                              <p className="text-sm font-semibold text-blue-900">{inv.name}</p>
+                                              {inv.notes && (
+                                                <p className="mt-1 text-xs text-blue-700">{inv.notes}</p>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Advice */}
+                                    {prescription.advice && (
+                                      <div>
+                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">
+                                          Advice
+                                        </p>
+                                        <p className="text-sm text-slate-700">{prescription.advice}</p>
+                                      </div>
+                                    )}
+
+                                    {/* Vitals */}
+                                    {(prescription.vitals.bloodPressure.systolic ||
+                                      prescription.vitals.temperature ||
+                                      prescription.vitals.pulse) && (
+                                      <div>
+                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                                          Vitals
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                          {prescription.vitals.bloodPressure.systolic && (
+                                            <div className="rounded-lg bg-slate-50 p-2">
+                                              <p className="text-slate-600">BP</p>
+                                              <p className="font-semibold text-slate-900">
+                                                {prescription.vitals.bloodPressure.systolic}/
+                                                {prescription.vitals.bloodPressure.diastolic} mmHg
+                                              </p>
+                                            </div>
+                                          )}
+                                          {prescription.vitals.temperature && (
+                                            <div className="rounded-lg bg-slate-50 p-2">
+                                              <p className="text-slate-600">Temp</p>
+                                              <p className="font-semibold text-slate-900">
+                                                {prescription.vitals.temperature}°F
+                                              </p>
+                                            </div>
+                                          )}
+                                          {prescription.vitals.pulse && (
+                                            <div className="rounded-lg bg-slate-50 p-2">
+                                              <p className="text-slate-600">Pulse</p>
+                                              <p className="font-semibold text-slate-900">
+                                                {prescription.vitals.pulse} bpm
+                                              </p>
+                                            </div>
+                                          )}
+                                          {prescription.vitals.bmi && (
+                                            <div className="rounded-lg bg-slate-50 p-2">
+                                              <p className="text-slate-600">BMI</p>
+                                              <p className="font-semibold text-slate-900">{prescription.vitals.bmi}</p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Attachments */}
+                                    {prescription.attachments.length > 0 && (
+                                      <div>
+                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                                          Attachments ({prescription.attachments.length})
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                          {prescription.attachments.map((att, idx) => (
+                                            <div
+                                              key={idx}
+                                              className="flex items-center gap-2 rounded-lg bg-slate-100 px-2.5 py-1.5"
+                                            >
+                                              <IoAttachOutline className="h-4 w-4 text-slate-600" />
+                                              <span className="text-xs font-medium text-slate-700">{att.name}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
