@@ -74,5 +74,9 @@ const appointmentSchema = new mongoose.Schema(
 appointmentSchema.index({ doctor: 1, scheduledFor: 1 });
 appointmentSchema.index({ patient: 1, scheduledFor: -1 });
 appointmentSchema.index({ session: 1, tokenNumber: 1 });
+appointmentSchema.index({ doctor: 1, status: 1, scheduledFor: -1 }); // For doctor appointments with status filter
+appointmentSchema.index({ patient: 1, status: 1, scheduledFor: -1 }); // For patient appointments with status filter
+appointmentSchema.index({ status: 1, scheduledFor: 1 }); // For status-based queries
+appointmentSchema.index({ createdAt: -1 }); // For recent appointments
 
 module.exports = mongoose.model('Appointment', appointmentSchema);

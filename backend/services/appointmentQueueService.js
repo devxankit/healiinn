@@ -15,6 +15,7 @@ const {
   ROLES,
   TOKEN_EVENTS,
   COMMISSION_RATE,
+  getCommissionRateByRole,
 } = require('../utils/constants');
 const {
   notifyAppointmentConfirmed,
@@ -579,8 +580,9 @@ const issueToken = async ({
     );
 
     // Calculate billing details from validated payment
+    // Use doctor commission rate for appointments
     const grossAmount = Number(validatedPayment.amount) || 0;
-    const commissionRate = validatedPayment.metadata?.commissionRate || COMMISSION_RATE;
+    const commissionRate = validatedPayment.metadata?.commissionRate || getCommissionRateByRole(ROLES.DOCTOR);
     const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
     const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
 
@@ -663,7 +665,7 @@ const issueToken = async ({
         bookingType: 'appointment',
         paymentId: result.validatedPayment._id,
         grossAmount: Number(result.validatedPayment.amount) || 0,
-        commissionRate: result.validatedPayment.metadata?.commissionRate || COMMISSION_RATE,
+        commissionRate: result.validatedPayment.metadata?.commissionRate || getCommissionRateByRole(ROLES.DOCTOR),
         currency: result.validatedPayment.currency || 'INR',
         description: `Appointment payment ${result.appointment._id.toString()}`,
       });

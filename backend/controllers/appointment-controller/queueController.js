@@ -1,8 +1,11 @@
 const asyncHandler = require('../../middleware/asyncHandler');
-const { ROLES, SESSION_STATUS } = require('../../utils/constants');
+const { ROLES, SESSION_STATUS, TOKEN_STATUS } = require('../../utils/constants');
 const queueService = require('../../services/appointmentQueueService');
 const mongoose = require('mongoose');
 const Appointment = require('../../models/Appointment');
+const ClinicSession = require('../../models/ClinicSession');
+const SessionToken = require('../../models/SessionToken');
+const { getPaginationParams, getPaginationMeta } = require('../../utils/pagination');
 
 const ensureRole = (role, allowed) => {
   if (!allowed.includes(role)) {
@@ -377,8 +380,7 @@ exports.listPatientAppointments = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.PATIENT]);
 
   const { status, from, to } = req.query;
-  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
+  const { page, limit, skip } = getPaginationParams(req.query);
 
   const patientId = toObjectId(req.auth.id);
 
@@ -403,10 +405,9 @@ exports.listPatientAppointments = asyncHandler(async (req, res) => {
     }
   }
 
-  const skip = (page - 1) * limit;
-
   const [appointments, total, totalCounts] = await Promise.all([
     Appointment.find(criteria)
+      .select('scheduledFor status reason type notes vitals attachments billing followUpAt rescheduledFrom createdAt patient doctor clinic session token tokenNumber eta priority')
       .populate('doctor', 'firstName lastName specialty qualification profileImage')
       .populate('clinic', 'name address')
       .populate('session', 'startTime endTime status')
@@ -470,12 +471,7 @@ exports.listPatientAppointments = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    pagination: {
-      total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit) || 1,
-    },
+    pagination: getPaginationMeta(total, page, limit),
     summary: {
       total: total,
       scheduled: totalCounts[0],
@@ -493,8 +489,7 @@ exports.listDoctorAppointments = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.DOCTOR]);
 
   const { status, period, from, to } = req.query;
-  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
+  const { page, limit, skip } = getPaginationParams(req.query);
 
   const doctorId = toObjectId(req.auth.id);
   const now = new Date();
@@ -537,8 +532,6 @@ exports.listDoctorAppointments = asyncHandler(async (req, res) => {
     }
   }
 
-  const skip = (page - 1) * limit;
-
   const dayStart = startOfDay(now);
   const dayEnd = addDays(dayStart, 1);
   const monthStart = startOfMonth(now);
@@ -548,6 +541,7 @@ exports.listDoctorAppointments = asyncHandler(async (req, res) => {
 
   const [appointments, total, countsByPeriod, countsByStatus] = await Promise.all([
     Appointment.find(criteria)
+      .select('scheduledFor status reason type notes vitals attachments billing followUpAt rescheduledFrom createdAt patient doctor clinic session token tokenNumber eta priority')
       .populate('patient', 'firstName lastName gender phone email profileImage')
       .populate('clinic', 'name address')
       .populate('session', 'startTime endTime status')
@@ -642,12 +636,7 @@ exports.listDoctorAppointments = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    pagination: {
-      total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit) || 1,
-    },
+    pagination: getPaginationMeta(total, page, limit),
     summary: {
       byPeriod: {
         daily: countsByPeriod[0],
@@ -667,3 +656,438 @@ exports.listDoctorAppointments = asyncHandler(async (req, res) => {
   });
 });
 
+// GET /api/patients/appointments/today
+exports.getTodayAppointments = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.PATIENT]);
+
+  const patientId = toObjectId(req.auth.id);
+  const now = new Date();
+  const dayStart = startOfDay(now);
+  const dayEnd = addDays(dayStart, 1);
+
+  const criteria = {
+    patient: patientId,
+    scheduledFor: { $gte: dayStart, $lt: dayEnd },
+    status: { $nin: ['cancelled', 'no_show'] },
+  };
+
+  const appointments = await Appointment.find(criteria)
+    .populate('doctor', 'firstName lastName specialty qualification profileImage')
+    .populate('clinic', 'name address')
+    .populate('session', 'startTime endTime status')
+    .populate('token', 'tokenNumber status visitedAt completedAt eta')
+    .sort({ scheduledFor: 1 })
+    .lean();
+
+  const formatted = appointments.map((item) => ({
+    id: item._id,
+    scheduledFor: item.scheduledFor,
+    status: item.status,
+    type: item.type || null,
+    reason: item.reason || null,
+    notes: item.notes || null,
+    durationMinutes: item.durationMinutes || null,
+    tokenNumber: item.tokenNumber || item.token?.tokenNumber || null,
+    eta: item.eta || item.token?.eta || null,
+    doctor: mapDoctorSummary(item.doctor),
+    clinic: mapClinicSummary(item.clinic),
+    session: item.session
+      ? {
+          id: item.session._id,
+          startTime: item.session.startTime,
+          endTime: item.session.endTime,
+          status: item.session.status,
+        }
+      : null,
+    token: item.token
+      ? {
+          id: item.token._id,
+          tokenNumber: item.token.tokenNumber,
+          status: item.token.status,
+          visitedAt: item.token.visitedAt || null,
+          completedAt: item.token.completedAt || null,
+          eta: item.token.eta || null,
+        }
+      : null,
+    billing: item.billing
+      ? {
+          amount: item.billing.amount || 0,
+          currency: item.billing.currency || 'INR',
+          paid: item.billing.paid || false,
+          paymentStatus: item.billing.paymentStatus || 'unpaid',
+        }
+      : null,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+
+  res.json({
+    success: true,
+    count: formatted.length,
+    appointments: formatted,
+  });
+});
+
+// GET /api/patients/appointments/upcoming
+exports.getUpcomingAppointments = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.PATIENT]);
+
+  const patientId = toObjectId(req.auth.id);
+  const now = new Date();
+  const dayStart = startOfDay(now);
+  const daysEnd = addDays(dayStart, 7); // Next 7 days
+
+  const criteria = {
+    patient: patientId,
+    scheduledFor: { $gte: now, $lt: daysEnd },
+    status: { $nin: ['cancelled', 'no_show', 'completed'] },
+  };
+
+  const appointments = await Appointment.find(criteria)
+    .populate('doctor', 'firstName lastName specialty qualification profileImage')
+    .populate('clinic', 'name address')
+    .populate('session', 'startTime endTime status')
+    .populate('token', 'tokenNumber status visitedAt completedAt eta')
+    .sort({ scheduledFor: 1 })
+    .lean();
+
+  const formatted = appointments.map((item) => ({
+    id: item._id,
+    scheduledFor: item.scheduledFor,
+    status: item.status,
+    type: item.type || null,
+    reason: item.reason || null,
+    notes: item.notes || null,
+    durationMinutes: item.durationMinutes || null,
+    tokenNumber: item.tokenNumber || item.token?.tokenNumber || null,
+    eta: item.eta || item.token?.eta || null,
+    doctor: mapDoctorSummary(item.doctor),
+    clinic: mapClinicSummary(item.clinic),
+    session: item.session
+      ? {
+          id: item.session._id,
+          startTime: item.session.startTime,
+          endTime: item.session.endTime,
+          status: item.session.status,
+        }
+      : null,
+    token: item.token
+      ? {
+          id: item.token._id,
+          tokenNumber: item.token.tokenNumber,
+          status: item.token.status,
+          visitedAt: item.token.visitedAt || null,
+          completedAt: item.token.completedAt || null,
+          eta: item.token.eta || null,
+        }
+      : null,
+    billing: item.billing
+      ? {
+          amount: item.billing.amount || 0,
+          currency: item.billing.currency || 'INR',
+          paid: item.billing.paid || false,
+          paymentStatus: item.billing.paymentStatus || 'unpaid',
+        }
+      : null,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  }));
+
+  res.json({
+    success: true,
+    count: formatted.length,
+    appointments: formatted,
+  });
+});
+
+// GET /api/appointments/:appointmentId/available-slots
+exports.getAvailableSlots = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.PATIENT]);
+
+  const { appointmentId } = req.params;
+  const patientId = toObjectId(req.auth.id);
+
+  // Find the appointment and verify ownership
+  const appointment = await Appointment.findById(appointmentId)
+    .populate('doctor', 'firstName lastName')
+    .lean();
+
+  if (!appointment) {
+    return res.status(404).json({
+      success: false,
+      message: 'Appointment not found',
+    });
+  }
+
+  if (appointment.patient.toString() !== patientId.toString()) {
+    return res.status(403).json({
+      success: false,
+      message: 'Appointment does not belong to this patient',
+    });
+  }
+
+  // Check if appointment can be rescheduled
+  if (['completed', 'cancelled'].includes(appointment.status)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Cannot reschedule a completed or cancelled appointment',
+    });
+  }
+
+  const now = new Date();
+  const doctorId = appointment.doctor;
+
+  // Find available sessions for the same doctor
+  // Sessions that are scheduled/live and have available slots
+  const availableSessions = await ClinicSession.find({
+    doctor: doctorId,
+    startTime: { $gte: now }, // Future sessions only
+    status: { $in: [SESSION_STATUS.SCHEDULED, SESSION_STATUS.LIVE] },
+  })
+    .populate('clinic', 'name address')
+    .sort({ startTime: 1 })
+    .lean();
+
+  // Calculate available slots for each session
+  const slots = await Promise.all(
+    availableSessions.map(async (session) => {
+      // Count issued tokens (excluding cancelled and no_show)
+      const issuedTokens = await SessionToken.countDocuments({
+        session: session._id,
+        status: { $nin: [TOKEN_STATUS.CANCELLED, TOKEN_STATUS.NO_SHOW] },
+      });
+
+      const availableSlots = (session.maxTokens || 0) - issuedTokens;
+      const hasCapacity = availableSlots > 0;
+
+      return {
+        sessionId: session._id,
+        clinic: session.clinic
+          ? {
+              id: session.clinic._id,
+              name: session.clinic.name,
+              address: session.clinic.address || null,
+            }
+          : null,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        status: session.status,
+        maxTokens: session.maxTokens || 0,
+        issuedTokens,
+        availableSlots,
+        hasCapacity,
+        averageConsultationMinutes: session.averageConsultationMinutes || null,
+      };
+    })
+  );
+
+  // Filter to only show sessions with available capacity
+  const availableSlotsOnly = slots.filter((slot) => slot.hasCapacity);
+
+  res.json({
+    success: true,
+    count: availableSlotsOnly.length,
+    slots: availableSlotsOnly,
+    currentAppointment: {
+      id: appointment._id,
+      scheduledFor: appointment.scheduledFor,
+      status: appointment.status,
+      doctor: appointment.doctor,
+    },
+  });
+});
+
+// PATCH /api/appointments/:appointmentId/reschedule
+exports.rescheduleAppointment = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.PATIENT]);
+
+  const { appointmentId } = req.params;
+  const { sessionId, reason } = req.body;
+  const patientId = toObjectId(req.auth.id);
+
+  if (!sessionId) {
+    return res.status(400).json({
+      success: false,
+      message: 'sessionId is required',
+    });
+  }
+
+  // Find the appointment and verify ownership
+  const appointment = await Appointment.findById(appointmentId)
+    .populate('doctor', 'firstName lastName')
+    .populate('token')
+    .lean();
+
+  if (!appointment) {
+    return res.status(404).json({
+      success: false,
+      message: 'Appointment not found',
+    });
+  }
+
+  if (appointment.patient.toString() !== patientId.toString()) {
+    return res.status(403).json({
+      success: false,
+      message: 'Appointment does not belong to this patient',
+    });
+  }
+
+  // Check if appointment can be rescheduled
+  if (['completed', 'cancelled'].includes(appointment.status)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Cannot reschedule a completed or cancelled appointment',
+    });
+  }
+
+  // Find and verify the new session
+  const newSession = await ClinicSession.findById(sessionId)
+    .populate('clinic', 'name address')
+    .populate('doctor', 'firstName lastName')
+    .lean();
+
+  if (!newSession) {
+    return res.status(404).json({
+      success: false,
+      message: 'Session not found',
+    });
+  }
+
+  // Verify same doctor
+  if (newSession.doctor._id.toString() !== appointment.doctor._id.toString()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Cannot reschedule to a different doctor',
+    });
+  }
+
+  // Check if session is available
+  if (![SESSION_STATUS.SCHEDULED, SESSION_STATUS.LIVE].includes(newSession.status)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Selected session is not available for booking',
+    });
+  }
+
+  // Check if session is in the future
+  if (newSession.startTime < new Date()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Cannot reschedule to a past session',
+    });
+  }
+
+  // Check capacity
+  const issuedTokens = await SessionToken.countDocuments({
+    session: newSession._id,
+    status: { $nin: [TOKEN_STATUS.CANCELLED, TOKEN_STATUS.NO_SHOW] },
+  });
+
+  if (issuedTokens >= (newSession.maxTokens || 0)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Selected session is fully booked',
+    });
+  }
+
+  // Cancel old token if exists
+  if (appointment.token) {
+    await queueService.cancelToken({
+      tokenId: appointment.token._id,
+      actorId: patientId,
+      actorRole: ROLES.PATIENT,
+      reason: reason || 'Rescheduled to another session',
+      io: req.app.get('io'),
+    });
+  }
+
+  // Cancel old appointment
+  await Appointment.updateOne(
+    { _id: appointmentId },
+    {
+      $set: {
+        status: 'cancelled',
+        notes: reason || 'Rescheduled to another session',
+      },
+    }
+  );
+
+  // Issue new token in the new session
+  const result = await queueService.issueToken({
+    sessionId: newSession._id,
+    patientId,
+    notes: reason || 'Rescheduled appointment',
+    reason: reason || 'Rescheduled appointment',
+    createdByRole: ROLES.PATIENT,
+    priority: 0,
+    io: req.app.get('io'),
+  });
+
+  // Link new appointment to old one
+  await Appointment.updateOne(
+    { _id: result.appointment._id },
+    {
+      $set: {
+        rescheduledFrom: appointmentId,
+        notes: reason || 'Rescheduled appointment',
+      },
+    }
+  );
+
+  // Get updated appointment
+  const updatedAppointment = await Appointment.findById(result.appointment._id)
+    .populate('doctor', 'firstName lastName specialty qualification profileImage')
+    .populate('clinic', 'name address')
+    .populate('session', 'startTime endTime status')
+    .populate('token', 'tokenNumber status visitedAt completedAt eta')
+    .lean();
+
+  const formatted = {
+    id: updatedAppointment._id,
+    scheduledFor: updatedAppointment.scheduledFor,
+    status: updatedAppointment.status,
+    type: updatedAppointment.type || null,
+    reason: updatedAppointment.reason || null,
+    notes: updatedAppointment.notes || null,
+    durationMinutes: updatedAppointment.durationMinutes || null,
+    tokenNumber: updatedAppointment.tokenNumber || updatedAppointment.token?.tokenNumber || null,
+    eta: updatedAppointment.eta || updatedAppointment.token?.eta || null,
+    doctor: mapDoctorSummary(updatedAppointment.doctor),
+    clinic: mapClinicSummary(updatedAppointment.clinic),
+    session: updatedAppointment.session
+      ? {
+          id: updatedAppointment.session._id,
+          startTime: updatedAppointment.session.startTime,
+          endTime: updatedAppointment.session.endTime,
+          status: updatedAppointment.session.status,
+        }
+      : null,
+    token: updatedAppointment.token
+      ? {
+          id: updatedAppointment.token._id,
+          tokenNumber: updatedAppointment.token.tokenNumber,
+          status: updatedAppointment.token.status,
+          visitedAt: updatedAppointment.token.visitedAt || null,
+          completedAt: updatedAppointment.token.completedAt || null,
+          eta: updatedAppointment.token.eta || null,
+        }
+      : null,
+    billing: updatedAppointment.billing
+      ? {
+          amount: updatedAppointment.billing.amount || 0,
+          currency: updatedAppointment.billing.currency || 'INR',
+          paid: updatedAppointment.billing.paid || false,
+          paymentStatus: updatedAppointment.billing.paymentStatus || 'unpaid',
+        }
+      : null,
+    rescheduledFrom: appointmentId,
+    createdAt: updatedAppointment.createdAt,
+    updatedAt: updatedAppointment.updatedAt,
+  };
+
+  res.json({
+    success: true,
+    message: 'Appointment rescheduled successfully',
+    appointment: formatted,
+  });
+});

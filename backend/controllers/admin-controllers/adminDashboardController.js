@@ -133,7 +133,25 @@ const mergeMonthlySeries = (months, series) =>
   months.map((month) => series[month] || 0);
 
 const computeRevenueBreakdown = async (start, end) => {
-  const [appointmentAgg] = await WalletTransaction.aggregate([
+  // Get commission revenue broken down by provider role
+  const commissionByRole = await WalletTransaction.aggregate([
+    {
+      $match: {
+        creditedAt: { $gte: start, $lt: end },
+      },
+    },
+    {
+      $group: {
+        _id: '$providerRole',
+        commissionRevenue: { $sum: '$commissionAmount' },
+        grossRevenue: { $sum: '$grossAmount' },
+        netRevenue: { $sum: '$netAmount' },
+      },
+    },
+  ]);
+
+  // Get total commission revenue
+  const [totalAgg] = await WalletTransaction.aggregate([
     {
       $match: {
         creditedAt: { $gte: start, $lt: end },
@@ -142,16 +160,38 @@ const computeRevenueBreakdown = async (start, end) => {
     {
       $group: {
         _id: null,
-        commissionRevenue: { $sum: '$commissionAmount' },
+        totalCommission: { $sum: '$commissionAmount' },
+        totalGross: { $sum: '$grossAmount' },
+        totalNet: { $sum: '$netAmount' },
       },
     },
   ]);
 
-  const commissionRevenue = appointmentAgg?.commissionRevenue || 0;
+  // Map role-specific commissions
+  const roleMap = commissionByRole.reduce((acc, item) => {
+    acc[item._id] = {
+      commission: item.commissionRevenue || 0,
+      gross: item.grossRevenue || 0,
+      net: item.netRevenue || 0,
+    };
+    return acc;
+  }, {});
+
+  const doctorCommission = roleMap[ROLES.DOCTOR]?.commission || 0;
+  const labCommission = roleMap[ROLES.LABORATORY]?.commission || 0;
+  const pharmacyCommission = roleMap[ROLES.PHARMACY]?.commission || 0;
+  const totalCommission = totalAgg?.totalCommission || 0;
 
   return {
-    appointmentRevenue: commissionRevenue,
-    total: commissionRevenue,
+    // Legacy field: total appointment revenue (includes all commissions now)
+    appointmentRevenue: totalCommission,
+    // Role-specific commission breakdown
+    byRole: {
+      doctor: doctorCommission,
+      laboratory: labCommission,
+      pharmacy: pharmacyCommission,
+    },
+    total: totalCommission,
   };
 };
 
@@ -656,24 +696,44 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
           appointment: Number(
             revenueTodayBreakdown.appointmentRevenue.toFixed(2)
           ),
+          byRole: {
+            doctor: Number((revenueTodayBreakdown.byRole?.doctor || 0).toFixed(2)),
+            laboratory: Number((revenueTodayBreakdown.byRole?.laboratory || 0).toFixed(2)),
+            pharmacy: Number((revenueTodayBreakdown.byRole?.pharmacy || 0).toFixed(2)),
+          },
         },
         week: {
           total: Number(revenueWeekBreakdown.total.toFixed(2)),
           appointment: Number(
             revenueWeekBreakdown.appointmentRevenue.toFixed(2)
           ),
+          byRole: {
+            doctor: Number((revenueWeekBreakdown.byRole?.doctor || 0).toFixed(2)),
+            laboratory: Number((revenueWeekBreakdown.byRole?.laboratory || 0).toFixed(2)),
+            pharmacy: Number((revenueWeekBreakdown.byRole?.pharmacy || 0).toFixed(2)),
+          },
         },
         month: {
           total: Number(revenueMonthBreakdown.total.toFixed(2)),
           appointment: Number(
             revenueMonthBreakdown.appointmentRevenue.toFixed(2)
           ),
+          byRole: {
+            doctor: Number((revenueMonthBreakdown.byRole?.doctor || 0).toFixed(2)),
+            laboratory: Number((revenueMonthBreakdown.byRole?.laboratory || 0).toFixed(2)),
+            pharmacy: Number((revenueMonthBreakdown.byRole?.pharmacy || 0).toFixed(2)),
+          },
         },
         year: {
           total: Number(revenueYearBreakdown.total.toFixed(2)),
           appointment: Number(
             revenueYearBreakdown.appointmentRevenue.toFixed(2)
           ),
+          byRole: {
+            doctor: Number((revenueYearBreakdown.byRole?.doctor || 0).toFixed(2)),
+            laboratory: Number((revenueYearBreakdown.byRole?.laboratory || 0).toFixed(2)),
+            pharmacy: Number((revenueYearBreakdown.byRole?.pharmacy || 0).toFixed(2)),
+          },
         },
       },
     },

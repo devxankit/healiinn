@@ -65,7 +65,11 @@ const prescriptionSchema = new mongoose.Schema(
 );
 
 prescriptionSchema.index({ doctor: 1, createdAt: -1 });
-
 prescriptionSchema.index({ patient: 1, issuedAt: -1 });
+prescriptionSchema.index({ doctor: 1, status: 1, createdAt: -1 }); // For doctor prescriptions with status filter
+prescriptionSchema.index({ patient: 1, status: 1, issuedAt: -1 }); // For patient prescriptions with status filter
+prescriptionSchema.index({ appointment: 1 }); // For appointment-based queries
+prescriptionSchema.index({ consultation: 1 }); // For consultation-based queries
+prescriptionSchema.index({ status: 1, issuedAt: -1 }); // For status-based queries
 
 module.exports = mongoose.model('Prescription', prescriptionSchema);

@@ -6,9 +6,9 @@ const {
   getDoctorTransactions,
   getDoctorWithdrawals,
   buildWithdrawalHistoryEntry,
-  COMMISSION_RATE,
 } = require('../../services/walletService');
-const { WITHDRAWAL_STATUS, ROLES } = require('../../utils/constants');
+const { WITHDRAWAL_STATUS, ROLES, getCommissionRateByRole } = require('../../utils/constants');
+const { getPaginationParams, getPaginationMeta } = require('../../utils/pagination');
 
 exports.getWalletSummary = asyncHandler(async (req, res) => {
   const summary = await getDoctorWalletSummary(req.auth.id);
@@ -17,15 +17,13 @@ exports.getWalletSummary = asyncHandler(async (req, res) => {
     success: true,
     summary: {
       ...summary,
-      commissionRate: COMMISSION_RATE,
+      commissionRate: getCommissionRateByRole(ROLES.DOCTOR),
     },
   });
 });
 
 exports.listTransactions = asyncHandler(async (req, res) => {
-  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = getPaginationParams(req.query);
 
   const [transactions, total] = await Promise.all([
     getDoctorTransactions({ doctorId: req.auth.id, limit, skip }),
@@ -34,21 +32,14 @@ exports.listTransactions = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    pagination: {
-      total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit) || 1,
-    },
+    pagination: getPaginationMeta(total, page, limit),
     transactions,
   });
 });
 
 exports.listWithdrawals = asyncHandler(async (req, res) => {
   const status = req.query.status;
-  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = getPaginationParams(req.query);
 
   const match = {
     $or: [
@@ -71,12 +62,7 @@ exports.listWithdrawals = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    pagination: {
-      total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit) || 1,
-    },
+    pagination: getPaginationMeta(total, page, limit),
     withdrawals: requests,
   });
 });

@@ -6,9 +6,8 @@ const {
   getProviderTransactions,
   getProviderWithdrawals,
   buildWithdrawalHistoryEntry,
-  COMMISSION_RATE,
 } = require('../../services/walletService');
-const { WITHDRAWAL_STATUS, ROLES } = require('../../utils/constants');
+const { WITHDRAWAL_STATUS, ROLES, getCommissionRateByRole } = require('../../utils/constants');
 
 exports.getWalletSummary = asyncHandler(async (req, res) => {
   const summary = await getProviderWalletSummary(req.auth.id, ROLES.LABORATORY);
@@ -17,7 +16,7 @@ exports.getWalletSummary = asyncHandler(async (req, res) => {
     success: true,
     summary: {
       ...summary,
-      commissionRate: COMMISSION_RATE,
+      commissionRate: getCommissionRateByRole(ROLES.LABORATORY),
     },
   });
 });

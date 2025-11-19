@@ -50,6 +50,26 @@ const patientSchema = new mongoose.Schema(
       },
     ],
     allergies: [{ type: String, trim: true }],
+    favorites: {
+      doctors: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Doctor',
+        },
+      ],
+      laboratories: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Laboratory',
+        },
+      ],
+      pharmacies: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Pharmacy',
+        },
+      ],
+    },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
   },

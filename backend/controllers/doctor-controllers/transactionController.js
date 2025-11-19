@@ -4,6 +4,7 @@ const {
   getDoctorTransactions,
   getDoctorTransactionCount,
 } = require('../../services/transactionService');
+const { getPaginationParams, getPaginationMeta } = require('../../utils/pagination');
 
 const ensureRole = (role, allowed) => {
   if (!allowed.includes(role)) {
@@ -16,9 +17,7 @@ const ensureRole = (role, allowed) => {
 exports.listTransactions = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.DOCTOR]);
 
-  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = getPaginationParams(req.query);
 
   const [transactions, total] = await Promise.all([
     getDoctorTransactions({
@@ -33,12 +32,7 @@ exports.listTransactions = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    pagination: {
-      total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit) || 1,
-    },
+    pagination: getPaginationMeta(total, page, limit),
     transactions,
   });
 });

@@ -7,11 +7,14 @@ const {
   PHARMACY_LEAD_STATUS,
 } = require('../../utils/constants');
 const Prescription = require('../../models/Prescription');
+const PrescriptionTemplate = require('../../models/PrescriptionTemplate');
 const LabLead = require('../../models/LabLead');
 const PharmacyLead = require('../../models/PharmacyLead');
 const Laboratory = require('../../models/Laboratory');
 const Pharmacy = require('../../models/Pharmacy');
 const { createPrescription } = require('../../services/prescriptionService');
+const { sendPrescriptionEmail } = require('../../services/emailService');
+const { getPaginationParams, getPaginationMeta } = require('../../utils/pagination');
 
 const buildStatusHistoryEntry = ({
   status,
@@ -325,8 +328,7 @@ exports.listDoctorPrescriptions = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.DOCTOR]);
 
   const { status, patientId, from, to } = req.query;
-  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
+  const { page, limit, skip } = getPaginationParams(req.query);
 
   const criteria = { doctor: req.auth.id };
 
@@ -348,10 +350,9 @@ exports.listDoctorPrescriptions = asyncHandler(async (req, res) => {
     }
   }
 
-  const skip = (page - 1) * limit;
-
   const [prescriptions, total] = await Promise.all([
     Prescription.find(criteria)
+      .select('status medications investigations diagnosis advice lifestyleAdvice followUpAt issuedAt validityInDays pharmacyNotes attachments metadata createdAt patient appointment consultation')
       .populate('patient', 'firstName lastName phone email address')
       .populate('appointment', 'scheduledFor status')
       .populate('consultation', 'status startedAt completedAt')
@@ -385,12 +386,7 @@ exports.listDoctorPrescriptions = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    pagination: {
-      total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit) || 1,
-    },
+    pagination: getPaginationMeta(total, page, limit),
     prescriptions: prescriptions.map((prescription) => ({
       ...prescription,
       patient: buildPatientSummary(prescription.patient),
@@ -455,6 +451,14 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
     prescription.doctor._id.toString() !== req.auth.id.toString()
   ) {
     const error = new Error('You do not have access to this prescription');
+    error.status = 403;
+    throw error;
+  }
+
+  // Doctor cannot share prescription with labs/pharmacies directly
+  // Only patients can share their prescriptions with labs/pharmacies for booking
+  if (req.auth.role === ROLES.DOCTOR && (targetType === 'laboratory' || targetType === 'pharmacy')) {
+    const error = new Error('Doctors cannot share prescriptions directly with laboratories or pharmacies. Only patients can share their prescriptions with labs/pharmacies during booking.');
     error.status = 403;
     throw error;
   }
@@ -642,5 +646,605 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
         : 'Prescription shared with selected pharmacies.',
     data: shareSummary,
   });
+});
+
+// Revoke prescription
+exports.revokePrescription = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const { prescriptionId } = req.params;
+  const { reason } = req.body;
+  const doctorId = req.auth.id;
+
+  const prescription = await Prescription.findById(prescriptionId).lean();
+
+  if (!prescription) {
+    return res.status(404).json({
+      success: false,
+      message: 'Prescription not found.',
+    });
+  }
+
+  if (prescription.doctor.toString() !== doctorId.toString()) {
+    return res.status(403).json({
+      success: false,
+      message: 'You do not have permission to revoke this prescription.',
+    });
+  }
+
+  if (prescription.status === 'revoked') {
+    return res.status(400).json({
+      success: false,
+      message: 'Prescription is already revoked.',
+    });
+  }
+
+  const updatedPrescription = await Prescription.findByIdAndUpdate(
+    prescriptionId,
+    {
+      $set: {
+        status: 'revoked',
+        metadata: {
+          ...prescription.metadata,
+          revokedAt: new Date(),
+          revokedBy: doctorId,
+          revokedReason: reason || 'Prescription revoked by doctor',
+        },
+      },
+    },
+    { new: true }
+  )
+    .populate('patient', 'firstName lastName phone email')
+    .populate('doctor', 'firstName lastName')
+    .lean();
+
+  res.json({
+    success: true,
+    message: 'Prescription revoked successfully.',
+    prescription: updatedPrescription,
+  });
+});
+
+// Extend prescription validity
+exports.extendPrescriptionValidity = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const { prescriptionId } = req.params;
+  const { additionalDays, reason } = req.body;
+  const doctorId = req.auth.id;
+
+  if (!additionalDays || Number.isNaN(Number(additionalDays)) || Number(additionalDays) <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'additionalDays must be a positive number.',
+    });
+  }
+
+  const prescription = await Prescription.findById(prescriptionId);
+
+  if (!prescription) {
+    return res.status(404).json({
+      success: false,
+      message: 'Prescription not found.',
+    });
+  }
+
+  if (prescription.doctor.toString() !== doctorId.toString()) {
+    return res.status(403).json({
+      success: false,
+      message: 'You do not have permission to extend this prescription.',
+    });
+  }
+
+  if (prescription.status === 'revoked') {
+    return res.status(400).json({
+      success: false,
+      message: 'Cannot extend a revoked prescription.',
+    });
+  }
+
+  const currentValidity = prescription.validityInDays || 30;
+  const newValidity = currentValidity + Number(additionalDays);
+
+  prescription.validityInDays = newValidity;
+  if (reason) {
+    prescription.metadata = prescription.metadata || {};
+    prescription.metadata.validityExtension = {
+      previousValidity: currentValidity,
+      newValidity,
+      extendedAt: new Date(),
+      extendedBy: doctorId,
+      reason: reason.trim(),
+    };
+  }
+
+  await prescription.save();
+
+  res.json({
+    success: true,
+    message: 'Prescription validity extended successfully.',
+    prescription: {
+      id: prescription._id,
+      validityInDays: prescription.validityInDays,
+      previousValidity: currentValidity,
+      newValidity,
+    },
+  });
+});
+
+// Prescription Templates Management
+exports.createPrescriptionTemplate = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const doctorId = req.auth.id;
+  const { name, description, medications, investigations, diagnosis, advice, lifestyleAdvice, isDefault } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Template name is required.',
+    });
+  }
+
+  // If setting as default, unset other defaults
+  if (isDefault) {
+    await PrescriptionTemplate.updateMany(
+      { doctor: doctorId, isDefault: true },
+      { $set: { isDefault: false } }
+    );
+  }
+
+  const template = await PrescriptionTemplate.create({
+    doctor: doctorId,
+    name: name.trim(),
+    description: description || null,
+    medications: medications || [],
+    investigations: investigations || [],
+    diagnosis: diagnosis || null,
+    advice: advice || null,
+    lifestyleAdvice: lifestyleAdvice || null,
+    isDefault: isDefault || false,
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Prescription template created successfully.',
+    template,
+  });
+});
+
+exports.listPrescriptionTemplates = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const doctorId = req.auth.id;
+  const { isActive } = req.query;
+
+  const criteria = { doctor: doctorId };
+  if (isActive !== undefined) {
+    criteria.isActive = isActive === 'true';
+  }
+
+  const templates = await PrescriptionTemplate.find(criteria)
+    .sort({ isDefault: -1, usageCount: -1, createdAt: -1 })
+    .lean();
+
+  res.json({
+    success: true,
+    templates,
+  });
+});
+
+exports.getPrescriptionTemplate = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const doctorId = req.auth.id;
+  const { templateId } = req.params;
+
+  const template = await PrescriptionTemplate.findOne({
+    _id: templateId,
+    doctor: doctorId,
+  }).lean();
+
+  if (!template) {
+    return res.status(404).json({
+      success: false,
+      message: 'Template not found.',
+    });
+  }
+
+  res.json({
+    success: true,
+    template,
+  });
+});
+
+exports.updatePrescriptionTemplate = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const doctorId = req.auth.id;
+  const { templateId } = req.params;
+  const { name, description, medications, investigations, diagnosis, advice, lifestyleAdvice, isDefault, isActive } = req.body;
+
+  const template = await PrescriptionTemplate.findOne({
+    _id: templateId,
+    doctor: doctorId,
+  });
+
+  if (!template) {
+    return res.status(404).json({
+      success: false,
+      message: 'Template not found.',
+    });
+  }
+
+  if (name !== undefined) {
+    template.name = name.trim();
+  }
+  if (description !== undefined) {
+    template.description = description || null;
+  }
+  if (medications !== undefined) {
+    template.medications = medications || [];
+  }
+  if (investigations !== undefined) {
+    template.investigations = investigations || [];
+  }
+  if (diagnosis !== undefined) {
+    template.diagnosis = diagnosis || null;
+  }
+  if (advice !== undefined) {
+    template.advice = advice || null;
+  }
+  if (lifestyleAdvice !== undefined) {
+    template.lifestyleAdvice = lifestyleAdvice || null;
+  }
+  if (isActive !== undefined) {
+    template.isActive = isActive;
+  }
+
+  // If setting as default, unset other defaults
+  if (isDefault === true) {
+    await PrescriptionTemplate.updateMany(
+      { doctor: doctorId, isDefault: true, _id: { $ne: templateId } },
+      { $set: { isDefault: false } }
+    );
+    template.isDefault = true;
+  } else if (isDefault === false) {
+    template.isDefault = false;
+  }
+
+  await template.save();
+
+  res.json({
+    success: true,
+    message: 'Template updated successfully.',
+    template,
+  });
+});
+
+exports.deletePrescriptionTemplate = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const doctorId = req.auth.id;
+  const { templateId } = req.params;
+
+  const template = await PrescriptionTemplate.findOneAndDelete({
+    _id: templateId,
+    doctor: doctorId,
+  });
+
+  if (!template) {
+    return res.status(404).json({
+      success: false,
+      message: 'Template not found.',
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Template deleted successfully.',
+  });
+});
+
+// Prescription Analytics
+exports.getPrescriptionAnalytics = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const doctorId = req.auth.id;
+  const { from, to } = req.query;
+
+  const criteria = { doctor: doctorId, status: { $ne: 'revoked' } };
+
+  if (from || to) {
+    criteria.issuedAt = {};
+    if (from) {
+      criteria.issuedAt.$gte = new Date(from);
+    }
+    if (to) {
+      criteria.issuedAt.$lte = new Date(to);
+    }
+  }
+
+  const [
+    totalPrescriptions,
+    prescriptions,
+    mostPrescribedMedicines,
+    mostPrescribedInvestigations,
+    prescriptionsByMonth,
+    prescriptionsByDiagnosis,
+  ] = await Promise.all([
+    Prescription.countDocuments(criteria),
+    Prescription.find(criteria).select('medications investigations diagnosis issuedAt').lean(),
+    Prescription.aggregate([
+      { $match: criteria },
+      { $unwind: '$medications' },
+      { $group: { _id: '$medications.name', count: { $sum: 1 }, dosage: { $first: '$medications.dosage' } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+    ]),
+    Prescription.aggregate([
+      { $match: criteria },
+      { $unwind: '$investigations' },
+      { $group: { _id: '$investigations.name', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+    ]),
+    Prescription.aggregate([
+      { $match: criteria },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$issuedAt' },
+            month: { $month: '$issuedAt' },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.year': -1, '_id.month': -1 } },
+      { $limit: 12 },
+    ]),
+    Prescription.aggregate([
+      { $match: { ...criteria, diagnosis: { $exists: true, $ne: null, $ne: '' } } },
+      { $group: { _id: '$diagnosis', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 },
+    ]),
+  ]);
+
+  const totalMedications = prescriptions.reduce((sum, p) => sum + (p.medications?.length || 0), 0);
+  const totalInvestigations = prescriptions.reduce((sum, p) => sum + (p.investigations?.length || 0), 0);
+  const avgMedicationsPerPrescription = totalPrescriptions > 0 ? (totalMedications / totalPrescriptions).toFixed(2) : 0;
+  const avgInvestigationsPerPrescription = totalPrescriptions > 0 ? (totalInvestigations / totalPrescriptions).toFixed(2) : 0;
+
+  res.json({
+    success: true,
+    analytics: {
+      overview: {
+        totalPrescriptions,
+        totalMedications,
+        totalInvestigations,
+        avgMedicationsPerPrescription: Number.parseFloat(avgMedicationsPerPrescription),
+        avgInvestigationsPerPrescription: Number.parseFloat(avgInvestigationsPerPrescription),
+      },
+      mostPrescribed: {
+        medicines: mostPrescribedMedicines.map((item) => ({
+          name: item._id,
+          count: item.count,
+          dosage: item.dosage || null,
+        })),
+        investigations: mostPrescribedInvestigations.map((item) => ({
+          name: item._id,
+          count: item.count,
+        })),
+      },
+      trends: {
+        byMonth: prescriptionsByMonth.map((item) => ({
+          year: item._id.year,
+          month: item._id.month,
+          count: item.count,
+        })),
+      },
+      byDiagnosis: prescriptionsByDiagnosis.map((item) => ({
+        diagnosis: item._id,
+        count: item.count,
+      })),
+    },
+  });
+});
+
+// Export prescriptions
+exports.exportPrescriptions = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const doctorId = req.auth.id;
+  const { format = 'csv', from, to, status, patientId } = req.query;
+
+  if (!['csv', 'json'].includes(format.toLowerCase())) {
+    return res.status(400).json({
+      success: false,
+      message: 'Format must be either csv or json.',
+    });
+  }
+
+  const criteria = { doctor: doctorId };
+
+  if (status) {
+    criteria.status = status;
+  }
+
+  if (patientId) {
+    criteria.patient = patientId;
+  }
+
+  if (from || to) {
+    criteria.issuedAt = {};
+    if (from) {
+      criteria.issuedAt.$gte = new Date(from);
+    }
+    if (to) {
+      criteria.issuedAt.$lte = new Date(to);
+    }
+  }
+
+  const prescriptions = await Prescription.find(criteria)
+    .populate('patient', 'firstName lastName phone email')
+    .populate('doctor', 'firstName lastName specialization')
+    .sort({ issuedAt: -1 })
+    .lean();
+
+  if (format.toLowerCase() === 'csv') {
+    const csvRows = [];
+    csvRows.push([
+      'Date',
+      'Patient Name',
+      'Patient Phone',
+      'Status',
+      'Diagnosis',
+      'Medications Count',
+      'Investigations Count',
+      'Validity Days',
+      'Follow Up',
+    ].join(','));
+
+    prescriptions.forEach((prescription) => {
+      const patientName = prescription.patient
+        ? `${prescription.patient.firstName || ''} ${prescription.patient.lastName || ''}`.trim()
+        : 'N/A';
+      const patientPhone = prescription.patient?.phone || 'N/A';
+      const medicationsCount = prescription.medications?.length || 0;
+      const investigationsCount = prescription.investigations?.length || 0;
+      const followUp = prescription.followUpAt ? new Date(prescription.followUpAt).toISOString() : 'N/A';
+
+      csvRows.push([
+        new Date(prescription.issuedAt).toISOString(),
+        `"${patientName}"`,
+        patientPhone,
+        prescription.status,
+        `"${prescription.diagnosis || 'N/A'}"`,
+        medicationsCount,
+        investigationsCount,
+        prescription.validityInDays || 30,
+        followUp,
+      ].join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="prescriptions_${Date.now()}.csv"`);
+    return res.send(csvContent);
+  }
+
+  // JSON format
+  const formatted = prescriptions.map((item) => ({
+    id: item._id,
+    date: item.issuedAt,
+    patient: item.patient
+      ? {
+          name: `${item.patient.firstName || ''} ${item.patient.lastName || ''}`.trim(),
+          phone: item.patient.phone || null,
+          email: item.patient.email || null,
+        }
+      : null,
+    status: item.status,
+    diagnosis: item.diagnosis || null,
+    medications: item.medications || [],
+    investigations: item.investigations || [],
+    advice: item.advice || null,
+    validityInDays: item.validityInDays || 30,
+    followUpAt: item.followUpAt || null,
+  }));
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="prescriptions_${Date.now()}.json"`);
+  return res.json({ success: true, prescriptions: formatted });
+});
+
+// Send prescription via email
+exports.sendPrescriptionViaEmail = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const { prescriptionId } = req.params;
+  const doctorId = req.auth.id;
+
+  const prescription = await Prescription.findById(prescriptionId)
+    .populate('patient', 'firstName lastName email')
+    .populate('doctor', 'firstName lastName')
+    .lean();
+
+  if (!prescription) {
+    return res.status(404).json({
+      success: false,
+      message: 'Prescription not found.',
+    });
+  }
+
+  if (prescription.doctor._id.toString() !== doctorId.toString()) {
+    return res.status(403).json({
+      success: false,
+      message: 'You do not have permission to send this prescription.',
+    });
+  }
+
+  if (!prescription.patient.email) {
+    return res.status(400).json({
+      success: false,
+      message: 'Patient email not available. Cannot send prescription via email.',
+    });
+  }
+
+  const pdfPath = prescription.metadata?.pdfPath;
+  if (!pdfPath) {
+    return res.status(400).json({
+      success: false,
+      message: 'Prescription PDF not found. Please ensure the prescription has been generated.',
+    });
+  }
+
+  const fs = require('fs');
+  if (!fs.existsSync(pdfPath)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Prescription PDF file not found on server.',
+    });
+  }
+
+  try {
+    const doctorName = buildDoctorSummary(prescription.doctor)?.name || 'Doctor';
+    const patientName = buildPatientSummary(prescription.patient)?.name || 'Patient';
+
+    await sendPrescriptionEmail({
+      patientEmail: prescription.patient.email,
+      patientName,
+      doctorName,
+      prescriptionId: prescription._id.toString(),
+      pdfPath,
+      prescriptionDate: prescription.issuedAt,
+    });
+
+    res.json({
+      success: true,
+      message: 'Prescription sent via email successfully.',
+      prescription: {
+        id: prescription._id,
+        patient: {
+          id: prescription.patient._id,
+          name: patientName,
+          email: prescription.patient.email,
+        },
+        doctor: {
+          id: prescription.doctor._id,
+          name: doctorName,
+        },
+        sentAt: new Date(),
+      },
+    });
+  } catch (emailError) {
+    console.error('Failed to send prescription via email:', emailError);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send prescription via email.',
+      error: emailError.message,
+    });
+  }
 });
 

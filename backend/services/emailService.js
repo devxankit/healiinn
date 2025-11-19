@@ -181,12 +181,171 @@ const sendPasswordResetOtpEmail = async ({ role, email, otp }) => {
   });
 };
 
+const sendAppointmentReminderEmail = async ({ patientEmail, patientName, doctorName, appointmentDate, appointmentTime, hoursBefore = 24 }) => {
+  if (!patientEmail) {
+    return null;
+  }
+
+  const timeText = hoursBefore === 24 ? 'tomorrow' : hoursBefore === 2 ? 'in 2 hours' : `in ${hoursBefore} hours`;
+  const formattedDate = appointmentDate ? new Date(appointmentDate).toLocaleDateString('en-IN', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }) : '';
+  const formattedTime = appointmentTime || (appointmentDate ? new Date(appointmentDate).toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }) : '');
+
+  const subject = `Appointment Reminder - ${doctorName || 'Doctor'} | Healiinn`;
+  const text = `Hello ${patientName || 'Patient'},
+
+This is a reminder that you have an appointment ${timeText}:
+
+Doctor: ${doctorName || 'Doctor'}
+Date: ${formattedDate}
+Time: ${formattedTime}
+
+Please make sure to arrive on time. If you need to reschedule or cancel, please contact us as soon as possible.
+
+Thank you,
+Team Healiinn`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #2c3e50;">Appointment Reminder</h2>
+      <p>Hello ${patientName || 'Patient'},</p>
+      <p>This is a reminder that you have an appointment <strong>${timeText}</strong>:</p>
+      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>Doctor:</strong> ${doctorName || 'Doctor'}</p>
+        <p style="margin: 5px 0;"><strong>Date:</strong> ${formattedDate}</p>
+        <p style="margin: 5px 0;"><strong>Time:</strong> ${formattedTime}</p>
+      </div>
+      <p>Please make sure to arrive on time. If you need to reschedule or cancel, please contact us as soon as possible.</p>
+      <p>Thank you,<br/>Team Healiinn</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: patientEmail,
+    subject,
+    text,
+    html,
+  });
+};
+
+const sendPrescriptionEmail = async ({ patientEmail, patientName, doctorName, prescriptionId, pdfPath, prescriptionDate }, retries = 3) => {
+  if (!patientEmail) {
+    return null;
+  }
+
+  const fs = require('fs');
+  const transporter = ensureTransporter();
+
+  if (!transporter) {
+    console.warn(`Skipping prescription email to ${patientEmail}: transporter not configured.`);
+    return null;
+  }
+
+  const subject = `Your Prescription from ${doctorName || 'Doctor'} | Healiinn`;
+  const text = `Hello ${patientName || 'Patient'},
+
+Your prescription has been prepared by ${doctorName || 'Doctor'}.
+
+Prescription ID: ${prescriptionId}
+Date: ${prescriptionDate ? new Date(prescriptionDate).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN')}
+
+Please find your prescription attached to this email. You can use this prescription to purchase medications from any pharmacy or book lab tests as recommended.
+
+If you have any questions, please contact your doctor.
+
+Thank you,
+Team Healiinn`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #2c3e50;">Your Prescription</h2>
+      <p>Hello ${patientName || 'Patient'},</p>
+      <p>Your prescription has been prepared by <strong>${doctorName || 'Doctor'}</strong>.</p>
+      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>Prescription ID:</strong> ${prescriptionId}</p>
+        <p style="margin: 5px 0;"><strong>Date:</strong> ${prescriptionDate ? new Date(prescriptionDate).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN')}</p>
+      </div>
+      <p>Please find your prescription attached to this email. You can use this prescription to purchase medications from any pharmacy or book lab tests as recommended.</p>
+      <p>If you have any questions, please contact your doctor.</p>
+      <p>Thank you,<br/>Team Healiinn</p>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+    to: patientEmail,
+    subject,
+    text,
+    html,
+  };
+
+  // Attach PDF if it exists
+  if (pdfPath && fs.existsSync(pdfPath)) {
+    mailOptions.attachments = [
+      {
+        filename: `prescription-${prescriptionId}.pdf`,
+        path: pdfPath,
+        contentType: 'application/pdf',
+      },
+    ];
+  }
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await transporter.sendMail(mailOptions);
+    } catch (error) {
+      const isRateLimitError = 
+        error.message?.includes('Too many login attempts') ||
+        error.message?.includes('454') ||
+        error.responseCode === 454 ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ECONNRESET';
+
+      // If it's a rate limit error and we have retries left, wait and retry
+      if (isRateLimitError && attempt < retries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
+        console.warn(
+          `Prescription email rate limited (attempt ${attempt}/${retries}). Retrying in ${delay}ms...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+
+      // If it's the last attempt or non-rate-limit error, log and fail
+      if (attempt === retries || !isRateLimitError) {
+        const isTestEnv = process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development';
+        if (isRateLimitError && isTestEnv) {
+          console.warn(
+            `Failed to send prescription email to ${patientEmail}: Rate limit exceeded. Email functionality working but Gmail is rate limiting.`
+          );
+        } else {
+          console.error(
+            `Failed to send prescription email to ${patientEmail}: ${error.message || error}`
+          );
+        }
+      }
+    }
+  }
+
+  return null;
+};
+
 module.exports = {
   sendEmail,
   sendRoleApprovalEmail,
   sendSignupAcknowledgementEmail,
   sendAdminPendingApprovalEmail,
   sendPasswordResetOtpEmail,
+  sendAppointmentReminderEmail,
+  sendPrescriptionEmail,
 };
 
 

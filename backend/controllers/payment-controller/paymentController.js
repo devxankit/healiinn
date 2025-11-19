@@ -4,7 +4,7 @@ const LabLead = require('../../models/LabLead');
 const PharmacyLead = require('../../models/PharmacyLead');
 const asyncHandler = require('../../middleware/asyncHandler');
 const { createOrder, verifySignature } = require('../../services/razorpayService');
-const { COMMISSION_RATE, ROLES, LAB_LEAD_STATUS, PHARMACY_LEAD_STATUS } = require('../../utils/constants');
+const { COMMISSION_RATE, ROLES, LAB_LEAD_STATUS, PHARMACY_LEAD_STATUS, getCommissionRateByRole } = require('../../utils/constants');
 const { createWalletTransaction } = require('../../services/walletService');
 const { notifyLabLeadStatusChange, notifyPharmacyLeadStatusChange } = require('../../services/notificationEvents');
 
@@ -129,10 +129,11 @@ const handlePostPaymentProcessing = async ({ payment, paymentId, orderId }) => {
       return;
     }
 
+    // Use doctor commission rate for appointments
     const commissionRate =
       typeof metadata.commissionRate === 'number'
         ? metadata.commissionRate
-        : COMMISSION_RATE;
+        : getCommissionRateByRole(ROLES.DOCTOR);
 
     const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
     const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
@@ -218,10 +219,11 @@ const handlePostPaymentProcessing = async ({ payment, paymentId, orderId }) => {
       return;
     }
 
+    // Use laboratory commission rate for lab bookings
     const commissionRate =
       typeof metadata.commissionRate === 'number'
         ? metadata.commissionRate
-        : COMMISSION_RATE;
+        : getCommissionRateByRole(ROLES.LABORATORY);
 
     const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
     const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
@@ -320,10 +322,11 @@ const handlePostPaymentProcessing = async ({ payment, paymentId, orderId }) => {
       return;
     }
 
+    // Use pharmacy commission rate for pharmacy bookings
     const commissionRate =
       typeof metadata.commissionRate === 'number'
         ? metadata.commissionRate
-        : COMMISSION_RATE;
+        : getCommissionRateByRole(ROLES.PHARMACY);
 
     const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
     const netAmount = Number((grossAmount - commissionAmount).toFixed(2));

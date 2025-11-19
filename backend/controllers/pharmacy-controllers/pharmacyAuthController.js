@@ -7,6 +7,7 @@ const {
   verifyPasswordResetOtp,
   resetPassword,
 } = require('../../services/passwordResetService');
+const { requestLoginOtp, verifyLoginOtp } = require('../../services/loginOtpService');
 const { getProfileByRoleAndId, updateProfileByRoleAndId } = require('../../services/profileService');
 const { notifyAdminsOfPendingSignup } = require('../../services/adminNotificationService');
 const { ROLES, APPROVAL_STATUS } = require('../../utils/constants');
@@ -197,53 +198,49 @@ exports.registerPharmacy = asyncHandler(async (req, res) => {
   });
 });
 
+// Request login OTP
+exports.requestLoginOtp = asyncHandler(async (req, res) => {
+  const { phone } = req.body;
+
+  if (!phone) {
+    return res.status(400).json({
+      success: false,
+      message: 'Phone number is required.',
+    });
+  }
+
+  const result = await requestLoginOtp({ role: ROLES.PHARMACY, phone });
+
+  return res.status(200).json({
+    success: true,
+    message: result.message,
+    data: {
+      phone: result.phone,
+    },
+  });
+});
+
+// Verify OTP and login
 exports.loginPharmacy = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { phone, otp } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Email and password are required.' });
-  }
-
-  const pharmacy = await Pharmacy.findOne({ email });
-
-  if (!pharmacy) {
-    return res.status(401).json({ success: false, message: 'Invalid credentials.' });
-  }
-
-  const isMatch = await pharmacy.comparePassword(password);
-
-  if (!isMatch) {
-    return res.status(401).json({ success: false, message: 'Invalid credentials.' });
-  }
-
-  if (pharmacy.status !== APPROVAL_STATUS.APPROVED) {
-    return res.status(403).json({
+  if (!phone || !otp) {
+    return res.status(400).json({
       success: false,
-      message: 'Account pending admin approval. Please wait for confirmation email.',
-      data: {
-        status: pharmacy.status,
-        rejectionReason: pharmacy.rejectionReason || null,
-      },
+      message: 'Phone number and OTP are required.',
     });
   }
 
-  if (pharmacy.isActive === false) {
-    return res.status(403).json({
-      success: false,
-      message: 'Account is inactive. Please contact support.',
-    });
-  }
+  const result = await verifyLoginOtp({ role: ROLES.PHARMACY, phone, otp });
+  const { user } = result;
 
-  pharmacy.lastLoginAt = new Date();
-  await pharmacy.save({ validateBeforeSave: false });
-
-  const tokens = buildAuthResponse(pharmacy);
+  const tokens = buildAuthResponse(user);
 
   return res.status(200).json({
     success: true,
     message: 'Login successful.',
     data: {
-      pharmacy,
+      pharmacy: user,
       tokens,
     },
   });
