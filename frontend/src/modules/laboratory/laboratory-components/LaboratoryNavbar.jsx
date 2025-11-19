@@ -2,47 +2,47 @@ import { useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   IoHomeOutline,
-  IoDocumentTextOutline,
+  IoBagHandleOutline,
   IoWalletOutline,
   IoPersonCircleOutline,
   IoMenuOutline,
   IoNotificationsOutline,
-  IoFlaskOutline,
+  IoPeopleOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
-import LabSidebar from './LabSidebar'
+import LaboratorySidebar from './LaboratorySidebar'
 
 // Header/footer nav (includes wallet icon, same as sidebar menu)
 const navItems = [
-  { id: 'home', label: 'Home', to: '/lab/dashboard', Icon: IoHomeOutline },
-  { id: 'tests', label: 'Tests', to: '/lab/tests', Icon: IoFlaskOutline },
-  { id: 'reports', label: 'Reports', to: '/lab/reports', Icon: IoDocumentTextOutline },
-  { id: 'wallet', label: 'Wallet', to: '/lab/wallet', Icon: IoWalletOutline },
-  { id: 'profile', label: 'Profile', to: '/lab/profile', Icon: IoPersonCircleOutline },
+  { id: 'home', label: 'Home', to: '/laboratory/dashboard', Icon: IoHomeOutline },
+  { id: 'orders', label: 'Orders', to: '/laboratory/orders', Icon: IoBagHandleOutline },
+  { id: 'reports', label: 'Patients', to: '/laboratory/patients', Icon: IoPeopleOutline },
+  { id: 'wallet', label: 'Wallet', to: '/laboratory/wallet', Icon: IoWalletOutline },
+  { id: 'profile', label: 'Profile', to: '/laboratory/profile', Icon: IoPersonCircleOutline },
 ]
 
 // Sidebar nav (includes Wallet, but no Services page)
 const sidebarNavItems = [
-  { id: 'home', label: 'Home', to: '/lab/dashboard', Icon: IoHomeOutline },
-  { id: 'tests', label: 'Tests', to: '/lab/tests', Icon: IoFlaskOutline },
-  { id: 'reports', label: 'Reports', to: '/lab/reports', Icon: IoDocumentTextOutline },
-  { id: 'wallet', label: 'Wallet', to: '/lab/wallet', Icon: IoWalletOutline },
-  { id: 'profile', label: 'Profile', to: '/lab/profile', Icon: IoPersonCircleOutline },
+  { id: 'home', label: 'Home', to: '/laboratory/dashboard', Icon: IoHomeOutline },
+  { id: 'orders', label: 'Orders', to: '/laboratory/orders', Icon: IoBagHandleOutline },
+  { id: 'reports', label: 'Patients', to: '/laboratory/patients', Icon: IoPeopleOutline },
+  { id: 'wallet', label: 'Wallet', to: '/laboratory/wallet', Icon: IoWalletOutline },
+  { id: 'profile', label: 'Profile', to: '/laboratory/profile', Icon: IoPersonCircleOutline },
 ]
 
-const LabNavbar = () => {
+const LaboratoryNavbar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const toggleButtonRef = useRef(null)
   const navigate = useNavigate()
 
   const mobileLinkBase =
-    'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-2'
+    'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-purple-500/70 focus-visible:ring-offset-2'
 
   const mobileIconWrapper =
     'flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all duration-200'
 
   const desktopLinkBase =
-    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-2'
+    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/70 focus-visible:ring-offset-2'
 
   const handleSidebarToggle = () => {
     if (isSidebarOpen) {
@@ -59,8 +59,8 @@ const LabNavbar = () => {
 
   const handleLogout = () => {
     handleSidebarClose()
-    localStorage.removeItem('labAuthToken')
-    sessionStorage.removeItem('labAuthToken')
+    localStorage.removeItem('laboratoryAuthToken')
+    sessionStorage.removeItem('laboratoryAuthToken')
     navigate('/', { replace: true })
   }
 
@@ -75,14 +75,14 @@ const LabNavbar = () => {
             loading="lazy"
           />
         </div>
-        <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg shadow-blue-200/40 ring-1 ring-slate-200 md:flex">
+        <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg shadow-purple-200/40 ring-1 ring-slate-200 md:flex">
           {navItems.map(({ id, label, to, Icon }) => (
             <NavLink
               key={id}
               to={to}
               className={({ isActive }) =>
                 `${desktopLinkBase} ${
-                  isActive ? 'bg-blue-500 text-white shadow-sm shadow-blue-400/40' : 'hover:bg-slate-100 hover:text-slate-900'
+                  isActive ? 'bg-purple-500 text-white shadow-sm shadow-purple-400/40' : 'hover:bg-slate-100 hover:text-slate-900'
                 }`
               }
               end={id === 'home'}
@@ -116,7 +116,7 @@ const LabNavbar = () => {
         </div>
       </header>
 
-      <LabSidebar
+      <LaboratorySidebar
         isOpen={isSidebarOpen}
         onClose={handleSidebarClose}
         navItems={sidebarNavItems}
@@ -130,7 +130,7 @@ const LabNavbar = () => {
             to={to}
             className={({ isActive }) =>
               `${mobileLinkBase} ${
-                isActive ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                isActive ? 'text-purple-600' : 'text-slate-400 hover:text-slate-600'
               }`
             }
             end={id === 'home'}
@@ -140,7 +140,7 @@ const LabNavbar = () => {
                 <span
                   className={`${mobileIconWrapper} ${
                     isActive
-                      ? 'bg-blue-500 text-white shadow-md shadow-blue-400/40'
+                      ? 'bg-purple-500 text-white shadow-md shadow-purple-400/40'
                       : 'bg-slate-100 text-slate-500'
                   }`}
                 >
@@ -156,5 +156,5 @@ const LabNavbar = () => {
   )
 }
 
-export default LabNavbar
+export default LaboratoryNavbar
 

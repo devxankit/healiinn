@@ -28,6 +28,8 @@ import WalletWithdraw from './modules/doctor/doctor-pages/WalletWithdraw'
 import WalletTransaction from './modules/doctor/doctor-pages/WalletTransaction'
 import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
 import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
+import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
+import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
 import PharmacyNavbar from './modules/pharmacy/pharmacy-components/PharmacyNavbar'
 import PharmacyDashboard from './modules/pharmacy/pharmacy-pages/PharmacyDashboard'
 import PharmacyList from './modules/pharmacy/pharmacy-pages/PharmacyList'
@@ -40,6 +42,17 @@ import PharmacyWalletBalance from './modules/pharmacy/pharmacy-pages/WalletBalan
 import PharmacyWalletEarning from './modules/pharmacy/pharmacy-pages/WalletEarning'
 import PharmacyWalletWithdraw from './modules/pharmacy/pharmacy-pages/WalletWithdraw'
 import PharmacyWalletTransaction from './modules/pharmacy/pharmacy-pages/WalletTransaction'
+import LaboratoryNavbar from './modules/laboratory/laboratory-components/LaboratoryNavbar'
+import LaboratoryDashboard from './modules/laboratory/laboratory-pages/LaboratoryDashboard'
+import LaboratoryOrders from './modules/laboratory/laboratory-pages/LaboratoryOrders'
+import LaboratoryReports from './modules/laboratory/laboratory-pages/LaboratoryReports'
+import LaboratoryPatients from './modules/laboratory/laboratory-pages/LaboratoryPatients'
+import LaboratoryProfile from './modules/laboratory/laboratory-pages/LaboratoryProfile'
+import LaboratoryWallet from './modules/laboratory/laboratory-pages/LaboratoryWallet'
+import LaboratoryWalletBalance from './modules/laboratory/laboratory-pages/WalletBalance'
+import LaboratoryWalletEarning from './modules/laboratory/laboratory-pages/WalletEarning'
+import LaboratoryWalletWithdraw from './modules/laboratory/laboratory-pages/WalletWithdraw'
+import LaboratoryWalletTransaction from './modules/laboratory/laboratory-pages/WalletTransaction'
 
 function PatientRoutes() {
   const location = useLocation()
@@ -141,6 +154,30 @@ function App() {
                     <Route path="/wallet/earning" element={<PharmacyWalletEarning />} />
                     <Route path="/wallet/withdraw" element={<PharmacyWalletWithdraw />} />
                     <Route path="/wallet/transaction" element={<PharmacyWalletTransaction />} />
+                  </Routes>
+                </main>
+              </>
+            }
+          />
+
+          {/* Laboratory Routes */}
+          <Route
+            path="/laboratory/*"
+            element={
+              <>
+                <LaboratoryNavbar />
+                <main className="px-4 pb-24 pt-20 sm:px-6">
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/laboratory/dashboard" replace />} />
+                    <Route path="/dashboard" element={<LaboratoryDashboard />} />
+                    <Route path="/orders" element={<LaboratoryOrders />} />
+                    <Route path="/patients" element={<LaboratoryReports />} />
+                    <Route path="/profile" element={<LaboratoryProfile />} />
+                    <Route path="/wallet" element={<LaboratoryWallet />} />
+                    <Route path="/wallet/balance" element={<LaboratoryWalletBalance />} />
+                    <Route path="/wallet/earning" element={<LaboratoryWalletEarning />} />
+                    <Route path="/wallet/withdraw" element={<LaboratoryWalletWithdraw />} />
+                    <Route path="/wallet/transaction" element={<LaboratoryWalletTransaction />} />
                   </Routes>
                 </main>
               </>

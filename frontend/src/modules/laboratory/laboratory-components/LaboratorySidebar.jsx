@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { NavLink } from 'react-router-dom'
 import { IoCloseOutline, IoLogOutOutline } from 'react-icons/io5'
 
-const LabSidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
+const LaboratorySidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
   const closeButtonRef = useRef(null)
   const overlayClasses = `fixed inset-0 z-40 bg-slate-900/40 transition-opacity duration-200 ${
     isOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
@@ -37,7 +37,7 @@ const LabSidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
           <button
             type="button"
             ref={closeButtonRef}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-500 transition-colors hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-500 transition-colors hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
             aria-label="Close menu"
             onClick={onClose}
           >
@@ -52,7 +52,7 @@ const LabSidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
               to={to}
               className={({ isActive }) =>
                 `${linkBaseClasses} ${
-                  isActive ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-100 hover:text-slate-900'
+                  isActive ? 'bg-purple-50 text-purple-600' : 'hover:bg-slate-100 hover:text-slate-900'
                 }`
               }
               onClick={onClose}
@@ -84,5 +84,5 @@ const LabSidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
   )
 }
 
-export default LabSidebar
+export default LaboratorySidebar
 
