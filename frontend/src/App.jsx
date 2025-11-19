@@ -31,6 +31,7 @@ import WalletTransaction from './modules/doctor/doctor-pages/WalletTransaction'
 import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
 import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
 import PharmacyNavbar from './modules/pharmacy/pharmacy-components/PharmacyNavbar'
+import { PharmacySidebarProvider } from './modules/pharmacy/pharmacy-components/PharmacySidebarContext'
 import PharmacyDashboard from './modules/pharmacy/pharmacy-pages/PharmacyDashboard'
 import PharmacyList from './modules/pharmacy/pharmacy-pages/PharmacyList'
 import PharmacyOrders from './modules/pharmacy/pharmacy-pages/PharmacyOrders'
@@ -119,7 +120,7 @@ function App() {
           <Route
             path="/pharmacy/*"
             element={
-              <>
+              <PharmacySidebarProvider>
                 <PharmacyNavbar />
                 <main className="px-4 pb-24 pt-20 sm:px-6">
                   <Routes>
@@ -137,7 +138,7 @@ function App() {
                     <Route path="/wallet/transaction" element={<PharmacyWalletTransaction />} />
                   </Routes>
                 </main>
-              </>
+              </PharmacySidebarProvider>
             }
           />
 
