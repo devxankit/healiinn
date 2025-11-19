@@ -28,6 +28,18 @@ import WalletWithdraw from './modules/doctor/doctor-pages/WalletWithdraw'
 import WalletTransaction from './modules/doctor/doctor-pages/WalletTransaction'
 import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
 import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
+import PharmacyNavbar from './modules/pharmacy/pharmacy-components/PharmacyNavbar'
+import PharmacyDashboard from './modules/pharmacy/pharmacy-pages/PharmacyDashboard'
+import PharmacyList from './modules/pharmacy/pharmacy-pages/PharmacyList'
+import PharmacyOrders from './modules/pharmacy/pharmacy-pages/PharmacyOrders'
+import PharmacyPrescriptions from './modules/pharmacy/pharmacy-pages/PharmacyPrescriptions'
+import PharmacyPatients from './modules/pharmacy/pharmacy-pages/PharmacyPatients'
+import PharmacyProfile from './modules/pharmacy/pharmacy-pages/PharmacyProfile'
+import PharmacyWallet from './modules/pharmacy/pharmacy-pages/PharmacyWallet'
+import PharmacyWalletBalance from './modules/pharmacy/pharmacy-pages/WalletBalance'
+import PharmacyWalletEarning from './modules/pharmacy/pharmacy-pages/WalletEarning'
+import PharmacyWalletWithdraw from './modules/pharmacy/pharmacy-pages/WalletWithdraw'
+import PharmacyWalletTransaction from './modules/pharmacy/pharmacy-pages/WalletTransaction'
 
 function App() {
   return (
@@ -78,6 +90,32 @@ function App() {
           <Route path="/doctor/patients" element={<DoctorPatients />} />
           <Route path="/doctor/consultations" element={<DoctorConsultations />} />
           <Route path="/doctor/profile" element={<DoctorProfile />} />
+
+          {/* Pharmacy Routes */}
+          <Route
+            path="/pharmacy/*"
+            element={
+              <>
+                <PharmacyNavbar />
+                <main className="px-4 pb-24 pt-20 sm:px-6">
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/pharmacy/dashboard" replace />} />
+                    <Route path="/dashboard" element={<PharmacyDashboard />} />
+                    <Route path="/list" element={<PharmacyList />} />
+                    <Route path="/orders" element={<PharmacyOrders />} />
+                    <Route path="/prescriptions" element={<PharmacyPrescriptions />} />
+                    <Route path="/patients" element={<PharmacyPatients />} />
+                    <Route path="/profile" element={<PharmacyProfile />} />
+                    <Route path="/wallet" element={<PharmacyWallet />} />
+                    <Route path="/wallet/balance" element={<PharmacyWalletBalance />} />
+                    <Route path="/wallet/earning" element={<PharmacyWalletEarning />} />
+                    <Route path="/wallet/withdraw" element={<PharmacyWalletWithdraw />} />
+                    <Route path="/wallet/transaction" element={<PharmacyWalletTransaction />} />
+                  </Routes>
+                </main>
+              </>
+            }
+          />
 
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
