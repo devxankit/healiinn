@@ -375,10 +375,34 @@ const notifyPaymentReceived = async ({ providerId, providerRole, amount, payment
   });
 };
 
+const notifyAppointmentReminder = async ({ patientId, doctorId, doctorName, patientName, appointmentDate, appointmentId, hoursBefore = 24 }) => {
+  const recipients = [];
+  
+  if (patientId) {
+    recipients.push({ role: ROLES.PATIENT, userId: patientId });
+  }
+  
+  if (doctorId) {
+    recipients.push({ role: ROLES.DOCTOR, userId: doctorId });
+  }
+
+  if (!recipients.length) {
+    return null;
+  }
+
+  return publishNotification({
+    type: 'APPOINTMENT_REMINDER',
+    recipients,
+    context: { doctorName, patientName, appointmentDate, hoursBefore },
+    data: { appointmentId },
+  });
+};
+
 module.exports = {
   notifyAppointmentConfirmed,
   notifyAppointmentCancelled,
   notifyDoctorOfNewAppointment,
+  notifyAppointmentReminder,
   notifyLabOfTestRequest,
   notifyPatientLabReportReady,
   notifyTokenCalled,

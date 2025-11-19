@@ -59,6 +59,44 @@ const doctorSchema = new mongoose.Schema(
         endTime: { type: String, trim: true },
       },
     ],
+    blockedDates: [
+      {
+        date: { type: Date, required: true },
+        reason: { type: String, trim: true, enum: ['holiday', 'leave', 'emergency', 'other'], default: 'other' },
+        description: { type: String, trim: true },
+        isRecurring: { type: Boolean, default: false },
+        recurringPattern: {
+          type: { type: String, enum: ['yearly', 'monthly', 'weekly'], trim: true },
+          dayOfMonth: { type: Number, min: 1, max: 31 },
+          month: { type: Number, min: 1, max: 12 },
+          dayOfWeek: { type: Number, min: 0, max: 6 },
+        },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    breakTimes: [
+      {
+        day: { type: String, trim: true },
+        startTime: { type: String, trim: true },
+        endTime: { type: String, trim: true },
+        isRecurring: { type: Boolean, default: true },
+        specificDate: { type: Date },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    temporaryAvailability: [
+      {
+        date: { type: Date, required: true },
+        slots: [
+          {
+            startTime: { type: String, trim: true, required: true },
+            endTime: { type: String, trim: true, required: true },
+          },
+        ],
+        reason: { type: String, trim: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     profileImage: { type: String, trim: true },
     documents: {
       license: { type: String, trim: true },
@@ -81,6 +119,26 @@ const doctorSchema = new mongoose.Schema(
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     lastLoginAt: { type: Date },
     rating: { type: Number, min: 0, max: 5, default: 0 },
+    notificationPreferences: {
+      email: { type: Boolean, default: true },
+      sms: { type: Boolean, default: false },
+      push: { type: Boolean, default: true },
+      inApp: { type: Boolean, default: true },
+      types: {
+        appointment: { type: Boolean, default: true },
+        consultation: { type: Boolean, default: true },
+        prescription: { type: Boolean, default: true },
+        payment: { type: Boolean, default: true },
+        review: { type: Boolean, default: true },
+        system: { type: Boolean, default: true },
+        marketing: { type: Boolean, default: false },
+      },
+      quietHours: {
+        enabled: { type: Boolean, default: false },
+        startTime: { type: String, default: '22:00' },
+        endTime: { type: String, default: '08:00' },
+      },
+    },
   },
   {
     timestamps: true,

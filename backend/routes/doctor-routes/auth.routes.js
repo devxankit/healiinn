@@ -2,6 +2,7 @@ const express = require('express');
 const {
   registerDoctor,
   loginDoctor,
+  requestLoginOtp,
   getDoctorProfile,
   updateDoctorProfile,
   logoutDoctor,
@@ -12,18 +13,23 @@ const {
 } = require('../../controllers/doctor-controllers/doctorAuthController');
 const { protect } = require('../../middleware/authMiddleware');
 const { ROLES } = require('../../utils/constants');
+const { authRateLimiter, otpRateLimiter, passwordResetRateLimiter } = require('../../middleware/rateLimiter');
+const { sanitizeInput } = require('../../middleware/validationMiddleware');
 
 const router = express.Router();
 
-router.post('/signup', registerDoctor);
-router.post('/login', loginDoctor);
+// Apply rate limiting and input sanitization to auth endpoints
+router.post('/signup', sanitizeInput, authRateLimiter, registerDoctor);
+router.post('/login/otp', sanitizeInput, otpRateLimiter, requestLoginOtp);
+router.post('/login', sanitizeInput, authRateLimiter, loginDoctor);
+router.post('/forgot-password', sanitizeInput, passwordResetRateLimiter, doctorForgotPassword);
+router.post('/verify-otp', sanitizeInput, otpRateLimiter, doctorVerifyOtp);
+router.post('/reset-password', sanitizeInput, passwordResetRateLimiter, doctorResetPassword);
+
 router.get('/me', protect(ROLES.DOCTOR), getDoctorProfile);
-router.put('/me', protect(ROLES.DOCTOR), updateDoctorProfile);
+router.put('/me', protect(ROLES.DOCTOR), sanitizeInput, updateDoctorProfile);
 router.post('/logout', protect(ROLES.DOCTOR), logoutDoctor);
-router.post('/forgot-password', doctorForgotPassword);
-router.post('/verify-otp', doctorVerifyOtp);
-router.post('/reset-password', doctorResetPassword);
-router.get('/profile/:id', protect(ROLES.DOCTOR, ROLES.ADMIN), getDoctorById);
+router.get('/profile/:id', protect([ROLES.DOCTOR, ROLES.ADMIN]), getDoctorById);
 
 module.exports = router;
 

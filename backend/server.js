@@ -18,16 +18,16 @@ const rateLimiter = require('./middleware/rateLimiter');
 const app = express();
 
 // Middleware
-app.use(helmet()); // Security headers
+app.use(helmet()); // Security headers (includes XSS protection)
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
 }));
 app.use(morgan('dev')); // Logging
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+app.use(express.json({ limit: '10mb' })); // Parse JSON bodies with size limit
+app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-encoded bodies with size limit
 app.use(cookieParser()); // Parse cookies
-app.use(rateLimiter);
+app.use(rateLimiter); // General rate limiting
 
 // Connect to database
 connectDB();
@@ -35,6 +35,16 @@ connectDB();
 // Routes
 app.use('/api/patients/auth', require('./routes/patient-routes/auth.routes'));
 app.use('/api/doctors/auth', require('./routes/doctor-routes/auth.routes'));
+app.use('/api/doctors/dashboard', require('./routes/doctor-routes/dashboard.routes'));
+app.use('/api/doctors/appointments', require('./routes/doctor-routes/appointments.routes'));
+app.use('/api/doctors/consultations', require('./routes/doctor-routes/consultations.routes'));
+app.use('/api/doctors/prescriptions', require('./routes/doctor-routes/prescriptions.routes'));
+app.use('/api/doctors/availability', require('./routes/doctor-routes/availability.routes'));
+app.use('/api/doctors/patients', require('./routes/doctor-routes/patients.routes'));
+app.use('/api/doctors/notifications', require('./routes/doctor-routes/notifications.routes'));
+app.use('/api/doctors/reviews', require('./routes/doctor-routes/reviews.routes'));
+app.use('/api/doctors/wallet', require('./routes/doctor-routes/wallet.routes'));
+app.use('/api/doctors/transactions', require('./routes/doctor-routes/transaction.routes'));
 app.use('/api/laboratories/auth', require('./routes/laboratory-routes/auth.routes'));
 app.use('/api/pharmacies/auth', require('./routes/pharmacy-routes/auth.routes'));
 app.use('/api/admin/auth', require('./routes/admin-routes/auth.routes'));
@@ -45,23 +55,20 @@ app.use('/api/admin/dashboard', require('./routes/admin-routes/dashboard.routes'
 app.use('/api/admin/wallet', require('./routes/admin-routes/wallet.routes'));
 app.use('/api/admin/transactions', require('./routes/admin-routes/transaction.routes'));
 app.use('/api/payments', require('./routes/payment-routes/payment.routes'));
-app.use('/api/notifications', require('./routes/notification.routes'));
-app.use('/api/appointments', require('./routes/appointment.routes'));
-app.use('/api/consultations', require('./routes/consultation.routes'));
-app.use('/api/prescriptions', require('./routes/prescription.routes'));
-app.use('/api/labs', require('./routes/lab.routes'));
-app.use('/api/pharmacy', require('./routes/pharmacy.routes'));
-app.use('/api/doctors/dashboard', require('./routes/doctor-routes/dashboard.routes'));
+app.use('/api/notifications', require('./routes/notification-routes/notification.routes'));
+app.use('/api/appointments', require('./routes/appointment-routes/appointment.routes'));
+app.use('/api/consultations', require('./routes/appointment-routes/consultation.routes'));
+app.use('/api/prescriptions', require('./routes/appointment-routes/prescription.routes'));
+app.use('/api/labs', require('./routes/laboratory-routes/lab.routes'));
+app.use('/api/pharmacy', require('./routes/pharmacy-routes/pharmacy.routes'));
 app.use('/api/patients', require('./routes/patient-routes/transaction.routes'));
-app.use('/api/doctors/wallet', require('./routes/doctor-routes/wallet.routes'));
-app.use('/api/doctors/transactions', require('./routes/doctor-routes/transaction.routes'));
 app.use('/api/laboratories/wallet', require('./routes/laboratory-routes/wallet.routes'));
 app.use('/api/laboratories/transactions', require('./routes/laboratory-routes/transaction.routes'));
 app.use('/api/pharmacies/wallet', require('./routes/pharmacy-routes/wallet.routes'));
 app.use('/api/pharmacies/transactions', require('./routes/pharmacy-routes/transaction.routes'));
-app.use('/api/reports', require('./routes/report.routes'));
-app.use('/api/reviews', require('./routes/review.routes'));
-app.use('/api/discovery', require('./routes/discovery.routes'));
+app.use('/api/reports', require('./routes/report-routes/report.routes'));
+app.use('/api/reviews', require('./routes/review-routes/review.routes'));
+app.use('/api/discovery', require('./routes/discovery-routes/discovery.routes'));
 
 app.get('/', (req, res) => {
   res.json({ 
@@ -171,4 +178,3 @@ server.listen(PORT, '0.0.0.0', () => {
 });
 
 module.exports = app;
-

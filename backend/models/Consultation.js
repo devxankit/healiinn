@@ -74,6 +74,35 @@ const consultationSchema = new mongoose.Schema(
     followUpAt: {
       type: Date,
     },
+    pausedAt: {
+      type: Date,
+    },
+    resumedAt: {
+      type: Date,
+    },
+    pauseHistory: [
+      {
+        pausedAt: { type: Date, required: true },
+        resumedAt: { type: Date },
+        reason: { type: String, trim: true },
+        durationMinutes: { type: Number },
+      },
+    ],
+    attachments: [
+      {
+        label: { type: String, trim: true },
+        url: { type: String, required: true, trim: true },
+        fileName: { type: String, trim: true },
+        mimeType: { type: String, trim: true },
+        fileSize: { type: Number },
+        uploadedAt: { type: Date, default: Date.now },
+        uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor' },
+      },
+    ],
+    templateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ConsultationTemplate',
+    },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
     },
@@ -86,6 +115,10 @@ const consultationSchema = new mongoose.Schema(
 
 consultationSchema.index({ doctor: 1, createdAt: -1 });
 consultationSchema.index({ patient: 1, createdAt: -1 });
+consultationSchema.index({ doctor: 1, status: 1, createdAt: -1 }); // For doctor consultations with status filter
+consultationSchema.index({ patient: 1, status: 1, createdAt: -1 }); // For patient consultations with status filter
+consultationSchema.index({ appointment: 1 }); // For appointment-based queries
+consultationSchema.index({ status: 1, createdAt: -1 }); // For status-based queries
 
 module.exports = mongoose.model('Consultation', consultationSchema);
 

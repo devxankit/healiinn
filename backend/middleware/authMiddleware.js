@@ -45,7 +45,12 @@ const protect = (...allowedRoles) =>
       throw createError(401, 'Account not found');
     }
 
-    if (allowedRoles.length && !allowedRoles.includes(role)) {
+    // Handle both array format and individual arguments
+    const roles = allowedRoles.length === 1 && Array.isArray(allowedRoles[0])
+      ? allowedRoles[0]
+      : allowedRoles;
+
+    if (roles.length && !roles.includes(role)) {
       throw createError(403, 'You do not have access to this resource');
     }
 

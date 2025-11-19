@@ -32,6 +32,7 @@ const TOKEN_STATUS = {
 
 const CONSULTATION_STATUS = {
   IN_PROGRESS: 'in_progress',
+  PAUSED: 'paused',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
 };
@@ -75,7 +76,27 @@ const WITHDRAWAL_STATUS = {
   PAID: 'paid',
 };
 
-const COMMISSION_RATE = Number(process.env.DOCTOR_COMMISSION_RATE || 0.1);
+// Commission rates for different provider roles
+const DOCTOR_COMMISSION_RATE = Number(process.env.DOCTOR_COMMISSION_RATE || 0.1);
+const LABORATORY_COMMISSION_RATE = Number(process.env.LABORATORY_COMMISSION_RATE || 0.1);
+const PHARMACY_COMMISSION_RATE = Number(process.env.PHARMACY_COMMISSION_RATE || 0.1);
+
+// Legacy: Keep COMMISSION_RATE for backward compatibility (defaults to doctor rate)
+const COMMISSION_RATE = DOCTOR_COMMISSION_RATE;
+
+// Helper function to get commission rate by provider role
+const getCommissionRateByRole = (providerRole) => {
+  switch (providerRole) {
+    case ROLES.DOCTOR:
+      return DOCTOR_COMMISSION_RATE;
+    case ROLES.LABORATORY:
+      return LABORATORY_COMMISSION_RATE;
+    case ROLES.PHARMACY:
+      return PHARMACY_COMMISSION_RATE;
+    default:
+      return COMMISSION_RATE; // Default to doctor rate
+  }
+};
 
 const JOB_NAMES = {
   ETA_RECALCULATION: 'queue:eta:recalculate',
@@ -101,7 +122,11 @@ module.exports = {
   LAB_LEAD_STATUS,
   PHARMACY_LEAD_STATUS,
   WITHDRAWAL_STATUS,
-  COMMISSION_RATE,
+  COMMISSION_RATE, // Legacy: kept for backward compatibility
+  DOCTOR_COMMISSION_RATE,
+  LABORATORY_COMMISSION_RATE,
+  PHARMACY_COMMISSION_RATE,
+  getCommissionRateByRole,
   JOB_NAMES,
   PASSWORD_RESET_CONFIG,
 };

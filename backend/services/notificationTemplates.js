@@ -41,6 +41,14 @@ const templates = {
     body: `${patientName} booked an appointment for ${formatTime(appointmentDate)}.`,
     data: { category: 'appointment' },
   }),
+  APPOINTMENT_REMINDER: ({ doctorName, patientName, appointmentDate, hoursBefore }) => {
+    const timeText = hoursBefore === 24 ? 'tomorrow' : hoursBefore === 2 ? 'in 2 hours' : `in ${hoursBefore} hours`;
+    return {
+      title: 'Appointment reminder',
+      body: `Reminder: Your appointment with ${doctorName || 'doctor'} is ${timeText} at ${formatTime(appointmentDate)}.`,
+      data: { category: 'appointment' },
+    };
+  },
   LAB_TEST_REQUESTED: ({ patientName }) => ({
     title: 'New lab request',
     body: `You received a new lab request for ${patientName}.`,
@@ -186,6 +194,25 @@ const templates = {
       title: 'Payment confirmed',
       body: `Payment of ₹${amount || 0} for ${bookingTypeName} has been confirmed and credited to your wallet.`,
       data: { category: 'wallet' },
+    };
+  },
+  SUPPORT_TICKET_NEW: ({ ticketNumber, roleName, name, subject }) => ({
+    title: 'New support ticket',
+    body: `New support ticket ${ticketNumber} from ${roleName} - ${name || 'User'}: ${subject || 'Support request'}.`,
+    data: { category: 'support' },
+  }),
+  SUPPORT_TICKET_UPDATED: ({ ticketNumber, status, adminResponse }) => {
+    const statusMessages = {
+      open: 'Your support ticket is now open.',
+      in_progress: 'Your support ticket is being processed.',
+      resolved: 'Your support ticket has been resolved.',
+      closed: 'Your support ticket has been closed.',
+    };
+    const statusMessage = statusMessages[status] || `Your support ticket status has been updated to ${titleCase(status || '')}.`;
+    return {
+      title: 'Support ticket update',
+      body: `${statusMessage} Ticket: ${ticketNumber}.${adminResponse ? ` ${adminResponse}` : ''}`,
+      data: { category: 'support' },
     };
   },
 };

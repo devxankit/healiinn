@@ -4,7 +4,7 @@ const WithdrawalRequest = require('../models/WithdrawalRequest');
 const Doctor = require('../models/Doctor');
 const Laboratory = require('../models/Laboratory');
 const Pharmacy = require('../models/Pharmacy');
-const { COMMISSION_RATE, WITHDRAWAL_STATUS, ROLES } = require('../utils/constants');
+const { COMMISSION_RATE, WITHDRAWAL_STATUS, ROLES, getCommissionRateByRole } = require('../utils/constants');
 const { getModelForRole } = require('../utils/getModelForRole');
 
 const toObjectId = (value) =>
@@ -379,11 +379,13 @@ const createWalletTransaction = async ({
   bookingType,
   paymentId,
   grossAmount,
-  commissionRate = COMMISSION_RATE,
+  commissionRate = null, // If not provided, use role-specific default
   currency = 'INR',
   description,
 }) => {
-  const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
+  // Use role-specific commission rate if not provided
+  const finalCommissionRate = commissionRate !== null ? commissionRate : getCommissionRateByRole(providerRole);
+  const commissionAmount = Number((grossAmount * finalCommissionRate).toFixed(2));
   const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
 
   const transactionData = {
@@ -398,7 +400,7 @@ const createWalletTransaction = async ({
     grossAmount,
     commissionAmount,
     netAmount,
-    commissionRate,
+    commissionRate: finalCommissionRate,
     currency,
     description,
     creditedAt: new Date(),

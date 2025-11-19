@@ -73,7 +73,7 @@ const mockServices = [
 ]
 
 const categoryConfig = {
-  prescription: { label: 'Prescription', color: 'bg-blue-100 text-blue-700', icon: IoBagHandleOutline },
+  prescription: { label: 'Prescription', color: 'bg-[rgba(17,73,108,0.15)] text-[#11496c]', icon: IoBagHandleOutline },
   consultation: { label: 'Consultation', color: 'bg-purple-100 text-purple-700', icon: IoFlaskOutline },
   delivery: { label: 'Delivery', color: 'bg-emerald-100 text-emerald-700', icon: IoHomeOutline },
 }
@@ -185,7 +185,7 @@ const PharmacyServices = () => {
             })
             setShowAddModal(true)
           }}
-          className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600"
+          className="flex items-center gap-2 rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0d3a52]"
         >
           <IoAddOutline className="h-5 w-5" />
           Add Service
@@ -258,7 +258,7 @@ const PharmacyServices = () => {
                 {service.deliveryOptions.map((option) => (
                   <span
                     key={option}
-                    className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-1 text-[10px] font-medium text-sky-700"
+                    className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.15)] px-2 py-1 text-[10px] font-medium text-[#11496c]"
                   >
                     {option === 'pickup' ? (
                       <>
@@ -336,7 +336,7 @@ const PharmacyServices = () => {
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   placeholder="Enter service name"
                 />
               </div>
@@ -346,7 +346,7 @@ const PharmacyServices = () => {
                 <textarea
                   value={formData.description}
                   onChange={(e) => handleInputChange('description', e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   placeholder="Enter service description"
                   rows={3}
                 />
@@ -357,7 +357,7 @@ const PharmacyServices = () => {
                 <select
                   value={formData.category}
                   onChange={(e) => handleInputChange('category', e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                 >
                   <option value="prescription">Prescription</option>
                   <option value="consultation">Consultation</option>
@@ -372,7 +372,7 @@ const PharmacyServices = () => {
                     type="number"
                     value={formData.price}
                     onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     min="0"
                     step="0.01"
                   />
@@ -383,7 +383,7 @@ const PharmacyServices = () => {
                     type="text"
                     value={formData.duration}
                     onChange={(e) => handleInputChange('duration', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     placeholder="e.g., 30 minutes"
                   />
                 </div>
@@ -397,7 +397,7 @@ const PharmacyServices = () => {
                     onClick={() => handleDeliveryOptionToggle('pickup')}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
                       formData.deliveryOptions.includes('pickup')
-                        ? 'border-blue-400 bg-blue-500 text-white'
+                        ? 'border-[#11496c] bg-[#11496c] text-white'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
@@ -409,7 +409,7 @@ const PharmacyServices = () => {
                     onClick={() => handleDeliveryOptionToggle('delivery')}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
                       formData.deliveryOptions.includes('delivery')
-                        ? 'border-blue-400 bg-blue-500 text-white'
+                        ? 'border-[#11496c] bg-[#11496c] text-white'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
@@ -426,7 +426,7 @@ const PharmacyServices = () => {
                     type="number"
                     value={formData.serviceRadius}
                     onChange={(e) => handleInputChange('serviceRadius', parseFloat(e.target.value) || 0)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     min="0"
                   />
                 </div>
@@ -438,7 +438,7 @@ const PharmacyServices = () => {
                   id="available"
                   checked={formData.available}
                   onChange={(e) => handleInputChange('available', e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-500 focus:ring-2 focus:ring-blue-400/30"
+                  className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                 />
                 <label htmlFor="available" className="text-sm font-medium text-slate-700">
                   Service is currently available
@@ -457,7 +457,7 @@ const PharmacyServices = () => {
                 </button>
                 <button
                   onClick={handleSave}
-                  className="flex-1 rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600"
+                  className="flex-1 rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0d3a52]"
                 >
                   {editingService ? 'Update' : 'Add'} Service
                 </button>

@@ -19,6 +19,8 @@ import PatientLogin from './modules/patient/patient-pages/PatientLogin'
 import PatientTransactions from './modules/patient/patient-pages/PatientTransactions'
 import PatientAppointments from './modules/patient/patient-pages/PatientAppointments'
 import PatientOrders from './modules/patient/patient-pages/PatientOrders'
+import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
+import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
 import DoctorDashboard from './modules/doctor/doctor-pages/DoctorDashboard'
 import DoctorProfile from './modules/doctor/doctor-pages/DoctorProfile'
 import DoctorWallet from './modules/doctor/doctor-pages/DoctorWallet'
@@ -31,6 +33,7 @@ import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
 import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
 import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
 import PharmacyNavbar from './modules/pharmacy/pharmacy-components/PharmacyNavbar'
+import { PharmacySidebarProvider } from './modules/pharmacy/pharmacy-components/PharmacySidebarContext'
 import PharmacyDashboard from './modules/pharmacy/pharmacy-pages/PharmacyDashboard'
 import PharmacyList from './modules/pharmacy/pharmacy-pages/PharmacyList'
 import PharmacyOrders from './modules/pharmacy/pharmacy-pages/PharmacyOrders'
@@ -124,21 +127,13 @@ function App() {
           <Route path="/patient/*" element={<PatientRoutes />} />
 
           {/* Doctor Routes */}
-          <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-          <Route path="/doctor/wallet" element={<DoctorWallet />} />
-          <Route path="/doctor/wallet/balance" element={<WalletBalance />} />
-          <Route path="/doctor/wallet/earning" element={<WalletEarning />} />
-          <Route path="/doctor/wallet/withdraw" element={<WalletWithdraw />} />
-          <Route path="/doctor/wallet/transaction" element={<WalletTransaction />} />
-          <Route path="/doctor/patients" element={<DoctorPatients />} />
-          <Route path="/doctor/consultations" element={<DoctorConsultations />} />
-          <Route path="/doctor/profile" element={<DoctorProfile />} />
+          <Route path="/doctor/*" element={<DoctorRoutes />} />
 
           {/* Pharmacy Routes */}
           <Route
             path="/pharmacy/*"
             element={
-              <>
+              <PharmacySidebarProvider>
                 <PharmacyNavbar />
                 <main className="px-4 pb-24 pt-20 sm:px-6">
                   <Routes>
@@ -156,7 +151,7 @@ function App() {
                     <Route path="/wallet/transaction" element={<PharmacyWalletTransaction />} />
                   </Routes>
                 </main>
-              </>
+              </PharmacySidebarProvider>
             }
           />
 

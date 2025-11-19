@@ -37,7 +37,7 @@ const PharmacySidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
           <button
             type="button"
             ref={closeButtonRef}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-500 transition-colors hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-500 transition-colors hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
             aria-label="Close menu"
             onClick={onClose}
           >
@@ -52,9 +52,10 @@ const PharmacySidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
               to={to}
               className={({ isActive }) =>
                 `${linkBaseClasses} ${
-                  isActive ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-100 hover:text-slate-900'
+                  isActive ? 'text-[#11496c]' : 'hover:bg-slate-100 hover:text-slate-900'
                 }`
               }
+              style={({ isActive }) => isActive ? { backgroundColor: 'rgba(17,73,108,0.1)' } : {}}
               onClick={onClose}
               end={id === 'home'}
             >

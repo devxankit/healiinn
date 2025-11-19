@@ -180,16 +180,16 @@ const CustomDropdown = ({ id, value, onChange, options, className = '' }) => {
           onClick={handleToggle}
           className={`flex w-full items-center justify-between rounded-lg border bg-white/95 backdrop-blur-sm px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-all ${
             isOpen
-              ? 'border-sky-400 bg-white shadow-md ring-2 ring-sky-400/30'
-              : 'border-sky-200/60 hover:border-sky-300 hover:bg-white hover:shadow-md focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/30'
+              ? 'border-[#11496c] bg-white shadow-md ring-2 ring-[rgba(17,73,108,0.2)]'
+              : 'border-[rgba(17,73,108,0.2)] hover:border-[rgba(17,73,108,0.3)] hover:bg-white hover:shadow-md focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]'
           }`}
           aria-haspopup="listbox"
           aria-expanded={isOpen}
         >
           <span className="truncate text-xs">{selectedOption?.label || 'Select...'}</span>
           <HiChevronDown
-            className={`ml-1.5 h-3 w-3 flex-shrink-0 text-sky-500 transition-all duration-200 ${
-              isOpen ? 'rotate-180 text-sky-600' : ''
+            className={`ml-1.5 h-3 w-3 flex-shrink-0 text-[#11496c] transition-all duration-200 ${
+              isOpen ? 'rotate-180 text-[#0d3a52]' : ''
             }`}
           />
         </button>
@@ -203,7 +203,7 @@ const CustomDropdown = ({ id, value, onChange, options, className = '' }) => {
           />
           <div
             ref={menuRef}
-            className="fixed z-[9999] rounded-lg border-2 border-sky-300 bg-white shadow-2xl"
+            className="fixed z-[9999] rounded-lg border-2 border-[rgba(17,73,108,0.3)] bg-white shadow-2xl"
             style={{
               top: position.top > 0 ? `${position.top}px` : '50%',
               left: position.left > 0 ? `${position.left}px` : '50%',
@@ -236,8 +236,8 @@ const CustomDropdown = ({ id, value, onChange, options, className = '' }) => {
                   }}
                   className={`cursor-pointer px-3 py-2 text-xs font-medium transition-colors ${
                     value === option.value
-                      ? 'bg-sky-100 text-sky-700 font-semibold'
-                      : 'bg-white text-slate-700 hover:bg-sky-50'
+                      ? 'bg-[rgba(17,73,108,0.15)] text-[#11496c] font-semibold'
+                      : 'bg-white text-slate-700 hover:bg-[rgba(17,73,108,0.1)]'
                   }`}
                 >
                   {option.label}
@@ -306,14 +306,14 @@ const PharmacyList = () => {
       {/* Search Bar */}
       <div className="relative">
         <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sky-500">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#11496c]">
             <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
           </span>
           <input
             id="pharmacy-search"
             type="search"
             placeholder="Search by name, service, or medicine..."
-            className="w-full rounded-lg border border-sky-200/60 bg-white py-2 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-sky-300 hover:bg-white hover:shadow-md focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400/30 sm:text-base"
+            className="w-full rounded-lg border border-[rgba(17,73,108,0.2)] bg-white py-2 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-[rgba(17,73,108,0.3)] hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)] sm:text-base"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
           />
@@ -416,7 +416,7 @@ const PharmacyList = () => {
                   </span>
                 ))}
                 {pharmacy.responseTimeMinutes && (
-                  <span className="rounded-full bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-600">
+                  <span className="rounded-full bg-[rgba(17,73,108,0.1)] px-2 py-1 text-[10px] font-medium text-[#11496c]">
                     ~{pharmacy.responseTimeMinutes} min response
                   </span>
                 )}
@@ -430,7 +430,7 @@ const PharmacyList = () => {
               <div className="flex flex-row gap-2 sm:justify-end">
                 <button
                   type="button"
-                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 active:scale-95"
+                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
                 >
                   <IoCalendarOutline className="h-4 w-4" aria-hidden="true" />
                   Book
