@@ -54,6 +54,8 @@ const PatientLogin = () => {
   // Signup form states
   const [showSignupPassword, setShowSignupPassword] = useState(false)
   const [showSignupConfirm, setShowSignupConfirm] = useState(false)
+  const [signupStep, setSignupStep] = useState(1) // 1, 2, or 3
+  const totalSignupSteps = 3
   
   // OTP input refs
   const otpInputRefs = useRef([])
@@ -75,11 +77,48 @@ const PatientLogin = () => {
     setOtpTimer(0)
     setShowSignupPassword(false)
     setShowSignupConfirm(false)
+    setSignupStep(1)
     setLoginData({ phone: '', otp: '', remember: true })
+  }
+  
+  const handleNextStep = () => {
+    // Validate current step before proceeding
+    if (signupStep === 1) {
+      if (!signupData.firstName || !signupData.phone || !signupData.email || !signupData.password || !signupData.confirmPassword) {
+        window.alert('Please fill in all required fields in Step 1')
+        return
+      }
+      if (signupData.password !== signupData.confirmPassword) {
+        window.alert('Passwords do not match')
+        return
+      }
+      if (signupData.password.length < 8) {
+        window.alert('Password must be at least 8 characters long')
+        return
+      }
+    }
+    if (signupStep < totalSignupSteps) {
+      setSignupStep(signupStep + 1)
+    }
+  }
+  
+  const handlePreviousStep = () => {
+    if (signupStep > 1) {
+      setSignupStep(signupStep - 1)
+    }
   }
 
   const handleLoginChange = (event) => {
     const { name, value, type, checked } = event.target
+    // Restrict phone to 10 digits only
+    if (name === 'phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setLoginData((prev) => ({
+        ...prev,
+        [name]: numericValue,
+      }))
+      return
+    }
     setLoginData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
@@ -193,6 +232,31 @@ const PatientLogin = () => {
         ...prev,
         termsAccepted: checked,
       }))
+      return
+    }
+
+    // Restrict phone fields to 10 digits only
+    if (name === 'phone' || name === 'emergencyContact.phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setSignupData((prev) => {
+        if (name === 'phone') {
+          return {
+            ...prev,
+            phone: numericValue,
+          }
+        }
+        if (name.startsWith('emergencyContact.')) {
+          const key = name.split('.')[1]
+          return {
+            ...prev,
+            emergencyContact: {
+              ...prev.emergencyContact,
+              [key]: numericValue,
+            },
+          }
+        }
+        return prev
+      })
       return
     }
 
@@ -440,7 +504,9 @@ const PatientLogin = () => {
                       onChange={handleLoginChange}
                       autoComplete="tel"
                       required
-                      placeholder="+91 98765 43210"
+                      placeholder="9876543210"
+                      maxLength={10}
+                      inputMode="numeric"
                       disabled={otpSent}
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 disabled:bg-slate-50 disabled:cursor-not-allowed"
                       style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
@@ -553,399 +619,485 @@ const PatientLogin = () => {
                 </p>
               </motion.form>
             ) : (
-              <motion.form
+              <motion.div
                 key="signup"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="flex flex-col gap-5 sm:gap-6"
-                onSubmit={handleSignupSubmit}
               >
-                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="firstName" className="text-sm font-semibold text-slate-700">
-                      First Name
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoPersonOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="firstName"
-                        name="firstName"
-                        value={signupData.firstName}
-                        onChange={handleSignupChange}
-                        required
-                        placeholder="Jane"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="lastName" className="text-sm font-semibold text-slate-700">
-                      Last Name
-                    </label>
-                    <input
-                      id="lastName"
-                      name="lastName"
-                      value={signupData.lastName}
-                      onChange={handleSignupChange}
-                      placeholder="Doe"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="signup-email" className="text-sm font-semibold text-slate-700">
-                      Email Address
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoMailOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="signup-email"
-                        name="email"
-                        type="email"
-                        value={signupData.email}
-                        onChange={handleSignupChange}
-                        autoComplete="email"
-                        required
-                        placeholder="you@example.com"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="phone" className="text-sm font-semibold text-slate-700">
-                      Phone Number
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoCallOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="phone"
-                        name="phone"
-                        value={signupData.phone}
-                        onChange={handleSignupChange}
-                        required
-                        placeholder="+91 98765 43210"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="signup-password" className="text-sm font-semibold text-slate-700">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="signup-password"
-                        name="password"
-                        type={showSignupPassword ? 'text' : 'password'}
-                        value={signupData.password}
-                        onChange={handleSignupChange}
-                        minLength={8}
-                        required
-                        placeholder="Create a secure password"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSignupPassword((prev) => !prev)}
-                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                        aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  {[1, 2, 3].map((step) => (
+                    <div key={step} className="flex items-center">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition ${
+                          signupStep >= step
+                            ? 'bg-[#11496c] text-white'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}
                       >
-                        {showSignupPassword ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                      </button>
+                        {step}
+                      </div>
+                      {step < 3 && (
+                        <div
+                          className={`h-1 w-8 sm:w-12 transition ${
+                            signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                          }`}
+                        />
+                      )}
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="confirmPassword" className="text-sm font-semibold text-slate-700">
-                      Confirm Password
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="confirmPassword"
-                        name="confirmPassword"
-                        type={showSignupConfirm ? 'text' : 'password'}
-                        value={signupData.confirmPassword}
-                        onChange={handleSignupChange}
-                        required
-                        placeholder="Re-enter your password"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSignupConfirm((prev) => !prev)}
-                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                        aria-label={showSignupConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
-                      >
-                        {showSignupConfirm ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </section>
+                  ))}
+                </div>
+                <div className="text-center text-sm text-slate-600 mb-4">
+                  Step {signupStep} of {totalSignupSteps}
+                </div>
 
-                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="dateOfBirth" className="text-sm font-semibold text-slate-700">
-                      Date of Birth
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoCalendarClearOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
+                <form onSubmit={handleSignupSubmit} className="flex flex-col gap-5 sm:gap-6">
+                {/* Step 1: Basic Information */}
+                {signupStep === 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h3>
+                    <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="firstName" className="text-sm font-semibold text-slate-700">
+                          First Name <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoPersonOutline className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <input
+                            id="firstName"
+                            name="firstName"
+                            value={signupData.firstName}
+                            onChange={handleSignupChange}
+                            required
+                            placeholder="Jane"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="lastName" className="text-sm font-semibold text-slate-700">
+                          Last Name
+                        </label>
+                        <input
+                          id="lastName"
+                          name="lastName"
+                          value={signupData.lastName}
+                          onChange={handleSignupChange}
+                          placeholder="Doe"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="signup-email" className="text-sm font-semibold text-slate-700">
+                          Email Address <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoMailOutline className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <input
+                            id="signup-email"
+                            name="email"
+                            type="email"
+                            value={signupData.email}
+                            onChange={handleSignupChange}
+                            autoComplete="email"
+                            required
+                            placeholder="you@example.com"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="phone" className="text-sm font-semibold text-slate-700">
+                          Phone Number <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <input
+                            id="phone"
+                            name="phone"
+                            value={signupData.phone}
+                            onChange={handleSignupChange}
+                            required
+                            placeholder="9876543210"
+                            maxLength={10}
+                            inputMode="numeric"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="signup-password" className="text-sm font-semibold text-slate-700">
+                          Password <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <input
+                            id="signup-password"
+                            name="password"
+                            type={showSignupPassword ? 'text' : 'password'}
+                            value={signupData.password}
+                            onChange={handleSignupChange}
+                            minLength={8}
+                            required
+                            placeholder="Create a secure password"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSignupPassword((prev) => !prev)}
+                            className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
+                            aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showSignupPassword ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="confirmPassword" className="text-sm font-semibold text-slate-700">
+                          Confirm Password <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <input
+                            id="confirmPassword"
+                            name="confirmPassword"
+                            type={showSignupConfirm ? 'text' : 'password'}
+                            value={signupData.confirmPassword}
+                            onChange={handleSignupChange}
+                            required
+                            placeholder="Re-enter your password"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSignupConfirm((prev) => !prev)}
+                            className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
+                            aria-label={showSignupConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
+                          >
+                            {showSignupConfirm ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  </motion.div>
+                )}
+
+                {/* Step 2: Personal Details */}
+                {signupStep === 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Personal Details</h3>
+                    <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="dateOfBirth" className="text-sm font-semibold text-slate-700">
+                          Date of Birth
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoCalendarClearOutline className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <input
+                            id="dateOfBirth"
+                            name="dateOfBirth"
+                            type="date"
+                            value={signupData.dateOfBirth}
+                            onChange={handleSignupChange}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="gender" className="text-sm font-semibold text-slate-700">
+                          Gender
+                        </label>
+                        <select
+                          id="gender"
+                          name="gender"
+                          value={signupData.gender}
+                          onChange={handleSignupChange}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        >
+                          <option value="">Select one</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                          <option value="prefer_not_to_say">Prefer not to say</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="bloodGroup" className="text-sm font-semibold text-slate-700">
+                          Blood Group
+                        </label>
+                        <select
+                          id="bloodGroup"
+                          name="bloodGroup"
+                          value={signupData.bloodGroup}
+                          onChange={handleSignupChange}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        >
+                          <option value="">Select blood group</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                          <option value="UNKNOWN">Unknown</option>
+                        </select>
+                      </div>
+                    </section>
+                  </motion.div>
+                )}
+
+                {/* Step 3: Address & Emergency Contact */}
+                {signupStep === 3 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Address & Emergency Contact</h3>
+                    <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <label htmlFor="address.line1" className="text-sm font-semibold text-slate-700">
+                          Address Line 1
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoLocationOutline className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <input
+                            id="address.line1"
+                            name="address.line1"
+                            value={signupData.address.line1}
+                            onChange={handleSignupChange}
+                            placeholder="123 Wellness Street"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="address.line2" className="text-sm font-semibold text-slate-700">
+                          Address Line 2 (optional)
+                        </label>
+                        <input
+                          id="address.line2"
+                          name="address.line2"
+                          value={signupData.address.line2}
+                          onChange={handleSignupChange}
+                          placeholder="Apartment or suite"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="address.city" className="text-sm font-semibold text-slate-700">
+                          City
+                        </label>
+                        <input
+                          id="address.city"
+                          name="address.city"
+                          value={signupData.address.city}
+                          onChange={handleSignupChange}
+                          placeholder="Mumbai"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="address.state" className="text-sm font-semibold text-slate-700">
+                          State
+                        </label>
+                        <input
+                          id="address.state"
+                          name="address.state"
+                          value={signupData.address.state}
+                          onChange={handleSignupChange}
+                          placeholder="Maharashtra"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="address.postalCode" className="text-sm font-semibold text-slate-700">
+                          Postal Code
+                        </label>
+                        <input
+                          id="address.postalCode"
+                          name="address.postalCode"
+                          value={signupData.address.postalCode}
+                          onChange={handleSignupChange}
+                          placeholder="400001"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="address.country" className="text-sm font-semibold text-slate-700">
+                          Country
+                        </label>
+                        <input
+                          id="address.country"
+                          name="address.country"
+                          value={signupData.address.country}
+                          onChange={handleSignupChange}
+                          placeholder="India"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                    </section>
+
+                    <section className="grid gap-3 sm:gap-4 sm:grid-cols-3">
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="emergencyContact.name" className="text-sm font-semibold text-slate-700">
+                          Emergency Contact Name
+                        </label>
+                        <input
+                          id="emergencyContact.name"
+                          name="emergencyContact.name"
+                          value={signupData.emergencyContact.name}
+                          onChange={handleSignupChange}
+                          placeholder="Rahul Sharma"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="emergencyContact.phone" className="text-sm font-semibold text-slate-700">
+                          Emergency Phone
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <input
+                            id="emergencyContact.phone"
+                            name="emergencyContact.phone"
+                            value={signupData.emergencyContact.phone}
+                            onChange={handleSignupChange}
+                            placeholder="9876543100"
+                            maxLength={10}
+                            inputMode="numeric"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="emergencyContact.relation" className="text-sm font-semibold text-slate-700">
+                          Relationship
+                        </label>
+                        <input
+                          id="emergencyContact.relation"
+                          name="emergencyContact.relation"
+                          value={signupData.emergencyContact.relation}
+                          onChange={handleSignupChange}
+                          placeholder="Spouse"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                    </section>
+
+                    <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
                       <input
-                        id="dateOfBirth"
-                        name="dateOfBirth"
-                        type="date"
-                        value={signupData.dateOfBirth}
+                        type="checkbox"
+                        name="termsAccepted"
+                        checked={signupData.termsAccepted}
                         onChange={handleSignupChange}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
                       />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="gender" className="text-sm font-semibold text-slate-700">
-                      Gender
+                      <span>
+                        I have read and agree to Healiinn's{' '}
+                        <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                          terms of service
+                        </Link>{' '}
+                        and{' '}
+                        <Link to="/privacy" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                          privacy policy
+                        </Link>
+                        .
+                      </span>
                     </label>
-                    <select
-                      id="gender"
-                      name="gender"
-                      value={signupData.gender}
-                      onChange={handleSignupChange}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                  </motion.div>
+                )}
+
+                {/* Navigation Buttons */}
+                <div className="flex flex-col gap-3">
+                  {signupStep < totalSignupSteps ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
                     >
-                      <option value="">Select one</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                      <option value="prefer_not_to_say">Prefer not to say</option>
-                    </select>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="bloodGroup" className="text-sm font-semibold text-slate-700">
-                      Blood Group
-                    </label>
-                    <select
-                      id="bloodGroup"
-                      name="bloodGroup"
-                      value={signupData.bloodGroup}
-                      onChange={handleSignupChange}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    >
-                      <option value="">Select blood group</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                      <option value="UNKNOWN">Unknown</option>
-                    </select>
-                  </div>
-                </section>
-
-                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5 sm:col-span-2">
-                    <label htmlFor="address.line1" className="text-sm font-semibold text-slate-700">
-                      Address Line 1
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoLocationOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="address.line1"
-                        name="address.line1"
-                        value={signupData.address.line1}
-                        onChange={handleSignupChange}
-                        placeholder="123 Wellness Street"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="address.line2" className="text-sm font-semibold text-slate-700">
-                      Address Line 2 (optional)
-                    </label>
-                    <input
-                      id="address.line2"
-                      name="address.line2"
-                      value={signupData.address.line2}
-                      onChange={handleSignupChange}
-                      placeholder="Apartment or suite"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="address.city" className="text-sm font-semibold text-slate-700">
-                      City
-                    </label>
-                    <input
-                      id="address.city"
-                      name="address.city"
-                      value={signupData.address.city}
-                      onChange={handleSignupChange}
-                      placeholder="Mumbai"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="address.state" className="text-sm font-semibold text-slate-700">
-                      State
-                    </label>
-                    <input
-                      id="address.state"
-                      name="address.state"
-                      value={signupData.address.state}
-                      onChange={handleSignupChange}
-                      placeholder="Maharashtra"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="address.postalCode" className="text-sm font-semibold text-slate-700">
-                      Postal Code
-                    </label>
-                    <input
-                      id="address.postalCode"
-                      name="address.postalCode"
-                      value={signupData.address.postalCode}
-                      onChange={handleSignupChange}
-                      placeholder="400001"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="address.country" className="text-sm font-semibold text-slate-700">
-                      Country
-                    </label>
-                    <input
-                      id="address.country"
-                      name="address.country"
-                      value={signupData.address.country}
-                      onChange={handleSignupChange}
-                      placeholder="India"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                </section>
-
-                <section className="grid gap-3 sm:gap-4 sm:grid-cols-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="emergencyContact.name" className="text-sm font-semibold text-slate-700">
-                      Emergency Contact Name
-                    </label>
-                    <input
-                      id="emergencyContact.name"
-                      name="emergencyContact.name"
-                      value={signupData.emergencyContact.name}
-                      onChange={handleSignupChange}
-                      placeholder="Rahul Sharma"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="emergencyContact.phone" className="text-sm font-semibold text-slate-700">
-                      Emergency Phone
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoCallOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="emergencyContact.phone"
-                        name="emergencyContact.phone"
-                        value={signupData.emergencyContact.phone}
-                        onChange={handleSignupChange}
-                        placeholder="+91 98765 43100"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="emergencyContact.relation" className="text-sm font-semibold text-slate-700">
-                      Relationship
-                    </label>
-                    <input
-                      id="emergencyContact.relation"
-                      name="emergencyContact.relation"
-                      value={signupData.emergencyContact.relation}
-                      onChange={handleSignupChange}
-                      placeholder="Spouse"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                </section>
-
-                <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                  <input
-                    type="checkbox"
-                    name="termsAccepted"
-                    checked={signupData.termsAccepted}
-                    onChange={handleSignupChange}
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
-                  />
-                  <span>
-                    I have read and agree to Healiinn's{' '}
-                    <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
-                      terms of service
-                    </Link>{' '}
-                    and{' '}
-                    <Link to="/privacy" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
-                      privacy policy
-                    </Link>
-                    .
-                  </span>
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-                  style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
-                >
-                  {isSubmitting ? (
-                    'Submitting application...'
-                  ) : (
-                    <>
-                      Complete Signup
+                      Next
                       <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
-                    </>
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !signupData.termsAccepted}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      {isSubmitting ? (
+                        'Submitting application...'
+                      ) : (
+                        <>
+                          Complete Signup
+                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
+                  {signupStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={handlePreviousStep}
+                      className="flex h-12 w-full items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                    >
+                      Previous
+                    </button>
+                  )}
+                </div>
+                </form>
 
                 <p className="text-center text-sm text-slate-600">
                   Already have an account?{' '}
@@ -957,7 +1109,7 @@ const PatientLogin = () => {
                     Sign in instead
                   </button>
                 </p>
-              </motion.form>
+              </motion.div>
             )}
             </AnimatePresence>
           </div>

@@ -21,14 +21,13 @@ import {
 
 const DoctorLogin = () => {
   const navigate = useNavigate()
-  const [selectedModule, setSelectedModule] = useState('doctor') // 'doctor' | 'pharmacy' | 'laboratory' | 'patient'
+  const [selectedModule, setSelectedModule] = useState('doctor') // 'doctor' | 'pharmacy' | 'laboratory'
   const [mode, setMode] = useState('login') // 'login' | 'signup'
   
   // OTP-based login data states for each module
   const [doctorLoginData, setDoctorLoginData] = useState({ phone: '', otp: '', remember: true })
   const [pharmacyLoginData, setPharmacyLoginData] = useState({ phone: '', otp: '', remember: true })
   const [laboratoryLoginData, setLaboratoryLoginData] = useState({ phone: '', otp: '', remember: true })
-  const [patientLoginData, setPatientLoginData] = useState({ phone: '', otp: '', remember: true })
   
   // OTP flow states
   const [otpSent, setOtpSent] = useState(false)
@@ -36,11 +35,18 @@ const DoctorLogin = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   
+  // Signup step state (applies to all modules)
+  const [signupStep, setSignupStep] = useState(1)
+  const totalSignupSteps = 3 // Steps: 1=Basic Info, 2=Professional/Details, 3=Additional Info
+  
+  // Signup form password visibility states
+  const [showSignupPassword, setShowSignupPassword] = useState(false)
+  const [showSignupConfirm, setShowSignupConfirm] = useState(false)
+  
   // Refs for module buttons to measure their positions and widths
   const doctorButtonRef = useRef(null)
   const pharmacyButtonRef = useRef(null)
   const laboratoryButtonRef = useRef(null)
-  const patientButtonRef = useRef(null)
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
   
   // OTP input refs
@@ -151,14 +157,13 @@ const DoctorLogin = () => {
     if (selectedModule === 'doctor') return doctorLoginData
     if (selectedModule === 'pharmacy') return pharmacyLoginData
     if (selectedModule === 'laboratory') return laboratoryLoginData
-    return patientLoginData
+    return doctorLoginData // fallback
   }
 
   const setCurrentLoginData = (data) => {
     if (selectedModule === 'doctor') setDoctorLoginData(data)
     else if (selectedModule === 'pharmacy') setPharmacyLoginData(data)
     else if (selectedModule === 'laboratory') setLaboratoryLoginData(data)
-    else setPatientLoginData(data)
   }
   
   // OTP timer countdown
@@ -180,9 +185,7 @@ const DoctorLogin = () => {
           ? doctorButtonRef
           : selectedModule === 'pharmacy'
             ? pharmacyButtonRef
-            : selectedModule === 'laboratory'
-              ? laboratoryButtonRef
-              : patientButtonRef
+            : laboratoryButtonRef
 
       const activeButton = activeButtonRef.current
       if (!activeButton) return
@@ -215,11 +218,11 @@ const DoctorLogin = () => {
     setIsSubmitting(false)
     setOtpSent(false)
     setOtpTimer(0)
+    setSignupStep(1)
     // Reset OTP for all modules
     setDoctorLoginData({ phone: '', otp: '', remember: true })
     setPharmacyLoginData({ phone: '', otp: '', remember: true })
     setLaboratoryLoginData({ phone: '', otp: '', remember: true })
-    setPatientLoginData({ phone: '', otp: '', remember: true })
   }
 
   const handleModeChange = (nextMode) => {
@@ -227,11 +230,79 @@ const DoctorLogin = () => {
     setIsSubmitting(false)
     setOtpSent(false)
     setOtpTimer(0)
+    setSignupStep(1)
+    setShowSignupPassword(false)
+    setShowSignupConfirm(false)
+  }
+  
+  // Get current signup data based on selected module
+  const getCurrentSignupData = () => {
+    if (selectedModule === 'doctor') return doctorSignupData
+    if (selectedModule === 'pharmacy') return pharmacySignupData
+    if (selectedModule === 'laboratory') return laboratorySignupData
+    return null
+  }
+  
+  // Handle next step in signup
+  const handleNextStep = () => {
+    const currentData = getCurrentSignupData()
+    if (!currentData) return
+    
+    // Validate current step before proceeding
+    if (signupStep === 1) {
+      // Step 1 validation - Basic info (varies by module)
+      if (selectedModule === 'doctor') {
+        if (!currentData.firstName || !currentData.email || !currentData.phone || !currentData.password || !currentData.confirmPassword) {
+          window.alert('Please fill in all required fields in Step 1')
+          return
+        }
+      } else if (selectedModule === 'pharmacy') {
+        if (!currentData.pharmacyName || !currentData.email || !currentData.phone || !currentData.password || !currentData.confirmPassword) {
+          window.alert('Please fill in all required fields in Step 1')
+          return
+        }
+      } else if (selectedModule === 'laboratory') {
+        if (!currentData.labName || !currentData.email || !currentData.phone || !currentData.password || !currentData.confirmPassword) {
+          window.alert('Please fill in all required fields in Step 1')
+          return
+        }
+      }
+      
+      // Common password validation
+      if (currentData.password !== currentData.confirmPassword) {
+        window.alert('Passwords do not match')
+        return
+      }
+      if (currentData.password.length < 8) {
+        window.alert('Password must be at least 8 characters long')
+        return
+      }
+    }
+    
+    if (signupStep < totalSignupSteps) {
+      setSignupStep(signupStep + 1)
+    }
+  }
+  
+  // Handle previous step in signup
+  const handlePreviousStep = () => {
+    if (signupStep > 1) {
+      setSignupStep(signupStep - 1)
+    }
   }
 
   const handleLoginChange = (event) => {
     const { name, value, type, checked } = event.target
     const currentData = getCurrentLoginData()
+    // Restrict phone to 10 digits only
+    if (name === 'phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setCurrentLoginData({
+        ...currentData,
+        [name]: numericValue,
+      })
+      return
+    }
     setCurrentLoginData({
       ...currentData,
       [name]: type === 'checkbox' ? checked : value,
@@ -298,7 +369,6 @@ const DoctorLogin = () => {
         doctor: '/api/doctors/auth/send-otp',
         pharmacy: '/api/pharmacy/auth/send-otp',
         laboratory: '/api/laboratory/auth/send-otp',
-        patient: '/api/patients/auth/send-otp',
       }
       
       try {
@@ -375,7 +445,6 @@ const DoctorLogin = () => {
         doctor: '/api/doctors/auth/verify-otp',
         pharmacy: '/api/pharmacy/auth/verify-otp',
         laboratory: '/api/laboratory/auth/verify-otp',
-        patient: '/api/patients/auth/verify-otp',
       }
 
       // Dashboard routes for each module
@@ -383,7 +452,6 @@ const DoctorLogin = () => {
         doctor: '/doctor/dashboard',
         pharmacy: '/pharmacy/dashboard',
         laboratory: '/laboratory/dashboard',
-        patient: '/patient/dashboard',
       }
 
       // Helper function to simulate login (for frontend testing without backend)
@@ -532,6 +600,16 @@ const DoctorLogin = () => {
       return
     }
 
+    // Restrict phone to 10 digits only
+    if (name === 'phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setDoctorSignupData((prev) => ({
+        ...prev,
+        [name]: numericValue,
+      }))
+      return
+    }
+
     setDoctorSignupData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
@@ -674,6 +752,31 @@ const DoctorLogin = () => {
           return { ...prev, deliveryOptions: [...options, value] }
         } else if (!checked && options.includes(value)) {
           return { ...prev, deliveryOptions: options.filter((o) => o !== value) }
+        }
+        return prev
+      })
+      return
+    }
+
+    // Restrict phone fields to 10 digits only
+    if (name === 'phone' || name === 'contactPerson.phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setPharmacySignupData((prev) => {
+        if (name === 'phone') {
+          return {
+            ...prev,
+            phone: numericValue,
+          }
+        }
+        if (name.startsWith('contactPerson.')) {
+          const key = name.split('.')[1]
+          return {
+            ...prev,
+            contactPerson: {
+              ...prev.contactPerson,
+              [key]: numericValue,
+            },
+          }
         }
         return prev
       })
@@ -836,6 +939,31 @@ const DoctorLogin = () => {
           servicesOffered: [...prev.servicesOffered, serviceValue],
         }))
       }
+      return
+    }
+
+    // Restrict phone fields to 10 digits only
+    if (name === 'phone' || name === 'contactPerson.phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setLaboratorySignupData((prev) => {
+        if (name === 'phone') {
+          return {
+            ...prev,
+            phone: numericValue,
+          }
+        }
+        if (name.startsWith('contactPerson.')) {
+          const key = name.split('.')[1]
+          return {
+            ...prev,
+            contactPerson: {
+              ...prev.contactPerson,
+              [key]: numericValue,
+            },
+          }
+        }
+        return prev
+      })
       return
     }
 
@@ -1065,21 +1193,6 @@ const DoctorLogin = () => {
                 >
                   Laboratory
                 </motion.button>
-                <motion.button
-                  ref={patientButtonRef}
-                  type="button"
-                  onClick={() => handleModuleChange('patient')}
-                  className={`relative z-10 rounded-xl px-4 py-2 text-xs font-semibold sm:px-6 sm:py-2.5 sm:text-sm ${
-                    selectedModule === 'patient'
-                      ? 'text-white'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-                >
-                  Patient
-                </motion.button>
               </div>
             </div>
 
@@ -1111,7 +1224,9 @@ const DoctorLogin = () => {
                       onChange={handleLoginChange}
                       autoComplete="tel"
                       required
-                      placeholder="+91 98765 43210"
+                      placeholder="9876543210"
+                      maxLength={10}
+                      inputMode="numeric"
                       disabled={otpSent}
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 disabled:bg-slate-50 disabled:cursor-not-allowed"
                       style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
@@ -1225,15 +1340,51 @@ const DoctorLogin = () => {
                 </p>
               </motion.form>
             ) : selectedModule === 'doctor' ? (
-              <motion.form
+              <motion.div
                 key="signup-doctor"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="flex flex-col gap-5 sm:gap-6"
-                onSubmit={handleDoctorSignupSubmit}
               >
+                {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  {[1, 2, 3].map((step) => (
+                    <div key={step} className="flex items-center">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition ${
+                          signupStep >= step
+                            ? 'bg-[#11496c] text-white'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {step}
+                      </div>
+                      {step < 3 && (
+                        <div
+                          className={`h-1 w-8 sm:w-12 transition ${
+                            signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center text-sm text-slate-600 mb-4">
+                  Step {signupStep} of {totalSignupSteps}
+                </div>
+
+                <form onSubmit={handleDoctorSignupSubmit} className="flex flex-col gap-5 sm:gap-6">
+                {/* Step 1: Basic Information */}
+                {signupStep === 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h3>
                 {/* Basic Information */}
                 <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
@@ -1306,7 +1457,9 @@ const DoctorLogin = () => {
                         value={doctorSignupData.phone}
                         onChange={handleDoctorSignupChange}
                         required
-                        placeholder="+91 98765 43210"
+                        placeholder="9876543210"
+                        maxLength={10}
+                        inputMode="numeric"
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -1376,7 +1529,18 @@ const DoctorLogin = () => {
                     </div>
                   </div>
                 </section>
+                  </motion.div>
+                )}
 
+                {/* Step 2: Professional Information */}
+                {signupStep === 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Professional Information</h3>
                 {/* Professional Information */}
                 <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
@@ -1632,7 +1796,18 @@ const DoctorLogin = () => {
                     ))}
                   </div>
                 </section>
+                  </motion.div>
+                )}
 
+                {/* Step 3: Clinic Details & Terms */}
+                {signupStep === 3 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Clinic Details</h3>
                 {/* Clinic Details */}
                 <section>
                   <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
@@ -1769,22 +1944,49 @@ const DoctorLogin = () => {
                     .
                   </span>
                 </label>
+                  </motion.div>
+                )}
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-                  style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
-                >
-                  {isSubmitting ? (
-                    'Submitting application...'
-                  ) : (
-                    <>
-                      Complete Signup
+                {/* Navigation Buttons */}
+                <div className="flex flex-col gap-3">
+                  {signupStep < totalSignupSteps ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      Next
                       <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
-                    </>
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !doctorSignupData.termsAccepted}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      {isSubmitting ? (
+                        'Submitting application...'
+                      ) : (
+                        <>
+                          Complete Signup
+                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
+                  {signupStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={handlePreviousStep}
+                      className="flex h-12 w-full items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                    >
+                      Previous
+                    </button>
+                  )}
+                </div>
+                </form>
 
                 <p className="text-center text-sm text-slate-600">
                   Already have an account?{' '}
@@ -1796,17 +1998,53 @@ const DoctorLogin = () => {
                     Sign in instead
                   </button>
                 </p>
-              </motion.form>
+              </motion.div>
             ) : selectedModule === 'pharmacy' ? (
-              <motion.form
+              <motion.div
                 key="signup-pharmacy"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="flex flex-col gap-5 sm:gap-6"
-                onSubmit={handlePharmacySignupSubmit}
               >
+                {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  {[1, 2, 3].map((step) => (
+                    <div key={step} className="flex items-center">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition ${
+                          signupStep >= step
+                            ? 'bg-[#11496c] text-white'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {step}
+                      </div>
+                      {step < 3 && (
+                        <div
+                          className={`h-1 w-8 sm:w-12 transition ${
+                            signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center text-sm text-slate-600 mb-4">
+                  Step {signupStep} of {totalSignupSteps}
+                </div>
+
+                <form onSubmit={handlePharmacySignupSubmit} className="flex flex-col gap-5 sm:gap-6">
+                {/* Step 1: Basic Information */}
+                {signupStep === 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h3>
                 {/* Basic Information */}
                 <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5 sm:col-span-2">
@@ -1884,7 +2122,9 @@ const DoctorLogin = () => {
                         value={pharmacySignupData.phone}
                         onChange={handlePharmacySignupChange}
                         required
-                        placeholder="+91 98765 43210"
+                        placeholder="9876543210"
+                        maxLength={10}
+                        inputMode="numeric"
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -1954,7 +2194,18 @@ const DoctorLogin = () => {
                     </div>
                   </div>
                 </section>
+                  </motion.div>
+                )}
 
+                {/* Step 2: Business Details */}
+                {signupStep === 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Business Details</h3>
                 {/* License & GST */}
                 <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
@@ -2152,7 +2403,18 @@ const DoctorLogin = () => {
                     </div>
                   </div>
                 </section>
+                  </motion.div>
+                )}
 
+                {/* Step 3: Contact Person & Terms */}
+                {signupStep === 3 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Contact Person</h3>
                 {/* Contact Person */}
                 <section>
                   <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
@@ -2187,7 +2449,9 @@ const DoctorLogin = () => {
                           name="contactPerson.phone"
                           value={pharmacySignupData.contactPerson.phone}
                           onChange={handlePharmacySignupChange}
-                          placeholder="+91 98765 43210"
+                          placeholder="9876543210"
+                          maxLength={10}
+                          inputMode="numeric"
                           className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                           style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                         />
@@ -2237,22 +2501,49 @@ const DoctorLogin = () => {
                     .
                   </span>
                 </label>
+                  </motion.div>
+                )}
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-                  style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
-                >
-                  {isSubmitting ? (
-                    'Submitting application...'
-                  ) : (
-                    <>
-                      Complete Signup
+                {/* Navigation Buttons */}
+                <div className="flex flex-col gap-3">
+                  {signupStep < totalSignupSteps ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      Next
                       <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
-                    </>
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !pharmacySignupData.termsAccepted}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      {isSubmitting ? (
+                        'Submitting application...'
+                      ) : (
+                        <>
+                          Complete Signup
+                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
+                  {signupStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={handlePreviousStep}
+                      className="flex h-12 w-full items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                    >
+                      Previous
+                    </button>
+                  )}
+                </div>
+                </form>
 
                 <p className="text-center text-sm text-slate-600">
                   Already have an account?{' '}
@@ -2264,17 +2555,53 @@ const DoctorLogin = () => {
                     Sign in instead
                   </button>
                 </p>
-              </motion.form>
+              </motion.div>
             ) : selectedModule === 'laboratory' ? (
-              <motion.form
+              <motion.div
                 key="signup-laboratory"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="flex flex-col gap-5 sm:gap-6"
-                onSubmit={handleLaboratorySignupSubmit}
               >
+                {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  {[1, 2, 3].map((step) => (
+                    <div key={step} className="flex items-center">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition ${
+                          signupStep >= step
+                            ? 'bg-[#11496c] text-white'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {step}
+                      </div>
+                      {step < 3 && (
+                        <div
+                          className={`h-1 w-8 sm:w-12 transition ${
+                            signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center text-sm text-slate-600 mb-4">
+                  Step {signupStep} of {totalSignupSteps}
+                </div>
+
+                <form onSubmit={handleLaboratorySignupSubmit} className="flex flex-col gap-5 sm:gap-6">
+                {/* Step 1: Basic Information */}
+                {signupStep === 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h3>
                 {/* Basic Information */}
                 <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5 sm:col-span-2">
@@ -2352,7 +2679,9 @@ const DoctorLogin = () => {
                         value={laboratorySignupData.phone}
                         onChange={handleLaboratorySignupChange}
                         required
-                        placeholder="+91 98765 43210"
+                        placeholder="9876543210"
+                        maxLength={10}
+                        inputMode="numeric"
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -2422,7 +2751,18 @@ const DoctorLogin = () => {
                     </div>
                   </div>
                 </section>
+                  </motion.div>
+                )}
 
+                {/* Step 2: Business Details */}
+                {signupStep === 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Business Details</h3>
                 {/* License */}
                 <section>
                   <div className="flex flex-col gap-1.5">
@@ -2700,7 +3040,18 @@ const DoctorLogin = () => {
                     </div>
                   </div>
                 </section>
+                  </motion.div>
+                )}
 
+                {/* Step 3: Contact Person & Terms */}
+                {signupStep === 3 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Contact Person</h3>
                 {/* Contact Person */}
                 <section>
                   <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
@@ -2735,7 +3086,9 @@ const DoctorLogin = () => {
                           name="contactPerson.phone"
                           value={laboratorySignupData.contactPerson.phone}
                           onChange={handleLaboratorySignupChange}
-                          placeholder="+91 98765 43210"
+                          placeholder="9876543210"
+                          maxLength={10}
+                          inputMode="numeric"
                           className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                           style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                         />
@@ -2785,22 +3138,49 @@ const DoctorLogin = () => {
                     .
                   </span>
                 </label>
+                  </motion.div>
+                )}
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-                  style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
-                >
-                  {isSubmitting ? (
-                    'Submitting application...'
-                  ) : (
-                    <>
-                      Complete Signup
+                {/* Navigation Buttons */}
+                <div className="flex flex-col gap-3">
+                  {signupStep < totalSignupSteps ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      Next
                       <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
-                    </>
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !laboratorySignupData.termsAccepted}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      {isSubmitting ? (
+                        'Submitting application...'
+                      ) : (
+                        <>
+                          Complete Signup
+                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
+                  {signupStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={handlePreviousStep}
+                      className="flex h-12 w-full items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                    >
+                      Previous
+                    </button>
+                  )}
+                </div>
+                </form>
 
                 <p className="text-center text-sm text-slate-600">
                   Already have an account?{' '}
@@ -2812,7 +3192,7 @@ const DoctorLogin = () => {
                     Sign in instead
                   </button>
                 </p>
-              </motion.form>
+              </motion.div>
             ) : null}
             </AnimatePresence>
           </div>
