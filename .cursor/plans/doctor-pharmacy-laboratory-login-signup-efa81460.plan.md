@@ -6,6 +6,7 @@
 Create a single login/signup page (`DoctorLogin.jsx`) that allows users to choose between three modules (Doctor, Pharmacy, Laboratory) and provides separate login/signup forms for each based on their backend model requirements.
 
 **Important Implementation Strategy:**
+
 - **DO NOT** build the entire page at once. Start with basic structure first, then enhance incrementally.
 - **Phase 1-2**: Create minimal working UI with module selection and basic login form only
 - **Phase 3-5**: Add signup forms one module at a time (Doctor → Pharmacy → Laboratory)
