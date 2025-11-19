@@ -19,6 +19,8 @@ import PatientLogin from './modules/patient/patient-pages/PatientLogin'
 import PatientTransactions from './modules/patient/patient-pages/PatientTransactions'
 import PatientAppointments from './modules/patient/patient-pages/PatientAppointments'
 import PatientOrders from './modules/patient/patient-pages/PatientOrders'
+import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
+import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
 import DoctorDashboard from './modules/doctor/doctor-pages/DoctorDashboard'
 import DoctorProfile from './modules/doctor/doctor-pages/DoctorProfile'
 import DoctorWallet from './modules/doctor/doctor-pages/DoctorWallet'
@@ -111,15 +113,7 @@ function App() {
           <Route path="/patient/*" element={<PatientRoutes />} />
 
           {/* Doctor Routes */}
-          <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-          <Route path="/doctor/wallet" element={<DoctorWallet />} />
-          <Route path="/doctor/wallet/balance" element={<WalletBalance />} />
-          <Route path="/doctor/wallet/earning" element={<WalletEarning />} />
-          <Route path="/doctor/wallet/withdraw" element={<WalletWithdraw />} />
-          <Route path="/doctor/wallet/transaction" element={<WalletTransaction />} />
-          <Route path="/doctor/patients" element={<DoctorPatients />} />
-          <Route path="/doctor/consultations" element={<DoctorConsultations />} />
-          <Route path="/doctor/profile" element={<DoctorProfile />} />
+          <Route path="/doctor/*" element={<DoctorRoutes />} />
 
           {/* Pharmacy Routes */}
           <Route
