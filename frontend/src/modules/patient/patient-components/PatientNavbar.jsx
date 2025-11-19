@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   IoHomeOutline,
   IoBagHandleOutline,
@@ -24,15 +24,23 @@ const PatientNavbar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const toggleButtonRef = useRef(null)
   const navigate = useNavigate()
+  const location = useLocation()
+  
+  // Hide top header only on dashboard page
+  const isDashboardPage = location.pathname === '/patient/dashboard' || location.pathname === '/patient/'
+  // Hide navbar completely on login page
+  const isLoginPage = location.pathname === '/patient/login'
 
   const mobileLinkBase =
-    'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-2'
+    'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2'
+  const mobileLinkFocusStyle = { '--tw-ring-color': 'rgba(17, 73, 108, 0.7)' }
 
   const mobileIconWrapper =
     'flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all duration-200'
 
   const desktopLinkBase =
-    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-2'
+    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2'
+  const desktopLinkFocusStyle = { '--tw-ring-color': 'rgba(17, 73, 108, 0.7)' }
 
   const handleSidebarToggle = () => {
     if (isSidebarOpen) {
@@ -56,55 +64,59 @@ const PatientNavbar = () => {
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/95 px-4 py-3 backdrop-blur shadow md:px-6">
-        <div className="flex items-center">
-          <img
-            src={healinnLogo}
-            alt="Healiinn"
-            className="h-8 w-auto object-contain"
-            loading="lazy"
-          />
-        </div>
-        <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg shadow-blue-200/40 ring-1 ring-slate-200 md:flex">
-          {navItems.map(({ id, label, to, Icon }) => (
-            <NavLink
-              key={id}
-              to={to}
-              className={({ isActive }) =>
-                `${desktopLinkBase} ${
-                  isActive ? 'bg-blue-500 text-white shadow-sm shadow-blue-400/40' : 'hover:bg-slate-100 hover:text-slate-900'
-                }`
-              }
-              end={id === 'home'}
+      {/* Top Header - Hidden on dashboard and login pages */}
+      {!isDashboardPage && !isLoginPage && (
+        <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/95 px-4 py-3 backdrop-blur shadow md:px-6">
+          <div className="flex items-center">
+            <img
+              src={healinnLogo}
+              alt="Healiinn"
+              className="h-8 w-auto object-contain"
+              loading="lazy"
+            />
+          </div>
+          <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg ring-1 ring-slate-200 md:flex" style={{ boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.1), 0 4px 6px -2px rgba(17, 73, 108, 0.05)' }}>
+            {navItems.map(({ id, label, to, Icon }) => (
+              <NavLink
+                key={id}
+                to={to}
+                className={({ isActive }) =>
+                  `${desktopLinkBase} ${
+                    isActive ? 'text-white shadow-sm' : 'hover:bg-slate-100 hover:text-slate-900'
+                  }`
+                }
+                style={({ isActive }) => isActive ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
+                end={id === 'home'}
+              >
+                {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+                <span>{label}</span>
+              </NavLink>
+            ))}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-red-500 transition-all duration-200 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
             >
-              {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
-              <span>{label}</span>
-            </NavLink>
-          ))}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-red-500 transition-all duration-200 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-          >
-            Logout
-          </button>
-        </nav>
-        <div className="flex items-center gap-2">
-          <IoNotificationsOutline
-            aria-hidden="true"
-            className="text-xl text-slate-500 md:hidden"
-          />
-          <button
-            type="button"
-            ref={toggleButtonRef}
-            className="md:hidden"
-            aria-label="Toggle navigation menu"
-            onClick={handleSidebarToggle}
-          >
-            <IoMenuOutline className="text-2xl text-slate-600" aria-hidden="true" />
-          </button>
-        </div>
-      </header>
+              Logout
+            </button>
+          </nav>
+          <div className="flex items-center gap-2">
+            <IoNotificationsOutline
+              aria-hidden="true"
+              className="text-xl text-slate-500 md:hidden"
+            />
+            <button
+              type="button"
+              ref={toggleButtonRef}
+              className="md:hidden"
+              aria-label="Toggle navigation menu"
+              onClick={handleSidebarToggle}
+            >
+              <IoMenuOutline className="text-2xl text-slate-600" aria-hidden="true" />
+            </button>
+          </div>
+        </header>
+      )}
 
       <PatientSidebar
         isOpen={isSidebarOpen}
@@ -113,16 +125,18 @@ const PatientNavbar = () => {
         onLogout={handleLogout}
       />
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around gap-1 border-t border-slate-200 bg-white/95 px-3 py-2 backdrop-blur md:hidden">
+      {!isLoginPage && (
+        <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around gap-1 border-t border-slate-200 bg-white/95 px-3 py-2 backdrop-blur md:hidden">
         {navItems.map(({ id, label, to, Icon }) => (
           <NavLink
             key={id}
             to={to}
             className={({ isActive }) =>
               `${mobileLinkBase} ${
-                isActive ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                isActive ? '' : 'text-slate-400 hover:text-slate-600'
               }`
             }
+            style={({ isActive }) => isActive ? { color: '#11496c' } : {}}
             end={id === 'home'}
           >
             {({ isActive }) => (
@@ -130,9 +144,10 @@ const PatientNavbar = () => {
                 <span
                   className={`${mobileIconWrapper} ${
                     isActive
-                      ? 'bg-blue-500 text-white shadow-md shadow-blue-400/40'
+                      ? 'text-white shadow-md'
                       : 'bg-slate-100 text-slate-500'
                   }`}
+                  style={isActive ? { backgroundColor: '#11496c', boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.2), 0 2px 4px -1px rgba(17, 73, 108, 0.1)' } : {}}
                 >
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
@@ -141,7 +156,8 @@ const PatientNavbar = () => {
             )}
           </NavLink>
         ))}
-      </nav>
+        </nav>
+      )}
     </>
   )
 }

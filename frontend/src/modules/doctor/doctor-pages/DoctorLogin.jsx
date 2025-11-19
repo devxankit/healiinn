@@ -1,0 +1,3219 @@
+import { useState, useRef, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  IoEyeOffOutline,
+  IoEyeOutline,
+  IoMailOutline,
+  IoLockClosedOutline,
+  IoArrowForwardOutline,
+  IoCallOutline,
+  IoPersonOutline,
+  IoLocationOutline,
+  IoBriefcaseOutline,
+  IoMedicalOutline,
+  IoSchoolOutline,
+  IoLanguageOutline,
+  IoVideocamOutline,
+  IoTimeOutline,
+  IoDocumentTextOutline,
+} from 'react-icons/io5'
+
+const DoctorLogin = () => {
+  const navigate = useNavigate()
+  const [selectedModule, setSelectedModule] = useState('doctor') // 'doctor' | 'pharmacy' | 'laboratory'
+  const [mode, setMode] = useState('login') // 'login' | 'signup'
+  
+  // OTP-based login data states for each module
+  const [doctorLoginData, setDoctorLoginData] = useState({ phone: '', otp: '', remember: true })
+  const [pharmacyLoginData, setPharmacyLoginData] = useState({ phone: '', otp: '', remember: true })
+  const [laboratoryLoginData, setLaboratoryLoginData] = useState({ phone: '', otp: '', remember: true })
+  
+  // OTP flow states
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpTimer, setOtpTimer] = useState(0)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSendingOtp, setIsSendingOtp] = useState(false)
+  
+  // Signup step state (applies to all modules)
+  const [signupStep, setSignupStep] = useState(1)
+  const totalSignupSteps = 3 // Steps: 1=Basic Info, 2=Professional/Details, 3=Additional Info
+  
+  // Signup form password visibility states
+  const [showSignupPassword, setShowSignupPassword] = useState(false)
+  const [showSignupConfirm, setShowSignupConfirm] = useState(false)
+  
+  // Refs for module buttons to measure their positions and widths
+  const doctorButtonRef = useRef(null)
+  const pharmacyButtonRef = useRef(null)
+  const laboratoryButtonRef = useRef(null)
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
+  
+  // OTP input refs
+  const otpInputRefs = useRef([])
+
+  // Doctor signup state
+  const initialDoctorSignupState = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirmPassword: '',
+    specialization: '',
+    gender: '',
+    licenseNumber: '',
+    experienceYears: '',
+    qualification: '',
+    bio: '',
+    consultationFee: '',
+    languages: [],
+    consultationModes: [],
+    education: [{ institution: '', degree: '', year: '' }],
+    clinicDetails: {
+      name: '',
+      address: {
+        line1: '',
+        line2: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        country: '',
+      },
+    },
+    termsAccepted: false,
+  }
+  const [doctorSignupData, setDoctorSignupData] = useState(initialDoctorSignupState)
+
+  // Pharmacy signup state
+  const initialPharmacySignupState = {
+    pharmacyName: '',
+    ownerName: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirmPassword: '',
+    licenseNumber: '',
+    gstNumber: '',
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: '',
+    },
+    deliveryOptions: [],
+    serviceRadiusKm: '',
+    timings: '',
+    contactPerson: {
+      name: '',
+      phone: '',
+      email: '',
+    },
+    termsAccepted: false,
+  }
+  const [pharmacySignupData, setPharmacySignupData] = useState(initialPharmacySignupState)
+
+  // Laboratory signup state
+  const initialLaboratorySignupState = {
+    labName: '',
+    ownerName: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirmPassword: '',
+    licenseNumber: '',
+    certifications: [],
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: '',
+    },
+    servicesOffered: [],
+    testsOffered: '',
+    timings: '',
+    contactPerson: {
+      name: '',
+      phone: '',
+      email: '',
+    },
+    operatingHours: {
+      opening: '',
+      closing: '',
+      days: [],
+    },
+    termsAccepted: false,
+  }
+  const [laboratorySignupData, setLaboratorySignupData] = useState(initialLaboratorySignupState)
+
+  const isLogin = mode === 'login'
+
+  // Get current login data based on selected module
+  const getCurrentLoginData = () => {
+    if (selectedModule === 'doctor') return doctorLoginData
+    if (selectedModule === 'pharmacy') return pharmacyLoginData
+    if (selectedModule === 'laboratory') return laboratoryLoginData
+    return doctorLoginData // fallback
+  }
+
+  const setCurrentLoginData = (data) => {
+    if (selectedModule === 'doctor') setDoctorLoginData(data)
+    else if (selectedModule === 'pharmacy') setPharmacyLoginData(data)
+    else if (selectedModule === 'laboratory') setLaboratoryLoginData(data)
+  }
+  
+  // OTP timer countdown
+  useEffect(() => {
+    if (otpTimer > 0) {
+      const timer = setTimeout(() => setOtpTimer(otpTimer - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [otpTimer])
+
+  // Update indicator position and width based on selected button
+  useEffect(() => {
+    const updateIndicatorPosition = () => {
+      const container = doctorButtonRef.current?.parentElement
+      if (!container) return
+
+      const activeButtonRef =
+        selectedModule === 'doctor'
+          ? doctorButtonRef
+          : selectedModule === 'pharmacy'
+            ? pharmacyButtonRef
+            : laboratoryButtonRef
+
+      const activeButton = activeButtonRef.current
+      if (!activeButton) return
+
+      const containerRect = container.getBoundingClientRect()
+      const buttonRect = activeButton.getBoundingClientRect()
+
+      setIndicatorStyle({
+        left: buttonRect.left - containerRect.left,
+        width: buttonRect.width,
+      })
+    }
+
+    // Use requestAnimationFrame to ensure DOM is fully rendered
+    const timeoutId = setTimeout(() => {
+      requestAnimationFrame(updateIndicatorPosition)
+    }, 0)
+
+    // Update on window resize
+    window.addEventListener('resize', updateIndicatorPosition)
+    
+    return () => {
+      clearTimeout(timeoutId)
+      window.removeEventListener('resize', updateIndicatorPosition)
+    }
+  }, [selectedModule])
+
+  const handleModuleChange = (module) => {
+    setSelectedModule(module)
+    setIsSubmitting(false)
+    setOtpSent(false)
+    setOtpTimer(0)
+    setSignupStep(1)
+    // Reset OTP for all modules
+    setDoctorLoginData({ phone: '', otp: '', remember: true })
+    setPharmacyLoginData({ phone: '', otp: '', remember: true })
+    setLaboratoryLoginData({ phone: '', otp: '', remember: true })
+  }
+
+  const handleModeChange = (nextMode) => {
+    setMode(nextMode)
+    setIsSubmitting(false)
+    setOtpSent(false)
+    setOtpTimer(0)
+    setSignupStep(1)
+    setShowSignupPassword(false)
+    setShowSignupConfirm(false)
+  }
+  
+  // Get current signup data based on selected module
+  const getCurrentSignupData = () => {
+    if (selectedModule === 'doctor') return doctorSignupData
+    if (selectedModule === 'pharmacy') return pharmacySignupData
+    if (selectedModule === 'laboratory') return laboratorySignupData
+    return null
+  }
+  
+  // Handle next step in signup
+  const handleNextStep = () => {
+    const currentData = getCurrentSignupData()
+    if (!currentData) return
+    
+    // Validate current step before proceeding
+    if (signupStep === 1) {
+      // Step 1 validation - Basic info (varies by module)
+      if (selectedModule === 'doctor') {
+        if (!currentData.firstName || !currentData.email || !currentData.phone || !currentData.password || !currentData.confirmPassword) {
+          window.alert('Please fill in all required fields in Step 1')
+          return
+        }
+      } else if (selectedModule === 'pharmacy') {
+        if (!currentData.pharmacyName || !currentData.email || !currentData.phone || !currentData.password || !currentData.confirmPassword) {
+          window.alert('Please fill in all required fields in Step 1')
+          return
+        }
+      } else if (selectedModule === 'laboratory') {
+        if (!currentData.labName || !currentData.email || !currentData.phone || !currentData.password || !currentData.confirmPassword) {
+          window.alert('Please fill in all required fields in Step 1')
+          return
+        }
+      }
+      
+      // Common password validation
+      if (currentData.password !== currentData.confirmPassword) {
+        window.alert('Passwords do not match')
+        return
+      }
+      if (currentData.password.length < 8) {
+        window.alert('Password must be at least 8 characters long')
+        return
+      }
+    }
+    
+    if (signupStep < totalSignupSteps) {
+      setSignupStep(signupStep + 1)
+    }
+  }
+  
+  // Handle previous step in signup
+  const handlePreviousStep = () => {
+    if (signupStep > 1) {
+      setSignupStep(signupStep - 1)
+    }
+  }
+
+  const handleLoginChange = (event) => {
+    const { name, value, type, checked } = event.target
+    const currentData = getCurrentLoginData()
+    // Restrict phone to 10 digits only
+    if (name === 'phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setCurrentLoginData({
+        ...currentData,
+        [name]: numericValue,
+      })
+      return
+    }
+    setCurrentLoginData({
+      ...currentData,
+      [name]: type === 'checkbox' ? checked : value,
+    })
+  }
+  
+  // Handle OTP input change
+  const handleOtpChange = (index, value) => {
+    if (!/^\d*$/.test(value)) return // Only allow digits
+    
+    const currentData = getCurrentLoginData()
+    const otpArray = (currentData.otp || '').split('').slice(0, 6)
+    otpArray[index] = value.slice(-1) // Take only last character
+    const newOtp = otpArray.join('').padEnd(6, ' ').slice(0, 6).replace(/\s/g, '')
+    
+    setCurrentLoginData({
+      ...currentData,
+      otp: newOtp,
+    })
+    
+    // Auto-focus next input
+    if (value && index < 5 && otpInputRefs.current[index + 1]) {
+      otpInputRefs.current[index + 1].focus()
+    }
+  }
+  
+  // Handle OTP paste
+  const handleOtpPaste = (e) => {
+    e.preventDefault()
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (pastedData.length === 6) {
+      const currentData = getCurrentLoginData()
+      setCurrentLoginData({
+        ...currentData,
+        otp: pastedData,
+      })
+      // Focus last input
+      if (otpInputRefs.current[5]) {
+        otpInputRefs.current[5].focus()
+      }
+    }
+  }
+  
+  // Handle OTP key down (backspace navigation)
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+      otpInputRefs.current[index - 1]?.focus()
+    }
+  }
+  
+  // Send OTP function
+  const handleSendOtp = async () => {
+    const loginData = getCurrentLoginData()
+    
+    if (!loginData.phone || loginData.phone.length < 10) {
+      window.alert('Please enter a valid mobile number')
+      return
+    }
+    
+    setIsSendingOtp(true)
+    
+    try {
+      const endpoints = {
+        doctor: '/api/doctors/auth/send-otp',
+        pharmacy: '/api/pharmacy/auth/send-otp',
+        laboratory: '/api/laboratory/auth/send-otp',
+      }
+      
+      try {
+        const response = await fetch(endpoints[selectedModule], {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ phone: loginData.phone }),
+        })
+        
+        if (!response.ok) {
+          // Simulate OTP sending for frontend testing
+          console.log('Backend not available, simulating OTP send')
+          setOtpSent(true)
+          setOtpTimer(60) // 60 seconds timer
+          setIsSendingOtp(false)
+          return
+        }
+        
+        const data = await response.json()
+        if (data.success || response.ok) {
+          setOtpSent(true)
+          setOtpTimer(60) // 60 seconds timer
+        } else {
+          window.alert(data.message || 'Failed to send OTP. Please try again.')
+        }
+      } catch (error) {
+        // Simulate OTP sending for frontend testing
+        console.log('Backend not available, simulating OTP send:', error.message)
+        setOtpSent(true)
+        setOtpTimer(60)
+      }
+    } catch (error) {
+      console.error('Send OTP error:', error)
+      window.alert('An error occurred. Please try again.')
+    } finally {
+      setIsSendingOtp(false)
+    }
+  }
+  
+  // Resend OTP function
+  const handleResendOtp = () => {
+    setOtpTimer(0)
+    setOtpSent(false)
+    const currentData = getCurrentLoginData()
+    setCurrentLoginData({ ...currentData, otp: '' })
+    handleSendOtp()
+  }
+
+  const handleLoginSubmit = async (event) => {
+    event.preventDefault()
+    if (isSubmitting || isSendingOtp) return
+    
+    const loginData = getCurrentLoginData()
+    
+    // If OTP not sent, send it first
+    if (!otpSent) {
+      await handleSendOtp()
+      return
+    }
+    
+    // Verify OTP
+    if (!loginData.otp || loginData.otp.length !== 6) {
+      window.alert('Please enter the 6-digit OTP')
+      return
+    }
+
+    setIsSubmitting(true)
+    
+    try {
+      // API endpoints based on module
+      const endpoints = {
+        doctor: '/api/doctors/auth/verify-otp',
+        pharmacy: '/api/pharmacy/auth/verify-otp',
+        laboratory: '/api/laboratory/auth/verify-otp',
+      }
+
+      // Dashboard routes for each module
+      const dashboardRoutes = {
+        doctor: '/doctor/dashboard',
+        pharmacy: '/pharmacy/dashboard',
+        laboratory: '/laboratory/dashboard',
+      }
+
+      // Helper function to simulate login (for frontend testing without backend)
+      const simulateLogin = () => {
+        const tokenKey = `${selectedModule}AuthToken`
+        const refreshTokenKey = `${selectedModule}RefreshToken`
+        const testToken = `test-token-for-${selectedModule}-frontend-testing`
+        const testRefreshToken = `test-refresh-token-for-${selectedModule}-frontend-testing`
+
+        if (loginData.remember) {
+          localStorage.setItem(tokenKey, testToken)
+          localStorage.setItem(refreshTokenKey, testRefreshToken)
+        } else {
+          sessionStorage.setItem(tokenKey, testToken)
+          sessionStorage.setItem(refreshTokenKey, testRefreshToken)
+        }
+
+        // Redirect to appropriate dashboard
+        navigate(dashboardRoutes[selectedModule], { replace: true })
+      }
+
+      try {
+        const response = await fetch(endpoints[selectedModule], {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phone: loginData.phone,
+            otp: loginData.otp,
+          }),
+        })
+
+        // If API is not available (404 or other errors), simulate login for frontend testing
+        if (!response.ok) {
+          // Simulate login for all modules when backend is not available
+          simulateLogin()
+          return
+        }
+
+        const data = await response.json()
+
+        // Store tokens from backend response
+        if (data.data?.tokens) {
+          if (loginData.remember) {
+            localStorage.setItem(`${selectedModule}AuthToken`, data.data.tokens.accessToken)
+            localStorage.setItem(`${selectedModule}RefreshToken`, data.data.tokens.refreshToken)
+          } else {
+            sessionStorage.setItem(`${selectedModule}AuthToken`, data.data.tokens.accessToken)
+            sessionStorage.setItem(`${selectedModule}RefreshToken`, data.data.tokens.refreshToken)
+          }
+        }
+
+        // Redirect to appropriate dashboard
+        navigate(dashboardRoutes[selectedModule], { replace: true })
+      } catch (fetchError) {
+        // If network error or other fetch issues, simulate login for frontend testing
+        // This handles cases where backend is not running or network is unavailable
+        console.log('Backend not available, simulating login for frontend testing:', fetchError.message)
+        simulateLogin()
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      window.alert('An error occurred. Please try again.')
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDoctorSignupChange = (event) => {
+    const { name, value, type, checked } = event.target
+
+    if (name === 'termsAccepted') {
+      setDoctorSignupData((prev) => ({
+        ...prev,
+        termsAccepted: checked,
+      }))
+      return
+    }
+
+    if (name.startsWith('clinicDetails.address.')) {
+      const key = name.split('.')[2]
+      setDoctorSignupData((prev) => ({
+        ...prev,
+        clinicDetails: {
+          ...prev.clinicDetails,
+          address: {
+            ...prev.clinicDetails.address,
+            [key]: value,
+          },
+        },
+      }))
+      return
+    }
+
+    if (name.startsWith('clinicDetails.')) {
+      const key = name.split('.')[1]
+      setDoctorSignupData((prev) => ({
+        ...prev,
+        clinicDetails: {
+          ...prev.clinicDetails,
+          [key]: value,
+        },
+      }))
+      return
+    }
+
+    if (name.startsWith('education.')) {
+      const parts = name.split('.')
+      const index = parseInt(parts[1])
+      const field = parts[2]
+      setDoctorSignupData((prev) => {
+        const newEducation = [...prev.education]
+        newEducation[index] = {
+          ...newEducation[index],
+          [field]: value,
+        }
+        return {
+          ...prev,
+          education: newEducation,
+        }
+      })
+      return
+    }
+
+    if (name === 'consultationModes') {
+      setDoctorSignupData((prev) => {
+        const modes = prev.consultationModes || []
+        if (checked && !modes.includes(value)) {
+          return { ...prev, consultationModes: [...modes, value] }
+        } else if (!checked && modes.includes(value)) {
+          return { ...prev, consultationModes: modes.filter((m) => m !== value) }
+        }
+        return prev
+      })
+      return
+    }
+
+    if (name === 'languages') {
+      const langValue = value.trim()
+      if (langValue && !doctorSignupData.languages.includes(langValue)) {
+        setDoctorSignupData((prev) => ({
+          ...prev,
+          languages: [...prev.languages, langValue],
+        }))
+      }
+      return
+    }
+
+    // Restrict phone to 10 digits only
+    if (name === 'phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setDoctorSignupData((prev) => ({
+        ...prev,
+        [name]: numericValue,
+      }))
+      return
+    }
+
+    setDoctorSignupData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }))
+  }
+
+  const addEducationEntry = () => {
+    setDoctorSignupData((prev) => ({
+      ...prev,
+      education: [...prev.education, { institution: '', degree: '', year: '' }],
+    }))
+  }
+
+  const removeEducationEntry = (index) => {
+    setDoctorSignupData((prev) => ({
+      ...prev,
+      education: prev.education.filter((_, i) => i !== index),
+    }))
+  }
+
+  const removeLanguage = (lang) => {
+    setDoctorSignupData((prev) => ({
+      ...prev,
+      languages: prev.languages.filter((l) => l !== lang),
+    }))
+  }
+
+  const handleDoctorSignupSubmit = async (event) => {
+    event.preventDefault()
+    if (isSubmitting) return
+
+    if (!doctorSignupData.termsAccepted) {
+      window.alert('Please accept the terms to continue.')
+      return
+    }
+
+    if (doctorSignupData.password !== doctorSignupData.confirmPassword) {
+      window.alert('Passwords do not match. Please re-enter and try again.')
+      return
+    }
+
+    if (!doctorSignupData.firstName || !doctorSignupData.email || !doctorSignupData.phone || !doctorSignupData.password || !doctorSignupData.specialization || !doctorSignupData.gender || !doctorSignupData.licenseNumber) {
+      window.alert('Please fill in all required fields.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const payload = {
+        firstName: doctorSignupData.firstName,
+        lastName: doctorSignupData.lastName || '',
+        email: doctorSignupData.email,
+        phone: doctorSignupData.phone,
+        password: doctorSignupData.password,
+        specialization: doctorSignupData.specialization,
+        gender: doctorSignupData.gender,
+        licenseNumber: doctorSignupData.licenseNumber,
+        experienceYears: doctorSignupData.experienceYears ? Number(doctorSignupData.experienceYears) : undefined,
+        qualification: doctorSignupData.qualification || undefined,
+        bio: doctorSignupData.bio || undefined,
+        consultationFee: doctorSignupData.consultationFee ? Number(doctorSignupData.consultationFee) : undefined,
+        languages: doctorSignupData.languages.length > 0 ? doctorSignupData.languages : undefined,
+        consultationModes: doctorSignupData.consultationModes.length > 0 ? doctorSignupData.consultationModes : undefined,
+        education: doctorSignupData.education.filter((edu) => edu.institution || edu.degree || edu.year).length > 0
+          ? doctorSignupData.education.filter((edu) => edu.institution || edu.degree || edu.year)
+          : undefined,
+        clinicName: doctorSignupData.clinicDetails.name || undefined,
+        clinicAddress: Object.values(doctorSignupData.clinicDetails.address).some((val) => val)
+          ? doctorSignupData.clinicDetails.address
+          : undefined,
+      }
+
+      const response = await fetch('/api/doctors/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        window.alert(data.message || 'Signup failed. Please try again.')
+        setIsSubmitting(false)
+        return
+      }
+
+      window.alert('Registration submitted successfully! Please wait for admin approval.')
+      setIsSubmitting(false)
+      // Optionally reset form or redirect
+      setDoctorSignupData(initialDoctorSignupState)
+    } catch (error) {
+      console.error('Signup error:', error)
+      window.alert('An error occurred. Please try again.')
+      setIsSubmitting(false)
+    }
+  }
+
+  const handlePharmacySignupChange = (event) => {
+    const { name, value, type, checked } = event.target
+
+    if (name === 'termsAccepted') {
+      setPharmacySignupData((prev) => ({
+        ...prev,
+        termsAccepted: checked,
+      }))
+      return
+    }
+
+    if (name.startsWith('address.')) {
+      const key = name.split('.')[1]
+      setPharmacySignupData((prev) => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          [key]: value,
+        },
+      }))
+      return
+    }
+
+    if (name.startsWith('contactPerson.')) {
+      const key = name.split('.')[1]
+      setPharmacySignupData((prev) => ({
+        ...prev,
+        contactPerson: {
+          ...prev.contactPerson,
+          [key]: value,
+        },
+      }))
+      return
+    }
+
+    if (name === 'deliveryOptions') {
+      setPharmacySignupData((prev) => {
+        const options = prev.deliveryOptions || []
+        if (checked && !options.includes(value)) {
+          return { ...prev, deliveryOptions: [...options, value] }
+        } else if (!checked && options.includes(value)) {
+          return { ...prev, deliveryOptions: options.filter((o) => o !== value) }
+        }
+        return prev
+      })
+      return
+    }
+
+    // Restrict phone fields to 10 digits only
+    if (name === 'phone' || name === 'contactPerson.phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setPharmacySignupData((prev) => {
+        if (name === 'phone') {
+          return {
+            ...prev,
+            phone: numericValue,
+          }
+        }
+        if (name.startsWith('contactPerson.')) {
+          const key = name.split('.')[1]
+          return {
+            ...prev,
+            contactPerson: {
+              ...prev.contactPerson,
+              [key]: numericValue,
+            },
+          }
+        }
+        return prev
+      })
+      return
+    }
+
+    setPharmacySignupData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }))
+  }
+
+  const handlePharmacySignupSubmit = async (event) => {
+    event.preventDefault()
+    if (isSubmitting) return
+
+    if (!pharmacySignupData.termsAccepted) {
+      window.alert('Please accept the terms to continue.')
+      return
+    }
+
+    if (pharmacySignupData.password !== pharmacySignupData.confirmPassword) {
+      window.alert('Passwords do not match. Please re-enter and try again.')
+      return
+    }
+
+    if (!pharmacySignupData.pharmacyName || !pharmacySignupData.email || !pharmacySignupData.phone || !pharmacySignupData.password || !pharmacySignupData.licenseNumber) {
+      window.alert('Please fill in all required fields.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const payload = {
+        pharmacyName: pharmacySignupData.pharmacyName,
+        ownerName: pharmacySignupData.ownerName || undefined,
+        email: pharmacySignupData.email,
+        phone: pharmacySignupData.phone,
+        password: pharmacySignupData.password,
+        licenseNumber: pharmacySignupData.licenseNumber,
+        gstNumber: pharmacySignupData.gstNumber || undefined,
+        address: Object.values(pharmacySignupData.address).some((val) => val) ? pharmacySignupData.address : undefined,
+        deliveryOptions: pharmacySignupData.deliveryOptions.length > 0 ? pharmacySignupData.deliveryOptions : undefined,
+        serviceRadiusKm: pharmacySignupData.serviceRadiusKm ? Number(pharmacySignupData.serviceRadiusKm) : undefined,
+        timings: pharmacySignupData.timings ? [pharmacySignupData.timings] : undefined,
+        contactPerson: Object.values(pharmacySignupData.contactPerson).some((val) => val) ? pharmacySignupData.contactPerson : undefined,
+      }
+
+      const response = await fetch('/api/pharmacy/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        window.alert(data.message || 'Signup failed. Please try again.')
+        setIsSubmitting(false)
+        return
+      }
+
+      window.alert('Registration submitted successfully! Please wait for admin approval.')
+      setIsSubmitting(false)
+      setPharmacySignupData(initialPharmacySignupState)
+    } catch (error) {
+      console.error('Signup error:', error)
+      window.alert('An error occurred. Please try again.')
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleLaboratorySignupChange = (event) => {
+    const { name, value, type, checked } = event.target
+
+    if (name === 'termsAccepted') {
+      setLaboratorySignupData((prev) => ({
+        ...prev,
+        termsAccepted: checked,
+      }))
+      return
+    }
+
+    if (name.startsWith('address.')) {
+      const key = name.split('.')[1]
+      setLaboratorySignupData((prev) => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          [key]: value,
+        },
+      }))
+      return
+    }
+
+    if (name.startsWith('contactPerson.')) {
+      const key = name.split('.')[1]
+      setLaboratorySignupData((prev) => ({
+        ...prev,
+        contactPerson: {
+          ...prev.contactPerson,
+          [key]: value,
+        },
+      }))
+      return
+    }
+
+    if (name.startsWith('operatingHours.')) {
+      const key = name.split('.')[1]
+      if (key === 'days') {
+        const days = laboratorySignupData.operatingHours.days || []
+        if (checked && !days.includes(value)) {
+          setLaboratorySignupData((prev) => ({
+            ...prev,
+            operatingHours: {
+              ...prev.operatingHours,
+              days: [...days, value],
+            },
+          }))
+        } else if (!checked && days.includes(value)) {
+          setLaboratorySignupData((prev) => ({
+            ...prev,
+            operatingHours: {
+              ...prev.operatingHours,
+              days: days.filter((d) => d !== value),
+            },
+          }))
+        }
+        return
+      }
+      setLaboratorySignupData((prev) => ({
+        ...prev,
+        operatingHours: {
+          ...prev.operatingHours,
+          [key]: value,
+        },
+      }))
+      return
+    }
+
+    if (name === 'certifications') {
+      const certValue = value.trim()
+      if (certValue && !laboratorySignupData.certifications.includes(certValue)) {
+        setLaboratorySignupData((prev) => ({
+          ...prev,
+          certifications: [...prev.certifications, certValue],
+        }))
+      }
+      return
+    }
+
+    if (name === 'servicesOffered') {
+      const serviceValue = value.trim()
+      if (serviceValue && !laboratorySignupData.servicesOffered.includes(serviceValue)) {
+        setLaboratorySignupData((prev) => ({
+          ...prev,
+          servicesOffered: [...prev.servicesOffered, serviceValue],
+        }))
+      }
+      return
+    }
+
+    // Restrict phone fields to 10 digits only
+    if (name === 'phone' || name === 'contactPerson.phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setLaboratorySignupData((prev) => {
+        if (name === 'phone') {
+          return {
+            ...prev,
+            phone: numericValue,
+          }
+        }
+        if (name.startsWith('contactPerson.')) {
+          const key = name.split('.')[1]
+          return {
+            ...prev,
+            contactPerson: {
+              ...prev.contactPerson,
+              [key]: numericValue,
+            },
+          }
+        }
+        return prev
+      })
+      return
+    }
+
+    setLaboratorySignupData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }))
+  }
+
+  const removeCertification = (cert) => {
+    setLaboratorySignupData((prev) => ({
+      ...prev,
+      certifications: prev.certifications.filter((c) => c !== cert),
+    }))
+  }
+
+  const removeService = (service) => {
+    setLaboratorySignupData((prev) => ({
+      ...prev,
+      servicesOffered: prev.servicesOffered.filter((s) => s !== service),
+    }))
+  }
+
+  const handleLaboratorySignupSubmit = async (event) => {
+    event.preventDefault()
+    if (isSubmitting) return
+
+    if (!laboratorySignupData.termsAccepted) {
+      window.alert('Please accept the terms to continue.')
+      return
+    }
+
+    if (laboratorySignupData.password !== laboratorySignupData.confirmPassword) {
+      window.alert('Passwords do not match. Please re-enter and try again.')
+      return
+    }
+
+    if (!laboratorySignupData.labName || !laboratorySignupData.email || !laboratorySignupData.phone || !laboratorySignupData.password || !laboratorySignupData.licenseNumber) {
+      window.alert('Please fill in all required fields.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const payload = {
+        labName: laboratorySignupData.labName,
+        ownerName: laboratorySignupData.ownerName || undefined,
+        email: laboratorySignupData.email,
+        phone: laboratorySignupData.phone,
+        password: laboratorySignupData.password,
+        licenseNumber: laboratorySignupData.licenseNumber,
+        certifications: laboratorySignupData.certifications.length > 0 ? laboratorySignupData.certifications : undefined,
+        address: Object.values(laboratorySignupData.address).some((val) => val) ? laboratorySignupData.address : undefined,
+        servicesOffered: laboratorySignupData.servicesOffered.length > 0 ? laboratorySignupData.servicesOffered : undefined,
+        timings: laboratorySignupData.timings ? [laboratorySignupData.timings] : undefined,
+        contactPerson: Object.values(laboratorySignupData.contactPerson).some((val) => val) ? laboratorySignupData.contactPerson : undefined,
+        operatingHours: Object.values(laboratorySignupData.operatingHours).some((val) => Array.isArray(val) ? val.length > 0 : val)
+          ? laboratorySignupData.operatingHours
+          : undefined,
+      }
+
+      const response = await fetch('/api/laboratory/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        window.alert(data.message || 'Signup failed. Please try again.')
+        setIsSubmitting(false)
+        return
+      }
+
+      window.alert('Registration submitted successfully! Please wait for admin approval.')
+      setIsSubmitting(false)
+      setLaboratorySignupData(initialLaboratorySignupState)
+    } catch (error) {
+      console.error('Signup error:', error)
+      window.alert('An error occurred. Please try again.')
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="relative flex min-h-screen flex-col bg-white">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 -z-10 opacity-30">
+        <div className="absolute left-0 top-0 h-64 w-64 rounded-full bg-[rgba(17,73,108,0.08)] blur-3xl" />
+        <div className="absolute right-0 bottom-0 h-96 w-96 rounded-full bg-[rgba(17,73,108,0.06)] blur-3xl" />
+      </div>
+
+      {/* Main Content */}
+      <main className="flex flex-1 flex-col">
+        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-8 sm:px-6 sm:py-8 md:px-8">
+          {/* Top spacing (replaces logo space) */}
+          <div className="mb-6 sm:mb-8"></div>
+
+          {/* Form Section */}
+          <div className="mx-auto w-full max-w-lg">
+            {/* Title */}
+            <div className="mb-6 text-center sm:mb-8">
+              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                {isLogin ? 'Welcome Back' : 'Create Your Account'}
+              </h2>
+              <p className="mt-2 text-sm text-slate-600 sm:mt-3 sm:text-base">
+                {isLogin
+                  ? `Sign in to your ${selectedModule} account to continue.`
+                  : `Join Healiinn as a ${selectedModule} to get started.`}
+              </p>
+            </div>
+
+            {/* Login/Signup Mode Toggle */}
+            <div className="mb-6 flex items-center justify-center sm:mb-8">
+              <div className="relative inline-flex items-center gap-1 rounded-2xl bg-slate-100 p-1.5 shadow-inner">
+                {/* Sliding background indicator */}
+                <motion.div
+                  layoutId="loginSignupToggle"
+                  className="absolute rounded-xl bg-[#11496c] shadow-md shadow-[#11496c]/15"
+                  style={{
+                    left: isLogin ? '0.375rem' : '50%',
+                    width: 'calc(50% - 0.375rem)',
+                    height: 'calc(100% - 0.75rem)',
+                  }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 300,
+                    damping: 30,
+                  }}
+                />
+                <motion.button
+                  type="button"
+                  onClick={() => handleModeChange('login')}
+                  className={`relative z-10 rounded-xl px-6 py-2.5 text-sm font-semibold sm:px-8 sm:py-3 sm:text-base ${
+                    isLogin
+                      ? 'text-white'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  Sign In
+                </motion.button>
+                <motion.button
+                  type="button"
+                  onClick={() => handleModeChange('signup')}
+                  className={`relative z-10 rounded-xl px-6 py-2.5 text-sm font-semibold sm:px-8 sm:py-3 sm:text-base ${
+                    !isLogin
+                      ? 'text-white'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  Sign Up
+                </motion.button>
+              </div>
+            </div>
+
+            {/* Module Selection Toggle */}
+            <div className="mb-6 flex items-center justify-center sm:mb-8">
+              <div className="relative inline-flex items-center gap-1 rounded-2xl bg-slate-100 p-1.5 shadow-inner">
+                {/* Sliding background indicator */}
+                <motion.div
+                  layoutId="moduleToggle"
+                  className="absolute rounded-xl bg-[#11496c] shadow-md shadow-[#11496c]/15"
+                  style={{
+                    left: `${indicatorStyle.left}px`,
+                    width: `${indicatorStyle.width}px`,
+                    height: 'calc(100% - 0.75rem)',
+                    top: '0.375rem',
+                  }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 300,
+                    damping: 30,
+                  }}
+                />
+                <motion.button
+                  ref={doctorButtonRef}
+                  type="button"
+                  onClick={() => handleModuleChange('doctor')}
+                  className={`relative z-10 rounded-xl px-4 py-2 text-xs font-semibold sm:px-6 sm:py-2.5 sm:text-sm ${
+                    selectedModule === 'doctor'
+                      ? 'text-white'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  Doctor
+                </motion.button>
+                <motion.button
+                  ref={pharmacyButtonRef}
+                  type="button"
+                  onClick={() => handleModuleChange('pharmacy')}
+                  className={`relative z-10 rounded-xl px-4 py-2 text-xs font-semibold sm:px-6 sm:py-2.5 sm:text-sm ${
+                    selectedModule === 'pharmacy'
+                      ? 'text-white'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  Pharmacy
+                </motion.button>
+                <motion.button
+                  ref={laboratoryButtonRef}
+                  type="button"
+                  onClick={() => handleModuleChange('laboratory')}
+                  className={`relative z-10 rounded-xl px-4 py-2 text-xs font-semibold sm:px-6 sm:py-2.5 sm:text-sm ${
+                    selectedModule === 'laboratory'
+                      ? 'text-white'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  Laboratory
+                </motion.button>
+              </div>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {isLogin ? (
+                <motion.form
+                  key={`login-${selectedModule}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  className="flex flex-col gap-5 sm:gap-6"
+                  onSubmit={handleLoginSubmit}
+                >
+                {/* Mobile Number Input */}
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="login-phone" className="text-sm font-semibold text-slate-700">
+                    Mobile Number
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                      <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <input
+                      id="login-phone"
+                      name="phone"
+                      type="tel"
+                      value={getCurrentLoginData().phone}
+                      onChange={handleLoginChange}
+                      autoComplete="tel"
+                      required
+                      placeholder="9876543210"
+                      maxLength={10}
+                      inputMode="numeric"
+                      disabled={otpSent}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 disabled:bg-slate-50 disabled:cursor-not-allowed"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                </div>
+
+                {/* OTP Input Section - Show after OTP is sent */}
+                {otpSent && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="flex flex-col gap-1.5"
+                  >
+                    <label className="text-sm font-semibold text-slate-700">
+                      Enter OTP
+                    </label>
+                    <div className="flex gap-2 justify-center" onPaste={handleOtpPaste}>
+                      {[0, 1, 2, 3, 4, 5].map((index) => (
+                        <input
+                          key={index}
+                          ref={(el) => (otpInputRefs.current[index] = el)}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={getCurrentLoginData().otp[index] || ''}
+                          onChange={(e) => handleOtpChange(index, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                          className="w-12 h-12 text-center text-lg font-semibold rounded-xl border-2 border-slate-200 bg-white text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">
+                        {otpTimer > 0 ? (
+                          `Resend OTP in ${otpTimer}s`
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleResendOtp}
+                            className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                          >
+                            Resend OTP
+                          </button>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtpSent(false)
+                          setOtpTimer(0)
+                          const currentData = getCurrentLoginData()
+                          setCurrentLoginData({ ...currentData, otp: '' })
+                        }}
+                        className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                      >
+                        Change Number
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Remember me checkbox */}
+                <div className="flex items-center gap-2 text-sm">
+                  <label className="flex items-center gap-2 text-slate-600">
+                    <input
+                      type="checkbox"
+                      name="remember"
+                      checked={getCurrentLoginData().remember}
+                      onChange={handleLoginChange}
+                      className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                    />
+                    Remember me
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isSendingOtp}
+                  className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                  style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                >
+                  {isSubmitting ? (
+                    otpSent ? 'Verifying...' : 'Sending OTP...'
+                  ) : isSendingOtp ? (
+                    'Sending OTP...'
+                  ) : otpSent ? (
+                    <>
+                      Verify OTP
+                      <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                    </>
+                  ) : (
+                    <>
+                      Send OTP
+                      <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                    </>
+                  )}
+                </button>
+
+                <p className="text-center text-sm text-slate-600">
+                  New to Healiinn?{' '}
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange('signup')}
+                    className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                  >
+                    Create an account
+                  </button>
+                </p>
+              </motion.form>
+            ) : selectedModule === 'doctor' ? (
+              <motion.div
+                key="signup-doctor"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="flex flex-col gap-5 sm:gap-6"
+              >
+                {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  {[1, 2, 3].map((step) => (
+                    <div key={step} className="flex items-center">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition ${
+                          signupStep >= step
+                            ? 'bg-[#11496c] text-white'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {step}
+                      </div>
+                      {step < 3 && (
+                        <div
+                          className={`h-1 w-8 sm:w-12 transition ${
+                            signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center text-sm text-slate-600 mb-4">
+                  Step {signupStep} of {totalSignupSteps}
+                </div>
+
+                <form onSubmit={handleDoctorSignupSubmit} className="flex flex-col gap-5 sm:gap-6">
+                {/* Step 1: Basic Information */}
+                {signupStep === 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h3>
+                {/* Basic Information */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="firstName" className="text-sm font-semibold text-slate-700">
+                      First Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoPersonOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="firstName"
+                        name="firstName"
+                        value={doctorSignupData.firstName}
+                        onChange={handleDoctorSignupChange}
+                        required
+                        placeholder="John"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="lastName" className="text-sm font-semibold text-slate-700">
+                      Last Name
+                    </label>
+                    <input
+                      id="lastName"
+                      name="lastName"
+                      value={doctorSignupData.lastName}
+                      onChange={handleDoctorSignupChange}
+                      placeholder="Doe"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="doctor-email" className="text-sm font-semibold text-slate-700">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoMailOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="doctor-email"
+                        name="email"
+                        type="email"
+                        value={doctorSignupData.email}
+                        onChange={handleDoctorSignupChange}
+                        autoComplete="email"
+                        required
+                        placeholder="you@example.com"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="doctor-phone" className="text-sm font-semibold text-slate-700">
+                      Phone Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="doctor-phone"
+                        name="phone"
+                        value={doctorSignupData.phone}
+                        onChange={handleDoctorSignupChange}
+                        required
+                        placeholder="9876543210"
+                        maxLength={10}
+                        inputMode="numeric"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Password Section */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="doctor-password" className="text-sm font-semibold text-slate-700">
+                      Password <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="doctor-password"
+                        name="password"
+                        type={showSignupPassword ? 'text' : 'password'}
+                        value={doctorSignupData.password}
+                        onChange={handleDoctorSignupChange}
+                        minLength={8}
+                        required
+                        placeholder="Create a secure password"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword((prev) => !prev)}
+                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
+                        aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showSignupPassword ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="doctor-confirmPassword" className="text-sm font-semibold text-slate-700">
+                      Confirm Password <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="doctor-confirmPassword"
+                        name="confirmPassword"
+                        type={showSignupConfirm ? 'text' : 'password'}
+                        value={doctorSignupData.confirmPassword}
+                        onChange={handleDoctorSignupChange}
+                        required
+                        placeholder="Re-enter your password"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupConfirm((prev) => !prev)}
+                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
+                        aria-label={showSignupConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
+                      >
+                        {showSignupConfirm ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+                  </motion.div>
+                )}
+
+                {/* Step 2: Professional Information */}
+                {signupStep === 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Professional Information</h3>
+                {/* Professional Information */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="specialization" className="text-sm font-semibold text-slate-700">
+                      Specialization <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoMedicalOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="specialization"
+                        name="specialization"
+                        value={doctorSignupData.specialization}
+                        onChange={handleDoctorSignupChange}
+                        required
+                        placeholder="Cardiology, General Medicine, etc."
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="gender" className="text-sm font-semibold text-slate-700">
+                      Gender <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      id="gender"
+                      name="gender"
+                      value={doctorSignupData.gender}
+                      onChange={handleDoctorSignupChange}
+                      required
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    >
+                      <option value="">Select gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="licenseNumber" className="text-sm font-semibold text-slate-700">
+                      License Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoDocumentTextOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="licenseNumber"
+                        name="licenseNumber"
+                        value={doctorSignupData.licenseNumber}
+                        onChange={handleDoctorSignupChange}
+                        required
+                        placeholder="Enter your medical license number"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="experienceYears" className="text-sm font-semibold text-slate-700">
+                      Experience (Years)
+                    </label>
+                    <input
+                      id="experienceYears"
+                      name="experienceYears"
+                      type="number"
+                      min="0"
+                      value={doctorSignupData.experienceYears}
+                      onChange={handleDoctorSignupChange}
+                      placeholder="5"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <label htmlFor="qualification" className="text-sm font-semibold text-slate-700">
+                      Qualification
+                    </label>
+                    <input
+                      id="qualification"
+                      name="qualification"
+                      value={doctorSignupData.qualification}
+                      onChange={handleDoctorSignupChange}
+                      placeholder="MBBS, MD, etc."
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <label htmlFor="bio" className="text-sm font-semibold text-slate-700">
+                      Bio
+                    </label>
+                    <textarea
+                      id="bio"
+                      name="bio"
+                      value={doctorSignupData.bio}
+                      onChange={handleDoctorSignupChange}
+                      rows="3"
+                      placeholder="Tell us about your professional background..."
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="consultationFee" className="text-sm font-semibold text-slate-700">
+                      Consultation Fee (₹)
+                    </label>
+                    <input
+                      id="consultationFee"
+                      name="consultationFee"
+                      type="number"
+                      min="0"
+                      value={doctorSignupData.consultationFee}
+                      onChange={handleDoctorSignupChange}
+                      placeholder="500"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                </section>
+
+                {/* Consultation Modes */}
+                <section>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">
+                    Consultation Modes
+                  </label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {['in_person', 'video', 'audio', 'chat'].map((mode) => (
+                      <label key={mode} className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 cursor-pointer hover:bg-slate-100 transition">
+                        <input
+                          type="checkbox"
+                          name="consultationModes"
+                          value={mode}
+                          checked={doctorSignupData.consultationModes.includes(mode)}
+                          onChange={handleDoctorSignupChange}
+                          className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                        />
+                        <span className="text-sm text-slate-700 capitalize">{mode.replace('_', ' ')}</span>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Languages */}
+                <section>
+                  <label htmlFor="languages" className="text-sm font-semibold text-slate-700 mb-2 block">
+                    Languages Spoken
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {doctorSignupData.languages.map((lang, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 rounded-full bg-[#11496c] px-3 py-1 text-xs font-semibold text-white"
+                      >
+                        {lang}
+                        <button
+                          type="button"
+                          onClick={() => removeLanguage(lang)}
+                          className="hover:text-slate-200"
+                          aria-label={`Remove ${lang}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                      <IoLanguageOutline className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <input
+                      id="languages"
+                      name="languages"
+                      type="text"
+                      placeholder="Enter language and press Enter"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleDoctorSignupChange({ target: { name: 'languages', value: e.target.value } })
+                          e.target.value = ''
+                        }
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                </section>
+
+                {/* Education */}
+                <section>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-semibold text-slate-700">
+                      Education
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addEducationEntry}
+                      className="text-xs font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                    >
+                      + Add Education
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {doctorSignupData.education.map((edu, index) => (
+                      <div key={index} className="grid gap-3 sm:gap-4 sm:grid-cols-3 p-3 rounded-xl bg-slate-50">
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoSchoolOutline className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <input
+                            name={`education.${index}.institution`}
+                            value={edu.institution}
+                            onChange={handleDoctorSignupChange}
+                            placeholder="Institution"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pl-10 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                        </div>
+                        <input
+                          name={`education.${index}.degree`}
+                          value={edu.degree}
+                          onChange={handleDoctorSignupChange}
+                          placeholder="Degree"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            name={`education.${index}.year`}
+                            type="number"
+                            value={edu.year}
+                            onChange={handleDoctorSignupChange}
+                            placeholder="Year"
+                            className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                          {doctorSignupData.education.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeEducationEntry(index)}
+                              className="px-3 text-red-500 hover:text-red-700 transition"
+                              aria-label="Remove education entry"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                  </motion.div>
+                )}
+
+                {/* Step 3: Clinic Details & Terms */}
+                {signupStep === 3 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Clinic Details</h3>
+                {/* Clinic Details */}
+                <section>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <IoLocationOutline className="h-5 w-5 text-[#11496c]" />
+                    Clinic Details
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="clinicDetails.name" className="text-sm font-semibold text-slate-700">
+                        Clinic Name
+                      </label>
+                      <input
+                        id="clinicDetails.name"
+                        name="clinicDetails.name"
+                        value={doctorSignupData.clinicDetails.name}
+                        onChange={handleDoctorSignupChange}
+                        placeholder="ABC Medical Clinic"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <label htmlFor="clinicDetails.address.line1" className="text-sm font-semibold text-slate-700">
+                          Address Line 1
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                            <IoLocationOutline className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <input
+                            id="clinicDetails.address.line1"
+                            name="clinicDetails.address.line1"
+                            value={doctorSignupData.clinicDetails.address.line1}
+                            onChange={handleDoctorSignupChange}
+                            placeholder="123 Health Street"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="clinicDetails.address.line2" className="text-sm font-semibold text-slate-700">
+                          Address Line 2 (optional)
+                        </label>
+                        <input
+                          id="clinicDetails.address.line2"
+                          name="clinicDetails.address.line2"
+                          value={doctorSignupData.clinicDetails.address.line2}
+                          onChange={handleDoctorSignupChange}
+                          placeholder="Apartment or suite"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="clinicDetails.address.city" className="text-sm font-semibold text-slate-700">
+                          City
+                        </label>
+                        <input
+                          id="clinicDetails.address.city"
+                          name="clinicDetails.address.city"
+                          value={doctorSignupData.clinicDetails.address.city}
+                          onChange={handleDoctorSignupChange}
+                          placeholder="Mumbai"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="clinicDetails.address.state" className="text-sm font-semibold text-slate-700">
+                          State
+                        </label>
+                        <input
+                          id="clinicDetails.address.state"
+                          name="clinicDetails.address.state"
+                          value={doctorSignupData.clinicDetails.address.state}
+                          onChange={handleDoctorSignupChange}
+                          placeholder="Maharashtra"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="clinicDetails.address.postalCode" className="text-sm font-semibold text-slate-700">
+                          Postal Code
+                        </label>
+                        <input
+                          id="clinicDetails.address.postalCode"
+                          name="clinicDetails.address.postalCode"
+                          value={doctorSignupData.clinicDetails.address.postalCode}
+                          onChange={handleDoctorSignupChange}
+                          placeholder="400001"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="clinicDetails.address.country" className="text-sm font-semibold text-slate-700">
+                          Country
+                        </label>
+                        <input
+                          id="clinicDetails.address.country"
+                          name="clinicDetails.address.country"
+                          value={doctorSignupData.clinicDetails.address.country}
+                          onChange={handleDoctorSignupChange}
+                          placeholder="India"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Terms */}
+                <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    name="termsAccepted"
+                    checked={doctorSignupData.termsAccepted}
+                    onChange={handleDoctorSignupChange}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                  />
+                  <span>
+                    I have read and agree to Healiinn's{' '}
+                    <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                      terms of service
+                    </Link>{' '}
+                    and{' '}
+                    <Link to="/privacy" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                      privacy policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+                  </motion.div>
+                )}
+
+                {/* Navigation Buttons */}
+                <div className="flex flex-col gap-3">
+                  {signupStep < totalSignupSteps ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      Next
+                      <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !doctorSignupData.termsAccepted}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      {isSubmitting ? (
+                        'Submitting application...'
+                      ) : (
+                        <>
+                          Complete Signup
+                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {signupStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={handlePreviousStep}
+                      className="flex h-12 w-full items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                    >
+                      Previous
+                    </button>
+                  )}
+                </div>
+                </form>
+
+                <p className="text-center text-sm text-slate-600">
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange('login')}
+                    className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                  >
+                    Sign in instead
+                  </button>
+                </p>
+              </motion.div>
+            ) : selectedModule === 'pharmacy' ? (
+              <motion.div
+                key="signup-pharmacy"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="flex flex-col gap-5 sm:gap-6"
+              >
+                {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  {[1, 2, 3].map((step) => (
+                    <div key={step} className="flex items-center">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition ${
+                          signupStep >= step
+                            ? 'bg-[#11496c] text-white'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {step}
+                      </div>
+                      {step < 3 && (
+                        <div
+                          className={`h-1 w-8 sm:w-12 transition ${
+                            signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center text-sm text-slate-600 mb-4">
+                  Step {signupStep} of {totalSignupSteps}
+                </div>
+
+                <form onSubmit={handlePharmacySignupSubmit} className="flex flex-col gap-5 sm:gap-6">
+                {/* Step 1: Basic Information */}
+                {signupStep === 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h3>
+                {/* Basic Information */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <label htmlFor="pharmacyName" className="text-sm font-semibold text-slate-700">
+                      Pharmacy Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoMedicalOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="pharmacyName"
+                        name="pharmacyName"
+                        value={pharmacySignupData.pharmacyName}
+                        onChange={handlePharmacySignupChange}
+                        required
+                        placeholder="ABC Pharmacy"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="ownerName" className="text-sm font-semibold text-slate-700">
+                      Owner Name
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoPersonOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="ownerName"
+                        name="ownerName"
+                        value={pharmacySignupData.ownerName}
+                        onChange={handlePharmacySignupChange}
+                        placeholder="John Doe"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="pharmacy-email" className="text-sm font-semibold text-slate-700">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoMailOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="pharmacy-email"
+                        name="email"
+                        type="email"
+                        value={pharmacySignupData.email}
+                        onChange={handlePharmacySignupChange}
+                        autoComplete="email"
+                        required
+                        placeholder="pharmacy@example.com"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="pharmacy-phone" className="text-sm font-semibold text-slate-700">
+                      Phone Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="pharmacy-phone"
+                        name="phone"
+                        value={pharmacySignupData.phone}
+                        onChange={handlePharmacySignupChange}
+                        required
+                        placeholder="9876543210"
+                        maxLength={10}
+                        inputMode="numeric"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Password Section */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="pharmacy-password" className="text-sm font-semibold text-slate-700">
+                      Password <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="pharmacy-password"
+                        name="password"
+                        type={showSignupPassword ? 'text' : 'password'}
+                        value={pharmacySignupData.password}
+                        onChange={handlePharmacySignupChange}
+                        minLength={8}
+                        required
+                        placeholder="Create a secure password"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword((prev) => !prev)}
+                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
+                        aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showSignupPassword ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="pharmacy-confirmPassword" className="text-sm font-semibold text-slate-700">
+                      Confirm Password <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="pharmacy-confirmPassword"
+                        name="confirmPassword"
+                        type={showSignupConfirm ? 'text' : 'password'}
+                        value={pharmacySignupData.confirmPassword}
+                        onChange={handlePharmacySignupChange}
+                        required
+                        placeholder="Re-enter your password"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupConfirm((prev) => !prev)}
+                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
+                        aria-label={showSignupConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
+                      >
+                        {showSignupConfirm ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+                  </motion.div>
+                )}
+
+                {/* Step 2: Business Details */}
+                {signupStep === 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Business Details</h3>
+                {/* License & GST */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="pharmacy-licenseNumber" className="text-sm font-semibold text-slate-700">
+                      License Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoDocumentTextOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="pharmacy-licenseNumber"
+                        name="licenseNumber"
+                        value={pharmacySignupData.licenseNumber}
+                        onChange={handlePharmacySignupChange}
+                        required
+                        placeholder="Enter your pharmacy license number"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="gstNumber" className="text-sm font-semibold text-slate-700">
+                      GST Number
+                    </label>
+                    <input
+                      id="gstNumber"
+                      name="gstNumber"
+                      value={pharmacySignupData.gstNumber}
+                      onChange={handlePharmacySignupChange}
+                      placeholder="GST123456789"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                </section>
+
+                {/* Address */}
+                <section>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <IoLocationOutline className="h-5 w-5 text-[#11496c]" />
+                    Address
+                  </h3>
+                  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5 sm:col-span-2">
+                      <label htmlFor="address.line1" className="text-sm font-semibold text-slate-700">
+                        Address Line 1
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                          <IoLocationOutline className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="address.line1"
+                          name="address.line1"
+                          value={pharmacySignupData.address.line1}
+                          onChange={handlePharmacySignupChange}
+                          placeholder="123 Pharmacy Street"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="address.line2" className="text-sm font-semibold text-slate-700">
+                        Address Line 2 (optional)
+                      </label>
+                      <input
+                        id="address.line2"
+                        name="address.line2"
+                        value={pharmacySignupData.address.line2}
+                        onChange={handlePharmacySignupChange}
+                        placeholder="Apartment or suite"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="address.city" className="text-sm font-semibold text-slate-700">
+                        City
+                      </label>
+                      <input
+                        id="address.city"
+                        name="address.city"
+                        value={pharmacySignupData.address.city}
+                        onChange={handlePharmacySignupChange}
+                        placeholder="Mumbai"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="address.state" className="text-sm font-semibold text-slate-700">
+                        State
+                      </label>
+                      <input
+                        id="address.state"
+                        name="address.state"
+                        value={pharmacySignupData.address.state}
+                        onChange={handlePharmacySignupChange}
+                        placeholder="Maharashtra"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="address.postalCode" className="text-sm font-semibold text-slate-700">
+                        Postal Code
+                      </label>
+                      <input
+                        id="address.postalCode"
+                        name="address.postalCode"
+                        value={pharmacySignupData.address.postalCode}
+                        onChange={handlePharmacySignupChange}
+                        placeholder="400001"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="address.country" className="text-sm font-semibold text-slate-700">
+                        Country
+                      </label>
+                      <input
+                        id="address.country"
+                        name="address.country"
+                        value={pharmacySignupData.address.country}
+                        onChange={handlePharmacySignupChange}
+                        placeholder="India"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Delivery Options */}
+                <section>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">
+                    Delivery Options
+                  </label>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {['pickup', 'delivery', 'both'].map((option) => (
+                      <label key={option} className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 cursor-pointer hover:bg-slate-100 transition">
+                        <input
+                          type="checkbox"
+                          name="deliveryOptions"
+                          value={option}
+                          checked={pharmacySignupData.deliveryOptions.includes(option)}
+                          onChange={handlePharmacySignupChange}
+                          className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                        />
+                        <span className="text-sm text-slate-700 capitalize">{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Service Radius & Timings */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="serviceRadiusKm" className="text-sm font-semibold text-slate-700">
+                      Service Radius (Km)
+                    </label>
+                    <input
+                      id="serviceRadiusKm"
+                      name="serviceRadiusKm"
+                      type="number"
+                      min="0"
+                      value={pharmacySignupData.serviceRadiusKm}
+                      onChange={handlePharmacySignupChange}
+                      placeholder="5"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="timings" className="text-sm font-semibold text-slate-700">
+                      Operating Timings
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoTimeOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="timings"
+                        name="timings"
+                        value={pharmacySignupData.timings}
+                        onChange={handlePharmacySignupChange}
+                        placeholder="9:00 AM - 9:00 PM"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                </section>
+                  </motion.div>
+                )}
+
+                {/* Step 3: Contact Person & Terms */}
+                {signupStep === 3 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Contact Person</h3>
+                {/* Contact Person */}
+                <section>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <IoPersonOutline className="h-5 w-5 text-[#11496c]" />
+                    Contact Person
+                  </h3>
+                  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="contactPerson.name" className="text-sm font-semibold text-slate-700">
+                        Name
+                      </label>
+                      <input
+                        id="contactPerson.name"
+                        name="contactPerson.name"
+                        value={pharmacySignupData.contactPerson.name}
+                        onChange={handlePharmacySignupChange}
+                        placeholder="John Doe"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="contactPerson.phone" className="text-sm font-semibold text-slate-700">
+                        Phone
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                          <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="contactPerson.phone"
+                          name="contactPerson.phone"
+                          value={pharmacySignupData.contactPerson.phone}
+                          onChange={handlePharmacySignupChange}
+                          placeholder="9876543210"
+                          maxLength={10}
+                          inputMode="numeric"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5 sm:col-span-2">
+                      <label htmlFor="contactPerson.email" className="text-sm font-semibold text-slate-700">
+                        Email
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                          <IoMailOutline className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="contactPerson.email"
+                          name="contactPerson.email"
+                          type="email"
+                          value={pharmacySignupData.contactPerson.email}
+                          onChange={handlePharmacySignupChange}
+                          placeholder="contact@example.com"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Terms */}
+                <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    name="termsAccepted"
+                    checked={pharmacySignupData.termsAccepted}
+                    onChange={handlePharmacySignupChange}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                  />
+                  <span>
+                    I have read and agree to Healiinn's{' '}
+                    <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                      terms of service
+                    </Link>{' '}
+                    and{' '}
+                    <Link to="/privacy" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                      privacy policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+                  </motion.div>
+                )}
+
+                {/* Navigation Buttons */}
+                <div className="flex flex-col gap-3">
+                  {signupStep < totalSignupSteps ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      Next
+                      <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !pharmacySignupData.termsAccepted}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      {isSubmitting ? (
+                        'Submitting application...'
+                      ) : (
+                        <>
+                          Complete Signup
+                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {signupStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={handlePreviousStep}
+                      className="flex h-12 w-full items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                    >
+                      Previous
+                    </button>
+                  )}
+                </div>
+                </form>
+
+                <p className="text-center text-sm text-slate-600">
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange('login')}
+                    className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                  >
+                    Sign in instead
+                  </button>
+                </p>
+              </motion.div>
+            ) : selectedModule === 'laboratory' ? (
+              <motion.div
+                key="signup-laboratory"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="flex flex-col gap-5 sm:gap-6"
+              >
+                {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  {[1, 2, 3].map((step) => (
+                    <div key={step} className="flex items-center">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition ${
+                          signupStep >= step
+                            ? 'bg-[#11496c] text-white'
+                            : 'bg-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {step}
+                      </div>
+                      {step < 3 && (
+                        <div
+                          className={`h-1 w-8 sm:w-12 transition ${
+                            signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-center text-sm text-slate-600 mb-4">
+                  Step {signupStep} of {totalSignupSteps}
+                </div>
+
+                <form onSubmit={handleLaboratorySignupSubmit} className="flex flex-col gap-5 sm:gap-6">
+                {/* Step 1: Basic Information */}
+                {signupStep === 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h3>
+                {/* Basic Information */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <label htmlFor="labName" className="text-sm font-semibold text-slate-700">
+                      Laboratory Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoMedicalOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="labName"
+                        name="labName"
+                        value={laboratorySignupData.labName}
+                        onChange={handleLaboratorySignupChange}
+                        required
+                        placeholder="ABC Diagnostic Laboratory"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="lab-ownerName" className="text-sm font-semibold text-slate-700">
+                      Owner Name
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoPersonOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="lab-ownerName"
+                        name="ownerName"
+                        value={laboratorySignupData.ownerName}
+                        onChange={handleLaboratorySignupChange}
+                        placeholder="John Doe"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="lab-email" className="text-sm font-semibold text-slate-700">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoMailOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="lab-email"
+                        name="email"
+                        type="email"
+                        value={laboratorySignupData.email}
+                        onChange={handleLaboratorySignupChange}
+                        autoComplete="email"
+                        required
+                        placeholder="lab@example.com"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="lab-phone" className="text-sm font-semibold text-slate-700">
+                      Phone Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="lab-phone"
+                        name="phone"
+                        value={laboratorySignupData.phone}
+                        onChange={handleLaboratorySignupChange}
+                        required
+                        placeholder="9876543210"
+                        maxLength={10}
+                        inputMode="numeric"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Password Section */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="lab-password" className="text-sm font-semibold text-slate-700">
+                      Password <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="lab-password"
+                        name="password"
+                        type={showSignupPassword ? 'text' : 'password'}
+                        value={laboratorySignupData.password}
+                        onChange={handleLaboratorySignupChange}
+                        minLength={8}
+                        required
+                        placeholder="Create a secure password"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword((prev) => !prev)}
+                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
+                        aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showSignupPassword ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="lab-confirmPassword" className="text-sm font-semibold text-slate-700">
+                      Confirm Password <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="lab-confirmPassword"
+                        name="confirmPassword"
+                        type={showSignupConfirm ? 'text' : 'password'}
+                        value={laboratorySignupData.confirmPassword}
+                        onChange={handleLaboratorySignupChange}
+                        required
+                        placeholder="Re-enter your password"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupConfirm((prev) => !prev)}
+                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
+                        aria-label={showSignupConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
+                      >
+                        {showSignupConfirm ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+                  </motion.div>
+                )}
+
+                {/* Step 2: Business Details */}
+                {signupStep === 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Business Details</h3>
+                {/* License */}
+                <section>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="lab-licenseNumber" className="text-sm font-semibold text-slate-700">
+                      License Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoDocumentTextOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="lab-licenseNumber"
+                        name="licenseNumber"
+                        value={laboratorySignupData.licenseNumber}
+                        onChange={handleLaboratorySignupChange}
+                        required
+                        placeholder="Enter your laboratory license number"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Certifications */}
+                <section>
+                  <label htmlFor="certifications" className="text-sm font-semibold text-slate-700 mb-2 block">
+                    Certifications
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {laboratorySignupData.certifications.map((cert, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 rounded-full bg-[#11496c] px-3 py-1 text-xs font-semibold text-white"
+                      >
+                        {cert}
+                        <button
+                          type="button"
+                          onClick={() => removeCertification(cert)}
+                          className="hover:text-slate-200"
+                          aria-label={`Remove ${cert}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="certifications"
+                      name="certifications"
+                      type="text"
+                      placeholder="Enter certification and press Enter"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleLaboratorySignupChange({ target: { name: 'certifications', value: e.target.value } })
+                          e.target.value = ''
+                        }
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                </section>
+
+                {/* Services Offered */}
+                <section>
+                  <label htmlFor="servicesOffered" className="text-sm font-semibold text-slate-700 mb-2 block">
+                    Services Offered
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {laboratorySignupData.servicesOffered.map((service, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 rounded-full bg-[#11496c] px-3 py-1 text-xs font-semibold text-white"
+                      >
+                        {service}
+                        <button
+                          type="button"
+                          onClick={() => removeService(service)}
+                          className="hover:text-slate-200"
+                          aria-label={`Remove ${service}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="servicesOffered"
+                      name="servicesOffered"
+                      type="text"
+                      placeholder="Enter service and press Enter"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleLaboratorySignupChange({ target: { name: 'servicesOffered', value: e.target.value } })
+                          e.target.value = ''
+                        }
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                </section>
+
+                {/* Address */}
+                <section>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <IoLocationOutline className="h-5 w-5 text-[#11496c]" />
+                    Address
+                  </h3>
+                  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5 sm:col-span-2">
+                      <label htmlFor="lab-address.line1" className="text-sm font-semibold text-slate-700">
+                        Address Line 1
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                          <IoLocationOutline className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="lab-address.line1"
+                          name="address.line1"
+                          value={laboratorySignupData.address.line1}
+                          onChange={handleLaboratorySignupChange}
+                          placeholder="123 Lab Street"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="lab-address.line2" className="text-sm font-semibold text-slate-700">
+                        Address Line 2 (optional)
+                      </label>
+                      <input
+                        id="lab-address.line2"
+                        name="address.line2"
+                        value={laboratorySignupData.address.line2}
+                        onChange={handleLaboratorySignupChange}
+                        placeholder="Apartment or suite"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="lab-address.city" className="text-sm font-semibold text-slate-700">
+                        City
+                      </label>
+                      <input
+                        id="lab-address.city"
+                        name="address.city"
+                        value={laboratorySignupData.address.city}
+                        onChange={handleLaboratorySignupChange}
+                        placeholder="Mumbai"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="lab-address.state" className="text-sm font-semibold text-slate-700">
+                        State
+                      </label>
+                      <input
+                        id="lab-address.state"
+                        name="address.state"
+                        value={laboratorySignupData.address.state}
+                        onChange={handleLaboratorySignupChange}
+                        placeholder="Maharashtra"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="lab-address.postalCode" className="text-sm font-semibold text-slate-700">
+                        Postal Code
+                      </label>
+                      <input
+                        id="lab-address.postalCode"
+                        name="address.postalCode"
+                        value={laboratorySignupData.address.postalCode}
+                        onChange={handleLaboratorySignupChange}
+                        placeholder="400001"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="lab-address.country" className="text-sm font-semibold text-slate-700">
+                        Country
+                      </label>
+                      <input
+                        id="lab-address.country"
+                        name="address.country"
+                        value={laboratorySignupData.address.country}
+                        onChange={handleLaboratorySignupChange}
+                        placeholder="India"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Timings & Operating Hours */}
+                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="lab-timings" className="text-sm font-semibold text-slate-700">
+                      Operating Timings
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoTimeOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="lab-timings"
+                        name="timings"
+                        value={laboratorySignupData.timings}
+                        onChange={handleLaboratorySignupChange}
+                        placeholder="9:00 AM - 9:00 PM"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="operatingHours.opening" className="text-sm font-semibold text-slate-700">
+                      Opening Time
+                    </label>
+                    <input
+                      id="operatingHours.opening"
+                      name="operatingHours.opening"
+                      value={laboratorySignupData.operatingHours.opening}
+                      onChange={handleLaboratorySignupChange}
+                      placeholder="9:00 AM"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="operatingHours.closing" className="text-sm font-semibold text-slate-700">
+                      Closing Time
+                    </label>
+                    <input
+                      id="operatingHours.closing"
+                      name="operatingHours.closing"
+                      value={laboratorySignupData.operatingHours.closing}
+                      onChange={handleLaboratorySignupChange}
+                      placeholder="9:00 PM"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <label className="text-sm font-semibold text-slate-700 mb-2 block">
+                      Operating Days
+                    </label>
+                    <div className="grid gap-2 sm:grid-cols-4">
+                      {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                        <label key={day} className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 cursor-pointer hover:bg-slate-100 transition">
+                          <input
+                            type="checkbox"
+                            name="operatingHours.days"
+                            value={day}
+                            checked={laboratorySignupData.operatingHours.days.includes(day)}
+                            onChange={handleLaboratorySignupChange}
+                            className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                          />
+                          <span className="text-sm text-slate-700">{day}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+                  </motion.div>
+                )}
+
+                {/* Step 3: Contact Person & Terms */}
+                {signupStep === 3 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Contact Person</h3>
+                {/* Contact Person */}
+                <section>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <IoPersonOutline className="h-5 w-5 text-[#11496c]" />
+                    Contact Person
+                  </h3>
+                  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="lab-contactPerson.name" className="text-sm font-semibold text-slate-700">
+                        Name
+                      </label>
+                      <input
+                        id="lab-contactPerson.name"
+                        name="contactPerson.name"
+                        value={laboratorySignupData.contactPerson.name}
+                        onChange={handleLaboratorySignupChange}
+                        placeholder="John Doe"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor="lab-contactPerson.phone" className="text-sm font-semibold text-slate-700">
+                        Phone
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                          <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="lab-contactPerson.phone"
+                          name="contactPerson.phone"
+                          value={laboratorySignupData.contactPerson.phone}
+                          onChange={handleLaboratorySignupChange}
+                          placeholder="9876543210"
+                          maxLength={10}
+                          inputMode="numeric"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5 sm:col-span-2">
+                      <label htmlFor="lab-contactPerson.email" className="text-sm font-semibold text-slate-700">
+                        Email
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                          <IoMailOutline className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="lab-contactPerson.email"
+                          name="contactPerson.email"
+                          type="email"
+                          value={laboratorySignupData.contactPerson.email}
+                          onChange={handleLaboratorySignupChange}
+                          placeholder="contact@example.com"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Terms */}
+                <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    name="termsAccepted"
+                    checked={laboratorySignupData.termsAccepted}
+                    onChange={handleLaboratorySignupChange}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                  />
+                  <span>
+                    I have read and agree to Healiinn's{' '}
+                    <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                      terms of service
+                    </Link>{' '}
+                    and{' '}
+                    <Link to="/privacy" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                      privacy policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+                  </motion.div>
+                )}
+
+                {/* Navigation Buttons */}
+                <div className="flex flex-col gap-3">
+                  {signupStep < totalSignupSteps ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      Next
+                      <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !laboratorySignupData.termsAccepted}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      {isSubmitting ? (
+                        'Submitting application...'
+                      ) : (
+                        <>
+                          Complete Signup
+                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {signupStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={handlePreviousStep}
+                      className="flex h-12 w-full items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                    >
+                      Previous
+                    </button>
+                  )}
+                </div>
+                </form>
+
+                <p className="text-center text-sm text-slate-600">
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange('login')}
+                    className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                  >
+                    Sign in instead
+                  </button>
+                </p>
+              </motion.div>
+            ) : null}
+            </AnimatePresence>
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-slate-100 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 px-4 py-4 text-center text-xs text-slate-500 sm:px-6 sm:py-5 md:px-8">
+          <span>Secure access powered by Healiinn</span>
+          <span>
+            Need help? Contact{' '}
+            <Link to="/support" className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition">
+              support
+            </Link>
+          </span>
+        </div>
+      </footer>
+    </div>
+  )
+}
+
+export default DoctorLogin
+

@@ -6,6 +6,7 @@ const Appointment = require('../models/Appointment');
 const Consultation = require('../models/Consultation');
 const Doctor = require('../models/Doctor');
 const Patient = require('../models/Patient');
+const Payment = require('../models/Payment');
 const { redis } = require('../config/redis');
 const {
   SESSION_STATUS,
@@ -13,6 +14,7 @@ const {
   CONSULTATION_STATUS,
   ROLES,
   TOKEN_EVENTS,
+  COMMISSION_RATE,
 } = require('../utils/constants');
 const {
   notifyAppointmentConfirmed,
@@ -22,6 +24,7 @@ const {
   notifyTokenCompleted,
   notifyTokenNoShow,
 } = require('./notificationEvents');
+const { createWalletTransaction } = require('./walletService');
 
 const SESSION_ROOM_PREFIX = 'session:';
 const redisSessionStateKey = (sessionId) => `${SESSION_ROOM_PREFIX}${sessionId}:state`;
@@ -124,6 +127,37 @@ const loadCachedSessionState = async (sessionId) => {
   }
 };
 
+const calculateActualAverageMinutes = async (sessionId, sessionStartTime) => {
+  // Get completed consultations from current session
+  const completedConsultations = await Consultation.find({
+    session: sessionId,
+    status: CONSULTATION_STATUS.COMPLETED,
+    startedAt: { $exists: true, $gte: sessionStartTime },
+    completedAt: { $exists: true },
+  })
+    .sort({ completedAt: -1 })
+    .limit(5) // Last 5 completed consultations
+    .lean();
+
+  // Need at least 2 consultations for reliable average
+  if (completedConsultations.length < 2) {
+    return null;
+  }
+
+  // Calculate actual durations
+  const durations = completedConsultations.map(consultation => {
+    const durationMs = new Date(consultation.completedAt).getTime() - 
+                       new Date(consultation.startedAt).getTime();
+    return durationMs / (1000 * 60); // Convert to minutes
+  });
+
+  // Calculate average
+  const actualAverage = durations.reduce((sum, d) => sum + d, 0) / durations.length;
+  
+  // Clamp between 5 and 60 minutes for safety
+  return Math.max(5, Math.min(60, Math.round(actualAverage * 10) / 10)); // Round to 1 decimal
+};
+
 const recalculateSessionState = async ({ sessionId, io }) => {
   const session = await ClinicSession.findById(sessionId);
   if (!session) {
@@ -159,8 +193,21 @@ const recalculateSessionState = async ({ sessionId, io }) => {
     currentTokenNumber = null;
   }
 
-  const avgMinutes = session.averageConsultationMinutes || 15;
+  // Doctor must have set averageConsultationMinutes - no default fallback
+  if (!session.averageConsultationMinutes) {
+    throw createError(400, 'Session averageConsultationMinutes is not set. Doctor must set the average consultation time before calculating ETA.');
+  }
+
   const sessionStartTime = new Date(session.startTime);
+  
+  // Try to get actual average from completed consultations
+  // This adjusts ETA based on real consultation times
+  const actualAvgMinutes = await calculateActualAverageMinutes(sessionId, sessionStartTime);
+  
+  // Use actual average if available (at least 2 consultations completed)
+  // Otherwise fallback to doctor-set average
+  const avgMinutes = actualAvgMinutes || session.averageConsultationMinutes;
+  
   const baseTimestamp = Math.max(Date.now(), sessionStartTime.getTime());
 
   const bulkTokenUpdates = [];
@@ -230,6 +277,9 @@ const recalculateSessionState = async ({ sessionId, io }) => {
     status: session.status,
     currentTokenNumber,
     averageConsultationMinutes: avgMinutes,
+    doctorSetAverageMinutes: session.averageConsultationMinutes,
+    actualAverageMinutes: actualAvgMinutes || null, // null if not enough data
+    isUsingActualAverage: actualAvgMinutes !== null, // true if using actual average
     startTime: session.startTime,
     endTime: session.endTime,
     nextTokenNumber: session.nextTokenNumber,
@@ -278,15 +328,25 @@ const createSession = async ({ doctorId, clinicId, payload }) => {
     throw createError(400, 'Session end time must be after start time');
   }
 
-  const averageConsultationMinutes =
-    payload.averageConsultationMinutes || clinic.averageConsultationMinutes;
+  // Doctor must provide averageConsultationMinutes
+  const averageConsultationMinutes = payload.averageConsultationMinutes;
+  
+  if (!averageConsultationMinutes || Number.isNaN(Number(averageConsultationMinutes))) {
+    throw createError(400, 'averageConsultationMinutes is required and must be a valid number');
+  }
+
+  const validatedMinutes = Math.max(5, Math.min(60, Math.round(Number(averageConsultationMinutes))));
+  
+  if (validatedMinutes < 5 || validatedMinutes > 60) {
+    throw createError(400, 'averageConsultationMinutes must be between 5 and 60 minutes');
+  }
 
   const maxTokens =
     payload.maxTokens ||
     calculateTokenCapacity({
       startTime,
       endTime,
-      averageConsultationMinutes,
+      averageConsultationMinutes: validatedMinutes,
       bufferMinutes: payload.bufferMinutes || clinic.bufferMinutes || 0,
     });
 
@@ -295,7 +355,7 @@ const createSession = async ({ doctorId, clinicId, payload }) => {
     clinic: clinic._id,
     startTime,
     endTime,
-    averageConsultationMinutes,
+    averageConsultationMinutes: validatedMinutes,
     bufferMinutes: payload.bufferMinutes || clinic.bufferMinutes || 0,
     maxTokens,
     status: SESSION_STATUS.SCHEDULED,
@@ -317,6 +377,13 @@ const updateSessionStatus = async ({ sessionId, doctorId, status }) => {
 
   if (!session) {
     throw createError(404, 'Session not found');
+  }
+
+  // If starting session, ensure averageConsultationMinutes is set
+  if (status === SESSION_STATUS.LIVE) {
+    if (!session.averageConsultationMinutes) {
+      throw createError(400, 'averageConsultationMinutes must be set before starting the session. Please update the session average time first.');
+    }
   }
 
   session.status = status;
@@ -365,6 +432,63 @@ const ensureConsultationRecord = async ({ token, session, doctorId, patientId, a
   return consultation;
 };
 
+const validatePayment = async ({ paymentId, patientId, sessionId, doctorId }) => {
+  // Payment ID is mandatory
+  if (!paymentId) {
+    throw createError(400, 'Payment ID is required. Please complete payment before booking appointment.');
+  }
+
+  // Find payment record
+  const payment = await Payment.findOne({
+    paymentId,
+    role: ROLES.PATIENT,
+    type: 'appointment',
+  });
+
+  if (!payment) {
+    throw createError(404, 'Payment not found. Please complete payment before booking appointment.');
+  }
+
+  // Verify payment status is success
+  if (payment.status !== 'success') {
+    throw createError(400, `Payment is not successful. Payment status: ${payment.status}. Please complete payment before booking appointment.`);
+  }
+
+  // Verify payment belongs to the patient
+  if (payment.user.toString() !== patientId.toString()) {
+    throw createError(403, 'Payment does not belong to this patient. Please use your own payment.');
+  }
+
+  // Verify payment metadata matches session and doctor
+  const metadata = payment.metadata || {};
+  const paymentSessionId = metadata.sessionId;
+  const paymentDoctorId = metadata.doctorId;
+
+  if (paymentSessionId && paymentSessionId.toString() !== sessionId.toString()) {
+    throw createError(400, 'Payment is for a different session. Please create payment for this session.');
+  }
+
+  if (paymentDoctorId && paymentDoctorId.toString() !== doctorId.toString()) {
+    throw createError(400, 'Payment is for a different doctor. Please create payment for this doctor.');
+  }
+
+  // Get doctor to verify consultation fee
+  const doctor = await Doctor.findById(doctorId);
+  if (!doctor) {
+    throw createError(404, 'Doctor not found');
+  }
+
+  const consultationFee = doctor.consultationFee || 0;
+  const paymentAmount = Number(payment.amount) || 0;
+
+  // Verify payment amount matches consultation fee (allow small tolerance for rounding)
+  if (consultationFee > 0 && Math.abs(paymentAmount - consultationFee) > 0.01) {
+    throw createError(400, `Payment amount (₹${paymentAmount}) does not match consultation fee (₹${consultationFee}). Please pay the correct amount.`);
+  }
+
+  return payment;
+};
+
 const issueToken = async ({
   sessionId,
   patientId,
@@ -381,6 +505,7 @@ const issueToken = async ({
   const dbSession = await mongoose.startSession();
 
   let result;
+  let validatedPayment = null;
 
   await dbSession.withTransaction(async () => {
     const session = await ClinicSession.findById(sessionId).session(dbSession);
@@ -391,6 +516,11 @@ const issueToken = async ({
 
     if ([SESSION_STATUS.CANCELLED, SESSION_STATUS.COMPLETED].includes(session.status)) {
       throw createError(400, 'Session is not available for new tokens');
+    }
+
+    // Ensure averageConsultationMinutes is set before issuing tokens
+    if (!session.averageConsultationMinutes) {
+      throw createError(400, 'Session averageConsultationMinutes must be set before issuing tokens. Please update the session average time first.');
     }
 
     if (
@@ -409,6 +539,14 @@ const issueToken = async ({
     if (existingToken) {
       throw createError(400, 'Patient already has a token for this session');
     }
+
+    // Validate payment - MANDATORY before token issue
+    validatedPayment = await validatePayment({
+      paymentId,
+      patientId,
+      sessionId: session._id.toString(),
+      doctorId: session.doctor.toString(),
+    });
 
     const tokenNumber = session.nextTokenNumber;
 
@@ -440,6 +578,12 @@ const issueToken = async ({
       { session: dbSession }
     );
 
+    // Calculate billing details from validated payment
+    const grossAmount = Number(validatedPayment.amount) || 0;
+    const commissionRate = validatedPayment.metadata?.commissionRate || COMMISSION_RATE;
+    const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
+    const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
+
     const appointment = await Appointment.create(
       [
         {
@@ -464,6 +608,20 @@ const issueToken = async ({
           eta: session.startTime,
           reason,
           notes,
+          billing: {
+            amount: grossAmount,
+            currency: validatedPayment.currency || 'INR',
+            paid: true,
+            paymentStatus: 'paid',
+            paymentId: validatedPayment.paymentId,
+            transactionId: validatedPayment.paymentId,
+            razorpayPaymentId: validatedPayment.paymentId,
+            razorpayOrderId: validatedPayment.orderId,
+            paidAt: new Date(),
+            commissionRate,
+            commissionAmount,
+            netAmount,
+          },
         },
       ],
       { session: dbSession }
@@ -483,7 +641,7 @@ const issueToken = async ({
     session.markModified('stats');
     await session.save({ session: dbSession });
 
-    result = { session, token: token[0], appointment: appointment[0] };
+    result = { session, token: token[0], appointment: appointment[0], validatedPayment };
   });
 
   await dbSession.endSession();
@@ -491,6 +649,29 @@ const issueToken = async ({
   const session = await ClinicSession.findById(result.session._id)
     .populate('doctor', 'firstName lastName')
     .lean();
+
+  // Create wallet transaction after successful token issue
+  // This is outside transaction to avoid blocking if wallet service has issues
+  try {
+    if (result.validatedPayment && result.appointment) {
+      await createWalletTransaction({
+        providerId: session.doctor._id || session.doctor,
+        providerRole: ROLES.DOCTOR,
+        patientId,
+        bookingId: result.appointment._id,
+        bookingModel: 'Appointment',
+        bookingType: 'appointment',
+        paymentId: result.validatedPayment._id,
+        grossAmount: Number(result.validatedPayment.amount) || 0,
+        commissionRate: result.validatedPayment.metadata?.commissionRate || COMMISSION_RATE,
+        currency: result.validatedPayment.currency || 'INR',
+        description: `Appointment payment ${result.appointment._id.toString()}`,
+      });
+    }
+  } catch (walletError) {
+    // Log error but don't fail the token issue
+    console.error('Failed to create wallet transaction after token issue:', walletError);
+  }
 
   const patient = await Patient.findById(patientId).lean();
 
@@ -605,6 +786,15 @@ const updateTokenStatus = async ({ tokenId, doctorId, status, notes, io }) => {
         }
       );
       notifications.push('completed');
+      
+      // Immediately recalculate ETA after completion
+      // This ensures next tokens get updated ETA based on actual consultation time
+      try {
+        await recalculateSessionState({ sessionId: session._id, io });
+      } catch (error) {
+        console.error('Failed to recalculate ETA after token completion:', error);
+        // Continue even if recalculation fails
+      }
       break;
     case TOKEN_STATUS.SKIPPED:
       token.status = TOKEN_STATUS.SKIPPED;
@@ -927,6 +1117,45 @@ const resumeSession = async ({ sessionId, doctorId, io }) => {
   return session;
 };
 
+const updateSessionAverageTime = async ({ sessionId, doctorId, averageConsultationMinutes, io }) => {
+  const session = await ClinicSession.findOne({ _id: sessionId, doctor: doctorId });
+
+  if (!session) {
+    throw createError(404, 'Session not found');
+  }
+
+  if (averageConsultationMinutes === undefined || averageConsultationMinutes === null) {
+    throw createError(400, 'averageConsultationMinutes is required');
+  }
+
+  // Validate: minimum 5 minutes, maximum 60 minutes
+  const validatedMinutes = Math.max(5, Math.min(60, Math.round(Number(averageConsultationMinutes))));
+  
+  if (Number.isNaN(validatedMinutes)) {
+    throw createError(400, 'Invalid average consultation minutes value. Must be a number between 5 and 60.');
+  }
+
+  session.averageConsultationMinutes = validatedMinutes;
+  await session.save();
+
+  // If session is live or has tokens, immediately recalculate ETA
+  if (session.status === SESSION_STATUS.LIVE || session.stats?.issuedTokens > 0) {
+    try {
+      await recalculateSessionState({ sessionId, io });
+    } catch (error) {
+      // If recalculation fails, still save the average time
+      console.error('Failed to recalculate session state after average time update:', error);
+    }
+  }
+
+  emitSessionEvent(io, sessionId, 'session:average-time-updated', {
+    sessionId: sessionId.toString(),
+    averageConsultationMinutes: validatedMinutes,
+  });
+
+  return session;
+};
+
 module.exports = {
   createClinic,
   listClinics,
@@ -946,5 +1175,6 @@ module.exports = {
   cancelToken,
   pauseSession,
   resumeSession,
+  updateSessionAverageTime,
 };
 

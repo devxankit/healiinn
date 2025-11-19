@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoPersonOutline,
@@ -79,6 +80,9 @@ const mockDoctorData = {
 }
 
 const DoctorProfile = () => {
+  const location = useLocation()
+  const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
+  
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
   const [formData, setFormData] = useState(mockDoctorData)
@@ -176,55 +180,53 @@ const DoctorProfile = () => {
   return (
     <>
       <DoctorNavbar />
-      <div className="min-h-screen bg-slate-50 pt-20 pb-24">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-          <section className="flex flex-col gap-6 pb-4">
+      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
             {/* Profile Header */}
-            <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-blue-50/90 via-indigo-50/85 to-blue-50/90 backdrop-blur-md p-5 sm:p-6 shadow-lg shadow-blue-200/20 ring-1 ring-white/50">
-              <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-blue-300/20 blur-3xl pointer-events-none" />
+            <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-indigo-50/85 to-[rgba(17,73,108,0.05)] backdrop-blur-md p-4 sm:p-6 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-white/50">
+              <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-[rgba(17,73,108,0.1)] blur-3xl pointer-events-none" />
               <div className="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-indigo-300/15 blur-2xl pointer-events-none" />
 
-              <div className="relative flex flex-col gap-4">
-                <div className="flex items-start gap-4">
+              <div className="relative flex flex-col gap-3 sm:gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <div className="relative shrink-0">
-                    <div className="relative h-20 w-20 sm:h-24 sm:w-24">
+                    <div className="relative h-16 w-16 sm:h-24 sm:w-24">
                       <img
                         src={formData.profileImage}
                         alt={`${formData.firstName} ${formData.lastName}`}
-                        className="h-full w-full rounded-full object-cover ring-4 ring-white shadow-lg bg-slate-100"
+                        className="h-full w-full rounded-full object-cover ring-2 sm:ring-4 ring-white shadow-lg bg-slate-100"
                         onError={(e) => {
                           e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=3b82f6&color=fff&size=128&bold=true`
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=11496c&color=fff&size=128&bold=true`
                         }}
                       />
                       {isEditing && (
                         <button
                           type="button"
-                          className="absolute -bottom-1 -right-1 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition hover:bg-blue-600"
+                          className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-[#11496c] text-white shadow-lg transition hover:bg-[#0d3a52]"
                         >
-                          <IoCameraOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          <IoCameraOutline className="h-3 w-3 sm:h-4 sm:w-4" />
                         </button>
                       )}
                     </div>
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                    <h1 className="text-lg sm:text-xl font-bold text-slate-900 sm:text-2xl">
                       {formData.firstName} {formData.lastName}
                     </h1>
-                    <p className="mt-1 text-sm text-slate-600">{formData.email}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                        <IoMedicalOutline className="h-3 w-3" />
+                    <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-slate-600 truncate">{formData.email}</p>
+                    <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.1)] px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-[#11496c]">
+                        <IoMedicalOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         {formData.specialization}
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                        <IoPersonOutline className="h-3 w-3" />
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-slate-700">
+                        <IoPersonOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                         {formData.gender ? formData.gender.charAt(0).toUpperCase() + formData.gender.slice(1) : 'Not set'}
                       </span>
                       {formData.rating > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                          <IoStarOutline className="h-3 w-3" />
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-amber-700">
+                          <IoStarOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                           {formData.rating}
                         </span>
                       )}
@@ -232,23 +234,23 @@ const DoctorProfile = () => {
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 sm:gap-2 flex-wrap">
                   {isEditing ? (
                     <>
                       <button
                         type="button"
                         onClick={handleSave}
-                        className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 active:scale-95"
+                        className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-[#11496c] px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
                       >
-                        <IoCheckmarkCircleOutline className="h-4 w-4" />
+                        <IoCheckmarkCircleOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         Save
                       </button>
                       <button
                         type="button"
                         onClick={handleCancel}
-                        className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                        className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                       >
-                        <IoCloseOutline className="h-4 w-4" />
+                        <IoCloseOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         Cancel
                       </button>
                     </>
@@ -260,9 +262,9 @@ const DoctorProfile = () => {
                           setIsEditing(true)
                           setActiveSection('personal')
                         }}
-                        className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 active:scale-95"
+                        className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-[#11496c] px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
                       >
-                        <IoCreateOutline className="h-4 w-4" />
+                        <IoCreateOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         Edit Profile
                       </button>
                       <button
@@ -274,9 +276,9 @@ const DoctorProfile = () => {
                             window.location.href = '/doctor/login'
                           }
                         }}
-                        className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 transition hover:border-red-300 hover:bg-red-50 active:scale-95"
+                        className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-red-200 bg-white px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-red-600 transition hover:border-red-300 hover:bg-red-50 active:scale-95"
                       >
-                        <IoLogOutOutline className="h-4 w-4" />
+                        <IoLogOutOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         Sign Out
                       </button>
                     </>
@@ -286,23 +288,23 @@ const DoctorProfile = () => {
             </div>
 
             {/* Doctor Personal Information */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'personal' ? null : 'personal')}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-base font-bold text-slate-900">Doctor Personal Information</h2>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">Doctor Personal Information</h2>
                 {(activeSection === 'personal' || isEditing) ? (
-                  <IoChevronUpOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
-                  <IoChevronDownOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 )}
               </button>
 
               {(activeSection === 'personal' || isEditing) && (
-                <div className="px-5 pb-5 border-t border-slate-100">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4">
                     <div>
                       <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         First Name
@@ -312,7 +314,7 @@ const DoctorProfile = () => {
                           type="text"
                           value={formData.firstName}
                           onChange={(e) => handleInputChange('firstName', e.target.value)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                       ) : (
                         <p className="text-sm font-semibold text-slate-900">{formData.firstName}</p>
@@ -328,7 +330,7 @@ const DoctorProfile = () => {
                           type="text"
                           value={formData.lastName}
                           onChange={(e) => handleInputChange('lastName', e.target.value)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                       ) : (
                         <p className="text-sm font-semibold text-slate-900">{formData.lastName}</p>
@@ -343,7 +345,7 @@ const DoctorProfile = () => {
                         <select
                           value={formData.gender}
                           onChange={(e) => handleInputChange('gender', e.target.value)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         >
                           <option value="">Select Gender</option>
                           <option value="male">Male</option>
@@ -367,7 +369,7 @@ const DoctorProfile = () => {
                           type="email"
                           value={formData.email}
                           onChange={(e) => handleInputChange('email', e.target.value)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                       ) : (
                         <div className="flex items-center gap-2 text-sm text-slate-700">
@@ -386,7 +388,7 @@ const DoctorProfile = () => {
                           type="tel"
                           value={formData.phone}
                           onChange={(e) => handleInputChange('phone', e.target.value)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                       ) : (
                         <div className="flex items-center gap-2 text-sm text-slate-700">
@@ -401,23 +403,23 @@ const DoctorProfile = () => {
             </div>
 
             {/* Professional Details */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'professional' ? null : 'professional')}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-base font-bold text-slate-900">Professional Details</h2>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">Professional Details</h2>
                 {(activeSection === 'professional' || isEditing) ? (
-                  <IoChevronUpOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
-                  <IoChevronDownOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 )}
               </button>
 
               {(activeSection === 'professional' || isEditing) && (
-                <div className="px-5 pb-5 border-t border-slate-100 space-y-5 pt-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-4 sm:space-y-5 pt-4 sm:pt-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         Specialization
@@ -427,7 +429,7 @@ const DoctorProfile = () => {
                           type="text"
                           value={formData.specialization}
                           onChange={(e) => handleInputChange('specialization', e.target.value)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                       ) : (
                         <p className="text-sm font-semibold text-slate-900">{formData.specialization}</p>
@@ -443,7 +445,7 @@ const DoctorProfile = () => {
                           type="text"
                           value={formData.licenseNumber}
                           onChange={(e) => handleInputChange('licenseNumber', e.target.value)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                       ) : (
                         <p className="text-sm font-semibold text-slate-900">{formData.licenseNumber}</p>
@@ -451,7 +453,7 @@ const DoctorProfile = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                     <div>
                       <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         Experience (Years)
@@ -462,7 +464,7 @@ const DoctorProfile = () => {
                           min="0"
                           value={formData.experienceYears}
                           onChange={(e) => handleInputChange('experienceYears', parseInt(e.target.value) || 0)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                       ) : (
                         <p className="text-sm font-semibold text-slate-900">{formData.experienceYears || 0} years</p>
@@ -479,7 +481,7 @@ const DoctorProfile = () => {
                           min="0"
                           value={formData.consultationFee}
                           onChange={(e) => handleInputChange('consultationFee', parseInt(e.target.value) || 0)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                       ) : (
                         <p className="text-sm font-semibold text-slate-900">₹{formData.consultationFee || 0}</p>
@@ -497,7 +499,7 @@ const DoctorProfile = () => {
                         value={formData.qualification || ''}
                         onChange={(e) => handleInputChange('qualification', e.target.value)}
                         placeholder="e.g., MBBS, MD (Cardiology)"
-                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                       />
                     ) : (
                       <p className="text-sm font-semibold text-slate-900">{formData.qualification || 'Not set'}</p>
@@ -514,7 +516,7 @@ const DoctorProfile = () => {
                         onChange={(e) => handleInputChange('bio', e.target.value)}
                         rows="2"
                         placeholder="Write about your experience and expertise..."
-                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30 resize-none"
+                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 resize-none"
                       />
                     ) : (
                       <p className="text-sm text-slate-700 leading-snug">{formData.bio || 'Not set'}</p>
@@ -522,12 +524,12 @@ const DoctorProfile = () => {
                   </div>
 
                   {/* Education */}
-                  <div className="pt-5 border-t border-slate-200">
-                    <h3 className="mb-3 text-sm font-semibold text-slate-900">Education</h3>
+                  <div className="pt-4 sm:pt-5 border-t border-slate-200">
+                    <h3 className="mb-2 sm:mb-3 text-xs sm:text-sm font-semibold text-slate-900">Education</h3>
                     {formData.education && formData.education.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         {formData.education.map((edu, index) => (
-                          <div key={index} className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 hover:bg-slate-50 transition-colors">
+                          <div key={index} className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 sm:p-3 hover:bg-slate-50 transition-colors">
                             {isEditing ? (
                               <div className="space-y-2">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -536,14 +538,14 @@ const DoctorProfile = () => {
                                     placeholder="Institution"
                                     value={edu.institution || ''}
                                     onChange={(e) => handleArrayItemChange('education', index, 'institution', e.target.value)}
-                                    className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                                    className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                                   />
                                   <input
                                     type="text"
                                     placeholder="Degree"
                                     value={edu.degree || ''}
                                     onChange={(e) => handleArrayItemChange('education', index, 'degree', e.target.value)}
-                                    className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                                    className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                                   />
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -552,7 +554,7 @@ const DoctorProfile = () => {
                                     placeholder="Year"
                                     value={edu.year || ''}
                                     onChange={(e) => handleArrayItemChange('education', index, 'year', parseInt(e.target.value) || '')}
-                                    className="flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                                    className="flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                                   />
                                   <button
                                     type="button"
@@ -572,7 +574,7 @@ const DoctorProfile = () => {
                                     <p className="mt-0.5 text-[10px] text-slate-500">Year: {edu.year}</p>
                                   )}
                                 </div>
-                                <IoSchoolOutline className="h-4 w-4 text-blue-500 shrink-0" />
+                                <IoSchoolOutline className="h-4 w-4 text-[#11496c] shrink-0" />
                               </div>
                             )}
                           </div>
@@ -594,8 +596,8 @@ const DoctorProfile = () => {
                   </div>
 
                   {/* Languages & Consultation Modes */}
-                  <div className="pt-5 border-t border-slate-200">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="pt-4 sm:pt-5 border-t border-slate-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                       <div>
                         <h3 className="mb-2 text-xs font-semibold text-slate-900">Languages</h3>
                         {formData.languages && formData.languages.length > 0 ? (
@@ -603,7 +605,7 @@ const DoctorProfile = () => {
                             {formData.languages.map((lang, index) => (
                               <span
                                 key={index}
-                                className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
+                                className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[#11496c]"
                               >
                                 <IoLanguageOutline className="h-2.5 w-2.5 shrink-0" />
                                 {lang}
@@ -611,7 +613,7 @@ const DoctorProfile = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleArrayRemove('languages', index)}
-                                    className="ml-0.5 text-blue-600 hover:text-blue-800 shrink-0"
+                                    className="ml-0.5 text-[#11496c] hover:text-[#0a2d3f] shrink-0"
                                   >
                                     <IoCloseOutline className="h-2.5 w-2.5" />
                                   </button>
@@ -633,7 +635,7 @@ const DoctorProfile = () => {
                                   e.target.value = ''
                                 }
                               }}
-                              className="flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                              className="flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                             />
                             <button
                               type="button"
@@ -644,7 +646,7 @@ const DoctorProfile = () => {
                                   input.value = ''
                                 }
                               }}
-                              className="flex items-center justify-center rounded-md bg-blue-500 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-600 shrink-0"
+                              className="flex items-center justify-center rounded-md bg-[#11496c] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0d3a52] shrink-0"
                             >
                               <IoAddOutline className="h-3.5 w-3.5" />
                             </button>
@@ -671,7 +673,7 @@ const DoctorProfile = () => {
                                       }
                                     }
                                   }}
-                                  className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-400 shrink-0"
+                                  className="h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] shrink-0"
                                 />
                                 <span className="text-xs font-medium text-slate-900 capitalize">
                                   {mode.replace('_', ' ')}
@@ -704,22 +706,22 @@ const DoctorProfile = () => {
             </div>
 
             {/* Clinic Information */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'clinic' ? null : 'clinic')}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-base font-bold text-slate-900">Clinic Information</h2>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">Clinic Information</h2>
                 {(activeSection === 'clinic' || isEditing) ? (
-                  <IoChevronUpOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
-                  <IoChevronDownOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 )}
               </button>
 
               {(activeSection === 'clinic' || isEditing) && (
-                <div className="px-5 pb-5 border-t border-slate-100 space-y-4 pt-5">
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-3 sm:space-y-4 pt-4 sm:pt-5">
                   <div>
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                       Clinic Name
@@ -729,7 +731,7 @@ const DoctorProfile = () => {
                         type="text"
                         value={formData.clinicDetails?.name || ''}
                         onChange={(e) => handleInputChange('clinicDetails.name', e.target.value)}
-                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                       />
                     ) : (
                       <p className="text-sm font-semibold text-slate-900">{formData.clinicDetails?.name || 'Not set'}</p>
@@ -747,14 +749,14 @@ const DoctorProfile = () => {
                           placeholder="Address Line 1"
                           value={formData.clinicDetails?.address?.line1 || ''}
                           onChange={(e) => handleInputChange('clinicDetails.address.line1', e.target.value)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                         <input
                           type="text"
                           placeholder="Address Line 2 (Optional)"
                           value={formData.clinicDetails?.address?.line2 || ''}
                           onChange={(e) => handleInputChange('clinicDetails.address.line2', e.target.value)}
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                         />
                         <div className="grid grid-cols-2 gap-2">
                           <input
@@ -762,14 +764,14 @@ const DoctorProfile = () => {
                             placeholder="City"
                             value={formData.clinicDetails?.address?.city || ''}
                             onChange={(e) => handleInputChange('clinicDetails.address.city', e.target.value)}
-                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                           />
                           <input
                             type="text"
                             placeholder="State"
                             value={formData.clinicDetails?.address?.state || ''}
                             onChange={(e) => handleInputChange('clinicDetails.address.state', e.target.value)}
-                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                           />
                         </div>
                         <div className="grid grid-cols-2 gap-2">
@@ -778,14 +780,14 @@ const DoctorProfile = () => {
                             placeholder="Postal Code"
                             value={formData.clinicDetails?.address?.postalCode || ''}
                             onChange={(e) => handleInputChange('clinicDetails.address.postalCode', e.target.value)}
-                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                           />
                           <input
                             type="text"
                             placeholder="Country"
                             value={formData.clinicDetails?.address?.country || ''}
                             onChange={(e) => handleInputChange('clinicDetails.address.country', e.target.value)}
-                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                           />
                         </div>
                       </div>
@@ -801,28 +803,28 @@ const DoctorProfile = () => {
             </div>
 
             {/* Sessions & Timings */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'timings' ? null : 'timings')}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-base font-bold text-slate-900">Sessions & Timings</h2>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">Sessions & Timings</h2>
                 {(activeSection === 'timings' || isEditing) ? (
-                  <IoChevronUpOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
-                  <IoChevronDownOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 )}
               </button>
 
               {(activeSection === 'timings' || isEditing) && (
-                <div className="px-5 pb-5 border-t border-slate-100 space-y-5 pt-5">
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-4 sm:space-y-5 pt-4 sm:pt-5">
                   <div>
-                    <h3 className="mb-3 text-sm font-semibold text-slate-900">Available Timings</h3>
+                    <h3 className="mb-2 sm:mb-3 text-xs sm:text-sm font-semibold text-slate-900">Available Timings</h3>
                     {formData.availableTimings && formData.availableTimings.length > 0 ? (
                       <div className="space-y-2">
                         {formData.availableTimings.map((timing, index) => (
-                          <div key={index} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 hover:bg-slate-50 transition-colors">
+                          <div key={index} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2 sm:p-2.5 hover:bg-slate-50 transition-colors">
                             {isEditing ? (
                               <>
                                 <input
@@ -834,7 +836,7 @@ const DoctorProfile = () => {
                                     setFormData((prev) => ({ ...prev, availableTimings: updated }))
                                   }}
                                   placeholder="e.g., 09:00 AM - 12:00 PM"
-                                  className="flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                                  className="flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                                 />
                                 <button
                                   type="button"
@@ -846,7 +848,7 @@ const DoctorProfile = () => {
                               </>
                             ) : (
                               <>
-                                <IoTimeOutline className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                <IoTimeOutline className="h-3.5 w-3.5 text-[#11496c] shrink-0" />
                                 <span className="text-xs font-medium text-slate-900">{timing}</span>
                               </>
                             )}
@@ -868,18 +870,18 @@ const DoctorProfile = () => {
                     )}
                   </div>
 
-                  <div className="border-t border-slate-200 pt-5">
-                    <h3 className="mb-3 text-sm font-semibold text-slate-900">Availability Days</h3>
+                  <div className="border-t border-slate-200 pt-4 sm:pt-5">
+                    <h3 className="mb-2 sm:mb-3 text-xs sm:text-sm font-semibold text-slate-900">Availability Days</h3>
                     {formData.availability && formData.availability.length > 0 ? (
                       <div className="space-y-2">
                         {formData.availability.map((avail, index) => (
-                          <div key={index} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 hover:bg-slate-50 transition-colors">
+                          <div key={index} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2 sm:p-2.5 hover:bg-slate-50 transition-colors">
                             {isEditing ? (
                               <>
                                 <select
                                   value={avail.day}
                                   onChange={(e) => handleArrayItemChange('availability', index, 'day', e.target.value)}
-                                  className="flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                                  className="flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                                 >
                                   {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
                                     <option key={day} value={day}>{day}</option>
@@ -890,14 +892,14 @@ const DoctorProfile = () => {
                                     type="time"
                                     value={avail.startTime}
                                     onChange={(e) => handleArrayItemChange('availability', index, 'startTime', e.target.value)}
-                                    className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                                    className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                                   />
                                   <span className="text-slate-500 text-[10px]">to</span>
                                   <input
                                     type="time"
                                     value={avail.endTime}
                                     onChange={(e) => handleArrayItemChange('availability', index, 'endTime', e.target.value)}
-                                    className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                                    className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                                   />
                                   <button
                                     type="button"
@@ -910,7 +912,7 @@ const DoctorProfile = () => {
                               </>
                             ) : (
                               <>
-                                <IoCalendarOutline className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                <IoCalendarOutline className="h-3.5 w-3.5 text-[#11496c] shrink-0" />
                                 <span className="text-xs font-medium text-slate-900">{avail.day}: {avail.startTime} - {avail.endTime}</span>
                               </>
                             )}
@@ -936,25 +938,25 @@ const DoctorProfile = () => {
             </div>
 
             {/* KYC & Verification */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'kyc' ? null : 'kyc')}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-base font-bold text-slate-900">KYC & Verification</h2>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">KYC & Verification</h2>
                 {activeSection === 'kyc' ? (
-                  <IoChevronUpOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
-                  <IoChevronDownOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 )}
               </button>
 
               {activeSection === 'kyc' && (
-                <div className="px-5 pb-5 border-t border-slate-100 space-y-4 pt-5">
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-3 sm:space-y-4 pt-4 sm:pt-5">
                   <div className="rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-4 shadow-sm">
                     <div className="flex items-center gap-2 mb-2">
-                      <IoShieldCheckmarkOutline className="h-4 w-4 text-blue-600 shrink-0" />
+                      <IoShieldCheckmarkOutline className="h-4 w-4 text-[#11496c] shrink-0" />
                       <span className="text-xs font-semibold text-slate-900">Verification Status</span>
                     </div>
                     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${
@@ -968,19 +970,19 @@ const DoctorProfile = () => {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                     <div>
                       <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         License Document
                       </label>
                       {formData.documents?.license ? (
                         <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 hover:bg-slate-50 transition-colors">
-                          <IoDocumentTextOutline className="h-4 w-4 text-blue-500 shrink-0" />
+                          <IoDocumentTextOutline className="h-4 w-4 text-[#11496c] shrink-0" />
                           <a
                             href={formData.documents.license}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline truncate"
+                            className="text-xs font-medium text-[#11496c] hover:text-[#11496c] hover:underline truncate"
                           >
                             View License
                           </a>
@@ -996,12 +998,12 @@ const DoctorProfile = () => {
                       </label>
                       {formData.documents?.identityProof ? (
                         <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 hover:bg-slate-50 transition-colors">
-                          <IoDocumentTextOutline className="h-4 w-4 text-blue-500 shrink-0" />
+                          <IoDocumentTextOutline className="h-4 w-4 text-[#11496c] shrink-0" />
                           <a
                             href={formData.documents.identityProof}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs font-medium text-blue-600 hover:underline truncate"
+                            className="text-xs font-medium text-[#11496c] hover:underline truncate"
                           >
                             View Identity Proof
                           </a>
@@ -1016,22 +1018,22 @@ const DoctorProfile = () => {
             </div>
 
             {/* Change Password */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'password' ? null : 'password')}
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-base font-bold text-slate-900">Change Password</h2>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">Change Password</h2>
                 {activeSection === 'password' ? (
-                  <IoChevronUpOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
-                  <IoChevronDownOutline className="h-5 w-5 text-slate-500" />
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 )}
               </button>
 
               {activeSection === 'password' && (
-                <div className="px-5 pb-5 border-t border-slate-100 space-y-4 pt-5">
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-3 sm:space-y-4 pt-4 sm:pt-5">
                   <div>
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                       Current Password
@@ -1039,7 +1041,7 @@ const DoctorProfile = () => {
                     <input
                       type="password"
                       placeholder="Enter current password"
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                     />
                   </div>
                   <div>
@@ -1049,7 +1051,7 @@ const DoctorProfile = () => {
                     <input
                       type="password"
                       placeholder="Enter new password"
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                     />
                   </div>
                   <div>
@@ -1059,7 +1061,7 @@ const DoctorProfile = () => {
                     <input
                       type="password"
                       placeholder="Confirm new password"
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                     />
                   </div>
                   <button
@@ -1068,7 +1070,7 @@ const DoctorProfile = () => {
                       console.log('Change Password submitted')
                       alert('Password change functionality will be implemented')
                     }}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 active:scale-95"
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
                   >
                     <IoLockClosedOutline className="h-4 w-4" />
                     Update Password
@@ -1076,9 +1078,7 @@ const DoctorProfile = () => {
                 </div>
               )}
           </div>
-          </section>
-        </div>
-      </div>
+      </section>
     </>
   )
 }

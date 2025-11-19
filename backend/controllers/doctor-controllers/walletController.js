@@ -8,7 +8,7 @@ const {
   buildWithdrawalHistoryEntry,
   COMMISSION_RATE,
 } = require('../../services/walletService');
-const { WITHDRAWAL_STATUS } = require('../../utils/constants');
+const { WITHDRAWAL_STATUS, ROLES } = require('../../utils/constants');
 
 exports.getWalletSummary = asyncHandler(async (req, res) => {
   const summary = await getDoctorWalletSummary(req.auth.id);
@@ -50,7 +50,12 @@ exports.listWithdrawals = asyncHandler(async (req, res) => {
   const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
   const skip = (page - 1) * limit;
 
-  const match = { doctor: req.auth.id };
+  const match = {
+    $or: [
+      { provider: req.auth.id, providerRole: ROLES.DOCTOR },
+      { doctor: req.auth.id }, // Legacy support
+    ],
+  };
   if (status && Object.values(WITHDRAWAL_STATUS).includes(status)) {
     match.status = status;
   }
@@ -99,7 +104,10 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
   const notes = req.body.notes;
 
   const request = await WithdrawalRequest.create({
-    doctor: req.auth.id,
+    provider: req.auth.id,
+    providerModel: 'Doctor',
+    providerRole: ROLES.DOCTOR,
+    doctor: req.auth.id, // Legacy support
     amount,
     currency: req.body.currency || 'INR',
     payoutMethod,
@@ -113,6 +121,19 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
       }),
     ],
   });
+
+  // Notify about withdrawal request
+  try {
+    const { notifyWithdrawalRequested } = require('../../services/notificationEvents');
+    await notifyWithdrawalRequested({
+      providerId: req.auth.id,
+      providerRole: ROLES.DOCTOR,
+      amount,
+      withdrawalId: request._id,
+    });
+  } catch (notificationError) {
+    console.error('Failed to send withdrawal request notification:', notificationError);
+  }
 
   res.status(201).json({
     success: true,

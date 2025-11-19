@@ -104,7 +104,7 @@ const PatientOrders = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'new':
-        return 'bg-blue-100 text-blue-700'
+        return 'bg-[rgba(17,73,108,0.15)] text-[#11496c]'
       case 'home_collection_requested':
       case 'patient_arrived':
       case 'delivery_requested':
@@ -216,7 +216,7 @@ const PatientOrders = () => {
             onClick={() => setFilter(type)}
             className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
               filter === type
-                ? 'bg-blue-500 text-white shadow-sm shadow-blue-400/40'
+                ? 'bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)]'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
           >
@@ -235,10 +235,10 @@ const PatientOrders = () => {
             <div className="flex items-start gap-3">
               {/* Icon */}
               <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                order.type === 'lab' ? 'bg-blue-100' : 'bg-amber-100'
+                order.type === 'lab' ? 'bg-[rgba(17,73,108,0.15)]' : 'bg-amber-100'
               }`}>
                 {order.type === 'lab' ? (
-                  <IoFlaskOutline className="h-6 w-6 text-blue-600" />
+                  <IoFlaskOutline className="h-6 w-6 text-[#11496c]" />
                 ) : (
                   <IoBagHandleOutline className="h-6 w-6 text-amber-600" />
                 )}

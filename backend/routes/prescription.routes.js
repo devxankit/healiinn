@@ -14,6 +14,12 @@ router.get(
 );
 
 router.get(
+  '/doctor/list',
+  protect(ROLES.DOCTOR),
+  controller.listDoctorPrescriptions
+);
+
+router.get(
   '/:prescriptionId',
   protect(ROLES.DOCTOR, ROLES.PATIENT, ROLES.ADMIN),
   controller.getPrescription

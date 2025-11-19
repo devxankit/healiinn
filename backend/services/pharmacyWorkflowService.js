@@ -70,6 +70,7 @@ const updateLeadStatus = async ({
   status,
   notes,
   billing,
+  medicines, // Updated medicines with availability and prices
   actorId,
   actorRole,
 }) => {
@@ -87,6 +88,20 @@ const updateLeadStatus = async ({
     throw error;
   }
 
+  // If accepting, validate that medicines and billing are provided
+  if (status === PHARMACY_LEAD_STATUS.ACCEPTED) {
+    if (!medicines || !Array.isArray(medicines) || medicines.length === 0) {
+      const error = new Error('Medicines with availability and prices are required when accepting a request.');
+      error.status = 400;
+      throw error;
+    }
+    if (!billing || typeof billing.totalAmount !== 'number' || billing.totalAmount <= 0) {
+      const error = new Error('Billing details with totalAmount are required when accepting a request.');
+      error.status = 400;
+      throw error;
+    }
+  }
+
   lead.status = status;
   lead.statusHistory = [
     ...(lead.statusHistory || []),
@@ -98,6 +113,23 @@ const updateLeadStatus = async ({
       billing,
     }),
   ];
+
+  // Update medicines with availability and prices when accepting
+  if (status === PHARMACY_LEAD_STATUS.ACCEPTED && medicines) {
+    lead.medicines = medicines.map((medicine) => ({
+      name: medicine.name,
+      dosage: medicine.dosage || '',
+      quantity: medicine.quantity || 1,
+      instructions: medicine.instructions || '',
+      priority: medicine.priority || 'normal',
+      available: medicine.available !== undefined ? medicine.available : true,
+      price: medicine.price !== undefined ? Number(medicine.price) : 0,
+      availableQuantity: medicine.availableQuantity !== undefined ? Number(medicine.availableQuantity) : 0,
+      availabilityNotes: medicine.availabilityNotes || '',
+    }));
+    // Track which pharmacy accepted
+    lead.acceptedBy = pharmacyId;
+  }
 
   if (billing) {
     const summary = {
@@ -122,6 +154,52 @@ const updateLeadStatus = async ({
   }
 
   await lead.save();
+
+  // Send notifications for status changes
+  const { 
+    notifyPharmacyLeadStatusChange, 
+    notifyPharmacyRequestReceived, 
+    notifyPharmacyAccepted 
+  } = require('./notificationEvents');
+  const Pharmacy = require('../models/Pharmacy');
+  const Patient = require('../models/Patient');
+
+  try {
+    if (status === PHARMACY_LEAD_STATUS.NEW) {
+      // Notify all preferred pharmacies
+      const pharmacies = await Pharmacy.find({ _id: { $in: lead.preferredPharmacies } })
+        .select('pharmacyName')
+        .lean();
+      for (const pharmacy of pharmacies) {
+        await notifyPharmacyRequestReceived({
+          pharmacyId: pharmacy._id,
+          patientName: null, // Will be populated if needed
+          leadId: lead._id,
+        });
+      }
+    } else if (status === PHARMACY_LEAD_STATUS.ACCEPTED) {
+      const patient = await Patient.findById(lead.patient).select('firstName lastName').lean();
+      const pharmacy = await Pharmacy.findById(pharmacyId).select('pharmacyName').lean();
+      await notifyPharmacyAccepted({
+        patientId: lead.patient,
+        pharmacyName: pharmacy?.pharmacyName || 'Pharmacy',
+        leadId: lead._id,
+        totalAmount: billing?.totalAmount || 0,
+      });
+    } else {
+      // Notify status change
+      await notifyPharmacyLeadStatusChange({
+        patientId: lead.patient,
+        pharmacyId,
+        status,
+        leadId: lead._id,
+        notes,
+      });
+    }
+  } catch (notificationError) {
+    console.error('Failed to send pharmacy lead notification:', notificationError);
+    // Don't fail the update if notification fails
+  }
 
   await lead.populate([
     {

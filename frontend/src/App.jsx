@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import PatientNavbar from './modules/patient/patient-components/PatientNavbar'
 import PatientDashboard from './modules/patient/patient-pages/PatientDashboard'
 import PatientPharmacy from './modules/patient/patient-pages/PatientPharmacy'
@@ -41,22 +41,18 @@ import PharmacyWalletEarning from './modules/pharmacy/pharmacy-pages/WalletEarni
 import PharmacyWalletWithdraw from './modules/pharmacy/pharmacy-pages/WalletWithdraw'
 import PharmacyWalletTransaction from './modules/pharmacy/pharmacy-pages/WalletTransaction'
 
-function App() {
+function PatientRoutes() {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/patient/login'
+  
   return (
-    <Router>
-      <div className="min-h-screen bg-slate-50 text-slate-900">
+    <>
+      {!isLoginPage && <PatientNavbar />}
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
         <Routes>
-          {/* Patient Routes */}
-          <Route
-            path="/patient/*"
-            element={
-              <>
-                <PatientNavbar />
-                <main className="px-4 pb-24 pt-20 sm:px-6">
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
-                    <Route path="/login" element={<PatientLogin />} />
-                    <Route path="/dashboard" element={<PatientDashboard />} />
+          <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
+          <Route path="/login" element={<PatientLogin />} />
+          <Route path="/dashboard" element={<PatientDashboard />} />
                     <Route path="/pharmacy" element={<PatientPharmacy />} />
                     <Route path="/doctors" element={<PatientDoctors />} />
                     <Route path="/doctors/:id" element={<PatientDoctorDetails />} />
@@ -73,12 +69,46 @@ function App() {
                     <Route path="/requests" element={<PatientRequests />} />
                     <Route path="/transactions" element={<PatientTransactions />} />
                     <Route path="/appointments" element={<PatientAppointments />} />
-                    <Route path="/orders" element={<PatientOrders />} />
-                  </Routes>
-                </main>
-              </>
-            }
-          />
+          <Route path="/orders" element={<PatientOrders />} />
+        </Routes>
+      </main>
+    </>
+  )
+}
+
+function DoctorRoutes() {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/doctor/login'
+  
+  return (
+    <>
+      {!isLoginPage && <DoctorNavbar />}
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/doctor/dashboard" replace />} />
+          <Route path="/login" element={<DoctorLogin />} />
+          <Route path="/dashboard" element={<DoctorDashboard />} />
+          <Route path="/wallet" element={<DoctorWallet />} />
+          <Route path="/wallet/balance" element={<WalletBalance />} />
+          <Route path="/wallet/earning" element={<WalletEarning />} />
+          <Route path="/wallet/withdraw" element={<WalletWithdraw />} />
+          <Route path="/wallet/transaction" element={<WalletTransaction />} />
+          <Route path="/patients" element={<DoctorPatients />} />
+          <Route path="/consultations" element={<DoctorConsultations />} />
+          <Route path="/profile" element={<DoctorProfile />} />
+        </Routes>
+      </main>
+    </>
+  )
+}
+
+function App() {
+  return (
+    <Router>
+      <div className="min-h-screen bg-slate-50 text-slate-900">
+        <Routes>
+          {/* Patient Routes */}
+          <Route path="/patient/*" element={<PatientRoutes />} />
 
           {/* Doctor Routes */}
           <Route path="/doctor/dashboard" element={<DoctorDashboard />} />

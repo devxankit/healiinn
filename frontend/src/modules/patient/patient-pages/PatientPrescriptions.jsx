@@ -424,9 +424,10 @@ const PatientPrescriptions = () => {
             onClick={() => setFilter(tab.value)}
             className={`flex-1 rounded-xl px-4 py-2 text-sm font-semibold transition ${
               filter === tab.value
-                ? 'bg-blue-500 text-white shadow-sm'
+                ? 'text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-50'
             }`}
+            style={filter === tab.value ? { backgroundColor: '#11496c' } : {}}
           >
             {tab.label}
           </button>
@@ -447,7 +448,7 @@ const PatientPrescriptions = () => {
               key={prescription.id}
               className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-lg"
             >
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-100/30 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
+              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl opacity-0 transition-opacity group-hover:opacity-100" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)' }} />
 
               <div className="relative">
                 {/* Doctor Info */}
@@ -463,7 +464,7 @@ const PatientPrescriptions = () => {
                   />
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-slate-900">{prescription.doctor.name}</h3>
-                    <p className="text-sm text-blue-600">{prescription.doctor.specialty}</p>
+                    <p className="text-sm text-[#11496c]">{prescription.doctor.specialty}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <span
                         className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
@@ -487,7 +488,7 @@ const PatientPrescriptions = () => {
                   <button
                     type="button"
                     onClick={() => handleDownloadPDF(prescription)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition hover:bg-blue-600 active:scale-95"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"
                   >
                     <IoDownloadOutline className="h-4 w-4" />
                     Download PDF
@@ -548,13 +549,13 @@ const PatientPrescriptions = () => {
                 onClick={() => setShareTab('pharmacy')}
                 className={`relative flex items-center justify-center p-4 transition group ${
                   shareTab === 'pharmacy'
-                    ? 'border-b-2 border-blue-500 bg-white text-blue-600'
+                    ? 'border-b-2 border-[#11496c] bg-white text-[#11496c]'
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 <IoBagHandleOutline className="h-5 w-5" />
                 {shareTab === 'pharmacy' && selectedPharmacies.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
+                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#11496c] text-[10px] font-bold text-white">
                     {selectedPharmacies.length}
                   </span>
                 )}
@@ -571,13 +572,13 @@ const PatientPrescriptions = () => {
                 onClick={() => setShareTab('laboratory')}
                 className={`relative flex items-center justify-center p-4 transition group ${
                   shareTab === 'laboratory'
-                    ? 'border-b-2 border-blue-500 bg-white text-blue-600'
+                    ? 'border-b-2 border-[#11496c] bg-white text-[#11496c]'
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 <IoFlaskOutline className="h-5 w-5" />
                 {shareTab === 'laboratory' && selectedLabs.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
+                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#11496c] text-[10px] font-bold text-white">
                     {selectedLabs.length}
                   </span>
                 )}
@@ -594,13 +595,13 @@ const PatientPrescriptions = () => {
                 onClick={() => setShareTab('doctor')}
                 className={`relative flex items-center justify-center p-4 transition group ${
                   shareTab === 'doctor'
-                    ? 'border-b-2 border-blue-500 bg-white text-blue-600'
+                    ? 'border-b-2 border-[#11496c] bg-white text-[#11496c]'
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 <IoPeopleOutline className="h-5 w-5" />
                 {shareTab === 'doctor' && selectedDoctors.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
+                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#11496c] text-[10px] font-bold text-white">
                     {selectedDoctors.length}
                   </span>
                 )}
@@ -625,7 +626,7 @@ const PatientPrescriptions = () => {
                   placeholder={`Search ${shareTab === 'pharmacy' ? 'pharmacies' : shareTab === 'laboratory' ? 'laboratories' : 'doctors'}...`}
                   value={shareSearchTerm}
                   onChange={(e) => setShareSearchTerm(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-10 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-10 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                 />
               </div>
             </div>
@@ -648,14 +649,14 @@ const PatientPrescriptions = () => {
                           onClick={() => togglePharmacySelection(pharmacy.id)}
                           className={`w-full flex items-center justify-between rounded-xl border-2 p-4 transition text-left ${
                             isSelected
-                              ? 'border-blue-500 bg-blue-50'
+                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                               : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                           }`}
                         >
                           <div className="flex items-center gap-3 flex-1">
                             <div
                               className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                                isSelected ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'
+                                isSelected ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
                               }`}
                             >
                               <IoBagHandleOutline className="h-5 w-5" />
@@ -670,7 +671,7 @@ const PatientPrescriptions = () => {
                             </div>
                           </div>
                           {isSelected && (
-                            <IoCheckmarkCircleOutline className="h-5 w-5 text-blue-600 shrink-0" />
+                            <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
                           )}
                         </button>
                       )
@@ -693,14 +694,14 @@ const PatientPrescriptions = () => {
                           onClick={() => toggleLabSelection(lab.id)}
                           className={`w-full flex items-center justify-between rounded-xl border-2 p-4 transition text-left ${
                             isSelected
-                              ? 'border-blue-500 bg-blue-50'
+                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                               : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                           }`}
                         >
                           <div className="flex items-center gap-3 flex-1">
                             <div
                               className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                                isSelected ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'
+                                isSelected ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
                               }`}
                             >
                               <IoFlaskOutline className="h-5 w-5" />
@@ -715,7 +716,7 @@ const PatientPrescriptions = () => {
                             </div>
                           </div>
                           {isSelected && (
-                            <IoCheckmarkCircleOutline className="h-5 w-5 text-blue-600 shrink-0" />
+                            <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
                           )}
                         </button>
                       )
@@ -751,7 +752,7 @@ const PatientPrescriptions = () => {
                           onClick={() => toggleDoctorSelection(doctor.id)}
                           className={`w-full flex items-center justify-between rounded-xl border-2 p-4 transition text-left ${
                             isSelected
-                              ? 'border-blue-500 bg-blue-50'
+                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                               : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                           }`}
                         >
@@ -760,7 +761,7 @@ const PatientPrescriptions = () => {
                               src={doctor.image}
                               alt={doctor.name}
                               className={`h-12 w-12 rounded-xl object-cover ring-2 bg-slate-100 ${
-                                isSelected ? 'ring-blue-500' : 'ring-slate-200'
+                                isSelected ? 'ring-[#11496c]' : 'ring-slate-200'
                               }`}
                               onError={(e) => {
                                 e.target.onerror = null
@@ -769,7 +770,7 @@ const PatientPrescriptions = () => {
                             />
                             <div className="flex-1">
                               <h4 className="text-sm font-semibold text-slate-900">{doctor.name}</h4>
-                              <p className="text-xs text-blue-600 mt-0.5">{doctor.specialty}</p>
+                              <p className="text-xs text-[#11496c] mt-0.5">{doctor.specialty}</p>
                               <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
                                 <IoLocationOutline className="h-3 w-3" />
                                 <span>{doctor.location}</span>
@@ -782,7 +783,7 @@ const PatientPrescriptions = () => {
                             </div>
                           </div>
                           {isSelected && (
-                            <IoCheckmarkCircleOutline className="h-5 w-5 text-blue-600 shrink-0" />
+                            <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
                           )}
                         </button>
                       )
@@ -822,7 +823,7 @@ const PatientPrescriptions = () => {
                   type="button"
                   onClick={handleShare}
                   disabled={selectedPharmacies.length === 0 && selectedLabs.length === 0 && selectedDoctors.length === 0 || isSharing}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isSharing ? (
                     <>

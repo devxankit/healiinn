@@ -1,12 +1,30 @@
 const mongoose = require('mongoose');
-const { WITHDRAWAL_STATUS } = require('../utils/constants');
+const { WITHDRAWAL_STATUS, ROLES } = require('../utils/constants');
 
 const withdrawalRequestSchema = new mongoose.Schema(
   {
+    provider: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'providerModel',
+      required: true,
+      index: true,
+    },
+    providerModel: {
+      type: String,
+      enum: ['Doctor', 'Laboratory', 'Pharmacy'],
+      required: true,
+      index: true,
+    },
+    providerRole: {
+      type: String,
+      enum: [ROLES.DOCTOR, ROLES.LABORATORY, ROLES.PHARMACY],
+      required: true,
+      index: true,
+    },
+    // Legacy support
     doctor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Doctor',
-      required: true,
       index: true,
     },
     amount: {
@@ -48,11 +66,11 @@ const withdrawalRequestSchema = new mongoose.Schema(
         },
         changedByRole: {
           type: String,
-          enum: ['doctor', 'admin'],
+          enum: ['doctor', 'laboratory', 'pharmacy', 'admin'],
         },
         changedByRoleModel: {
           type: String,
-          enum: ['Doctor', 'Admin'],
+          enum: ['Doctor', 'Laboratory', 'Pharmacy', 'Admin'],
         },
         note: { type: String, trim: true },
       },
@@ -64,6 +82,8 @@ const withdrawalRequestSchema = new mongoose.Schema(
   }
 );
 
+withdrawalRequestSchema.index({ provider: 1, providerRole: 1, status: 1, createdAt: -1 });
+// Legacy index
 withdrawalRequestSchema.index({ doctor: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model('WithdrawalRequest', withdrawalRequestSchema);

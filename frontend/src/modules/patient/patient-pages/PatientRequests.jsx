@@ -98,7 +98,7 @@ const PatientRequests = () => {
       case 'pending':
         return 'bg-amber-100 text-amber-700'
       case 'accepted':
-        return 'bg-blue-100 text-blue-700'
+        return 'bg-[rgba(17,73,108,0.15)] text-[#11496c]'
       case 'paid':
         return 'bg-purple-100 text-purple-700'
       case 'confirmed':
@@ -154,9 +154,13 @@ const PatientRequests = () => {
                 <div className="flex items-start gap-3">
                   <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
                     request.type === 'lab' 
-                      ? 'bg-gradient-to-br from-teal-400 to-teal-500 shadow-teal-300/50' 
-                      : 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-orange-300/50'
-                  } text-white shadow-lg`}>
+                      ? 'text-white shadow-lg' 
+                      : 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-orange-300/50 text-white shadow-lg'
+                  }`}
+                  style={request.type === 'lab' ? { 
+                    background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
+                    boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
+                  } : {}}>
                     {request.type === 'lab' ? (
                       <IoFlaskOutline className="h-6 w-6" />
                     ) : (
@@ -182,11 +186,11 @@ const PatientRequests = () => {
 
                     {/* Payment Info - Inline */}
                     {request.status === 'accepted' && (
-                      <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/50 p-2.5">
-                        <p className="text-xs text-blue-900 leading-relaxed">{request.message}</p>
+                      <div className="mt-3 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.1)]/50 p-2.5">
+                        <p className="text-xs text-[#0a2d3f] leading-relaxed">{request.message}</p>
                         <div className="mt-2 flex items-center justify-between">
                           <span className="text-xs font-semibold text-slate-700">Total Amount:</span>
-                          <span className="text-lg font-bold text-blue-600">{formatCurrency(request.totalAmount)}</span>
+                          <span className="text-lg font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
                         </div>
                       </div>
                     )}
@@ -210,7 +214,7 @@ const PatientRequests = () => {
                   <button
                     type="button"
                     onClick={() => handlePayClick(request)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 hover:shadow-md active:scale-[0.98]"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98]"
                   >
                     <IoCardOutline className="h-4 w-4" />
                     Pay & Confirm
@@ -428,7 +432,7 @@ const PatientRequests = () => {
                     </p>
                     <p className="text-xs text-slate-600">{selectedRequest.providerName}</p>
                   </div>
-                  <span className="text-lg font-bold text-blue-600">
+                  <span className="text-lg font-bold text-[#11496c]">
                     {formatCurrency(selectedRequest.totalAmount)}
                   </span>
                 </div>
@@ -444,7 +448,7 @@ const PatientRequests = () => {
                       value="card"
                       checked={paymentMethod === 'card'}
                       onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="h-4 w-4 text-blue-600"
+                      className="h-4 w-4 text-[#11496c]"
                     />
                     <IoCardOutline className="h-5 w-5 text-slate-600" />
                     <span className="flex-1 text-sm font-medium text-slate-900">Credit/Debit Card</span>
@@ -456,7 +460,7 @@ const PatientRequests = () => {
                       value="upi"
                       checked={paymentMethod === 'upi'}
                       onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="h-4 w-4 text-blue-600"
+                      className="h-4 w-4 text-[#11496c]"
                     />
                     <span className="flex-1 text-sm font-medium text-slate-900">UPI</span>
                   </label>
@@ -467,7 +471,7 @@ const PatientRequests = () => {
                       value="wallet"
                       checked={paymentMethod === 'wallet'}
                       onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="h-4 w-4 text-blue-600"
+                      className="h-4 w-4 text-[#11496c]"
                     />
                     <span className="flex-1 text-sm font-medium text-slate-900">Wallet</span>
                   </label>
@@ -487,7 +491,7 @@ const PatientRequests = () => {
                 type="button"
                 onClick={handleConfirmPayment}
                 disabled={isProcessing}
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition hover:bg-blue-600 disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:opacity-50"
               >
                 {isProcessing ? (
                   <>

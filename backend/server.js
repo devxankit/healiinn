@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const { Server } = require('socket.io');
 const { createAdapter } = require('@socket.io/redis-adapter');
+const os = require('os');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
@@ -42,6 +43,7 @@ app.use('/api/admin/settings', require('./routes/admin-routes/settings.routes'))
 app.use('/api/admin/activation', require('./routes/admin-routes/activation.routes'));
 app.use('/api/admin/dashboard', require('./routes/admin-routes/dashboard.routes'));
 app.use('/api/admin/wallet', require('./routes/admin-routes/wallet.routes'));
+app.use('/api/admin/transactions', require('./routes/admin-routes/transaction.routes'));
 app.use('/api/payments', require('./routes/payment-routes/payment.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/appointments', require('./routes/appointment.routes'));
@@ -50,7 +52,14 @@ app.use('/api/prescriptions', require('./routes/prescription.routes'));
 app.use('/api/labs', require('./routes/lab.routes'));
 app.use('/api/pharmacy', require('./routes/pharmacy.routes'));
 app.use('/api/doctors/dashboard', require('./routes/doctor-routes/dashboard.routes'));
+app.use('/api/patients', require('./routes/patient-routes/transaction.routes'));
 app.use('/api/doctors/wallet', require('./routes/doctor-routes/wallet.routes'));
+app.use('/api/doctors/transactions', require('./routes/doctor-routes/transaction.routes'));
+app.use('/api/laboratories/wallet', require('./routes/laboratory-routes/wallet.routes'));
+app.use('/api/laboratories/transactions', require('./routes/laboratory-routes/transaction.routes'));
+app.use('/api/pharmacies/wallet', require('./routes/pharmacy-routes/wallet.routes'));
+app.use('/api/pharmacies/transactions', require('./routes/pharmacy-routes/transaction.routes'));
+app.use('/api/reports', require('./routes/report.routes'));
 app.use('/api/reviews', require('./routes/review.routes'));
 app.use('/api/discovery', require('./routes/discovery.routes'));
 
@@ -128,8 +137,37 @@ if (isRedisEnabled && redis && pub && sub) {
   console.warn('[Redis] Disabled - sockets running without Redis adapter.');
 }
 
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Listen on all network interfaces (0.0.0.0) to allow network access
+server.listen(PORT, '0.0.0.0', () => {
+  const networkInterfaces = os.networkInterfaces();
+  const addresses = [];
+  
+  // Get localhost address
+  addresses.push(`http://localhost:${PORT}`);
+  addresses.push(`http://127.0.0.1:${PORT}`);
+  
+  // Get network IP addresses
+  Object.keys(networkInterfaces).forEach((interfaceName) => {
+    networkInterfaces[interfaceName].forEach((iface) => {
+      // Skip internal (loopback) and non-IPv4 addresses
+      // Handle both string 'IPv4' and number 4 (Windows compatibility)
+      const isIPv4 = iface.family === 'IPv4' || iface.family === 4;
+      if (isIPv4 && !iface.internal) {
+        const address = `http://${iface.address}:${PORT}`;
+        // Avoid duplicates
+        if (!addresses.includes(address)) {
+          addresses.push(address);
+        }
+      }
+    });
+  });
+  
+  console.log(`\n🚀 Server is running on port ${PORT}`);
+  console.log(`\n📍 Available at:`);
+  addresses.forEach((address) => {
+    console.log(`   ${address}`);
+  });
+  console.log('');
 });
 
 module.exports = app;

@@ -39,7 +39,8 @@ const clinicSessionSchema = new mongoose.Schema(
     averageConsultationMinutes: {
       type: Number,
       min: 5,
-      default: () => Number(process.env.TOKEN_QUEUE_DEFAULT_AVG_MINUTES) || 15,
+      max: 60,
+      required: false, // Will be set by doctor before starting session
     },
     maxTokens: {
       type: Number,

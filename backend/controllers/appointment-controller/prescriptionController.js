@@ -321,6 +321,91 @@ exports.listPatientPrescriptions = asyncHandler(async (req, res) => {
   });
 });
 
+exports.listDoctorPrescriptions = asyncHandler(async (req, res) => {
+  ensureRole(req.auth.role, [ROLES.DOCTOR]);
+
+  const { status, patientId, from, to } = req.query;
+  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
+
+  const criteria = { doctor: req.auth.id };
+
+  if (status) {
+    criteria.status = status;
+  }
+
+  if (patientId) {
+    criteria.patient = patientId;
+  }
+
+  if (from || to) {
+    criteria.issuedAt = {};
+    if (from) {
+      criteria.issuedAt.$gte = new Date(from);
+    }
+    if (to) {
+      criteria.issuedAt.$lte = new Date(to);
+    }
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [prescriptions, total] = await Promise.all([
+    Prescription.find(criteria)
+      .populate('patient', 'firstName lastName phone email address')
+      .populate('appointment', 'scheduledFor status')
+      .populate('consultation', 'status startedAt completedAt')
+      .sort({ issuedAt: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Prescription.countDocuments(criteria),
+  ]);
+
+  const prescriptionIds = prescriptions.map((item) => item._id);
+
+  const [labLeads, pharmacyLeads] = await Promise.all([
+    LabLead.find({ prescription: { $in: prescriptionIds } })
+      .populate('preferredLaboratories', 'labName phone email address')
+      .lean(),
+    PharmacyLead.find({ prescription: { $in: prescriptionIds } })
+      .populate('preferredPharmacies', 'pharmacyName phone email address')
+      .lean(),
+  ]);
+
+  const labLeadMap = labLeads.reduce((acc, lead) => {
+    acc[lead.prescription.toString()] = lead;
+    return acc;
+  }, {});
+
+  const pharmacyLeadMap = pharmacyLeads.reduce((acc, lead) => {
+    acc[lead.prescription.toString()] = lead;
+    return acc;
+  }, {});
+
+  res.json({
+    success: true,
+    pagination: {
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit) || 1,
+    },
+    prescriptions: prescriptions.map((prescription) => ({
+      ...prescription,
+      patient: buildPatientSummary(prescription.patient),
+      sharedWith: {
+        laboratories: buildLabLeadSummary(
+          labLeadMap[prescription._id.toString()]
+        ),
+        pharmacies: buildPharmacyLeadSummary(
+          pharmacyLeadMap[prescription._id.toString()]
+        ),
+      },
+    })),
+  });
+});
+
 exports.sharePrescription = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.PATIENT, ROLES.DOCTOR, ROLES.ADMIN]);
 
@@ -447,6 +532,24 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
 
     await lead.save();
     await lead.populate('preferredLaboratories', 'labName phone email address');
+    
+    // Notify laboratories about new request
+    const { notifyLabRequestReceived } = require('../../services/notificationEvents');
+    const Patient = require('../../models/Patient');
+    try {
+      const patient = await Patient.findById(prescription.patient._id).select('firstName lastName').lean();
+      const patientName = patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : 'Patient';
+      for (const lab of eligibleLabs) {
+        await notifyLabRequestReceived({
+          laboratoryId: lab._id,
+          patientName,
+          leadId: lead._id,
+        });
+      }
+    } catch (notificationError) {
+      console.error('Failed to send lab request notification:', notificationError);
+    }
+    
     shareSummary = buildLabLeadSummary(lead.toObject());
   } else {
     const pharmacies = await Pharmacy.find({
@@ -510,6 +613,24 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
 
     await lead.save();
     await lead.populate('preferredPharmacies', 'pharmacyName phone email address');
+    
+    // Notify pharmacies about new request
+    const { notifyPharmacyRequestReceived } = require('../../services/notificationEvents');
+    const Patient = require('../../models/Patient');
+    try {
+      const patient = await Patient.findById(prescription.patient._id).select('firstName lastName').lean();
+      const patientName = patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : 'Patient';
+      for (const pharmacy of eligiblePharmacies) {
+        await notifyPharmacyRequestReceived({
+          pharmacyId: pharmacy._id,
+          patientName,
+          leadId: lead._id,
+        });
+      }
+    } catch (notificationError) {
+      console.error('Failed to send pharmacy request notification:', notificationError);
+    }
+    
     shareSummary = buildPharmacyLeadSummary(lead.toObject());
   }
 

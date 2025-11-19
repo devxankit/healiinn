@@ -1,9 +1,12 @@
 const Payment = require('../../models/Payment');
 const Appointment = require('../../models/Appointment');
-const WalletTransaction = require('../../models/WalletTransaction');
+const LabLead = require('../../models/LabLead');
+const PharmacyLead = require('../../models/PharmacyLead');
 const asyncHandler = require('../../middleware/asyncHandler');
 const { createOrder, verifySignature } = require('../../services/razorpayService');
-const { COMMISSION_RATE, ROLES } = require('../../utils/constants');
+const { COMMISSION_RATE, ROLES, LAB_LEAD_STATUS, PHARMACY_LEAD_STATUS } = require('../../utils/constants');
+const { createWalletTransaction } = require('../../services/walletService');
+const { notifyLabLeadStatusChange, notifyPharmacyLeadStatusChange } = require('../../services/notificationEvents');
 
 const ROLE_TO_MODEL = {
   [ROLES.PATIENT]: 'Patient',
@@ -96,76 +99,276 @@ exports.verifyPaymentSignature = asyncHandler(async (req, res) => {
 });
 
 const handlePostPaymentProcessing = async ({ payment, paymentId, orderId }) => {
-  if (payment.type !== 'appointment') {
-    return;
-  }
-
   const metadata = payment.metadata || {};
-  const appointmentId = metadata.appointmentId;
-  if (!appointmentId) {
-    return;
-  }
+  const paymentType = payment.type || 'appointment';
 
-  const appointment = await Appointment.findById(appointmentId);
-  if (!appointment) {
-    return;
-  }
+  // Handle Appointment Payment (Doctor)
+  if (paymentType === 'appointment') {
+    const appointmentId = metadata.appointmentId;
+    if (!appointmentId) {
+      return;
+    }
 
-  const doctorId = metadata.doctorId || appointment.doctor;
-  const patientId = metadata.patientId || appointment.patient;
-  if (!doctorId || !patientId) {
-    return;
-  }
+    const appointment = await Appointment.findById(appointmentId);
+    if (!appointment) {
+      return;
+    }
 
-  const grossAmount =
-    Number(metadata.amount) ||
-    Number(appointment.billing?.amount) ||
-    Number(payment.amount);
+    const doctorId = metadata.doctorId || appointment.doctor;
+    const patientId = metadata.patientId || appointment.patient;
+    if (!doctorId || !patientId) {
+      return;
+    }
 
-  if (!grossAmount || Number.isNaN(grossAmount)) {
-    return;
-  }
+    const grossAmount =
+      Number(metadata.amount) ||
+      Number(appointment.billing?.amount) ||
+      Number(payment.amount);
 
-  const commissionRate =
-    typeof metadata.commissionRate === 'number'
-      ? metadata.commissionRate
-      : COMMISSION_RATE;
+    if (!grossAmount || Number.isNaN(grossAmount)) {
+      return;
+    }
 
-  const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
-  const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
+    const commissionRate =
+      typeof metadata.commissionRate === 'number'
+        ? metadata.commissionRate
+        : COMMISSION_RATE;
 
-  await Appointment.findByIdAndUpdate(appointmentId, {
-    $set: {
-      'billing.paid': true,
-      'billing.paymentStatus': 'paid',
-      'billing.paymentId': paymentId,
-      'billing.transactionId': paymentId,
-      'billing.razorpayPaymentId': paymentId,
-      'billing.razorpayOrderId': orderId,
-      'billing.paidAt': new Date(),
-      'billing.commissionRate': commissionRate,
-      'billing.commissionAmount': commissionAmount,
-      'billing.netAmount': netAmount,
-    },
-  });
+    const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
+    const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
 
-  await WalletTransaction.findOneAndUpdate(
-    { appointment: appointmentId },
-    {
-      doctor: doctorId,
-      patient: patientId,
-      appointment: appointmentId,
-      payment: payment._id,
+    await Appointment.findByIdAndUpdate(appointmentId, {
+      $set: {
+        'billing.paid': true,
+        'billing.paymentStatus': 'paid',
+        'billing.paymentId': paymentId,
+        'billing.transactionId': paymentId,
+        'billing.razorpayPaymentId': paymentId,
+        'billing.razorpayOrderId': orderId,
+        'billing.paidAt': new Date(),
+        'billing.commissionRate': commissionRate,
+        'billing.commissionAmount': commissionAmount,
+        'billing.netAmount': netAmount,
+      },
+    });
+
+    // Create wallet transaction
+    await createWalletTransaction({
+      providerId: doctorId,
+      providerRole: ROLES.DOCTOR,
+      patientId,
+      bookingId: appointmentId,
+      bookingModel: 'Appointment',
+      bookingType: 'appointment',
+      paymentId: payment._id,
       grossAmount,
-      commissionAmount,
-      netAmount,
       commissionRate,
       currency: appointment.billing?.currency || payment.currency || 'INR',
-      description:
-        metadata.description ||
-        `Appointment payment ${appointmentId.toString()}`,
-      creditedAt: new Date(),
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+      description: metadata.description || `Appointment payment ${appointmentId.toString()}`,
+    });
+  }
+
+  // Handle Lab Booking Payment (Laboratory)
+  else if (paymentType === 'lab_booking') {
+    const labLeadId = metadata.labLeadId;
+    if (!labLeadId) {
+      return;
+    }
+
+    const labLead = await LabLead.findById(labLeadId).populate('preferredLaboratories');
+    if (!labLead) {
+      return;
+    }
+
+    // Validate that lab has accepted the request
+    if (labLead.status !== LAB_LEAD_STATUS.ACCEPTED) {
+      console.error(`Lab lead ${labLeadId} is not accepted. Current status: ${labLead.status}`);
+      return;
+    }
+
+    // Validate that billing summary exists
+    if (!labLead.billingSummary || !labLead.billingSummary.totalAmount) {
+      console.error(`Lab lead ${labLeadId} does not have billing summary`);
+      return;
+    }
+
+    // Get the laboratory that accepted the booking
+    const laboratoryId = metadata.laboratoryId || labLead.acceptedBy || (labLead.preferredLaboratories && labLead.preferredLaboratories[0]?._id);
+    if (!laboratoryId) {
+      return;
+    }
+
+    const patientId = metadata.patientId || labLead.patient;
+    if (!patientId) {
+      return;
+    }
+
+    const expectedAmount = Number(labLead.billingSummary.totalAmount) + (Number(labLead.billingSummary.homeCollectionCharge) || 0);
+    const grossAmount =
+      Number(metadata.amount) ||
+      Number(payment.amount);
+
+    // Validate payment amount matches billing summary (allow small tolerance for rounding)
+    if (Math.abs(grossAmount - expectedAmount) > 0.01) {
+      console.error(`Payment amount mismatch for lab lead ${labLeadId}. Expected: ${expectedAmount}, Got: ${grossAmount}`);
+      return;
+    }
+
+    if (!grossAmount || Number.isNaN(grossAmount)) {
+      return;
+    }
+
+    const commissionRate =
+      typeof metadata.commissionRate === 'number'
+        ? metadata.commissionRate
+        : COMMISSION_RATE;
+
+    const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
+    const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
+
+    await LabLead.findByIdAndUpdate(labLeadId, {
+      $set: {
+        'payment.paid': true,
+        'payment.paymentStatus': 'paid',
+        'payment.paymentId': paymentId,
+        'payment.transactionId': paymentId,
+        'payment.razorpayPaymentId': paymentId,
+        'payment.razorpayOrderId': orderId,
+        'payment.paidAt': new Date(),
+        'payment.commissionRate': commissionRate,
+        'payment.commissionAmount': commissionAmount,
+        'payment.netAmount': netAmount,
+      },
+    });
+
+    // Create wallet transaction
+    await createWalletTransaction({
+      providerId: laboratoryId,
+      providerRole: ROLES.LABORATORY,
+      patientId,
+      bookingId: labLeadId,
+      bookingModel: 'LabLead',
+      bookingType: 'lab_booking',
+      paymentId: payment._id,
+      grossAmount,
+      commissionRate,
+      currency: labLead.billingSummary?.currency || payment.currency || 'INR',
+      description: metadata.description || `Lab booking payment ${labLeadId.toString()}`,
+    });
+
+    // Notify patient about payment confirmation
+    try {
+      await notifyLabLeadStatusChange({
+        patientId,
+        laboratoryId,
+        status: 'payment_confirmed',
+        leadId: labLeadId,
+        notes: 'Payment confirmed. Your lab booking is now confirmed.',
+      });
+    } catch (notificationError) {
+      console.error('Failed to send lab payment confirmation notification:', notificationError);
+    }
+  }
+
+  // Handle Pharmacy Booking Payment (Pharmacy)
+  else if (paymentType === 'pharmacy_booking') {
+    const pharmacyLeadId = metadata.pharmacyLeadId;
+    if (!pharmacyLeadId) {
+      return;
+    }
+
+    const pharmacyLead = await PharmacyLead.findById(pharmacyLeadId).populate('preferredPharmacies');
+    if (!pharmacyLead) {
+      return;
+    }
+
+    // Validate that pharmacy has accepted the request
+    if (pharmacyLead.status !== PHARMACY_LEAD_STATUS.ACCEPTED) {
+      console.error(`Pharmacy lead ${pharmacyLeadId} is not accepted. Current status: ${pharmacyLead.status}`);
+      return;
+    }
+
+    // Validate that billing summary exists
+    if (!pharmacyLead.billingSummary || !pharmacyLead.billingSummary.totalAmount) {
+      console.error(`Pharmacy lead ${pharmacyLeadId} does not have billing summary`);
+      return;
+    }
+
+    // Get the pharmacy that accepted the booking
+    const pharmacyId = metadata.pharmacyId || pharmacyLead.acceptedBy || (pharmacyLead.preferredPharmacies && pharmacyLead.preferredPharmacies[0]?._id);
+    if (!pharmacyId) {
+      return;
+    }
+
+    const patientId = metadata.patientId || pharmacyLead.patient;
+    if (!patientId) {
+      return;
+    }
+
+    const expectedAmount = Number(pharmacyLead.billingSummary.totalAmount) + (Number(pharmacyLead.billingSummary.deliveryCharge) || 0);
+    const grossAmount =
+      Number(metadata.amount) ||
+      Number(payment.amount);
+
+    // Validate payment amount matches billing summary (allow small tolerance for rounding)
+    if (Math.abs(grossAmount - expectedAmount) > 0.01) {
+      console.error(`Payment amount mismatch for pharmacy lead ${pharmacyLeadId}. Expected: ${expectedAmount}, Got: ${grossAmount}`);
+      return;
+    }
+
+    if (!grossAmount || Number.isNaN(grossAmount)) {
+      return;
+    }
+
+    const commissionRate =
+      typeof metadata.commissionRate === 'number'
+        ? metadata.commissionRate
+        : COMMISSION_RATE;
+
+    const commissionAmount = Number((grossAmount * commissionRate).toFixed(2));
+    const netAmount = Number((grossAmount - commissionAmount).toFixed(2));
+
+    await PharmacyLead.findByIdAndUpdate(pharmacyLeadId, {
+      $set: {
+        'payment.paid': true,
+        'payment.paymentStatus': 'paid',
+        'payment.paymentId': paymentId,
+        'payment.transactionId': paymentId,
+        'payment.razorpayPaymentId': paymentId,
+        'payment.razorpayOrderId': orderId,
+        'payment.paidAt': new Date(),
+        'payment.commissionRate': commissionRate,
+        'payment.commissionAmount': commissionAmount,
+        'payment.netAmount': netAmount,
+      },
+    });
+
+    // Create wallet transaction
+    await createWalletTransaction({
+      providerId: pharmacyId,
+      providerRole: ROLES.PHARMACY,
+      patientId,
+      bookingId: pharmacyLeadId,
+      bookingModel: 'PharmacyLead',
+      bookingType: 'pharmacy_booking',
+      paymentId: payment._id,
+      grossAmount,
+      commissionRate,
+      currency: pharmacyLead.billingSummary?.currency || payment.currency || 'INR',
+      description: metadata.description || `Pharmacy booking payment ${pharmacyLeadId.toString()}`,
+    });
+
+    // Notify patient about payment confirmation
+    try {
+      await notifyPharmacyLeadStatusChange({
+        patientId,
+        pharmacyId,
+        status: 'payment_confirmed',
+        leadId: pharmacyLeadId,
+        notes: 'Payment confirmed. Your pharmacy order is now confirmed.',
+      });
+    } catch (notificationError) {
+      console.error('Failed to send pharmacy payment confirmation notification:', notificationError);
+    }
+  }
 };
