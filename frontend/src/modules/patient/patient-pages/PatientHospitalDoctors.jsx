@@ -113,7 +113,7 @@ const PatientHospitalDoctors = () => {
         <p className="mt-2">The hospital you are looking for does not exist.</p>
         <button
           onClick={() => navigate(-1)}
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600"
+          className="mt-4 px-4 py-2 bg-[#11496c] text-white rounded-lg shadow hover:bg-[#0d3a52]"
         >
           Go Back
         </button>
@@ -154,7 +154,7 @@ const PatientHospitalDoctors = () => {
               onClick={() => handleDoctorClick(doctor.id)}
               className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg cursor-pointer"
             >
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-100/30 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
+              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[rgba(17,73,108,0.15)] blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
               <div className="relative p-4 sm:p-5">
                 <div className="flex items-start gap-4">
                   <div className="relative shrink-0">
@@ -176,7 +176,7 @@ const PatientHospitalDoctors = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="text-lg font-semibold text-slate-900 sm:text-xl">{doctor.name}</h3>
-                    <p className="mt-0.5 text-xs font-medium text-blue-600 sm:text-sm">{doctor.specialty}</p>
+                    <p className="mt-0.5 text-xs font-medium text-[#11496c] sm:text-sm">{doctor.specialty}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
                       <span className="text-xs font-semibold text-slate-700">{doctor.rating}</span>
@@ -191,7 +191,7 @@ const PatientHospitalDoctors = () => {
                         <IoTimeOutline className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                         <span className="font-medium text-slate-700">{doctor.availability}</span>
                         {doctor.nextSlot && (
-                          <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-600">
+                          <span className="shrink-0 rounded-full bg-[rgba(17,73,108,0.1)] px-2 py-0.5 text-xs font-semibold text-[#11496c]">
                             {doctor.nextSlot}
                           </span>
                         )}
@@ -208,7 +208,7 @@ const PatientHospitalDoctors = () => {
                           e.stopPropagation()
                           handleDoctorClick(doctor.id)
                         }}
-                        className="flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 active:scale-95 sm:text-sm"
+                        className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95 sm:text-sm"
                       >
                         <IoCalendarOutline className="h-4 w-4" aria-hidden="true" />
                         Book

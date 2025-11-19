@@ -292,7 +292,7 @@ const PatientDoctorDetails = () => {
         <p className="text-lg font-semibold text-slate-700">Doctor not found</p>
         <button
           onClick={() => navigate('/patient/doctors')}
-          className="rounded-lg bg-blue-500 px-4 py-2 text-white font-semibold hover:bg-blue-600"
+          className="rounded-lg bg-[#11496c] px-4 py-2 text-white font-semibold hover:bg-[#0d3a52]"
         >
           Back to Doctors
         </button>
@@ -304,7 +304,7 @@ const PatientDoctorDetails = () => {
     <section className="flex flex-col gap-6 pb-4">
       <button
         onClick={() => navigate('/patient/doctors')}
-        className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 self-start"
+        className="flex items-center gap-2 text-sm font-semibold text-[#11496c] hover:text-[#0d3a52] self-start"
       >
         <IoArrowBackOutline className="h-5 w-5" aria-hidden="true" />
         Back to Doctors
@@ -333,7 +333,7 @@ const PatientDoctorDetails = () => {
           <div className="flex-1 space-y-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">{doctor.name}</h1>
-              <p className="mt-1 text-base font-medium text-blue-600">{doctor.specialty}</p>
+              <p className="mt-1 text-base font-medium text-[#11496c]">{doctor.specialty}</p>
               <div className="mt-3 flex items-center gap-2">
                 <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
                 <span className="text-sm font-semibold text-slate-700">{doctor.rating}</span>
@@ -352,7 +352,7 @@ const PatientDoctorDetails = () => {
                 <IoTimeOutline className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
                 <span className="font-medium text-slate-700">{doctor.availability}</span>
                 {doctor.nextSlot && (
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-600">
+                  <span className="rounded-full bg-[rgba(17,73,108,0.1)] px-3 py-1 text-sm font-semibold text-[#11496c]">
                     {doctor.nextSlot}
                   </span>
                 )}
@@ -368,7 +368,7 @@ const PatientDoctorDetails = () => {
               <button
                 type="button"
                 onClick={handleBookingClick}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 active:scale-95 sm:text-sm"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95 sm:text-sm"
               >
                 <IoCalendarOutline className="h-4 w-4" aria-hidden="true" />
                 Book Appointment
@@ -426,7 +426,7 @@ const PatientDoctorDetails = () => {
                   <div
                     className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition ${
                       bookingStep >= step
-                        ? 'bg-blue-500 text-white'
+                        ? 'bg-[#11496c] text-white'
                         : 'bg-slate-200 text-slate-500'
                     }`}
                   >
@@ -435,7 +435,7 @@ const PatientDoctorDetails = () => {
                   {step < 3 && (
                     <div
                       className={`h-1 w-12 transition ${
-                        bookingStep > step ? 'bg-blue-500' : 'bg-slate-200'
+                        bookingStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
                       }`}
                     />
                   )}
@@ -462,7 +462,7 @@ const PatientDoctorDetails = () => {
                               onClick={() => setSelectedDate(date.value)}
                               className={`shrink-0 rounded-xl border-2 px-4 py-3 text-sm font-semibold transition ${
                                 selectedDate === date.value
-                                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                  ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)] text-[#0d3a52]'
                                   : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                               }`}
                             >
@@ -486,7 +486,7 @@ const PatientDoctorDetails = () => {
                                 onClick={() => setSelectedTime(slot.value)}
                                 className={`shrink-0 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition whitespace-nowrap ${
                                   selectedTime === slot.value
-                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                    ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)] text-[#0d3a52]'
                                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                                 }`}
                               >
@@ -513,9 +513,9 @@ const PatientDoctorDetails = () => {
                         <button
                           type="button"
                           onClick={() => setAppointmentType('in_person')}
-                          className="flex w-full max-w-xs items-center gap-3 rounded-xl border-2 border-blue-500 bg-blue-50 p-4 transition"
+                          className="flex w-full max-w-xs items-center gap-3 rounded-xl border-2 border-[#11496c] bg-[rgba(17,73,108,0.1)] p-4 transition"
                         >
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#11496c] text-white">
                             <IoPersonOutline className="h-5 w-5" />
                           </div>
                           <span className="text-sm font-semibold text-slate-900">In-Person</span>
@@ -533,7 +533,7 @@ const PatientDoctorDetails = () => {
                         placeholder="e.g., General checkup, Follow-up, Consultation"
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                       />
                     </div>
 
@@ -547,7 +547,7 @@ const PatientDoctorDetails = () => {
                         placeholder="Any additional information you'd like to share..."
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                       />
                     </div>
                   </div>
@@ -558,8 +558,8 @@ const PatientDoctorDetails = () => {
               {bookingStep === 3 && (
                 <div className="space-y-6">
                   <div className="text-center">
-                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
-                      <IoCheckmarkCircle className="h-10 w-10 text-blue-600" />
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)]">
+                      <IoCheckmarkCircle className="h-10 w-10 text-[#11496c]" />
                     </div>
                     <h3 className="mb-2 text-xl font-bold text-slate-900">Confirm Your Appointment</h3>
                     <p className="text-sm text-slate-600">Please review your appointment details</p>
@@ -656,7 +656,7 @@ const PatientDoctorDetails = () => {
                     type="button"
                     onClick={handleNextStep}
                     disabled={bookingStep === 1 && (!selectedDate || !selectedTime)}
-                    className="flex-1 rounded-lg bg-blue-500 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex-1 rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Next
                   </button>

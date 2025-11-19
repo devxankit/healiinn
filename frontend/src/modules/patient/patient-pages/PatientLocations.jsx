@@ -49,14 +49,14 @@ export default function PatientLocations() {
       <main className="divide-y divide-slate-100">
         <button
           type="button"
-          className="flex w-full items-center justify-between px-4 py-3 text-left text-base font-semibold text-blue-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:underline"
+          className="flex w-full items-center justify-between px-4 py-3 text-left text-base font-semibold text-[#11496c] transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:underline"
         >
           <span>Use current location</span>
           <IoChevronForwardOutline aria-hidden="true" className="text-lg text-slate-300" />
         </button>
         <button
           type="button"
-          className="flex w-full items-center justify-between px-4 py-3 text-left text-base font-semibold text-blue-600 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:underline"
+          className="flex w-full items-center justify-between px-4 py-3 text-left text-base font-semibold text-[#11496c] transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:underline"
         >
           <span>Search in entire Indore</span>
           <IoChevronForwardOutline aria-hidden="true" className="text-lg text-slate-300" />

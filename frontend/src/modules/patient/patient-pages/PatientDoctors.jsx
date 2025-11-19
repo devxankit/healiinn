@@ -3,11 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IoSearchOutline,
   IoLocationOutline,
-  IoStar,
-  IoStarOutline,
-  IoCalendarOutline,
   IoTimeOutline,
-  IoCheckmarkCircleOutline,
   IoPulseOutline,
   IoHeartOutline,
 } from 'react-icons/io5'
@@ -128,16 +124,34 @@ const renderStars = (rating) => {
   const hasHalfStar = rating % 1 !== 0
 
   for (let i = 0; i < fullStars; i++) {
-    stars.push(<IoStar key={i} className="h-3 w-3 text-amber-400" />)
+    stars.push(
+      <svg key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" viewBox="0 0 20 20">
+        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+      </svg>
+    )
   }
 
   if (hasHalfStar) {
-    stars.push(<IoStarOutline key="half" className="h-3 w-3 text-amber-400" />)
+    stars.push(
+      <svg key="half" className="h-3.5 w-3.5 fill-amber-400 text-amber-400" viewBox="0 0 20 20">
+        <defs>
+          <linearGradient id={`half-fill-${rating}`}>
+            <stop offset="50%" stopColor="currentColor" />
+            <stop offset="50%" stopColor="transparent" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+        <path fill={`url(#half-fill-${rating})`} d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+      </svg>
+    )
   }
 
   const remainingStars = 5 - Math.ceil(rating)
   for (let i = 0; i < remainingStars; i++) {
-    stars.push(<IoStarOutline key={`empty-${i}`} className="h-3 w-3 text-slate-300" />)
+    stars.push(
+      <svg key={`empty-${i}`} className="h-3.5 w-3.5 fill-slate-300 text-slate-300" viewBox="0 0 20 20">
+        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+      </svg>
+    )
   }
 
   return stars
@@ -212,14 +226,33 @@ const PatientDoctors = () => {
       {/* Search Bar - Outside Card */}
       <div className="relative">
         <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sky-500">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#11496c' }}>
             <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
           </span>
           <input
             id="doctor-search"
             type="search"
             placeholder="Search by name, specialty, or location..."
-            className="w-full rounded-lg border border-sky-200/60 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-sky-300 hover:bg-white hover:shadow-md focus:border-sky-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-400/30 sm:text-base"
+            className="w-full rounded-lg border bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:bg-white hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 sm:text-base"
+            style={{ borderColor: 'rgba(17, 73, 108, 0.3)' }}
+            onFocus={(e) => {
+              e.target.style.borderColor = '#11496c'
+              e.target.style.boxShadow = '0 0 0 2px rgba(17, 73, 108, 0.2)'
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'rgba(17, 73, 108, 0.3)'
+              e.target.style.boxShadow = ''
+            }}
+            onMouseEnter={(e) => {
+              if (document.activeElement !== e.target) {
+                e.target.style.borderColor = 'rgba(17, 73, 108, 0.4)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (document.activeElement !== e.target) {
+                e.target.style.borderColor = 'rgba(17, 73, 108, 0.3)'
+              }
+            }}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -238,9 +271,20 @@ const PatientDoctors = () => {
               onClick={() => setSelectedSpecialty(specialty.id)}
               className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all sm:text-sm ${
                 isSelected
-                  ? 'bg-blue-500 text-white shadow-sm shadow-blue-400/40'
-                  : 'bg-white text-slate-700 border border-sky-200/60 hover:bg-white hover:border-sky-300 hover:shadow-sm'
+                  ? 'text-white shadow-sm'
+                  : 'bg-white text-slate-700 border hover:bg-white hover:shadow-sm'
               }`}
+              style={isSelected ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : { borderColor: 'rgba(17, 73, 108, 0.3)' }}
+              onMouseEnter={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.borderColor = 'rgba(17, 73, 108, 0.4)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.borderColor = 'rgba(17, 73, 108, 0.3)'
+                }
+              }}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
               <span>{specialty.label}</span>
@@ -255,88 +299,87 @@ const PatientDoctors = () => {
           <p className="mt-1 text-xs text-slate-500">Try adjusting your search or filters.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-4">
           {filteredDoctors.map((doctor) => (
-            <article
+            <div
               key={doctor.id}
-              className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg cursor-pointer"
-              onClick={() => handleCardClick(doctor.id)}
+              className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
             >
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-100/30 blur-2xl opacity-0 transition-opacity group-hover:opacity-100" />
-
-              <div className="relative p-4 sm:p-5">
-                <div className="flex items-start gap-4">
-                  <div className="relative shrink-0">
+              <div className="p-4">
+                {/* Doctor Info Row */}
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="relative flex-shrink-0">
                     <img
                       src={doctor.image}
                       alt={doctor.name}
-                      className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl object-cover ring-2 ring-slate-100 bg-slate-100"
+                      className="h-16 w-16 rounded-lg object-cover border border-slate-200"
                       loading="lazy"
                       onError={(e) => {
                         e.target.onerror = null
                         e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
                       }}
                     />
-                    {doctor.availability.includes('today') && (
-                      <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
-                        <IoCheckmarkCircleOutline className="h-3 w-3 text-white" aria-hidden="true" />
-                      </span>
-                    )}
                   </div>
-
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-semibold text-slate-900 sm:text-xl">{doctor.name}</h3>
-                    <p className="mt-0.5 text-xs font-medium text-blue-600 sm:text-sm">{doctor.specialty}</p>
-                    <div className="mt-2 flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-slate-900 mb-0.5 leading-tight">{doctor.name}</h3>
+                    <p className="text-xs text-slate-600 mb-0.5">{doctor.specialty}</p>
+                    <p className="text-xs text-slate-500 mb-1.5">{doctor.location}</p>
+                    <div className="flex items-center gap-1.5">
                       <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
-                      <span className="text-xs font-semibold text-slate-700">{doctor.rating}</span>
-                      <span className="text-xs text-slate-500">({doctor.reviewCount})</span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        {doctor.rating} ({doctor.reviewCount} reviews)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <div className="text-base font-bold text-slate-900 mb-1">₹{doctor.consultationFee}</div>
+                    <div className="flex items-center justify-end gap-1 text-xs text-slate-600">
+                      <IoLocationOutline className="h-3.5 w-3.5" />
+                      <span>{doctor.distance}</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 space-y-2 text-xs text-slate-600 sm:text-sm">
-                  <div className="flex items-center gap-2">
-                    <IoLocationOutline className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-                    <span className="truncate">{doctor.location}</span>
-                    <span className="shrink-0 font-semibold text-slate-700">{doctor.distance}</span>
+                {/* Availability Section */}
+                {doctor.availability.includes('today') && doctor.nextSlot && (
+                  <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)', border: '1px solid rgba(17, 73, 108, 0.3)' }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                      <span className="text-xs font-semibold text-slate-800">Now Serving</span>
+                    </div>
+                    <p className="text-xs text-slate-600 mb-1.5">Your ETA if you book now:</p>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm font-bold text-slate-900">Next Slot: {doctor.nextSlot}</span>
+                      <div className="flex items-center gap-1 text-xs text-slate-600">
+                        <IoTimeOutline className="h-3.5 w-3.5" />
+                        <span className="font-medium">{doctor.availability}</span>
+                      </div>
+                    </div>
                   </div>
+                )}
 
-                  <div className="flex items-center gap-2">
-                    <IoTimeOutline className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-                    <span className="font-medium text-slate-700">{doctor.availability}</span>
-                    {doctor.nextSlot && (
-                      <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-600">
-                        {doctor.nextSlot}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <IoCalendarOutline className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-                    <span>{doctor.experience} experience</span>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Consultation Fee</p>
-                    <p className="text-base font-bold text-slate-900">₹{doctor.consultationFee}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(`/patient/doctors/${doctor.id}?book=true`)
-                    }}
-                    className="flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 active:scale-95 sm:text-sm"
-                  >
-                    <IoCalendarOutline className="h-4 w-4" aria-hidden="true" />
-                    Book
-                  </button>
-                </div>
+                {/* Take Token Button */}
+                <button
+                  onClick={() => handleCardClick(doctor.id)}
+                  className="w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors shadow-sm"
+                  style={{ backgroundColor: '#11496c' }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#0d3a52'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = '#11496c'
+                  }}
+                  onMouseDown={(e) => {
+                    e.target.style.backgroundColor = '#0a2d3f'
+                  }}
+                  onMouseUp={(e) => {
+                    e.target.style.backgroundColor = '#11496c'
+                  }}
+                >
+                  Take Token • ₹{doctor.consultationFee}
+                </button>
               </div>
-            </article>
+            </div>
           ))}
         </div>
       )}

@@ -164,9 +164,10 @@ const PatientTransactions = () => {
             onClick={() => setFilter(status)}
             className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
               filter === status
-                ? 'bg-blue-500 text-white shadow-sm shadow-blue-400/40'
+                ? 'text-white shadow-sm'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
+            style={filter === status ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
           >
             {status}
           </button>

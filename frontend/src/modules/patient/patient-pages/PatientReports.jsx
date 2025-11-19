@@ -276,7 +276,11 @@ const PatientReports = () => {
             >
               {/* Header Section */}
               <div className="flex items-start gap-4 p-5 pb-4 flex-1 min-h-[120px]">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-teal-500 text-white shadow-lg shadow-teal-300/50">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
+                style={{ 
+                  background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
+                  boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
+                }}>
                   <IoFlaskOutline className="h-8 w-8" />
                 </div>
                 
@@ -302,7 +306,7 @@ const PatientReports = () => {
                 <button
                   type="button"
                   onClick={() => handleDownload(report)}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-all hover:bg-blue-600 hover:shadow-md active:scale-[0.98]"
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98]"
                 >
                   <IoDownloadOutline className="h-4 w-4 shrink-0" />
                   <span className="whitespace-nowrap">Download PDF</span>
@@ -318,7 +322,7 @@ const PatientReports = () => {
                 <button
                   type="button"
                   onClick={() => handleShareClick(report)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 hover:shadow active:scale-95"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-[rgba(17,73,108,0.4)] hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] hover:shadow active:scale-95"
                   aria-label="Share with doctor"
                 >
                   <IoShareSocialOutline className="h-5 w-5" />
@@ -359,7 +363,7 @@ const PatientReports = () => {
                     onClick={() => setSelectedDoctorId(selectedReport.doctorId)}
                     className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
                       selectedDoctorId === selectedReport.doctorId
-                        ? 'border-blue-500 bg-blue-50'
+                        ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
@@ -374,10 +378,10 @@ const PatientReports = () => {
                         <p className="text-xs text-slate-600">{selectedReport.doctorSpecialty}</p>
                       </div>
                       {selectedDoctorId === selectedReport.doctorId && (
-                        <IoCheckmarkCircleOutline className="h-5 w-5 text-blue-500 shrink-0" />
+                        <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
                       )}
                     </div>
-                    <p className="mt-2 text-xs text-blue-600">✓ Can share directly (appointment already booked)</p>
+                    <p className="mt-2 text-xs text-[#11496c]">✓ Can share directly (appointment already booked)</p>
                   </button>
                 </div>
               )}
@@ -397,7 +401,7 @@ const PatientReports = () => {
                         onClick={() => setSelectedDoctorId(doctor.id)}
                         className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
                           selectedDoctorId === doctor.id
-                            ? 'border-blue-500 bg-blue-50'
+                            ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                             : 'border-slate-200 bg-white hover:border-slate-300'
                         }`}
                       >
@@ -412,7 +416,7 @@ const PatientReports = () => {
                             <p className="text-xs text-slate-600">{doctor.specialty}</p>
                           </div>
                           {selectedDoctorId === doctor.id && (
-                            <IoCheckmarkCircleOutline className="h-5 w-5 text-blue-500 shrink-0" />
+                            <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
                           )}
                         </div>
                         <p className="mt-2 text-xs text-amber-600">⚠ Requires booking appointment</p>
@@ -422,8 +426,8 @@ const PatientReports = () => {
               </div>
 
               {selectedDoctorId && (
-                <div className="mt-4 rounded-lg bg-blue-50 p-3">
-                  <p className="text-xs text-blue-800">
+                <div className="mt-4 rounded-lg bg-[rgba(17,73,108,0.1)] p-3">
+                  <p className="text-xs text-[#0a2d3f]">
                     {selectedReport.doctorId && selectedDoctorId === selectedReport.doctorId ? (
                       <>
                         <strong>Direct Share:</strong> Report will be shared immediately with {selectedReport.doctorName}.
@@ -450,7 +454,7 @@ const PatientReports = () => {
                 type="button"
                 onClick={handleShareWithDoctor}
                 disabled={isSharing || !selectedDoctorId}
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSharing ? (
                   <>
@@ -489,7 +493,11 @@ const PatientReports = () => {
             <div className="p-6">
               {/* Report Header */}
               <div className="flex items-start gap-4 mb-6">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-teal-500 text-white shadow-lg shadow-teal-300/50">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
+                style={{ 
+                  background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
+                  boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
+                }}>
                   <IoFlaskOutline className="h-8 w-8" />
                 </div>
                 <div className="flex-1">
@@ -539,13 +547,13 @@ const PatientReports = () => {
 
                 {/* Associated Doctor Info */}
                 {selectedReport.doctorName && (
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+                  <div className="rounded-2xl border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.1)]/50 p-4">
                     <h4 className="text-sm font-semibold text-slate-900 mb-3">Associated Doctor</h4>
                     <div className="flex items-center gap-3">
                       <img
                         src={selectedReport.doctorImage}
                         alt={selectedReport.doctorName}
-                        className="h-12 w-12 rounded-xl object-cover ring-2 ring-blue-100"
+                        className="h-12 w-12 rounded-xl object-cover ring-2 ring-[rgba(17,73,108,0.2)]"
                       />
                       <div>
                         <p className="text-sm font-semibold text-slate-900">{selectedReport.doctorName}</p>
@@ -571,7 +579,7 @@ const PatientReports = () => {
                   handleCloseViewModal()
                   handleDownload(selectedReport)
                 }}
-                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition hover:bg-blue-600"
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52]"
               >
                 <IoDownloadOutline className="h-4 w-4" />
                 Download PDF

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import PatientNavbar from './modules/patient/patient-components/PatientNavbar'
 import PatientDashboard from './modules/patient/patient-pages/PatientDashboard'
 import PatientPharmacy from './modules/patient/patient-pages/PatientPharmacy'
@@ -19,6 +19,8 @@ import PatientLogin from './modules/patient/patient-pages/PatientLogin'
 import PatientTransactions from './modules/patient/patient-pages/PatientTransactions'
 import PatientAppointments from './modules/patient/patient-pages/PatientAppointments'
 import PatientOrders from './modules/patient/patient-pages/PatientOrders'
+import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
+import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
 import DoctorDashboard from './modules/doctor/doctor-pages/DoctorDashboard'
 import DoctorProfile from './modules/doctor/doctor-pages/DoctorProfile'
 import DoctorWallet from './modules/doctor/doctor-pages/DoctorWallet'
@@ -28,23 +30,32 @@ import WalletWithdraw from './modules/doctor/doctor-pages/WalletWithdraw'
 import WalletTransaction from './modules/doctor/doctor-pages/WalletTransaction'
 import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
 import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
+import PharmacyNavbar from './modules/pharmacy/pharmacy-components/PharmacyNavbar'
+import { PharmacySidebarProvider } from './modules/pharmacy/pharmacy-components/PharmacySidebarContext'
+import PharmacyDashboard from './modules/pharmacy/pharmacy-pages/PharmacyDashboard'
+import PharmacyList from './modules/pharmacy/pharmacy-pages/PharmacyList'
+import PharmacyOrders from './modules/pharmacy/pharmacy-pages/PharmacyOrders'
+import PharmacyPrescriptions from './modules/pharmacy/pharmacy-pages/PharmacyPrescriptions'
+import PharmacyPatients from './modules/pharmacy/pharmacy-pages/PharmacyPatients'
+import PharmacyProfile from './modules/pharmacy/pharmacy-pages/PharmacyProfile'
+import PharmacyWallet from './modules/pharmacy/pharmacy-pages/PharmacyWallet'
+import PharmacyWalletBalance from './modules/pharmacy/pharmacy-pages/WalletBalance'
+import PharmacyWalletEarning from './modules/pharmacy/pharmacy-pages/WalletEarning'
+import PharmacyWalletWithdraw from './modules/pharmacy/pharmacy-pages/WalletWithdraw'
+import PharmacyWalletTransaction from './modules/pharmacy/pharmacy-pages/WalletTransaction'
 
-function App() {
+function PatientRoutes() {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/patient/login'
+  
   return (
-    <Router>
-      <div className="min-h-screen bg-slate-50 text-slate-900">
+    <>
+      {!isLoginPage && <PatientNavbar />}
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
         <Routes>
-          {/* Patient Routes */}
-          <Route
-            path="/patient/*"
-            element={
-              <>
-                <PatientNavbar />
-                <main className="px-4 pb-24 pt-20 sm:px-6">
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
-                    <Route path="/login" element={<PatientLogin />} />
-                    <Route path="/dashboard" element={<PatientDashboard />} />
+          <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
+          <Route path="/login" element={<PatientLogin />} />
+          <Route path="/dashboard" element={<PatientDashboard />} />
                     <Route path="/pharmacy" element={<PatientPharmacy />} />
                     <Route path="/doctors" element={<PatientDoctors />} />
                     <Route path="/doctors/:id" element={<PatientDoctorDetails />} />
@@ -61,23 +72,75 @@ function App() {
                     <Route path="/requests" element={<PatientRequests />} />
                     <Route path="/transactions" element={<PatientTransactions />} />
                     <Route path="/appointments" element={<PatientAppointments />} />
-                    <Route path="/orders" element={<PatientOrders />} />
-                  </Routes>
-                </main>
-              </>
-            }
-          />
+          <Route path="/orders" element={<PatientOrders />} />
+        </Routes>
+      </main>
+    </>
+  )
+}
+
+function DoctorRoutes() {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/doctor/login'
+  
+  return (
+    <>
+      {!isLoginPage && <DoctorNavbar />}
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/doctor/dashboard" replace />} />
+          <Route path="/login" element={<DoctorLogin />} />
+          <Route path="/dashboard" element={<DoctorDashboard />} />
+          <Route path="/wallet" element={<DoctorWallet />} />
+          <Route path="/wallet/balance" element={<WalletBalance />} />
+          <Route path="/wallet/earning" element={<WalletEarning />} />
+          <Route path="/wallet/withdraw" element={<WalletWithdraw />} />
+          <Route path="/wallet/transaction" element={<WalletTransaction />} />
+          <Route path="/patients" element={<DoctorPatients />} />
+          <Route path="/consultations" element={<DoctorConsultations />} />
+          <Route path="/profile" element={<DoctorProfile />} />
+        </Routes>
+      </main>
+    </>
+  )
+}
+
+function App() {
+  return (
+    <Router>
+      <div className="min-h-screen bg-slate-50 text-slate-900">
+        <Routes>
+          {/* Patient Routes */}
+          <Route path="/patient/*" element={<PatientRoutes />} />
 
           {/* Doctor Routes */}
-          <Route path="/doctor/dashboard" element={<DoctorDashboard />} />
-          <Route path="/doctor/wallet" element={<DoctorWallet />} />
-          <Route path="/doctor/wallet/balance" element={<WalletBalance />} />
-          <Route path="/doctor/wallet/earning" element={<WalletEarning />} />
-          <Route path="/doctor/wallet/withdraw" element={<WalletWithdraw />} />
-          <Route path="/doctor/wallet/transaction" element={<WalletTransaction />} />
-          <Route path="/doctor/patients" element={<DoctorPatients />} />
-          <Route path="/doctor/consultations" element={<DoctorConsultations />} />
-          <Route path="/doctor/profile" element={<DoctorProfile />} />
+          <Route path="/doctor/*" element={<DoctorRoutes />} />
+
+          {/* Pharmacy Routes */}
+          <Route
+            path="/pharmacy/*"
+            element={
+              <PharmacySidebarProvider>
+                <PharmacyNavbar />
+                <main className="px-4 pb-24 pt-20 sm:px-6">
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/pharmacy/dashboard" replace />} />
+                    <Route path="/dashboard" element={<PharmacyDashboard />} />
+                    <Route path="/list" element={<PharmacyList />} />
+                    <Route path="/orders" element={<PharmacyOrders />} />
+                    <Route path="/prescriptions" element={<PharmacyPrescriptions />} />
+                    <Route path="/patients" element={<PharmacyPatients />} />
+                    <Route path="/profile" element={<PharmacyProfile />} />
+                    <Route path="/wallet" element={<PharmacyWallet />} />
+                    <Route path="/wallet/balance" element={<PharmacyWalletBalance />} />
+                    <Route path="/wallet/earning" element={<PharmacyWalletEarning />} />
+                    <Route path="/wallet/withdraw" element={<PharmacyWalletWithdraw />} />
+                    <Route path="/wallet/transaction" element={<PharmacyWalletTransaction />} />
+                  </Routes>
+                </main>
+              </PharmacySidebarProvider>
+            }
+          />
 
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />

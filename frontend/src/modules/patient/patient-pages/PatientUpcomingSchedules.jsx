@@ -65,15 +65,20 @@ const PatientUpcomingSchedules = () => {
         {upcomingAppointments.map((appointment) => (
           <article
             key={appointment.id}
-            className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-600/95 via-blue-500/95 to-blue-600/90 text-white shadow-lg shadow-blue-600/30"
+            className="relative overflow-hidden rounded-3xl border text-white shadow-lg"
+            style={{ 
+              borderColor: 'rgba(17, 73, 108, 0.2)',
+              background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.95), rgba(17, 73, 108, 0.95), rgba(17, 73, 108, 0.9))',
+              boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
+            }}
           >
             <div className="pointer-events-none absolute -right-16 top-10 h-28 w-28 rounded-full bg-white/10 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-16 left-6 h-24 w-24 rounded-full bg-blue-400/25 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 left-6 h-24 w-24 rounded-full bg-[rgba(17,73,108,0.15)] blur-3xl" />
 
             <div className="relative space-y-4 px-4 py-4 sm:px-5">
               <header className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm shadow-blue-300/40">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#11496c] shadow-sm shadow-[rgba(17,73,108,0.2)]">
                     <span className="text-sm font-semibold">
                       {appointment.doctor
                         .split(' ')
@@ -84,12 +89,12 @@ const PatientUpcomingSchedules = () => {
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold leading-tight text-white">{appointment.doctor}</h3>
-                    <p className="text-xs text-blue-100">{appointment.specialty}</p>
+                    <p className="text-xs text-white/90">{appointment.specialty}</p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-blue-600 shadow-inner shadow-blue-400/30 transition-transform active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#11496c] shadow-inner shadow-[rgba(17,73,108,0.15)] transition-transform active:scale-95"
                   aria-label="Call doctor"
                 >
                   <IoCallOutline className="text-base" aria-hidden="true" />
@@ -104,7 +109,7 @@ const PatientUpcomingSchedules = () => {
                   <IoCalendarOutline className="text-xs" aria-hidden="true" />
                   {appointment.countdown}
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-900/40 px-2.5 py-1 text-white/95">
+                <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.4)] px-2.5 py-1 text-white/95">
                   {appointment.type}
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-white/90">
@@ -118,7 +123,7 @@ const PatientUpcomingSchedules = () => {
                     <IoCalendarOutline aria-hidden="true" />
                   </span>
                   <div>
-                    <dt className="text-[11px] uppercase tracking-wide text-blue-100">Date</dt>
+                    <dt className="text-[11px] uppercase tracking-wide text-white/90">Date</dt>
                     <dd className="text-sm font-semibold text-white">{appointment.date}</dd>
                   </div>
                 </div>
@@ -127,9 +132,9 @@ const PatientUpcomingSchedules = () => {
                     <IoTimeOutline aria-hidden="true" />
                   </span>
                   <div>
-                    <dt className="text-[11px] uppercase tracking-wide text-blue-100">Time</dt>
+                    <dt className="text-[11px] uppercase tracking-wide text-white/90">Time</dt>
                     <dd className="text-sm font-semibold text-white">{appointment.time}</dd>
-                    <dd className="text-xs text-blue-100">{appointment.duration}</dd>
+                    <dd className="text-xs text-white/90">{appointment.duration}</dd>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/10 px-3 py-2">
@@ -137,9 +142,9 @@ const PatientUpcomingSchedules = () => {
                     <IoLocationOutline aria-hidden="true" />
                   </span>
                   <div>
-                    <dt className="text-[11px] uppercase tracking-wide text-blue-100">Clinic</dt>
+                    <dt className="text-[11px] uppercase tracking-wide text-white/90">Clinic</dt>
                     <dd className="text-sm font-semibold text-white">{appointment.clinic}</dd>
-                    <dd className="text-xs text-blue-100">{appointment.address}</dd>
+                    <dd className="text-xs text-white/90">{appointment.address}</dd>
                   </div>
                 </div>
               </dl>

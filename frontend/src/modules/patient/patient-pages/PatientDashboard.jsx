@@ -1,499 +1,376 @@
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IoLocationOutline,
-  IoChevronDownOutline,
   IoSearchOutline,
-  IoCallOutline,
-  IoCalendarOutline,
+  IoLocationOutline,
   IoTimeOutline,
-  IoPulseOutline,
-  IoHeartOutline,
+  IoStar,
+  IoStarOutline,
+  IoCalendarOutline,
   IoDocumentTextOutline,
-  IoCheckmarkCircleOutline,
-  IoArrowForwardOutline,
-  IoReceiptOutline,
-  IoBagHandleOutline,
   IoFlaskOutline,
-  IoShareSocialOutline,
+  IoMedicalOutline,
   IoNotificationsOutline,
+  IoPersonCircleOutline,
 } from 'react-icons/io5'
-import { TbStethoscope, TbVaccine } from 'react-icons/tb'
-import { MdOutlineEscalatorWarning } from 'react-icons/md'
 
-const upcomingAppointment = {
-  doctor: 'Dr. Alana Rueter',
-  specialty: 'Dentist Consultation',
-  status: 'Confirmed',
-  type: 'In-person visit',
-  token: 'Token #12',
-  countdown: 'In 3 days',
-  date: 'Monday, 26 July',
-  time: '09:00 - 09:45',
-  duration: '45 min',
-  clinic: 'Sunrise Dental Care',
-  location: '115 W 45th St, New York, NY',
-  note: 'Bring your recent x-rays and insurance card for review.',
-}
-
-const specialties = [
-  { 
-    id: 'dentist', 
-    label: 'Dentist', 
-    icon: TbStethoscope,
-    gradient: 'from-cyan-500 to-blue-500',
-    bgGradient: 'from-cyan-50 to-blue-50',
-    iconBg: 'bg-gradient-to-br from-cyan-100 to-blue-100',
-    textColor: 'text-cyan-700',
-    shadowColor: 'shadow-cyan-200/50',
-  },
-  { 
-    id: 'cardio', 
-    label: 'Cardiology', 
-    icon: IoHeartOutline,
-    gradient: 'from-rose-500 to-pink-500',
-    bgGradient: 'from-rose-50 to-pink-50',
-    iconBg: 'bg-gradient-to-br from-rose-100 to-pink-100',
-    textColor: 'text-rose-700',
-    shadowColor: 'shadow-rose-200/50',
-  },
-  { 
-    id: 'ortho', 
-    label: 'Orthopedic', 
-    icon: MdOutlineEscalatorWarning,
-    gradient: 'from-emerald-500 to-teal-500',
-    bgGradient: 'from-emerald-50 to-teal-50',
-    iconBg: 'bg-gradient-to-br from-emerald-100 to-teal-100',
-    textColor: 'text-emerald-700',
-    shadowColor: 'shadow-emerald-200/50',
-  },
-  { 
-    id: 'neuro', 
-    label: 'Neurology', 
-    icon: IoPulseOutline,
-    gradient: 'from-purple-500 to-indigo-500',
-    bgGradient: 'from-purple-50 to-indigo-50',
-    iconBg: 'bg-gradient-to-br from-purple-100 to-indigo-100',
-    textColor: 'text-purple-700',
-    shadowColor: 'shadow-purple-200/50',
-  },
-  { 
-    id: 'vaccine', 
-    label: 'Vaccines', 
-    icon: TbVaccine,
-    gradient: 'from-amber-500 to-orange-500',
-    bgGradient: 'from-amber-50 to-orange-50',
-    iconBg: 'bg-gradient-to-br from-amber-100 to-orange-100',
-    textColor: 'text-amber-700',
-    shadowColor: 'shadow-amber-200/50',
-  },
-]
-
-const hospitals = [
+// Mock doctors data matching the image
+const mockDoctors = [
   {
-    id: 'elevate',
-    name: 'ElevateDental',
+    id: 'doc-1',
+    name: 'Dr. Rajesh Kumar',
+    specialty: 'General Physician',
+    clinic: 'Shivaji Nagar Clinic',
     rating: 4.8,
-    distance: '1.2 km',
-    image:
-      'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=600&q=80',
-    doctors: ['doc-1', 'doc-4'], // Doctor IDs associated with this hospital
+    reviewCount: 245,
+    fee: 500,
+    distance: '2.3 km',
+    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
+    isServing: true,
+    currentToken: 18,
+    eta: '11:35',
   },
   {
-    id: 'dentacare',
-    name: 'DentaCare Clinic',
-    rating: 4.6,
-    distance: '2.0 km',
-    image:
-      'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=600&q=80',
-    doctors: ['doc-1', 'doc-5'], // Doctor IDs associated with this hospital
+    id: 'doc-2',
+    name: 'Dr. Priya Sharma',
+    specialty: 'Pediatrician',
+    clinic: 'Central Hospital',
+    rating: 4.9,
+    reviewCount: 189,
+    fee: 600,
+    distance: '1.8 km',
+    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
+    isServing: true,
+    currentToken: 12,
+    eta: '10:20',
   },
 ]
+
+const renderStars = (rating) => {
+  const stars = []
+  const fullStars = Math.floor(rating)
+  const hasHalfStar = rating % 1 !== 0
+
+  for (let i = 0; i < fullStars; i++) {
+    stars.push(
+      <svg key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" viewBox="0 0 20 20">
+        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+      </svg>
+    )
+  }
+
+  if (hasHalfStar) {
+    stars.push(
+      <svg key="half" className="h-3.5 w-3.5 fill-amber-400 text-amber-400" viewBox="0 0 20 20">
+        <defs>
+          <linearGradient id={`half-fill-${rating}`}>
+            <stop offset="50%" stopColor="currentColor" />
+            <stop offset="50%" stopColor="transparent" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+        <path fill={`url(#half-fill-${rating})`} d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+      </svg>
+    )
+  }
+
+  const remainingStars = 5 - Math.ceil(rating)
+  for (let i = 0; i < remainingStars; i++) {
+    stars.push(
+      <svg key={`empty-${i}`} className="h-3.5 w-3.5 fill-slate-300 text-slate-300" viewBox="0 0 20 20">
+        <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+      </svg>
+    )
+  }
+
+  return stars
+}
 
 const PatientDashboard = () => {
   const navigate = useNavigate()
-  
-  const todayLabel = new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date())
+  const [searchTerm, setSearchTerm] = useState('')
+  const [activeFilter, setActiveFilter] = useState('All')
+  const [activeTab, setActiveTab] = useState('Discover')
 
+  const filteredDoctors = useMemo(() => {
+    let doctors = [...mockDoctors]
+
+    if (searchTerm.trim()) {
+      const normalizedSearch = searchTerm.trim().toLowerCase()
+      doctors = doctors.filter(
+        (doctor) =>
+          doctor.name.toLowerCase().includes(normalizedSearch) ||
+          doctor.specialty.toLowerCase().includes(normalizedSearch) ||
+          doctor.clinic.toLowerCase().includes(normalizedSearch)
+      )
+    }
+
+    // Apply filters
+    if (activeFilter === 'Nearest') {
+      doctors.sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance))
+    } else if (activeFilter === 'Shortest Wait') {
+      doctors.sort((a, b) => a.currentToken - b.currentToken)
+    } else if (activeFilter === 'Highest') {
+      doctors.sort((a, b) => b.rating - a.rating)
+    }
+
+    return doctors
+  }, [searchTerm, activeFilter])
+
+  const handleTakeToken = (doctorId, fee) => {
+    navigate(`/patient/doctors/${doctorId}?book=true`)
+  }
 
   return (
-    <section className="space-y-6 pb-4">
-      <section className="relative overflow-hidden rounded-3xl border border-sky-100/70 bg-gradient-to-br from-sky-400/85 via-sky-300/85 to-blue-400/80 text-slate-900 shadow-lg shadow-sky-300/60 backdrop-blur-xl">
-        <div className="absolute inset-x-6 bottom-3 h-24 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -right-16 -top-20 h-44 w-44 rounded-full bg-white/70 blur-3xl" />
-        <div className="absolute -left-24 bottom-6 h-40 w-40 rounded-full bg-sky-500/40 blur-3xl" />
-        <div className="absolute right-4 top-6 h-16 w-16 rounded-full border border-white/60 bg-white/40 blur-2xl" />
-        <div className="absolute left-1/2 top-1/3 h-32 w-32 -translate-x-1/2 rounded-full bg-blue-500/25 blur-[100px]" />
-
-        <div className="relative space-y-4 p-4 sm:p-5">
-          <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80">Today</p>
-              <p className="text-lg font-semibold leading-tight text-white">{todayLabel}</p>
-              <p className="text-sm text-white/80">Stay on track with your care journey.</p>
+    <section className="flex flex-col gap-4 pb-4 -mt-20">
+      {/* Top Header with Gradient Background */}
+      <header 
+        className="relative text-white -mx-4 mb-4 overflow-hidden"
+        style={{
+          background: 'linear-gradient(to right, #11496c 0%, #1a5a7a 50%, #2a7a9a 100%)'
+        }}
+      >
+        <div className="px-4 pt-5 pb-4">
+          {/* Top Row: Brand and Icons */}
+          <div className="flex items-start justify-between mb-3.5">
+            <div className="flex flex-col">
+              <h1 className="text-3xl font-bold text-white leading-tight mb-0.5">Healiinn</h1>
+              <p className="text-sm font-normal text-white/95 leading-tight">Digital Healthcare</p>
             </div>
-            <button
-              type="button"
-              onClick={() => navigate('/patient/locations')}
-              className="inline-flex items-center gap-2 self-start rounded-2xl border border-white/60 bg-white/75 px-3 py-1.5 text-xs font-semibold text-sky-900 shadow-sm shadow-sky-200/60 backdrop-blur transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-sky-400 sm:self-auto"
-            >
-              <IoLocationOutline className="text-sm text-sky-700" aria-hidden="true" />
-              <span>New York, USA</span>
-              <IoChevronDownOutline className="text-xs" aria-hidden="true" />
-            </button>
-          </header>
+            <div className="flex items-center gap-4 pt-0.5">
+              <IoNotificationsOutline className="h-6 w-6 text-white" strokeWidth={1.5} />
+              <IoPersonCircleOutline className="h-6 w-6 text-white" strokeWidth={1.5} />
+            </div>
+          </div>
+          {/* Location Row */}
+          <div className="flex items-center gap-1.5">
+            <IoLocationOutline className="h-4 w-4 text-white" strokeWidth={2} />
+            <span className="text-xs font-normal text-white">Pune, Maharashtra • 15 km radius</span>
+          </div>
+        </div>
+      </header>
 
-          <div className="group relative">
-            <div className="absolute inset-0 rounded-2xl border border-white/50 bg-white/15 opacity-90 blur-md transition group-hover:opacity-100" />
-            <div className="relative flex items-center gap-3 rounded-2xl border border-white/60 bg-gradient-to-r from-white/65 via-white/55 to-white/60 px-3 py-2 text-slate-600 shadow-inner shadow-sky-200/40 backdrop-blur">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-500/10 text-sky-700 shadow-sm shadow-sky-300/40">
-                <IoSearchOutline className="text-base" aria-hidden="true" />
-              </span>
+      {/* Navigation Tabs */}
+      <div className="bg-white border-b border-slate-100 -mx-4 px-4 mb-4">
+        <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
+          <button
+            onClick={() => setActiveTab('Discover')}
+            className={`flex-shrink-0 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'Discover'
+                ? 'border-transparent text-slate-500'
+                : 'border-transparent text-slate-500'
+            }`}
+            style={activeTab === 'Discover' ? { borderBottomColor: '#11496c', color: '#11496c' } : {}}
+          >
+            Discover
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('Appointments')
+              navigate('/patient/appointments')
+            }}
+            className={`flex-shrink-0 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'Appointments'
+                ? 'border-transparent text-slate-500'
+                : 'border-transparent text-slate-500'
+            }`}
+            style={activeTab === 'Appointments' ? { borderBottomColor: '#11496c', color: '#11496c' } : {}}
+          >
+            Appointments
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('Prescriptions')
+              navigate('/patient/prescriptions')
+            }}
+            className={`flex-shrink-0 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'Prescriptions'
+                ? 'border-transparent text-slate-500'
+                : 'border-transparent text-slate-500'
+            }`}
+            style={activeTab === 'Prescriptions' ? { borderBottomColor: '#11496c', color: '#11496c' } : {}}
+          >
+            Prescriptions
+          </button>
+        </div>
+      </div>
+        {/* Search Bar */}
+        <div className="mb-4">
+          <div className="relative">
+            <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <input
-              type="search"
-              placeholder="Search doctors, services, or symptoms"
-                className="w-full min-w-0 border-none bg-transparent text-sm font-medium text-slate-800 placeholder:text-slate-500 focus:outline-none"
+              type="text"
+              placeholder="Search doctors or specialties"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
+              onFocus={(e) => {
+                e.target.style.borderColor = '#11496c'
+                e.target.style.boxShadow = '0 0 0 2px rgba(17, 73, 108, 0.2)'
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = ''
+                e.target.style.boxShadow = ''
+              }}
             />
           </div>
-          </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-            <button
-              type="button"
-              className="flex items-center justify-center gap-2 rounded-2xl border border-sky-100/70 bg-sky-600/90 px-3 py-2 text-white shadow-sm shadow-sky-900/20 backdrop-blur transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-sky-500"
-            >
-              Book quick consult
-            </button>
-            <button
-              type="button"
-              className="flex items-center justify-center gap-2 rounded-2xl border border-white/60 bg-white/75 px-3 py-2 text-sky-900 shadow-sm shadow-sky-200/70 backdrop-blur transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-sky-400"
-            >
-              View health records
-            </button>
+        {/* Category Section */}
+        <div className="mb-4">
+          <div className="grid grid-cols-4 gap-2">
+            {/* Appointments */}
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={() => navigate('/patient/appointments')}
+                className="w-full flex items-center justify-center p-3 rounded-xl transition-transform active:scale-95 aspect-square"
+                style={{ backgroundColor: '#E3F2FD' }}
+              >
+                <IoCalendarOutline className="h-5 w-5" style={{ color: '#1976D2' }} />
+              </button>
+              <span className="text-[10px] font-medium text-slate-700 text-center leading-tight">Appointments</span>
+            </div>
+
+            {/* Prescriptions */}
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={() => navigate('/patient/prescriptions')}
+                className="w-full flex items-center justify-center p-3 rounded-xl transition-transform active:scale-95 aspect-square"
+                style={{ backgroundColor: '#E8F5E9' }}
+              >
+                <IoDocumentTextOutline className="h-5 w-5" style={{ color: '#388E3C' }} />
+              </button>
+              <span className="text-[10px] font-medium text-slate-700 text-center leading-tight">Prescriptions</span>
+            </div>
+
+            {/* Lab Tests */}
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={() => navigate('/patient/laboratory')}
+                className="w-full flex items-center justify-center p-3 rounded-xl transition-transform active:scale-95 aspect-square"
+                style={{ backgroundColor: '#F3E5F5' }}
+              >
+                <IoFlaskOutline className="h-5 w-5" style={{ color: '#7B1FA2' }} />
+              </button>
+              <span className="text-[10px] font-medium text-slate-700 text-center leading-tight">Lab Tests</span>
+            </div>
+
+            {/* Medicines */}
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={() => navigate('/patient/pharmacy')}
+                className="w-full flex items-center justify-center p-3 rounded-xl transition-transform active:scale-95 aspect-square"
+                style={{ backgroundColor: '#FFF3E0' }}
+              >
+                <IoMedicalOutline className="h-5 w-5" style={{ color: '#F57C00' }} />
+              </button>
+              <span className="text-[10px] font-medium text-slate-700 text-center leading-tight">Medicines</span>
+            </div>
           </div>
         </div>
-      </section>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <article 
-          onClick={() => navigate('/patient/appointments')}
-          className="relative overflow-hidden rounded-3xl border border-emerald-100/60 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/70 p-4 shadow-sm shadow-emerald-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
-        >
-          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-200/30 blur-2xl" />
-          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-emerald-300/20 blur-2xl" />
-          <div className="relative flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-700">Total Appointments</p>
-              <p className="text-2xl font-bold text-slate-900">24</p>
-              <p className="text-xs text-slate-600">This month</p>
-            </div>
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-lg shadow-emerald-300/50">
-              <IoCalendarOutline className="text-xl" aria-hidden="true" />
-            </div>
-          </div>
-        </article>
-
-        <article 
-          onClick={() => navigate('/patient/orders')}
-          className="relative overflow-hidden rounded-3xl border border-orange-100/60 bg-gradient-to-br from-orange-50/90 via-white to-orange-50/70 p-4 shadow-sm shadow-orange-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
-        >
-          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-orange-200/30 blur-2xl" />
-          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-orange-300/20 blur-2xl" />
-          <div className="relative flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-orange-700">Orders</p>
-              <p className="text-2xl font-bold text-slate-900">6</p>
-              <p className="text-xs text-slate-600">Lab & Pharmacy</p>
-            </div>
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-lg shadow-orange-300/50">
-              <IoBagHandleOutline className="text-xl" aria-hidden="true" />
-            </div>
-          </div>
-        </article>
-
-        <article 
-          onClick={() => navigate('/patient/prescriptions')}
-          className="relative overflow-hidden rounded-3xl border border-blue-100/60 bg-gradient-to-br from-blue-50/90 via-white to-blue-50/70 p-4 shadow-sm shadow-blue-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
-        >
-          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-200/30 blur-2xl" />
-          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-blue-300/20 blur-2xl" />
-          <div className="relative flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-blue-700">Active Prescriptions</p>
-              <p className="text-2xl font-bold text-slate-900">3</p>
-              <p className="text-xs text-slate-600">Currently active</p>
-            </div>
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-400 to-blue-500 text-white shadow-lg shadow-blue-300/50">
-              <IoDocumentTextOutline className="text-xl" aria-hidden="true" />
-            </div>
-          </div>
-        </article>
-
-        <article 
-          onClick={() => navigate('/patient/transactions')}
-          className="relative overflow-hidden rounded-3xl border border-purple-100/60 bg-gradient-to-br from-purple-50/90 via-white to-purple-50/70 p-4 shadow-sm shadow-purple-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
-        >
-          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-purple-200/30 blur-2xl" />
-          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-purple-300/20 blur-2xl" />
-          <div className="relative flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-purple-700">Transactions</p>
-              <p className="text-2xl font-bold text-slate-900">5</p>
-              <p className="text-xs text-slate-600">Recent transactions</p>
-            </div>
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-400 to-purple-500 text-white shadow-lg shadow-purple-300/50">
-              <IoReceiptOutline className="text-xl" aria-hidden="true" />
-            </div>
-          </div>
-        </article>
-
-        <article 
-          onClick={() => navigate('/patient/reports')}
-          className="relative overflow-hidden rounded-3xl border border-teal-100/60 bg-gradient-to-br from-teal-50/90 via-white to-teal-50/70 p-4 shadow-sm shadow-teal-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
-        >
-          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-teal-200/30 blur-2xl" />
-          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-teal-300/20 blur-2xl" />
-          <div className="relative flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-teal-700">Lab Reports</p>
-              <p className="text-2xl font-bold text-slate-900">4</p>
-              <p className="text-xs text-slate-600">Ready to share</p>
-            </div>
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-400 to-teal-500 text-white shadow-lg shadow-teal-300/50">
-              <IoFlaskOutline className="text-xl" aria-hidden="true" />
-            </div>
-          </div>
-        </article>
-
-        <article 
-          onClick={() => navigate('/patient/requests')}
-          className="relative overflow-hidden rounded-3xl border border-pink-100/60 bg-gradient-to-br from-pink-50/90 via-white to-pink-50/70 p-4 shadow-sm shadow-pink-100/50 backdrop-blur-sm cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
-        >
-          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-pink-200/30 blur-2xl" />
-          <div className="absolute -bottom-6 left-4 h-20 w-20 rounded-full bg-pink-300/20 blur-2xl" />
-          <div className="relative flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-pink-700">Requests & Responses</p>
-              <p className="text-2xl font-bold text-slate-900">2</p>
-              <p className="text-xs text-slate-600">Pending payment</p>
-            </div>
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-400 to-pink-500 text-white shadow-lg shadow-pink-300/50">
-              <IoNotificationsOutline className="text-xl" aria-hidden="true" />
-            </div>
-          </div>
-        </article>
-      </div>
-
-      <section aria-labelledby="upcoming-title" className="space-y-3">
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 id="upcoming-title" className="text-base font-semibold text-slate-900">
-              Upcoming Schedule
-            </h2>
-            <span className="flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-blue-100 px-2 text-xs font-medium text-blue-600">
-              1
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate('/patient/upcoming-schedules')}
-            className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
-          >
-            See all
-          </button>
-        </header>
-
-        <article className="relative overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-600/95 via-blue-500/95 to-blue-600/90 px-4 py-4 text-white shadow-lg shadow-blue-600/30 sm:px-5">
-          <div className="pointer-events-none absolute -right-16 top-10 h-28 w-28 rounded-full bg-white/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-16 left-6 h-24 w-24 rounded-full bg-blue-400/25 blur-3xl" />
-
-          <div className="relative space-y-4">
-            <header className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm shadow-blue-300/40">
-                  <span className="text-sm font-semibold">AR</span>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold leading-tight">{upcomingAppointment.doctor}</h3>
-                  <p className="text-xs text-blue-100">{upcomingAppointment.specialty}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-blue-600 shadow-inner shadow-blue-400/30 transition-transform active:scale-95"
-                aria-label="Call doctor"
-              >
-                <IoCallOutline className="text-base" aria-hidden="true" />
-              </button>
-            </header>
-
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-white/90">
-              <span className="inline-flex items-center rounded-full bg-emerald-400/90 px-2.5 py-1 text-emerald-950">
-                {upcomingAppointment.status}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1">
-                <IoCalendarOutline className="text-xs" aria-hidden="true" />
-                {upcomingAppointment.countdown}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-900/40 px-2.5 py-1 text-white/95">
-                {upcomingAppointment.type}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-white/90">
-                {upcomingAppointment.token}
-              </span>
-            </div>
-
-            <dl className="space-y-2 text-sm">
-              <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/10 px-3 py-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-base text-white">
-                  <IoCalendarOutline aria-hidden="true" />
-                </span>
-                <div>
-                  <dt className="text-[11px] uppercase tracking-wide text-blue-100">Date</dt>
-                  <dd className="text-sm font-semibold text-white">{upcomingAppointment.date}</dd>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/10 px-3 py-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-base text-white">
-                  <IoTimeOutline aria-hidden="true" />
-                </span>
-                <div>
-                  <dt className="text-[11px] uppercase tracking-wide text-blue-100">Time</dt>
-                  <dd className="text-sm font-semibold text-white">{upcomingAppointment.time}</dd>
-                  <p className="text-[11px] text-blue-100/80">Duration {upcomingAppointment.duration}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/10 px-3 py-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-base text-white">
-                  <IoLocationOutline aria-hidden="true" />
-                </span>
-                <div>
-                  <dt className="text-[11px] uppercase tracking-wide text-blue-100">Clinic</dt>
-                  <dd className="text-sm font-semibold text-white">{upcomingAppointment.clinic}</dd>
-                  <p className="text-[11px] text-blue-100/80">{upcomingAppointment.location}</p>
-                </div>
-              </div>
-            </dl>
-
-            <p className="rounded-2xl border border-white/10 bg-white/10 p-3 text-[11px] font-medium text-blue-50/90">
-              {upcomingAppointment.note}
-            </p>
-
-            <footer className="flex flex-wrap gap-3 text-xs font-semibold">
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-blue-600 shadow-sm shadow-blue-400/30 transition-transform active:scale-95"
-              >
-                <IoCalendarOutline className="text-sm" aria-hidden="true" />
-                Reschedule
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded-xl bg-white/15 px-3 py-1.5 text-white transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-blue-600"
-              >
-                <IoLocationOutline className="text-sm" aria-hidden="true" />
-                Directions
-              </button>
-            </footer>
-          </div>
-        </article>
-      </section>
-
-      <section aria-labelledby="speciality-title" className="space-y-3">
-        <header className="flex items-center justify-between px-1">
-          <h2 id="speciality-title" className="text-base font-semibold text-slate-900">
-            Doctor Speciality
-          </h2>
-          <button
-            type="button"
-            onClick={() => navigate('/patient/specialties')}
-            className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
-          >
-            See all
-          </button>
-        </header>
-        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 [-webkit-overflow-scrolling:touch]">
-          {specialties.map(({ id, label, icon: Icon, gradient, bgGradient, iconBg, textColor, shadowColor }) => (
+        {/* Filter Buttons */}
+        <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+          {['All', 'Nearest', 'Shortest Wait', 'Highest'].map((filter) => (
             <button
-              key={id}
-              type="button"
-              onClick={() => {
-                // Map dashboard specialty IDs to specialty doctors page
-                const specialtyMap = {
-                  'dentist': 'dentist',
-                  'cardio': 'cardio',
-                  'ortho': 'ortho',
-                  'neuro': 'neuro',
-                  'vaccine': 'all', // Vaccine doesn't have a direct match, show all
-                }
-                const specialtyId = specialtyMap[id] || 'all'
-                navigate(`/patient/specialties/${specialtyId}/doctors`)
-              }}
-              className="group relative shrink-0 snap-start flex flex-col items-center gap-2.5 px-1.5 py-1.5 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 cursor-pointer"
+              key={filter}
+              onClick={() => setActiveFilter(filter)}
+              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                activeFilter === filter
+                  ? 'text-white'
+                  : 'bg-slate-100 text-slate-600'
+              }`}
+              style={activeFilter === filter ? { backgroundColor: '#11496c' } : {}}
             >
-              <div className={`relative flex h-14 w-14 items-center justify-center rounded-xl ${iconBg} shadow-md ${shadowColor} transition-transform group-active:scale-110`}>
-                <div className={`absolute inset-0 rounded-xl bg-gradient-to-br ${gradient} opacity-0 transition-opacity group-active:opacity-10`} />
-                <Icon className={`relative text-xl ${textColor} transition-transform group-active:scale-110`} aria-hidden="true" />
-              </div>
-              <span className={`text-xs font-semibold ${textColor} transition-colors whitespace-nowrap`}>{label}</span>
+              {filter}
             </button>
           ))}
         </div>
-      </section>
 
-      <section aria-labelledby="hospitals-title" className="space-y-3">
-        <header className="flex items-center justify-between">
-          <h2 id="hospitals-title" className="text-base font-semibold text-slate-900">
-            Nearby Hospitals
-          </h2>
-          <button
-            type="button"
-            onClick={() => navigate('/patient/hospitals')}
-            className="text-sm font-medium text-blue-600 hover:text-blue-700 focus-visible:outline-none focus-visible:underline"
-          >
-            See all
-          </button>
-        </header>
-        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
-          {hospitals.map(({ id, name, rating, distance, image }) => (
-            <article
-              key={id}
-              className="snap-start w-[240px] shrink-0 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm"
+        {/* Doctor Cards */}
+        <div className="space-y-4">
+          {filteredDoctors.map((doctor) => (
+            <div
+              key={doctor.id}
+              className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
             >
-              <figure className="relative h-32 w-full overflow-hidden">
-                <img 
-                  src={image} 
-                  alt={name} 
-                  className="h-full w-full object-cover bg-slate-100" 
-                  onError={(e) => {
-                    e.target.onerror = null
-                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=3b82f6&color=fff&size=128&bold=true`
-                  }}
-                />
-                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-blue-600 shadow-sm">
-                  ⭐ {rating}
-                </span>
-              </figure>
-              <div className="space-y-2 p-4">
-                <h3 className="text-sm font-semibold text-slate-900">{name}</h3>
-                <p className="text-xs text-slate-500">Distance {distance}</p>
+              <div className="p-4">
+                {/* Doctor Info Row */}
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={doctor.image}
+                      alt={doctor.name}
+                      className="h-16 w-16 rounded-lg object-cover border border-slate-200"
+                      onError={(e) => {
+                        e.target.onerror = null
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=11496c&color=fff&size=128&bold=true`
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-slate-900 mb-0.5 leading-tight">{doctor.name}</h3>
+                    <p className="text-xs text-slate-600 mb-0.5">{doctor.specialty}</p>
+                    <p className="text-xs text-slate-500 mb-1.5">{doctor.clinic}</p>
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
+                      <span className="text-xs font-semibold text-slate-700">
+                        {doctor.rating} ({doctor.reviewCount} reviews)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <div className="text-base font-bold text-slate-900 mb-1">₹{doctor.fee}</div>
+                    <div className="flex items-center justify-end gap-1 text-xs text-slate-600">
+                      <IoLocationOutline className="h-3.5 w-3.5" />
+                      <span>{doctor.distance}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Availability Section */}
+                {doctor.isServing && (
+                  <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)', border: '1px solid rgba(17, 73, 108, 0.3)' }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                      <span className="text-xs font-semibold text-slate-800">Now Serving</span>
+                    </div>
+                    <p className="text-xs text-slate-600 mb-1.5">Your ETA if you book now:</p>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm font-bold text-slate-900">Token #{doctor.currentToken}</span>
+                      <div className="flex items-center gap-1 text-xs text-slate-600">
+                        <IoTimeOutline className="h-3.5 w-3.5" />
+                        <span className="font-medium">{doctor.eta}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Take Token Button */}
                 <button
-                  type="button"
-                  onClick={() => navigate(`/patient/hospitals/${id}/doctors`)}
-                  className="w-full rounded-2xl bg-blue-500 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-400/40 transition-transform active:scale-[0.98]"
+                  onClick={() => handleTakeToken(doctor.id, doctor.fee)}
+                  className="w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors shadow-sm"
+                  style={{ 
+                    backgroundColor: '#11496c',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#0d3a52'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = '#11496c'
+                  }}
+                  onMouseDown={(e) => {
+                    e.target.style.backgroundColor = '#0a2d3f'
+                  }}
+                  onMouseUp={(e) => {
+                    e.target.style.backgroundColor = '#11496c'
+                  }}
                 >
-                  Book appointment
+                  Take Token • ₹{doctor.fee}
                 </button>
               </div>
-            </article>
+            </div>
           ))}
         </div>
-      </section>
-
-
     </section>
   )
 }
