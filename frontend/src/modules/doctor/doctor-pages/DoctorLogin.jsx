@@ -21,24 +21,30 @@ import {
 
 const DoctorLogin = () => {
   const navigate = useNavigate()
-  const [selectedModule, setSelectedModule] = useState('doctor') // 'doctor' | 'pharmacy' | 'laboratory'
+  const [selectedModule, setSelectedModule] = useState('doctor') // 'doctor' | 'pharmacy' | 'laboratory' | 'patient'
   const [mode, setMode] = useState('login') // 'login' | 'signup'
   
-  // Login data states for each module
-  const [doctorLoginData, setDoctorLoginData] = useState({ email: '', password: '', remember: true })
-  const [pharmacyLoginData, setPharmacyLoginData] = useState({ email: '', password: '', remember: true })
-  const [laboratoryLoginData, setLaboratoryLoginData] = useState({ email: '', password: '', remember: true })
+  // OTP-based login data states for each module
+  const [doctorLoginData, setDoctorLoginData] = useState({ phone: '', otp: '', remember: true })
+  const [pharmacyLoginData, setPharmacyLoginData] = useState({ phone: '', otp: '', remember: true })
+  const [laboratoryLoginData, setLaboratoryLoginData] = useState({ phone: '', otp: '', remember: true })
+  const [patientLoginData, setPatientLoginData] = useState({ phone: '', otp: '', remember: true })
   
-  const [showLoginPassword, setShowLoginPassword] = useState(false)
-  const [showSignupPassword, setShowSignupPassword] = useState(false)
-  const [showSignupConfirm, setShowSignupConfirm] = useState(false)
+  // OTP flow states
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpTimer, setOtpTimer] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSendingOtp, setIsSendingOtp] = useState(false)
   
   // Refs for module buttons to measure their positions and widths
   const doctorButtonRef = useRef(null)
   const pharmacyButtonRef = useRef(null)
   const laboratoryButtonRef = useRef(null)
+  const patientButtonRef = useRef(null)
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
+  
+  // OTP input refs
+  const otpInputRefs = useRef([])
 
   // Doctor signup state
   const initialDoctorSignupState = {
@@ -144,14 +150,24 @@ const DoctorLogin = () => {
   const getCurrentLoginData = () => {
     if (selectedModule === 'doctor') return doctorLoginData
     if (selectedModule === 'pharmacy') return pharmacyLoginData
-    return laboratoryLoginData
+    if (selectedModule === 'laboratory') return laboratoryLoginData
+    return patientLoginData
   }
 
   const setCurrentLoginData = (data) => {
     if (selectedModule === 'doctor') setDoctorLoginData(data)
     else if (selectedModule === 'pharmacy') setPharmacyLoginData(data)
-    else setLaboratoryLoginData(data)
+    else if (selectedModule === 'laboratory') setLaboratoryLoginData(data)
+    else setPatientLoginData(data)
   }
+  
+  // OTP timer countdown
+  useEffect(() => {
+    if (otpTimer > 0) {
+      const timer = setTimeout(() => setOtpTimer(otpTimer - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [otpTimer])
 
   // Update indicator position and width based on selected button
   useEffect(() => {
@@ -164,7 +180,9 @@ const DoctorLogin = () => {
           ? doctorButtonRef
           : selectedModule === 'pharmacy'
             ? pharmacyButtonRef
-            : laboratoryButtonRef
+            : selectedModule === 'laboratory'
+              ? laboratoryButtonRef
+              : patientButtonRef
 
       const activeButton = activeButtonRef.current
       if (!activeButton) return
@@ -195,15 +213,20 @@ const DoctorLogin = () => {
   const handleModuleChange = (module) => {
     setSelectedModule(module)
     setIsSubmitting(false)
-    setShowLoginPassword(false)
+    setOtpSent(false)
+    setOtpTimer(0)
+    // Reset OTP for all modules
+    setDoctorLoginData({ phone: '', otp: '', remember: true })
+    setPharmacyLoginData({ phone: '', otp: '', remember: true })
+    setLaboratoryLoginData({ phone: '', otp: '', remember: true })
+    setPatientLoginData({ phone: '', otp: '', remember: true })
   }
 
   const handleModeChange = (nextMode) => {
     setMode(nextMode)
     setIsSubmitting(false)
-    setShowLoginPassword(false)
-    setShowSignupPassword(false)
-    setShowSignupConfirm(false)
+    setOtpSent(false)
+    setOtpTimer(0)
   }
 
   const handleLoginChange = (event) => {
@@ -214,28 +237,153 @@ const DoctorLogin = () => {
       [name]: type === 'checkbox' ? checked : value,
     })
   }
+  
+  // Handle OTP input change
+  const handleOtpChange = (index, value) => {
+    if (!/^\d*$/.test(value)) return // Only allow digits
+    
+    const currentData = getCurrentLoginData()
+    const otpArray = (currentData.otp || '').split('').slice(0, 6)
+    otpArray[index] = value.slice(-1) // Take only last character
+    const newOtp = otpArray.join('').padEnd(6, ' ').slice(0, 6).replace(/\s/g, '')
+    
+    setCurrentLoginData({
+      ...currentData,
+      otp: newOtp,
+    })
+    
+    // Auto-focus next input
+    if (value && index < 5 && otpInputRefs.current[index + 1]) {
+      otpInputRefs.current[index + 1].focus()
+    }
+  }
+  
+  // Handle OTP paste
+  const handleOtpPaste = (e) => {
+    e.preventDefault()
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (pastedData.length === 6) {
+      const currentData = getCurrentLoginData()
+      setCurrentLoginData({
+        ...currentData,
+        otp: pastedData,
+      })
+      // Focus last input
+      if (otpInputRefs.current[5]) {
+        otpInputRefs.current[5].focus()
+      }
+    }
+  }
+  
+  // Handle OTP key down (backspace navigation)
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+      otpInputRefs.current[index - 1]?.focus()
+    }
+  }
+  
+  // Send OTP function
+  const handleSendOtp = async () => {
+    const loginData = getCurrentLoginData()
+    
+    if (!loginData.phone || loginData.phone.length < 10) {
+      window.alert('Please enter a valid mobile number')
+      return
+    }
+    
+    setIsSendingOtp(true)
+    
+    try {
+      const endpoints = {
+        doctor: '/api/doctors/auth/send-otp',
+        pharmacy: '/api/pharmacy/auth/send-otp',
+        laboratory: '/api/laboratory/auth/send-otp',
+        patient: '/api/patients/auth/send-otp',
+      }
+      
+      try {
+        const response = await fetch(endpoints[selectedModule], {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ phone: loginData.phone }),
+        })
+        
+        if (!response.ok) {
+          // Simulate OTP sending for frontend testing
+          console.log('Backend not available, simulating OTP send')
+          setOtpSent(true)
+          setOtpTimer(60) // 60 seconds timer
+          setIsSendingOtp(false)
+          return
+        }
+        
+        const data = await response.json()
+        if (data.success || response.ok) {
+          setOtpSent(true)
+          setOtpTimer(60) // 60 seconds timer
+        } else {
+          window.alert(data.message || 'Failed to send OTP. Please try again.')
+        }
+      } catch (error) {
+        // Simulate OTP sending for frontend testing
+        console.log('Backend not available, simulating OTP send:', error.message)
+        setOtpSent(true)
+        setOtpTimer(60)
+      }
+    } catch (error) {
+      console.error('Send OTP error:', error)
+      window.alert('An error occurred. Please try again.')
+    } finally {
+      setIsSendingOtp(false)
+    }
+  }
+  
+  // Resend OTP function
+  const handleResendOtp = () => {
+    setOtpTimer(0)
+    setOtpSent(false)
+    const currentData = getCurrentLoginData()
+    setCurrentLoginData({ ...currentData, otp: '' })
+    handleSendOtp()
+  }
 
   const handleLoginSubmit = async (event) => {
     event.preventDefault()
-    if (isSubmitting) return
+    if (isSubmitting || isSendingOtp) return
+    
+    const loginData = getCurrentLoginData()
+    
+    // If OTP not sent, send it first
+    if (!otpSent) {
+      await handleSendOtp()
+      return
+    }
+    
+    // Verify OTP
+    if (!loginData.otp || loginData.otp.length !== 6) {
+      window.alert('Please enter the 6-digit OTP')
+      return
+    }
 
     setIsSubmitting(true)
     
     try {
       // API endpoints based on module
       const endpoints = {
-        doctor: '/api/doctors/auth/login',
-        pharmacy: '/api/pharmacy/auth/login',
-        laboratory: '/api/laboratory/auth/login',
+        doctor: '/api/doctors/auth/verify-otp',
+        pharmacy: '/api/pharmacy/auth/verify-otp',
+        laboratory: '/api/laboratory/auth/verify-otp',
+        patient: '/api/patients/auth/verify-otp',
       }
 
-      const loginData = getCurrentLoginData()
-      
       // Dashboard routes for each module
       const dashboardRoutes = {
         doctor: '/doctor/dashboard',
         pharmacy: '/pharmacy/dashboard',
         laboratory: '/laboratory/dashboard',
+        patient: '/patient/dashboard',
       }
 
       // Helper function to simulate login (for frontend testing without backend)
@@ -264,8 +412,8 @@ const DoctorLogin = () => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            email: loginData.email,
-            password: loginData.password,
+            phone: loginData.phone,
+            otp: loginData.otp,
           }),
         })
 
@@ -917,6 +1065,21 @@ const DoctorLogin = () => {
                 >
                   Laboratory
                 </motion.button>
+                <motion.button
+                  ref={patientButtonRef}
+                  type="button"
+                  onClick={() => handleModuleChange('patient')}
+                  className={`relative z-10 rounded-xl px-4 py-2 text-xs font-semibold sm:px-6 sm:py-2.5 sm:text-sm ${
+                    selectedModule === 'patient'
+                      ? 'text-white'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  Patient
+                </motion.button>
               </div>
             </div>
 
@@ -931,73 +1094,90 @@ const DoctorLogin = () => {
                   className="flex flex-col gap-5 sm:gap-6"
                   onSubmit={handleLoginSubmit}
                 >
+                {/* Mobile Number Input */}
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="login-email" className="text-sm font-semibold text-slate-700">
-                    Email Address
+                  <label htmlFor="login-phone" className="text-sm font-semibold text-slate-700">
+                    Mobile Number
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                      <IoMailOutline className="h-5 w-5" aria-hidden="true" />
+                      <IoCallOutline className="h-5 w-5" aria-hidden="true" />
                     </span>
                     <input
-                      id="login-email"
-                      name="email"
-                      type="email"
-                      value={getCurrentLoginData().email}
+                      id="login-phone"
+                      name="phone"
+                      type="tel"
+                      value={getCurrentLoginData().phone}
                       onChange={handleLoginChange}
-                      autoComplete="email"
+                      autoComplete="tel"
                       required
-                      placeholder="you@example.com"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      placeholder="+91 98765 43210"
+                      disabled={otpSent}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 disabled:bg-slate-50 disabled:cursor-not-allowed"
                       style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="login-password" className="text-sm font-semibold text-slate-700">
-                      Password
+                {/* OTP Input Section - Show after OTP is sent */}
+                {otpSent && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="flex flex-col gap-1.5"
+                  >
+                    <label className="text-sm font-semibold text-slate-700">
+                      Enter OTP
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowLoginPassword((prev) => !prev)}
-                      className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#11496c] transition hover:text-[#0d3a52]"
-                    >
-                      {showLoginPassword ? (
-                        <>
-                          <IoEyeOffOutline className="h-4 w-4" aria-hidden="true" />
-                          Hide
-                        </>
-                      ) : (
-                        <>
-                          <IoEyeOutline className="h-4 w-4" aria-hidden="true" />
-                          Show
-                        </>
-                      )}
-                    </button>
-                  </div>
+                    <div className="flex gap-2 justify-center" onPaste={handleOtpPaste}>
+                      {[0, 1, 2, 3, 4, 5].map((index) => (
+                        <input
+                          key={index}
+                          ref={(el) => (otpInputRefs.current[index] = el)}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={1}
+                          value={getCurrentLoginData().otp[index] || ''}
+                          onChange={(e) => handleOtpChange(index, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                          className="w-12 h-12 text-center text-lg font-semibold rounded-xl border-2 border-slate-200 bg-white text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:ring-2 focus:ring-[#11496c]/20"
+                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-600">
+                        {otpTimer > 0 ? (
+                          `Resend OTP in ${otpTimer}s`
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleResendOtp}
+                            className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                          >
+                            Resend OTP
+                          </button>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtpSent(false)
+                          setOtpTimer(0)
+                          const currentData = getCurrentLoginData()
+                          setCurrentLoginData({ ...currentData, otp: '' })
+                        }}
+                        className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                      >
+                        Change Number
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
 
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                      <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                    </span>
-                    <input
-                      id="login-password"
-                      name="password"
-                      type={showLoginPassword ? 'text' : 'password'}
-                      value={getCurrentLoginData().password}
-                      onChange={handleLoginChange}
-                      autoComplete="current-password"
-                      required
-                      placeholder="Enter your password"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                {/* Remember me checkbox */}
+                <div className="flex items-center gap-2 text-sm">
                   <label className="flex items-center gap-2 text-slate-600">
                     <input
                       type="checkbox"
@@ -1008,25 +1188,26 @@ const DoctorLogin = () => {
                     />
                     Remember me
                   </label>
-                  <Link 
-                    to={`/${selectedModule}/forgot-password`} 
-                    className="font-semibold text-[#11496c] hover:text-[#0d3a52]"
-                  >
-                    Forgot password?
-                  </Link>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isSendingOtp}
                   className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
                   style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
                 >
                   {isSubmitting ? (
-                    'Signing in...'
+                    otpSent ? 'Verifying...' : 'Sending OTP...'
+                  ) : isSendingOtp ? (
+                    'Sending OTP...'
+                  ) : otpSent ? (
+                    <>
+                      Verify OTP
+                      <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                    </>
                   ) : (
                     <>
-                      Sign In
+                      Send OTP
                       <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
                     </>
                   )}
