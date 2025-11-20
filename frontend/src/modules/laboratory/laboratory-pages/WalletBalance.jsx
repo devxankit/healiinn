@@ -41,6 +41,8 @@ const mockBalanceData = {
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Math.abs(amount))
@@ -66,34 +68,45 @@ const WalletBalance = () => {
   const navigate = useNavigate()
 
   return (
-    <section className="flex flex-col gap-4 pb-4">
+    <section className="flex flex-col gap-6 pb-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/laboratory/wallet')}
-          className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95"
         >
           <IoArrowBackOutline className="h-5 w-5" />
         </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Balance</h1>
+        <div className="flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Balance</h1>
           <p className="mt-1 text-sm text-slate-600">View your wallet balance details</p>
         </div>
       </div>
 
-      {/* Main Balance Card */}
-      <div className="relative overflow-hidden rounded-3xl border border-purple-100/60 bg-gradient-to-br from-purple-600 via-purple-500 to-purple-600 p-6 text-white shadow-xl shadow-purple-500/30">
-        <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-white/5 blur-2xl" />
+      {/* Main Balance Card - Hero */}
+      <div className="relative overflow-hidden rounded-3xl border border-[rgba(17,73,108,0.15)] bg-gradient-to-br from-[#11496c] via-[#1a5f7a] to-[#2a8ba8] p-6 sm:p-8 text-white shadow-2xl shadow-[rgba(17,73,108,0.25)]">
+        <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />
+        <div className="absolute -left-20 bottom-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
         
-        <div className="relative">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-white/90">Total Balance</p>
-              <p className="mt-2 text-4xl font-bold">{formatCurrency(mockBalanceData.totalBalance)}</p>
+        <div className="relative z-10">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-white/80 mb-1">Total Balance</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(mockBalanceData.totalBalance)}</p>
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs sm:text-sm">
+                <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
+                  <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-medium">Available: {formatCurrency(mockBalanceData.availableBalance)}</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
+                  <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="font-medium">Pending: {formatCurrency(mockBalanceData.pendingBalance)}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
-              <IoWalletOutline className="h-8 w-8" />
+            <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
+              <IoWalletOutline className="h-8 w-8 sm:h-10 sm:w-10" />
             </div>
           </div>
         </div>
@@ -101,13 +114,13 @@ const WalletBalance = () => {
 
       {/* Balance Breakdown */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-emerald-100/60 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/70 p-5 shadow-sm shadow-emerald-100/50">
+        <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Available</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockBalanceData.availableBalance)}</p>
           <p className="mt-1 text-xs text-slate-500">Ready to withdraw</p>
         </div>
 
-        <div className="rounded-2xl border border-amber-100/60 bg-gradient-to-br from-amber-50/90 via-white to-amber-50/70 p-5 shadow-sm shadow-amber-100/50">
+        <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Pending</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockBalanceData.pendingBalance)}</p>
           <p className="mt-1 text-xs text-slate-500">Processing</p>
@@ -116,7 +129,7 @@ const WalletBalance = () => {
 
       {/* Recent Activity */}
       <section>
-        <h2 className="mb-4 text-lg font-bold text-slate-900">Recent Activity</h2>
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Recent Activity</h2>
         <div className="space-y-3">
           {mockBalanceData.recentActivity.map((activity) => (
             <article

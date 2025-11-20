@@ -69,6 +69,8 @@ const mockWithdrawData = {
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Math.abs(amount))
@@ -179,23 +181,23 @@ const WalletWithdraw = () => {
   }
 
   return (
-    <section className="flex flex-col gap-4 pb-4">
+    <section className="flex flex-col gap-6 pb-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/laboratory/wallet')}
-          className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95"
         >
           <IoArrowBackOutline className="h-5 w-5" />
         </button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-slate-900">Withdraw</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Withdraw</h1>
           <p className="mt-1 text-sm text-slate-600">Manage your withdrawals</p>
         </div>
         <button
           onClick={() => setShowWithdrawModal(true)}
           disabled={mockWithdrawData.availableBalance <= 0}
-          className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-amber-400/40 transition-all hover:bg-amber-600 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <IoAddOutline className="h-5 w-5" />
           <span className="hidden sm:inline">Withdraw</span>
@@ -203,18 +205,18 @@ const WalletWithdraw = () => {
       </div>
 
       {/* Main Withdrawal Card */}
-      <div className="relative overflow-hidden rounded-3xl border border-amber-100/60 bg-gradient-to-br from-amber-600 via-amber-500 to-amber-600 p-6 text-white shadow-xl shadow-amber-500/30">
-        <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-white/5 blur-2xl" />
+      <div className="relative overflow-hidden rounded-3xl border border-amber-100/60 bg-gradient-to-br from-amber-600 via-amber-500 to-amber-600 p-6 sm:p-8 text-white shadow-xl shadow-amber-500/30">
+        <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />
+        <div className="absolute -left-20 bottom-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
         
-        <div className="relative">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-white/90">Total Withdrawals</p>
-              <p className="mt-2 text-4xl font-bold">{formatCurrency(mockWithdrawData.totalWithdrawals)}</p>
+        <div className="relative z-10">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-white/80 mb-1">Total Withdrawals</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(mockWithdrawData.totalWithdrawals)}</p>
             </div>
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
-              <IoCashOutline className="h-8 w-8" />
+            <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
+              <IoCashOutline className="h-8 w-8 sm:h-10 sm:w-10" />
             </div>
           </div>
         </div>
@@ -222,13 +224,13 @@ const WalletWithdraw = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-blue-100/60 bg-gradient-to-br from-blue-50/90 via-white to-blue-50/70 p-5 shadow-sm shadow-blue-100/50">
+        <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Available Balance</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockWithdrawData.availableBalance)}</p>
           <p className="mt-1 text-xs text-slate-500">Ready to withdraw</p>
         </div>
 
-        <div className="rounded-2xl border border-emerald-100/60 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/70 p-5 shadow-sm shadow-emerald-100/50">
+        <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">This Month</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockWithdrawData.thisMonthWithdrawals)}</p>
           <p className="mt-1 text-xs text-slate-500">Withdrawn this month</p>
@@ -237,7 +239,7 @@ const WalletWithdraw = () => {
 
       {/* Withdrawal History */}
       <section>
-        <h2 className="mb-4 text-lg font-bold text-slate-900">Withdrawal History</h2>
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Withdrawal History</h2>
         <div className="space-y-3">
           {mockWithdrawData.withdrawalHistory.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
@@ -438,8 +440,8 @@ const WalletWithdraw = () => {
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-purple-100">
-                      <IoWalletOutline className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
+                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
+                      <IoWalletOutline className="h-5 w-5 sm:h-6 sm:w-6 text-[#11496c]" />
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm sm:text-base font-semibold text-slate-900 truncate">Wallet</p>

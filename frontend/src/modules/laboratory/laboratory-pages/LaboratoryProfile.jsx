@@ -154,9 +154,9 @@ const LaboratoryProfile = () => {
       </div>
 
       {/* Profile Header */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-purple-50/90 via-indigo-50/85 to-purple-50/90 backdrop-blur-md p-5 sm:p-6 shadow-lg shadow-purple-200/20 ring-1 ring-white/50">
-        <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-purple-300/20 blur-3xl pointer-events-none" />
-        <div className="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-indigo-300/15 blur-2xl pointer-events-none" />
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.05)] backdrop-blur-md p-5 sm:p-6 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-white/50">
+        <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-[rgba(17,73,108,0.1)] blur-3xl pointer-events-none" />
+        <div className="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-[rgba(17,73,108,0.08)] blur-2xl pointer-events-none" />
 
         <div className="relative flex flex-col gap-4">
           <div className="flex items-start gap-4">
@@ -173,7 +173,7 @@ const LaboratoryProfile = () => {
                 />
                 {isEditing && (
                   <button
-                    className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-purple-500 text-white shadow-lg transition hover:bg-purple-600"
+                    className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-[#11496c] text-white shadow-lg transition hover:bg-[#0d3a52]"
                   >
                     <IoCameraOutline className="h-4 w-4" />
                   </button>
@@ -183,7 +183,7 @@ const LaboratoryProfile = () => {
                 <div className="mt-3 flex w-full gap-2">
                   <button
                     type="button"
-                    onClick={() => navigate('/laboratory/login')}
+                    onClick={() => navigate('/doctor/login')}
                     className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
                   >
                     Login
@@ -191,7 +191,7 @@ const LaboratoryProfile = () => {
                   <button
                     type="button"
                     onClick={() => setIsEditing(true)}
-                    className="flex-1 rounded-lg bg-purple-500 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-purple-400/40 transition-all hover:bg-purple-600 active:scale-95"
+                    className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                   >
                     Edit
                   </button>
@@ -215,7 +215,7 @@ const LaboratoryProfile = () => {
                   <div className="flex gap-2">
                     <button
                       onClick={handleSave}
-                      className="rounded-lg bg-purple-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-purple-400/40 transition-all hover:bg-purple-600 active:scale-95"
+                      className="rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                     >
                       Save
                     </button>
@@ -260,7 +260,7 @@ const LaboratoryProfile = () => {
                     type="text"
                     value={formData.laboratoryName}
                     onChange={(e) => handleInputChange('laboratoryName', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
                 ) : (
                   <p className="text-sm text-slate-900">{formData.laboratoryName}</p>
@@ -273,7 +273,7 @@ const LaboratoryProfile = () => {
                     type="text"
                     value={formData.ownerName}
                     onChange={(e) => handleInputChange('ownerName', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
                 ) : (
                   <p className="text-sm text-slate-900">{formData.ownerName}</p>
@@ -286,7 +286,7 @@ const LaboratoryProfile = () => {
                     type="text"
                     value={formData.licenseNumber}
                     onChange={(e) => handleInputChange('licenseNumber', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
                 ) : (
                   <p className="text-sm text-slate-900">{formData.licenseNumber}</p>
@@ -298,7 +298,7 @@ const LaboratoryProfile = () => {
                   <textarea
                     value={formData.bio}
                     onChange={(e) => handleInputChange('bio', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     rows={3}
                   />
                 ) : (
@@ -334,7 +334,7 @@ const LaboratoryProfile = () => {
                     type="email"
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
                 ) : (
                   <p className="text-sm text-slate-900">{formData.email}</p>
@@ -347,7 +347,7 @@ const LaboratoryProfile = () => {
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => handleInputChange('phone', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
                 ) : (
                   <p className="text-sm text-slate-900">{formData.phone}</p>
@@ -362,14 +362,14 @@ const LaboratoryProfile = () => {
                       value={formData.address.line1}
                       onChange={(e) => handleInputChange('address.line1', e.target.value)}
                       placeholder="Address Line 1"
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     />
                     <input
                       type="text"
                       value={formData.address.line2}
                       onChange={(e) => handleInputChange('address.line2', e.target.value)}
                       placeholder="Address Line 2"
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <input
@@ -377,14 +377,14 @@ const LaboratoryProfile = () => {
                         value={formData.address.city}
                         onChange={(e) => handleInputChange('address.city', e.target.value)}
                         placeholder="City"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                       />
                       <input
                         type="text"
                         value={formData.address.state}
                         onChange={(e) => handleInputChange('address.state', e.target.value)}
                         placeholder="State"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                       />
                     </div>
                   </div>
@@ -424,21 +424,21 @@ const LaboratoryProfile = () => {
                           type="time"
                           value={timing.startTime}
                           onChange={(e) => handleTimingChange(index, 'startTime', e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                         />
                         <span className="text-xs text-slate-500">to</span>
                         <input
                           type="time"
                           value={timing.endTime}
                           onChange={(e) => handleTimingChange(index, 'endTime', e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                         />
                         <label className="flex items-center gap-1 text-xs">
                           <input
                             type="checkbox"
                             checked={timing.isOpen}
                             onChange={(e) => handleTimingChange(index, 'isOpen', e.target.checked)}
-                            className="h-3 w-3 rounded border-slate-300 text-purple-500"
+                            className="h-3 w-3 rounded border-slate-300 text-[#11496c]"
                           />
                           Open
                         </label>
@@ -479,7 +479,7 @@ const LaboratoryProfile = () => {
                   {formData.services.map((service) => (
                     <span
                       key={service}
-                      className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700"
+                      className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.1)] px-3 py-1 text-xs font-medium text-[#11496c]"
                     >
                       <IoFlaskOutline className="h-3 w-3" />
                       {service}
@@ -494,7 +494,7 @@ const LaboratoryProfile = () => {
                     type="number"
                     value={formData.serviceRadius}
                     onChange={(e) => handleInputChange('serviceRadius', parseFloat(e.target.value) || 0)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     min="0"
                   />
                 ) : (
@@ -508,7 +508,7 @@ const LaboratoryProfile = () => {
                     type="number"
                     value={formData.responseTimeMinutes}
                     onChange={(e) => handleInputChange('responseTimeMinutes', parseFloat(e.target.value) || 0)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     min="0"
                   />
                 ) : (

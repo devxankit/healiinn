@@ -128,7 +128,7 @@ const LaboratoryPatients = () => {
         <input
           type="search"
           placeholder="Search by name, phone, or email..."
-          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-slate-300 hover:bg-white hover:shadow-md focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+          className="w-full rounded-lg border border-[rgba(17,73,108,0.2)] bg-white py-2 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-[rgba(17,73,108,0.3)] hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -144,7 +144,7 @@ const LaboratoryPatients = () => {
           filteredPatients.map((patient) => (
             <article
               key={patient.id}
-              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-lg sm:p-5"
+                className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md sm:p-5"
             >
               <div className="flex items-start gap-3">
                 <img
@@ -251,7 +251,7 @@ const LaboratoryPatients = () => {
                 </button>
                 <button
                   onClick={() => navigate(`/laboratory/orders?patientId=${patient.id}`)}
-                  className="flex-1 rounded-lg bg-purple-500 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-purple-400/40 transition-all hover:bg-purple-600 active:scale-95"
+                  className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                 >
                   View Orders
                 </button>

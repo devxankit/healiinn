@@ -89,6 +89,8 @@ const mockTransactions = [
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Math.abs(amount))
@@ -122,33 +124,34 @@ const WalletTransaction = () => {
   })
 
   return (
-    <section className="flex flex-col gap-4 pb-4">
+    <section className="flex flex-col gap-6 pb-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/laboratory/wallet')}
-          className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95"
         >
           <IoArrowBackOutline className="h-5 w-5" />
         </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Transactions</h1>
+        <div className="flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Transactions</h1>
           <p className="mt-1 text-sm text-slate-600">View all your transaction history</p>
         </div>
       </div>
 
       {/* Main Transaction Card */}
-      <div className="relative overflow-hidden rounded-3xl border border-purple-100/60 bg-gradient-to-br from-purple-600 via-purple-500 to-purple-600 p-6 text-white shadow-xl shadow-purple-500/30">
-        <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-white/5 blur-2xl" />
-        <div className="relative">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-white/90">Total Transactions</p>
-              <p className="mt-2 text-4xl font-bold">{mockTransactions.length}</p>
+      <div className="relative overflow-hidden rounded-3xl border border-[rgba(17,73,108,0.15)] bg-gradient-to-br from-[#11496c] via-[#1a5f7a] to-[#2a8ba8] p-6 sm:p-8 text-white shadow-2xl shadow-[rgba(17,73,108,0.25)]">
+        <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />
+        <div className="absolute -left-20 bottom-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
+        <div className="relative z-10">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-white/80 mb-1">Total Transactions</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{mockTransactions.length}</p>
             </div>
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
-              <IoReceiptOutline className="h-8 w-8" />
+            <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
+              <IoReceiptOutline className="h-8 w-8 sm:h-10 sm:w-10" />
             </div>
           </div>
         </div>
@@ -162,7 +165,7 @@ const WalletTransaction = () => {
           onClick={() => setFilterType('all')}
           className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
             filterType === 'all'
-              ? 'bg-purple-500 text-white shadow-sm shadow-purple-400/40'
+              ? 'bg-[#11496c] text-white shadow-sm'
               : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50 border border-slate-200'
           }`}
         >
@@ -194,7 +197,7 @@ const WalletTransaction = () => {
 
       {/* Transactions List */}
       <section>
-        <h2 className="mb-4 text-lg font-bold text-slate-900">Transaction History</h2>
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Transaction History</h2>
         <div className="space-y-3">
           {filteredTransactions.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">

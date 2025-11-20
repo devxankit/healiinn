@@ -63,6 +63,8 @@ const mockEarningData = {
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Math.abs(amount))
@@ -97,34 +99,34 @@ const WalletEarning = () => {
   })
 
   return (
-    <section className="flex flex-col gap-4 pb-4">
+    <section className="flex flex-col gap-6 pb-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/laboratory/wallet')}
-          className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95"
         >
           <IoArrowBackOutline className="h-5 w-5" />
         </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Earnings</h1>
+        <div className="flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Earnings</h1>
           <p className="mt-1 text-sm text-slate-600">View your earnings and income details</p>
         </div>
       </div>
 
       {/* Main Earnings Card */}
-      <div className="relative overflow-hidden rounded-3xl border border-emerald-100/60 bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 p-6 text-white shadow-xl shadow-emerald-500/30">
-        <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-white/5 blur-2xl" />
+      <div className="relative overflow-hidden rounded-3xl border border-emerald-100/60 bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 p-6 sm:p-8 text-white shadow-xl shadow-emerald-500/30">
+        <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />
+        <div className="absolute -left-20 bottom-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
         
-        <div className="relative">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-white/90">Total Earnings</p>
-              <p className="mt-2 text-4xl font-bold">{formatCurrency(mockEarningData.totalEarnings)}</p>
+        <div className="relative z-10">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-white/80 mb-1">Total Earnings</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(mockEarningData.totalEarnings)}</p>
             </div>
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
-              <IoArrowDownOutline className="h-8 w-8" />
+            <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
+              <IoArrowDownOutline className="h-8 w-8 sm:h-10 sm:w-10" />
             </div>
           </div>
         </div>
@@ -132,12 +134,12 @@ const WalletEarning = () => {
 
       {/* Earnings Breakdown */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-2xl border border-blue-100/60 bg-gradient-to-br from-blue-50/90 via-white to-blue-50/70 p-5 shadow-sm shadow-blue-100/50">
+        <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Today</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockEarningData.todayEarnings)}</p>
         </div>
 
-        <div className="rounded-2xl border border-emerald-100/60 bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/70 p-5 shadow-sm shadow-emerald-100/50">
+        <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Month</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockEarningData.thisMonthEarnings)}</p>
           <div className="mt-2 flex items-center gap-1 text-xs">
@@ -156,8 +158,8 @@ const WalletEarning = () => {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-purple-100/60 bg-gradient-to-br from-purple-50/90 via-white to-purple-50/70 p-5 shadow-sm shadow-purple-100/50">
-          <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">Year</p>
+        <div className="rounded-2xl border border-[rgba(17,73,108,0.2)] bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">Year</p>
           <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockEarningData.thisYearEarnings)}</p>
         </div>
       </div>
@@ -169,7 +171,7 @@ const WalletEarning = () => {
           onClick={() => setFilterType('all')}
           className={`flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
             filterType === 'all'
-              ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-400/40'
+              ? 'bg-[#11496c] text-white shadow-sm'
               : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50 border border-slate-200'
           }`}
         >
@@ -212,7 +214,7 @@ const WalletEarning = () => {
 
       {/* Earnings List */}
       <section>
-        <h2 className="mb-4 text-lg font-bold text-slate-900">Earning History</h2>
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Earning History</h2>
         <div className="space-y-3">
           {filteredEarnings.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">

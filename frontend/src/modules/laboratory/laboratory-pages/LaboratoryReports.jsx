@@ -894,7 +894,7 @@ const LaboratoryReports = () => {
         <input
           type="search"
           placeholder="Search by patient name, phone, or email..."
-          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-slate-300 hover:bg-white hover:shadow-md focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+          className="w-full rounded-lg border border-[rgba(17,73,108,0.2)] bg-white py-2 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-[rgba(17,73,108,0.3)] hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -910,11 +910,11 @@ const LaboratoryReports = () => {
           filteredPatients.map((patient) => (
             <article
               key={patient.patientName}
-              className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-lg sm:p-5"
+                className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md sm:p-5"
             >
               {/* Patient Header */}
               <div className="flex items-start gap-3 border-b border-slate-200 pb-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[rgba(17,73,108,0.1)] text-[#11496c]">
                   <IoPersonOutline className="h-6 w-6" />
                 </div>
                 <div className="flex-1">
@@ -937,7 +937,7 @@ const LaboratoryReports = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-semibold text-slate-500">Total Tests</p>
-                  <p className="text-lg font-bold text-purple-600">{patient.reports.length}</p>
+                  <p className="text-lg font-bold text-[#11496c]">{patient.reports.length}</p>
                 </div>
               </div>
 
@@ -952,7 +952,7 @@ const LaboratoryReports = () => {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <IoFlaskOutline className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                          <IoFlaskOutline className="h-4 w-4 text-[#11496c] flex-shrink-0" />
                           <p className="text-sm font-medium text-slate-900">{report.testName}</p>
                         </div>
                         <p className="mt-1 text-xs text-slate-500">Order ID: {report.orderId}</p>
@@ -1032,14 +1032,14 @@ const LaboratoryReports = () => {
               <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   type="button"
-                  className="rounded-full p-2 text-slate-600 transition-all hover:bg-purple-50 hover:text-purple-600 active:scale-95"
+                  className="rounded-full p-2 text-slate-600 transition-all hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] active:scale-95"
                   aria-label="Zoom"
                 >
                   <IoExpandOutline className="h-5 w-5" />
                 </button>
                 <button
                   type="button"
-                  className="rounded-full p-2 text-slate-600 transition-all hover:bg-purple-50 hover:text-purple-600 active:scale-95"
+                  className="rounded-full p-2 text-slate-600 transition-all hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] active:scale-95"
                   aria-label="Share"
                 >
                   <IoShareSocialOutline className="h-5 w-5" />
@@ -1056,27 +1056,27 @@ const LaboratoryReports = () => {
             {/* Report Content - PDF Format */}
             <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
               {/* Laboratory Information */}
-              <div className="relative overflow-hidden rounded-2xl border border-purple-200/60 bg-gradient-to-br from-purple-50/80 via-white to-purple-50/40 p-4 sm:p-5 shadow-sm">
-                <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-purple-200/20 blur-2xl" />
-                <h3 className="relative text-lg sm:text-xl font-bold text-purple-700 mb-2">MediLab Diagnostics</h3>
+              <div className="relative overflow-hidden rounded-2xl border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.05)] p-4 sm:p-5 shadow-sm">
+                <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[rgba(17,73,108,0.1)] blur-2xl" />
+                <h3 className="relative text-lg sm:text-xl font-bold text-[#11496c] mb-2">MediLab Diagnostics</h3>
                 <p className="relative text-sm sm:text-base text-slate-700 mb-3">123 Medical Street, Springfield, IL 62701</p>
                 <div className="relative flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-slate-600">
                   <a
                     href="tel:+1-555-214-0098"
                     className="flex items-center gap-2 rounded-lg px-3 py-2 bg-white/80 hover:bg-white transition-all hover:shadow-sm"
                   >
-                    <IoCallOutline className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+                    <IoCallOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c]" />
                     <span className="font-medium">+1-555-214-0098</span>
                   </a>
                   <a
                     href="mailto:info@medilab.com"
                     className="flex items-center gap-2 rounded-lg px-3 py-2 bg-white/80 hover:bg-white transition-all hover:shadow-sm"
                   >
-                    <IoMailOutline className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+                    <IoMailOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c]" />
                     <span className="font-medium">info@medilab.com</span>
                   </a>
                 </div>
-                <div className="mt-4 h-0.5 bg-gradient-to-r from-purple-500 via-purple-400 to-purple-500 rounded-full" />
+                <div className="mt-4 h-0.5 bg-gradient-to-r from-[#11496c] via-[#1a5f7a] to-[#11496c] rounded-full" />
               </div>
 
               {/* Patient Information */}
@@ -1101,7 +1101,7 @@ const LaboratoryReports = () => {
                   {selectedReport.patientPhone && (
                     <div>
                       <span className="font-semibold text-slate-600">Phone:</span>
-                      <a href={`tel:${selectedReport.patientPhone}`} className="text-purple-600 font-medium hover:text-purple-700 hover:underline">
+                      <a href={`tel:${selectedReport.patientPhone}`} className="text-[#11496c] font-medium hover:text-[#0d3a52] hover:underline">
                         {selectedReport.patientPhone}
                       </a>
                     </div>
@@ -1109,7 +1109,7 @@ const LaboratoryReports = () => {
                   {selectedReport.patientEmail && (
                     <div className="sm:col-span-2">
                       <span className="font-semibold text-slate-600">Email:</span>
-                      <a href={`mailto:${selectedReport.patientEmail}`} className="text-purple-600 font-medium hover:text-purple-700 hover:underline break-all">
+                      <a href={`mailto:${selectedReport.patientEmail}`} className="text-[#11496c] font-medium hover:text-[#0d3a52] hover:underline break-all">
                         {selectedReport.patientEmail}
                       </a>
                     </div>
@@ -1136,7 +1136,7 @@ const LaboratoryReports = () => {
                     {selectedReport.doctorPhone && (
                       <div>
                         <span className="font-semibold text-slate-600">Phone:</span>
-                        <a href={`tel:${selectedReport.doctorPhone}`} className="text-purple-600 font-medium hover:text-purple-700 hover:underline">
+                        <a href={`tel:${selectedReport.doctorPhone}`} className="text-[#11496c] font-medium hover:text-[#0d3a52] hover:underline">
                           {selectedReport.doctorPhone}
                         </a>
                       </div>
@@ -1144,7 +1144,7 @@ const LaboratoryReports = () => {
                     {selectedReport.doctorEmail && (
                       <div className="sm:col-span-2">
                         <span className="font-semibold text-slate-600">Email:</span>
-                        <a href={`mailto:${selectedReport.doctorEmail}`} className="text-purple-600 font-medium hover:text-purple-700 hover:underline break-all">
+                        <a href={`mailto:${selectedReport.doctorEmail}`} className="text-[#11496c] font-medium hover:text-[#0d3a52] hover:underline break-all">
                           {selectedReport.doctorEmail}
                         </a>
                       </div>
@@ -1154,14 +1154,14 @@ const LaboratoryReports = () => {
               )}
 
               {/* Test Information */}
-              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-purple-50/30 p-4 sm:p-5 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-[rgba(17,73,108,0.03)] p-4 sm:p-5 shadow-sm">
                 <h4 className="text-sm sm:text-base font-bold text-slate-900 mb-3 sm:mb-4 flex items-center gap-2">
-                  <IoFlaskOutline className="h-5 w-5 text-purple-600" />
+                  <IoFlaskOutline className="h-5 w-5 text-[#11496c]" />
                   Test Information
                 </h4>
                 <div className="space-y-3 sm:space-y-4">
-                  <div className="group relative overflow-hidden rounded-xl border border-purple-200/60 bg-gradient-to-br from-white to-purple-50/50 p-4 sm:p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:border-purple-300">
-                    <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-purple-100/30 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="group relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-white to-[rgba(17,73,108,0.03)] p-4 sm:p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:border-[rgba(17,73,108,0.3)]">
+                    <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-[rgba(17,73,108,0.1)] blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
                     <div className="relative">
                       <h5 className="text-base sm:text-lg font-bold text-slate-900 mb-3">
                         {selectedReport.testName}
@@ -1201,7 +1201,7 @@ const LaboratoryReports = () => {
                           <div>
                             <span className="font-semibold text-slate-600">Completed At:</span>
                             <p className="text-slate-900 font-medium flex items-center gap-1">
-                              <IoCalendarOutline className="h-4 w-4 text-purple-600" />
+                              <IoCalendarOutline className="h-4 w-4 text-[#11496c]" />
                               {formatDate(selectedReport.completedAt)}
                             </p>
                           </div>
@@ -1219,7 +1219,7 @@ const LaboratoryReports = () => {
                   onClick={() => {
                     handleGenerateBill(selectedReport)
                   }}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-purple-400/40 transition-all hover:bg-purple-600 active:scale-95"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                 >
                   <IoReceiptOutline className="h-4 w-4" />
                   Generate Bill
@@ -1256,7 +1256,7 @@ const LaboratoryReports = () => {
             {/* Bill Header */}
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50/50 backdrop-blur-sm px-4 sm:px-6 py-3 sm:py-4 shadow-sm">
               <div className="flex items-center gap-3">
-                <IoReceiptOutline className="h-6 w-6 sm:h-7 sm:w-7 text-purple-600" />
+                <IoReceiptOutline className="h-6 w-6 sm:h-7 sm:w-7 text-[#11496c]" />
                 <div>
                   <h2 className="text-lg sm:text-xl font-bold text-slate-900">Generate Test Bill</h2>
                   <p className="text-xs sm:text-sm text-slate-500">Patient: {selectedReport.patientName}</p>
@@ -1282,7 +1282,7 @@ const LaboratoryReports = () => {
                   <button
                     type="button"
                     onClick={handleAddBillRow}
-                    className="flex items-center gap-1 rounded-lg bg-purple-500 px-2.5 py-1 text-xs font-semibold text-white shadow-sm shadow-purple-400/40 transition-all hover:bg-purple-600 active:scale-95"
+                    className="flex items-center gap-1 rounded-lg bg-[#11496c] px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                   >
                     <IoAddOutline className="h-3.5 w-3.5" />
                     Add Test
@@ -1315,7 +1315,7 @@ const LaboratoryReports = () => {
                             value={item.testName}
                             onChange={(e) => handleBillItemChange(item.id, 'testName', e.target.value)}
                             placeholder="Test name"
-                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/30"
+                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[rgba(17,73,108,0.2)]"
                           />
                         </div>
                         
@@ -1331,7 +1331,7 @@ const LaboratoryReports = () => {
                               handleBillItemChange(item.id, 'amount', val)
                             }}
                             placeholder="0.00"
-                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-900 text-right focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/30"
+                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-900 text-right focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[rgba(17,73,108,0.2)]"
                           />
                         </div>
                         
@@ -1354,7 +1354,7 @@ const LaboratoryReports = () => {
               </div>
 
               {/* Home Collection Charge */}
-              <div className="rounded-lg border border-purple-200/60 bg-gradient-to-br from-purple-50/50 via-white to-purple-50/30 p-4 shadow-sm">
+              <div className="rounded-lg border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.03)] p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <label htmlFor="homeCollectionCharges" className="text-sm font-semibold text-slate-700">
                     Home Collection Charge:
@@ -1368,7 +1368,7 @@ const LaboratoryReports = () => {
                       value={homeCollectionCharges || ''}
                       onChange={(e) => setHomeCollectionCharges(parseFloat(e.target.value) || 0)}
                       placeholder="0.00"
-                      className="w-32 rounded-md border border-purple-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 text-right focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-400/30"
+                      className="w-32 rounded-md border border-[rgba(17,73,108,0.3)] bg-white px-3 py-2 text-sm font-semibold text-slate-900 text-right focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     />
                   </div>
                 </div>
@@ -1376,10 +1376,10 @@ const LaboratoryReports = () => {
               </div>
 
               {/* Total Amount Display */}
-              <div className="rounded-xl border-2 border-purple-200/60 bg-gradient-to-br from-purple-50/80 via-white to-purple-50/40 p-4 sm:p-5 shadow-sm">
+              <div className="rounded-xl border-2 border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.03)] p-4 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <h3 className="text-base sm:text-lg font-bold text-slate-900">Total Amount</h3>
-                  <p className="text-2xl sm:text-3xl font-bold text-purple-600">{formatCurrency(calculateBillTotal())}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-[#11496c]">{formatCurrency(calculateBillTotal())}</p>
                 </div>
               </div>
 
@@ -1398,7 +1398,7 @@ const LaboratoryReports = () => {
                 <button
                   type="button"
                   onClick={handleSendBillToPatient}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-purple-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-purple-400/40 transition-all hover:bg-purple-600 active:scale-95"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                 >
                   <IoPaperPlaneOutline className="h-4 w-4" />
                   Send to Patient
