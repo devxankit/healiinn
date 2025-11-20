@@ -162,7 +162,7 @@ const PatientDoctors = () => {
   const [searchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSpecialty, setSelectedSpecialty] = useState('all')
-  const [sortBy, setSortBy] = useState('relevance')
+  const sortBy = 'relevance' // Default sort: by rating (highest first)
 
   // Set specialty from URL query parameter
   useEffect(() => {
