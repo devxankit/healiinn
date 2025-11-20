@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import PatientNavbar from './modules/patient/patient-components/PatientNavbar'
 import PatientDashboard from './modules/patient/patient-pages/PatientDashboard'
 import PatientPharmacy from './modules/patient/patient-pages/PatientPharmacy'
@@ -54,6 +54,16 @@ import LaboratoryWalletBalance from './modules/laboratory/laboratory-pages/Walle
 import LaboratoryWalletEarning from './modules/laboratory/laboratory-pages/WalletEarning'
 import LaboratoryWalletWithdraw from './modules/laboratory/laboratory-pages/WalletWithdraw'
 import LaboratoryWalletTransaction from './modules/laboratory/laboratory-pages/WalletTransaction'
+import AdminNavbar from './modules/admin/admin-components/AdminNavbar'
+import AdminLogin from './modules/admin/admin-pages/AdminLogin'
+import AdminDashboard from './modules/admin/admin-pages/AdminDashboard'
+import AdminUsers from './modules/admin/admin-pages/AdminUsers'
+import AdminDoctors from './modules/admin/admin-pages/AdminDoctors'
+import AdminPharmacies from './modules/admin/admin-pages/AdminPharmacies'
+import AdminLaboratories from './modules/admin/admin-pages/AdminLaboratories'
+import AdminVerification from './modules/admin/admin-pages/AdminVerification'
+import AdminProfile from './modules/admin/admin-pages/AdminProfile'
+import AdminWallet from './modules/admin/admin-pages/AdminWallet'
 
 function PatientRoutes() {
   const location = useLocation()
@@ -171,6 +181,30 @@ function App() {
                     <Route path="/wallet/earning" element={<LaboratoryWalletEarning />} />
                     <Route path="/wallet/withdraw" element={<LaboratoryWalletWithdraw />} />
                     <Route path="/wallet/transaction" element={<LaboratoryWalletTransaction />} />
+                  </Routes>
+                </main>
+              </>
+            }
+          />
+
+          {/* Admin Routes */}
+          <Route
+            path="/admin/*"
+            element={
+              <>
+                <AdminNavbar />
+                <main className="px-4 pb-24 pt-28 sm:px-6 lg:ml-64">
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+                    <Route path="/login" element={<AdminLogin />} />
+                    <Route path="/dashboard" element={<AdminDashboard />} />
+                    <Route path="/users" element={<AdminUsers />} />
+                    <Route path="/doctors" element={<AdminDoctors />} />
+                    <Route path="/pharmacies" element={<AdminPharmacies />} />
+                    <Route path="/laboratories" element={<AdminLaboratories />} />
+                    <Route path="/wallet" element={<AdminWallet />} />
+                    <Route path="/verification" element={<AdminVerification />} />
+                    <Route path="/profile" element={<AdminProfile />} />
                   </Routes>
                 </main>
               </>
