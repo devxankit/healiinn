@@ -25,9 +25,6 @@ router.use('/consultations', require('./consultations.routes'));
 // Prescription routes
 router.use('/prescriptions', require('./prescriptions.routes'));
 
-// Notification routes
-router.use('/notifications', require('./notifications.routes'));
-
 // Review routes
 router.use('/reviews', require('./reviews.routes'));
 

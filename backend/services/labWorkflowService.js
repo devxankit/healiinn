@@ -253,69 +253,11 @@ const updateLeadStatus = async ({
       labReport.status = 'shared_with_patient';
       await labReport.save();
 
-      // Notify patient that report is ready
-      const { notifyLabReportReady } = require('./notificationEvents');
-      const Laboratory = require('../models/Laboratory');
-      try {
-        const lab = await Laboratory.findById(laboratoryId).select('labName').lean();
-        await notifyLabReportReady({
-          patientId: lead.patient,
-          laboratoryName: lab?.labName || 'Laboratory',
-          reportId: labReport._id,
-        });
-      } catch (notificationError) {
-        console.error('Failed to send lab report ready notification:', notificationError);
-      }
     }
   }
 
   await lead.save();
 
-  // Send notifications for status changes
-  const { 
-    notifyLabLeadStatusChange, 
-    notifyLabRequestReceived, 
-    notifyLabAccepted 
-  } = require('./notificationEvents');
-  const Laboratory = require('../models/Laboratory');
-  const Patient = require('../models/Patient');
-
-  try {
-    if (status === LAB_LEAD_STATUS.NEW) {
-      // Notify all preferred laboratories
-      const labs = await Laboratory.find({ _id: { $in: lead.preferredLaboratories } })
-        .select('labName')
-        .lean();
-      for (const lab of labs) {
-        await notifyLabRequestReceived({
-          laboratoryId: lab._id,
-          patientName: null, // Will be populated if needed
-          leadId: lead._id,
-        });
-      }
-    } else if (status === LAB_LEAD_STATUS.ACCEPTED) {
-      const patient = await Patient.findById(lead.patient).select('firstName lastName').lean();
-      const lab = await Laboratory.findById(laboratoryId).select('labName').lean();
-      await notifyLabAccepted({
-        patientId: lead.patient,
-        laboratoryName: lab?.labName || 'Laboratory',
-        leadId: lead._id,
-        totalAmount: billing?.totalAmount || 0,
-      });
-    } else {
-      // Notify status change
-      await notifyLabLeadStatusChange({
-        patientId: lead.patient,
-        laboratoryId,
-        status,
-        leadId: lead._id,
-        notes,
-      });
-    }
-  } catch (notificationError) {
-    console.error('Failed to send lab lead notification:', notificationError);
-    // Don't fail the update if notification fails
-  }
 
   await lead.populate([
     {

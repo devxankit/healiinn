@@ -162,7 +162,7 @@ const PatientDoctors = () => {
   const [searchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSpecialty, setSelectedSpecialty] = useState('all')
-  const [sortBy, setSortBy] = useState('relevance')
+  const sortBy = 'relevance' // Default sort: by rating (highest first)
 
   // Set specialty from URL query parameter
   useEffect(() => {
@@ -303,7 +303,8 @@ const PatientDoctors = () => {
           {filteredDoctors.map((doctor) => (
             <div
               key={doctor.id}
-              className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+              onClick={() => handleCardClick(doctor.id)}
+              className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
             >
               <div className="p-4">
                 {/* Doctor Info Row */}
@@ -360,7 +361,10 @@ const PatientDoctors = () => {
 
                 {/* Take Token Button */}
                 <button
-                  onClick={() => handleCardClick(doctor.id)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleCardClick(doctor.id)
+                  }}
                   className="w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors shadow-sm"
                   style={{ backgroundColor: '#11496c' }}
                   onMouseEnter={(e) => {

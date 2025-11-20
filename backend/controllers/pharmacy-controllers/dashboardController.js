@@ -2,17 +2,13 @@ const mongoose = require('mongoose');
 const asyncHandler = require('../../middleware/asyncHandler');
 const fs = require('fs');
 const path = require('path');
-const { promisify } = require('util');
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
-const Appointment = require('../../models/Appointment');
-const Consultation = require('../../models/Consultation');
-const Prescription = require('../../models/Prescription');
-const LabLead = require('../../models/LabLead');
+const PharmacyLead = require('../../models/PharmacyLead');
 const Patient = require('../../models/Patient');
 const WalletTransaction = require('../../models/WalletTransaction');
-const { ROLES, CONSULTATION_STATUS, getCommissionRateByRole } = require('../../utils/constants');
-const { getDoctorWalletSummary } = require('../../services/walletService');
+const { ROLES, PHARMACY_LEAD_STATUS, getCommissionRateByRole } = require('../../utils/constants');
+const { getProviderWalletSummary } = require('../../services/walletService');
 const { getCache, setCache, generateCacheKey } = require('../../utils/cache');
 
 const toObjectId = (value) =>
@@ -66,18 +62,26 @@ const mapPatientSummary = (patient) =>
       }
     : null;
 
-const mapClinicSummary = (clinic) =>
-  clinic
+const mapOrderSummary = (order) => ({
+  id: order._id,
+  status: order.status,
+  createdAt: order.createdAt,
+  updatedAt: order.updatedAt,
+  billingSummary: order.billingSummary
     ? {
-        id: clinic._id,
-        name: clinic.name,
-        address: clinic.address || null,
+        totalAmount: order.billingSummary.totalAmount || 0,
+        deliveryCharge: order.billingSummary.deliveryCharge || 0,
+        currency: order.billingSummary.currency || 'INR',
       }
-    : null;
+    : null,
+  patient: mapPatientSummary(order.patient),
+  medicinesCount: order.medicines ? order.medicines.length : 0,
+});
 
+// Dashboard Overview
 exports.getDashboardOverview = asyncHandler(async (req, res) => {
-  const doctorId = toObjectId(req.auth.id);
-  const cacheKey = generateCacheKey('doctor:dashboard', { doctorId: doctorId.toString() });
+  const pharmacyId = toObjectId(req.auth.id);
+  const cacheKey = generateCacheKey('pharmacy:dashboard', { pharmacyId: pharmacyId.toString() });
   
   // Try to get from cache first
   const cachedData = await getCache(cacheKey);
@@ -96,109 +100,83 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
   const yearStart = startOfYear(now);
   const yearEnd = addYears(yearStart, 1);
 
-  const appointmentBaseFilter = {
-    doctor: doctorId,
-    status: { $nin: ['cancelled', 'no_show'] },
+  const orderBaseFilter = {
+    acceptedBy: pharmacyId,
+    status: { $nin: [PHARMACY_LEAD_STATUS.CANCELLED] },
   };
 
   const [
-    dailyAppointments,
-    monthlyAppointments,
-    yearlyAppointments,
+    dailyOrders,
+    monthlyOrders,
+    yearlyOrders,
+    totalOrders,
+    pendingOrders,
+    acceptedOrders,
+    completedOrders,
     distinctPatients,
-    totalPrescriptions,
-    upcomingAppointmentsRaw,
-    recentReportsRaw,
-    notificationsRaw,
+    recentOrdersRaw,
     walletSummary,
   ] = await Promise.all([
-    Appointment.countDocuments({
-      ...appointmentBaseFilter,
-      scheduledFor: { $gte: dayStart, $lt: dayEnd },
+    PharmacyLead.countDocuments({
+      ...orderBaseFilter,
+      createdAt: { $gte: dayStart, $lt: dayEnd },
     }),
-    Appointment.countDocuments({
-      ...appointmentBaseFilter,
-      scheduledFor: { $gte: monthStart, $lt: monthEnd },
+    PharmacyLead.countDocuments({
+      ...orderBaseFilter,
+      createdAt: { $gte: monthStart, $lt: monthEnd },
     }),
-    Appointment.countDocuments({
-      ...appointmentBaseFilter,
-      scheduledFor: { $gte: yearStart, $lt: yearEnd },
+    PharmacyLead.countDocuments({
+      ...orderBaseFilter,
+      createdAt: { $gte: yearStart, $lt: yearEnd },
     }),
-    Consultation.distinct('patient', {
-      doctor: doctorId,
-      status: CONSULTATION_STATUS.COMPLETED,
+    PharmacyLead.countDocuments(orderBaseFilter),
+    PharmacyLead.countDocuments({
+      ...orderBaseFilter,
+      status: PHARMACY_LEAD_STATUS.NEW,
     }),
-    Prescription.countDocuments({ doctor: doctorId }),
-    Appointment.find({
-      ...appointmentBaseFilter,
-      scheduledFor: { $gte: now },
-    })
+    PharmacyLead.countDocuments({
+      ...orderBaseFilter,
+      status: PHARMACY_LEAD_STATUS.ACCEPTED,
+    }),
+    PharmacyLead.countDocuments({
+      ...orderBaseFilter,
+      status: PHARMACY_LEAD_STATUS.COMPLETED,
+    }),
+    PharmacyLead.distinct('patient', {
+      ...orderBaseFilter,
+      status: PHARMACY_LEAD_STATUS.COMPLETED,
+    }),
+    PharmacyLead.find(orderBaseFilter)
       .populate('patient', 'firstName lastName gender phone email')
-      .populate('clinic', 'name address')
-      .sort({ scheduledFor: 1 })
+      .populate('doctor', 'firstName lastName specialization')
+      .sort({ createdAt: -1 })
       .limit(5)
+      .select('status createdAt updatedAt billingSummary medicines patient doctor')
       .lean(),
-    LabLead.find({
-      doctor: doctorId,
-      'reportDetails.uploadedAt': { $exists: true },
-    })
-      .populate('patient', 'firstName lastName gender phone email')
-      .populate('preferredLaboratories', 'labName phone email address')
-      .sort({ 'reportDetails.uploadedAt': -1 })
-      .limit(5)
-      .lean(),
-    getDoctorWalletSummary(doctorId),
+    getProviderWalletSummary(pharmacyId, ROLES.PHARMACY),
   ]);
 
-  const upcomingAppointments = upcomingAppointmentsRaw.map((item) => ({
-    id: item._id,
-    scheduledFor: item.scheduledFor,
-    status: item.status,
-    reason: item.reason || null,
-    type: item.type || null,
-    patient: mapPatientSummary(item.patient),
-    clinic: mapClinicSummary(item.clinic),
-  }));
-
-  const recentReports = recentReportsRaw.map((item) => {
-    const labs = (item.preferredLaboratories || []).map((lab) => ({
-      id: lab._id,
-      name: lab.labName,
-      phone: lab.phone || null,
-      email: lab.email || null,
-      address: lab.address || null,
-    }));
-
-    return {
-      id: item._id,
-      uploadedAt: item.reportDetails?.uploadedAt || null,
-      fileUrl: item.reportDetails?.fileUrl || null,
-      fileName: item.reportDetails?.fileName || null,
-      mimeType: item.reportDetails?.mimeType || null,
-      notes: item.reportDetails?.notes || null,
-      patient: mapPatientSummary(item.patient),
-      laboratories: labs,
-    };
-  });
+  const recentOrders = recentOrdersRaw.map(mapOrderSummary);
 
   const response = {
     success: true,
     metrics: {
-      appointments: {
-        daily: dailyAppointments,
-        monthly: monthlyAppointments,
-        yearly: yearlyAppointments,
+      orders: {
+        daily: dailyOrders,
+        monthly: monthlyOrders,
+        yearly: yearlyOrders,
+        total: totalOrders,
+        pending: pendingOrders,
+        accepted: acceptedOrders,
+        completed: completedOrders,
       },
-      patientsConsulted: distinctPatients.length,
-      prescriptionsCreated: totalPrescriptions,
+      patientsServed: distinctPatients.length,
     },
     wallet: {
       ...walletSummary,
-      commissionRate: getCommissionRateByRole(ROLES.DOCTOR),
+      commissionRate: getCommissionRateByRole(ROLES.PHARMACY),
     },
-    upcomingAppointments,
-    recentReports,
-    notifications,
+    recentOrders,
   };
 
   // Cache for 5 minutes (300 seconds)
@@ -207,13 +185,13 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
   res.json(response);
 });
 
-// Detailed Analytics - Revenue Trends
+// Revenue Trends
 exports.getRevenueTrends = asyncHandler(async (req, res) => {
-  const doctorId = toObjectId(req.auth.id);
+  const pharmacyId = toObjectId(req.auth.id);
   const { period = 'monthly', from, to } = req.query;
   
-  const cacheKey = generateCacheKey('doctor:revenue-trends', {
-    doctorId: doctorId.toString(),
+  const cacheKey = generateCacheKey('pharmacy:revenue-trends', {
+    pharmacyId: pharmacyId.toString(),
     period,
     from: from || '',
     to: to || '',
@@ -246,10 +224,8 @@ exports.getRevenueTrends = asyncHandler(async (req, res) => {
   }
 
   const matchQuery = {
-    $or: [
-      { provider: doctorId, providerRole: ROLES.DOCTOR },
-      { doctor: doctorId }, // Legacy support
-    ],
+    provider: pharmacyId,
+    providerRole: ROLES.PHARMACY,
     creditedAt: { $gte: startDate, $lte: endDate },
   };
 
@@ -272,8 +248,21 @@ exports.getRevenueTrends = asyncHandler(async (req, res) => {
     };
   }
 
+  // Optimized aggregation pipeline with explicit field projection
   const revenueTrends = await WalletTransaction.aggregate([
     { $match: matchQuery },
+    {
+      $project: {
+        creditedAt: 1,
+        grossAmount: 1,
+        commissionAmount: 1,
+        netAmount: 1,
+        year: { $year: '$creditedAt' },
+        month: { $month: '$creditedAt' },
+        week: period === 'weekly' ? { $week: '$creditedAt' } : null,
+        day: period === 'daily' ? { $dayOfMonth: '$creditedAt' } : null,
+      },
+    },
     {
       $group: {
         _id: groupBy,
@@ -310,9 +299,130 @@ exports.getRevenueTrends = asyncHandler(async (req, res) => {
   res.json(response);
 });
 
+// Order Trends
+exports.getOrderTrends = asyncHandler(async (req, res) => {
+  const pharmacyId = toObjectId(req.auth.id);
+  const { period = 'monthly', from, to, status } = req.query;
+
+  let startDate, endDate;
+  if (from && to) {
+    startDate = new Date(from);
+    endDate = new Date(to);
+  } else {
+    const now = new Date();
+    if (period === 'daily') {
+      startDate = addDays(now, -30);
+      endDate = now;
+    } else if (period === 'weekly') {
+      startDate = addDays(now, -84);
+      endDate = now;
+    } else {
+      startDate = addMonths(now, -12);
+      endDate = now;
+    }
+  }
+
+  const matchCriteria = {
+    acceptedBy: pharmacyId,
+    createdAt: { $gte: startDate, $lte: endDate },
+  };
+
+  if (status) {
+    matchCriteria.status = status;
+  }
+
+  let groupBy;
+  if (period === 'daily') {
+    groupBy = {
+      year: { $year: '$createdAt' },
+      month: { $month: '$createdAt' },
+      day: { $dayOfMonth: '$createdAt' },
+    };
+  } else if (period === 'weekly') {
+    groupBy = {
+      year: { $year: '$createdAt' },
+      week: { $week: '$createdAt' },
+    };
+  } else {
+    groupBy = {
+      year: { $year: '$createdAt' },
+      month: { $month: '$createdAt' },
+    };
+  }
+
+  // Optimized aggregation pipeline with explicit field projection
+  const trends = await PharmacyLead.aggregate([
+    { $match: matchCriteria },
+    {
+      $project: {
+        status: 1,
+        createdAt: 1,
+        'billingSummary.totalAmount': 1,
+        'billingSummary.deliveryCharge': 1,
+        year: { $year: '$createdAt' },
+        month: { $month: '$createdAt' },
+        week: period === 'weekly' ? { $week: '$createdAt' } : null,
+        day: period === 'daily' ? { $dayOfMonth: '$createdAt' } : null,
+      },
+    },
+    {
+      $group: {
+        _id: {
+          ...groupBy,
+          status: '$status',
+        },
+        count: { $sum: 1 },
+        totalRevenue: { $sum: '$billingSummary.totalAmount' },
+        totalDeliveryCharge: { $sum: '$billingSummary.deliveryCharge' },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          year: '$_id.year',
+          month: '$_id.month',
+          week: '$_id.week',
+          day: '$_id.day',
+        },
+        statuses: {
+          $push: {
+            status: '$_id.status',
+            count: '$count',
+          },
+        },
+        total: { $sum: '$count' },
+        totalRevenue: { $sum: '$totalRevenue' },
+        totalDeliveryCharge: { $sum: '$totalDeliveryCharge' },
+      },
+    },
+    { $sort: { '_id.year': 1, '_id.month': 1, '_id.week': 1, '_id.day': 1 } },
+  ]);
+
+  res.json({
+    success: true,
+    period,
+    from: startDate,
+    to: endDate,
+    trends: trends.map((item) => ({
+      date: period === 'daily'
+        ? `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`
+        : period === 'weekly'
+        ? `${item._id.year}-W${String(item._id.week).padStart(2, '0')}`
+        : `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
+      total: item.total,
+      totalRevenue: item.totalRevenue || 0,
+      totalDeliveryCharge: item.totalDeliveryCharge || 0,
+      byStatus: item.statuses.reduce((acc, s) => {
+        acc[s.status] = s.count;
+        return acc;
+      }, {}),
+    })),
+  });
+});
+
 // Patient Growth Chart
 exports.getPatientGrowth = asyncHandler(async (req, res) => {
-  const doctorId = toObjectId(req.auth.id);
+  const pharmacyId = toObjectId(req.auth.id);
   const { period = 'monthly', from, to } = req.query;
 
   let startDate, endDate;
@@ -352,12 +462,23 @@ exports.getPatientGrowth = asyncHandler(async (req, res) => {
     };
   }
 
-  const patientGrowth = await Consultation.aggregate([
+  // Optimized aggregation pipeline with explicit field projection
+  const patientGrowth = await PharmacyLead.aggregate([
     {
       $match: {
-        doctor: doctorId,
-        status: CONSULTATION_STATUS.COMPLETED,
+        acceptedBy: pharmacyId,
+        status: PHARMACY_LEAD_STATUS.COMPLETED,
         createdAt: { $gte: startDate, $lte: endDate },
+      },
+    },
+    {
+      $project: {
+        patient: 1,
+        createdAt: 1,
+        year: { $year: '$createdAt' },
+        month: { $month: '$createdAt' },
+        week: period === 'weekly' ? { $week: '$createdAt' } : null,
+        day: period === 'daily' ? { $dayOfMonth: '$createdAt' } : null,
       },
     },
     {
@@ -398,189 +519,9 @@ exports.getPatientGrowth = asyncHandler(async (req, res) => {
   });
 });
 
-// Consultation Trends
-exports.getConsultationTrends = asyncHandler(async (req, res) => {
-  const doctorId = toObjectId(req.auth.id);
-  const { period = 'monthly', from, to, status } = req.query;
-
-  let startDate, endDate;
-  if (from && to) {
-    startDate = new Date(from);
-    endDate = new Date(to);
-  } else {
-    const now = new Date();
-    if (period === 'daily') {
-      startDate = addDays(now, -30);
-      endDate = now;
-    } else if (period === 'weekly') {
-      startDate = addDays(now, -84);
-      endDate = now;
-    } else {
-      startDate = addMonths(now, -12);
-      endDate = now;
-    }
-  }
-
-  const matchCriteria = {
-    doctor: doctorId,
-    createdAt: { $gte: startDate, $lte: endDate },
-  };
-
-  if (status) {
-    matchCriteria.status = status;
-  }
-
-  let groupBy;
-  if (period === 'daily') {
-    groupBy = {
-      year: { $year: '$createdAt' },
-      month: { $month: '$createdAt' },
-      day: { $dayOfMonth: '$createdAt' },
-    };
-  } else if (period === 'weekly') {
-    groupBy = {
-      year: { $year: '$createdAt' },
-      week: { $week: '$createdAt' },
-    };
-  } else {
-    groupBy = {
-      year: { $year: '$createdAt' },
-      month: { $month: '$createdAt' },
-    };
-  }
-
-  const trends = await Consultation.aggregate([
-    { $match: matchCriteria },
-    {
-      $group: {
-        _id: {
-          ...groupBy,
-          status: '$status',
-        },
-        count: { $sum: 1 },
-      },
-    },
-    {
-      $group: {
-        _id: {
-          year: '$_id.year',
-          month: '$_id.month',
-          week: '$_id.week',
-          day: '$_id.day',
-        },
-        statuses: {
-          $push: {
-            status: '$_id.status',
-            count: '$count',
-          },
-        },
-        total: { $sum: '$count' },
-      },
-    },
-    { $sort: { '_id.year': 1, '_id.month': 1, '_id.week': 1, '_id.day': 1 } },
-  ]);
-
-  res.json({
-    success: true,
-    period,
-    from: startDate,
-    to: endDate,
-    trends: trends.map((item) => ({
-      date: period === 'daily'
-        ? `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`
-        : period === 'weekly'
-        ? `${item._id.year}-W${String(item._id.week).padStart(2, '0')}`
-        : `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
-      total: item.total,
-      byStatus: item.statuses.reduce((acc, s) => {
-        acc[s.status] = s.count;
-        return acc;
-      }, {}),
-    })),
-  });
-});
-
-// Prescription Trends
-exports.getPrescriptionTrends = asyncHandler(async (req, res) => {
-  const doctorId = toObjectId(req.auth.id);
-  const { period = 'monthly', from, to } = req.query;
-
-  let startDate, endDate;
-  if (from && to) {
-    startDate = new Date(from);
-    endDate = new Date(to);
-  } else {
-    const now = new Date();
-    if (period === 'daily') {
-      startDate = addDays(now, -30);
-      endDate = now;
-    } else if (period === 'weekly') {
-      startDate = addDays(now, -84);
-      endDate = now;
-    } else {
-      startDate = addMonths(now, -12);
-      endDate = now;
-    }
-  }
-
-  let groupBy;
-  if (period === 'daily') {
-    groupBy = {
-      year: { $year: '$issuedAt' },
-      month: { $month: '$issuedAt' },
-      day: { $dayOfMonth: '$issuedAt' },
-    };
-  } else if (period === 'weekly') {
-    groupBy = {
-      year: { $year: '$issuedAt' },
-      week: { $week: '$issuedAt' },
-    };
-  } else {
-    groupBy = {
-      year: { $year: '$issuedAt' },
-      month: { $month: '$issuedAt' },
-    };
-  }
-
-  const trends = await Prescription.aggregate([
-    {
-      $match: {
-        doctor: doctorId,
-        issuedAt: { $gte: startDate, $lte: endDate },
-      },
-    },
-    {
-      $group: {
-        _id: groupBy,
-        count: { $sum: 1 },
-        totalMedications: { $sum: { $size: { $ifNull: ['$medications', []] } } },
-        totalInvestigations: { $sum: { $size: { $ifNull: ['$investigations', []] } } },
-      },
-    },
-    { $sort: { '_id.year': 1, '_id.month': 1, '_id.week': 1, '_id.day': 1 } },
-  ]);
-
-  res.json({
-    success: true,
-    period,
-    from: startDate,
-    to: endDate,
-    trends: trends.map((item) => ({
-      date: period === 'daily'
-        ? `${item._id.year}-${String(item._id.month).padStart(2, '0')}-${String(item._id.day).padStart(2, '0')}`
-        : period === 'weekly'
-        ? `${item._id.year}-W${String(item._id.week).padStart(2, '0')}`
-        : `${item._id.year}-${String(item._id.month).padStart(2, '0')}`,
-      count: item.count,
-      totalMedications: item.totalMedications,
-      totalInvestigations: item.totalInvestigations,
-    })),
-  });
-});
-
 // Peak Hours Analysis
 exports.getPeakHours = asyncHandler(async (req, res) => {
-  const doctorId = toObjectId(req.auth.id);
+  const pharmacyId = toObjectId(req.auth.id);
   const { from, to } = req.query;
 
   let startDate, endDate;
@@ -593,19 +534,27 @@ exports.getPeakHours = asyncHandler(async (req, res) => {
     endDate = now;
   }
 
-  const peakHours = await Appointment.aggregate([
+  // Optimized aggregation pipeline with explicit field projection
+  const peakHours = await PharmacyLead.aggregate([
     {
       $match: {
-        doctor: doctorId,
-        scheduledFor: { $gte: startDate, $lte: endDate },
-        status: { $nin: ['cancelled', 'no_show'] },
+        acceptedBy: pharmacyId,
+        createdAt: { $gte: startDate, $lte: endDate },
+        status: { $nin: [PHARMACY_LEAD_STATUS.CANCELLED] },
+      },
+    },
+    {
+      $project: {
+        createdAt: 1,
+        hour: { $hour: '$createdAt' },
+        dayOfWeek: { $dayOfWeek: '$createdAt' },
       },
     },
     {
       $group: {
         _id: {
-          hour: { $hour: '$scheduledFor' },
-          dayOfWeek: { $dayOfWeek: '$scheduledFor' },
+          hour: '$hour',
+          dayOfWeek: '$dayOfWeek',
         },
         count: { $sum: 1 },
       },
@@ -613,7 +562,7 @@ exports.getPeakHours = asyncHandler(async (req, res) => {
     {
       $group: {
         _id: '$_id.hour',
-        totalAppointments: { $sum: '$count' },
+        totalOrders: { $sum: '$count' },
         byDay: {
           $push: {
             day: '$_id.dayOfWeek',
@@ -634,7 +583,7 @@ exports.getPeakHours = asyncHandler(async (req, res) => {
     peakHours: peakHours.map((item) => ({
       hour: item._id,
       hourLabel: `${String(item._id).padStart(2, '0')}:00`,
-      totalAppointments: item.totalAppointments,
+      totalOrders: item.totalOrders,
       byDay: item.byDay.map((d) => ({
         day: dayNames[d.day - 1] || `Day ${d.day}`,
         dayIndex: d.day,
@@ -646,7 +595,7 @@ exports.getPeakHours = asyncHandler(async (req, res) => {
 
 // Comparison Reports (Month-over-Month, Year-over-Year)
 exports.getComparisonReport = asyncHandler(async (req, res) => {
-  const doctorId = toObjectId(req.auth.id);
+  const pharmacyId = toObjectId(req.auth.id);
   const { type = 'month', periods = 12 } = req.query;
 
   const now = new Date();
@@ -666,33 +615,26 @@ exports.getComparisonReport = asyncHandler(async (req, res) => {
     }
 
     const [
-      appointments,
-      consultations,
-      prescriptions,
+      orders,
+      completedOrders,
       revenue,
       newPatients,
     ] = await Promise.all([
-      Appointment.countDocuments({
-        doctor: doctorId,
-        scheduledFor: { $gte: periodStart, $lt: periodEnd },
-        status: { $nin: ['cancelled', 'no_show'] },
-      }),
-      Consultation.countDocuments({
-        doctor: doctorId,
+      PharmacyLead.countDocuments({
+        acceptedBy: pharmacyId,
         createdAt: { $gte: periodStart, $lt: periodEnd },
-        status: CONSULTATION_STATUS.COMPLETED,
+        status: { $nin: [PHARMACY_LEAD_STATUS.CANCELLED] },
       }),
-      Prescription.countDocuments({
-        doctor: doctorId,
-        issuedAt: { $gte: periodStart, $lt: periodEnd },
+      PharmacyLead.countDocuments({
+        acceptedBy: pharmacyId,
+        status: PHARMACY_LEAD_STATUS.COMPLETED,
+        updatedAt: { $gte: periodStart, $lt: periodEnd },
       }),
       WalletTransaction.aggregate([
         {
           $match: {
-            $or: [
-              { provider: doctorId, providerRole: ROLES.DOCTOR },
-              { doctor: doctorId },
-            ],
+            provider: pharmacyId,
+            providerRole: ROLES.PHARMACY,
             creditedAt: { $gte: periodStart, $lt: periodEnd },
           },
         },
@@ -705,9 +647,9 @@ exports.getComparisonReport = asyncHandler(async (req, res) => {
           },
         },
       ]),
-      Consultation.distinct('patient', {
-        doctor: doctorId,
-        status: CONSULTATION_STATUS.COMPLETED,
+      PharmacyLead.distinct('patient', {
+        acceptedBy: pharmacyId,
+        status: PHARMACY_LEAD_STATUS.COMPLETED,
         createdAt: { $gte: periodStart, $lt: periodEnd },
       }),
     ]);
@@ -722,9 +664,8 @@ exports.getComparisonReport = asyncHandler(async (req, res) => {
       period: periodLabel,
       startDate: periodStart,
       endDate: periodEnd,
-      appointments,
-      consultations,
-      prescriptions,
+      orders,
+      completedOrders,
       revenue: {
         gross: revenueData.totalGross,
         net: revenueData.totalNet,
@@ -745,15 +686,12 @@ exports.getComparisonReport = asyncHandler(async (req, res) => {
 
     const previous = periodsData[index - 1];
     const growth = {
-      appointments: previous.appointments > 0
-        ? ((period.appointments - previous.appointments) / previous.appointments) * 100
-        : period.appointments > 0 ? 100 : 0,
-      consultations: previous.consultations > 0
-        ? ((period.consultations - previous.consultations) / previous.consultations) * 100
-        : period.consultations > 0 ? 100 : 0,
-      prescriptions: previous.prescriptions > 0
-        ? ((period.prescriptions - previous.prescriptions) / previous.prescriptions) * 100
-        : period.prescriptions > 0 ? 100 : 0,
+      orders: previous.orders > 0
+        ? ((period.orders - previous.orders) / previous.orders) * 100
+        : period.orders > 0 ? 100 : 0,
+      completedOrders: previous.completedOrders > 0
+        ? ((period.completedOrders - previous.completedOrders) / previous.completedOrders) * 100
+        : period.completedOrders > 0 ? 100 : 0,
       revenue: previous.revenue.net > 0
         ? ((period.revenue.net - previous.revenue.net) / previous.revenue.net) * 100
         : period.revenue.net > 0 ? 100 : 0,
@@ -778,7 +716,7 @@ exports.getComparisonReport = asyncHandler(async (req, res) => {
 
 // Export Analytics Report
 exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
-  const doctorId = toObjectId(req.auth.id);
+  const pharmacyId = toObjectId(req.auth.id);
   const { format = 'pdf', reportType = 'comprehensive', from, to } = req.query;
 
   if (!['pdf', 'excel', 'csv'].includes(format.toLowerCase())) {
@@ -798,26 +736,23 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
     endDate = now;
   }
 
-  // Get doctor info
-  const Doctor = require('../../models/Doctor');
-  const doctor = await Doctor.findById(doctorId).select('firstName lastName specialization').lean();
+  // Get pharmacy info
+  const Pharmacy = require('../../models/Pharmacy');
+  const pharmacy = await Pharmacy.findById(pharmacyId).select('pharmacyName ownerName address').lean();
 
   // Fetch analytics data
   const [
     revenueData,
     patientGrowthData,
-    consultationData,
-    prescriptionData,
+    orderData,
+    completedOrderData,
     peakHoursData,
-    comparisonData,
   ] = await Promise.all([
     WalletTransaction.aggregate([
       {
         $match: {
-          $or: [
-            { provider: doctorId, providerRole: ROLES.DOCTOR },
-            { doctor: doctorId },
-          ],
+          provider: pharmacyId,
+          providerRole: ROLES.PHARMACY,
           creditedAt: { $gte: startDate, $lte: endDate },
         },
       },
@@ -831,49 +766,45 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
         },
       },
     ]),
-    Consultation.distinct('patient', {
-      doctor: doctorId,
-      status: CONSULTATION_STATUS.COMPLETED,
+    PharmacyLead.distinct('patient', {
+      acceptedBy: pharmacyId,
+      status: PHARMACY_LEAD_STATUS.COMPLETED,
       createdAt: { $gte: startDate, $lte: endDate },
     }),
-    Consultation.countDocuments({
-      doctor: doctorId,
+    PharmacyLead.countDocuments({
+      acceptedBy: pharmacyId,
       createdAt: { $gte: startDate, $lte: endDate },
-      status: CONSULTATION_STATUS.COMPLETED,
+      status: { $nin: [PHARMACY_LEAD_STATUS.CANCELLED] },
     }),
-    Prescription.countDocuments({
-      doctor: doctorId,
-      issuedAt: { $gte: startDate, $lte: endDate },
+    PharmacyLead.countDocuments({
+      acceptedBy: pharmacyId,
+      status: PHARMACY_LEAD_STATUS.COMPLETED,
+      updatedAt: { $gte: startDate, $lte: endDate },
     }),
-    Appointment.aggregate([
+    PharmacyLead.aggregate([
       {
         $match: {
-          doctor: doctorId,
-          scheduledFor: { $gte: startDate, $lte: endDate },
-          status: { $nin: ['cancelled', 'no_show'] },
+          acceptedBy: pharmacyId,
+          createdAt: { $gte: startDate, $lte: endDate },
+          status: { $nin: [PHARMACY_LEAD_STATUS.CANCELLED] },
         },
       },
       {
         $group: {
-          _id: { $hour: '$scheduledFor' },
+          _id: { $hour: '$createdAt' },
           count: { $sum: 1 },
         },
       },
       { $sort: { count: -1 } },
       { $limit: 5 },
     ]),
-    Appointment.countDocuments({
-      doctor: doctorId,
-      scheduledFor: { $gte: startDate, $lte: endDate },
-      status: { $nin: ['cancelled', 'no_show'] },
-    }),
   ]);
 
   const revenue = revenueData[0] || { totalGross: 0, totalNet: 0, totalCommission: 0, count: 0 };
 
   if (format.toLowerCase() === 'pdf') {
     const doc = new PDFDocument();
-    const fileName = `analytics-report-${Date.now()}.pdf`;
+    const fileName = `pharmacy-analytics-report-${Date.now()}.pdf`;
     const filePath = path.join(process.cwd(), 'backend', 'uploads', 'reports', fileName);
     const uploadsDir = path.dirname(filePath);
 
@@ -885,10 +816,12 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
     doc.pipe(stream);
 
     // Header
-    doc.fontSize(20).text('Analytics Report', { align: 'center' });
+    doc.fontSize(20).text('Pharmacy Analytics Report', { align: 'center' });
     doc.moveDown();
-    doc.fontSize(12).text(`Doctor: ${doctor.firstName} ${doctor.lastName}`, { align: 'center' });
-    doc.text(`Specialization: ${doctor.specialization || 'N/A'}`, { align: 'center' });
+    doc.fontSize(12).text(`Pharmacy: ${pharmacy.pharmacyName}`, { align: 'center' });
+    if (pharmacy.ownerName) {
+      doc.text(`Owner: ${pharmacy.ownerName}`, { align: 'center' });
+    }
     doc.text(`Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`, { align: 'center' });
     doc.moveDown();
 
@@ -904,9 +837,8 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
     // Activity Section
     doc.fontSize(16).text('Activity Summary', { underline: true });
     doc.fontSize(12);
-    doc.text(`Total Appointments: ${comparisonData}`);
-    doc.text(`Total Consultations: ${consultationData}`);
-    doc.text(`Total Prescriptions: ${prescriptionData}`);
+    doc.text(`Total Orders: ${orderData}`);
+    doc.text(`Completed Orders: ${completedOrderData}`);
     doc.text(`New Patients: ${patientGrowthData.length}`);
     doc.moveDown();
 
@@ -915,7 +847,7 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
       doc.fontSize(16).text('Peak Hours', { underline: true });
       doc.fontSize(12);
       peakHoursData.forEach((item, index) => {
-        doc.text(`${index + 1}. Hour ${item._id}:00 - ${item.count} appointments`);
+        doc.text(`${index + 1}. Hour ${item._id}:00 - ${item.count} orders`);
       });
     }
 
@@ -935,17 +867,24 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
 
     // Header
     worksheet.mergeCells('A1:D1');
-    worksheet.getCell('A1').value = 'Analytics Report';
+    worksheet.getCell('A1').value = 'Pharmacy Analytics Report';
     worksheet.getCell('A1').font = { size: 16, bold: true };
     worksheet.getCell('A1').alignment = { horizontal: 'center' };
 
-    worksheet.getCell('A2').value = 'Doctor:';
-    worksheet.getCell('B2').value = `${doctor.firstName} ${doctor.lastName}`;
-    worksheet.getCell('A3').value = 'Period:';
-    worksheet.getCell('B3').value = `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+    worksheet.getCell('A2').value = 'Pharmacy:';
+    worksheet.getCell('B2').value = pharmacy.pharmacyName;
+    if (pharmacy.ownerName) {
+      worksheet.getCell('A3').value = 'Owner:';
+      worksheet.getCell('B3').value = pharmacy.ownerName;
+      worksheet.getCell('A4').value = 'Period:';
+      worksheet.getCell('B4').value = `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+    } else {
+      worksheet.getCell('A3').value = 'Period:';
+      worksheet.getCell('B3').value = `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`;
+    }
 
     // Revenue Section
-    let row = 5;
+    let row = pharmacy.ownerName ? 5 : 4;
     worksheet.getCell(`A${row}`).value = 'Revenue Summary';
     worksheet.getCell(`A${row}`).font = { bold: true };
     row++;
@@ -966,14 +905,11 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
     worksheet.getCell(`A${row}`).value = 'Activity Summary';
     worksheet.getCell(`A${row}`).font = { bold: true };
     row++;
-    worksheet.getCell(`A${row}`).value = 'Total Appointments';
-    worksheet.getCell(`B${row}`).value = comparisonData;
+    worksheet.getCell(`A${row}`).value = 'Total Orders';
+    worksheet.getCell(`B${row}`).value = orderData;
     row++;
-    worksheet.getCell(`A${row}`).value = 'Total Consultations';
-    worksheet.getCell(`B${row}`).value = consultationData;
-    row++;
-    worksheet.getCell(`A${row}`).value = 'Total Prescriptions';
-    worksheet.getCell(`B${row}`).value = prescriptionData;
+    worksheet.getCell(`A${row}`).value = 'Completed Orders';
+    worksheet.getCell(`B${row}`).value = completedOrderData;
     row++;
     worksheet.getCell(`A${row}`).value = 'New Patients';
     worksheet.getCell(`B${row}`).value = patientGrowthData.length;
@@ -985,7 +921,7 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
       worksheet.getCell(`A${row}`).font = { bold: true };
       row++;
       worksheet.getCell(`A${row}`).value = 'Hour';
-      worksheet.getCell(`B${row}`).value = 'Appointments';
+      worksheet.getCell(`B${row}`).value = 'Orders';
       worksheet.getCell(`A${row}`).font = { bold: true };
       worksheet.getCell(`B${row}`).font = { bold: true };
       peakHoursData.forEach((item) => {
@@ -1000,7 +936,7 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
       column.width = 25;
     });
 
-    const fileName = `analytics-report-${Date.now()}.xlsx`;
+    const fileName = `pharmacy-analytics-report-${Date.now()}.xlsx`;
     const filePath = path.join(process.cwd(), 'backend', 'uploads', 'reports', fileName);
     const uploadsDir = path.dirname(filePath);
 
@@ -1016,8 +952,11 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
   } else {
     // CSV format
     const csvRows = [];
-    csvRows.push('Analytics Report');
-    csvRows.push(`Doctor,${doctor.firstName} ${doctor.lastName}`);
+    csvRows.push('Pharmacy Analytics Report');
+    csvRows.push(`Pharmacy,${pharmacy.pharmacyName}`);
+    if (pharmacy.ownerName) {
+      csvRows.push(`Owner,${pharmacy.ownerName}`);
+    }
     csvRows.push(`Period,${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
     csvRows.push('');
     csvRows.push('Revenue Summary');
@@ -1029,14 +968,13 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
     csvRows.push('');
     csvRows.push('Activity Summary');
     csvRows.push('Metric,Value');
-    csvRows.push(`Total Appointments,${comparisonData}`);
-    csvRows.push(`Total Consultations,${consultationData}`);
-    csvRows.push(`Total Prescriptions,${prescriptionData}`);
+    csvRows.push(`Total Orders,${orderData}`);
+    csvRows.push(`Completed Orders,${completedOrderData}`);
     csvRows.push(`New Patients,${patientGrowthData.length}`);
     if (peakHoursData.length > 0) {
       csvRows.push('');
       csvRows.push('Peak Hours');
-      csvRows.push('Hour,Appointments');
+      csvRows.push('Hour,Orders');
       peakHoursData.forEach((item) => {
         csvRows.push(`${item._id}:00,${item.count}`);
       });
@@ -1044,7 +982,7 @@ exports.exportAnalyticsReport = asyncHandler(async (req, res) => {
 
     const csvContent = csvRows.join('\n');
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${Date.now()}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="pharmacy-analytics-report-${Date.now()}.csv"`);
     return res.send(csvContent);
   }
 });

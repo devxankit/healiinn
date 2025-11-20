@@ -54,8 +54,12 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
+// Indexes for query optimization
 reviewSchema.index({ patient: 1, targetRole: 1, target: 1 }, { unique: true });
 reviewSchema.index({ targetRole: 1, target: 1, createdAt: -1 });
+reviewSchema.index({ target: 1, targetRole: 1, rating: 1 });
+reviewSchema.index({ target: 1, targetRole: 1, 'reply.message': 1 });
+reviewSchema.index({ target: 1, targetRole: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Review', reviewSchema);
 

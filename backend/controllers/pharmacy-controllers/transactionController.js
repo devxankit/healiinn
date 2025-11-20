@@ -1,9 +1,15 @@
 const asyncHandler = require('../../middleware/asyncHandler');
+const mongoose = require('mongoose');
 const { ROLES } = require('../../utils/constants');
 const {
   getPharmacyTransactions,
   getPharmacyTransactionCount,
 } = require('../../services/transactionService');
+const { getPaginationParams, getPaginationMeta } = require('../../utils/pagination');
+const { getCache, setCache, generateCacheKey } = require('../../utils/cache');
+
+const toObjectId = (value) =>
+  typeof value === 'string' ? new mongoose.Types.ObjectId(value) : value;
 
 const ensureRole = (role, allowed) => {
   if (!allowed.includes(role)) {
@@ -16,29 +22,23 @@ const ensureRole = (role, allowed) => {
 exports.listTransactions = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.PHARMACY]);
 
-  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
-  const skip = (page - 1) * limit;
+  const pharmacyId = toObjectId(req.auth.id);
+  const { page, limit, skip } = getPaginationParams(req.query);
 
   const [transactions, total] = await Promise.all([
     getPharmacyTransactions({
-      pharmacyId: req.auth.id,
+      pharmacyId,
       limit,
       skip,
     }),
     getPharmacyTransactionCount({
-      pharmacyId: req.auth.id,
+      pharmacyId,
     }),
   ]);
 
   res.json({
     success: true,
-    pagination: {
-      total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit) || 1,
-    },
+    pagination: getPaginationMeta(total, page, limit),
     transactions,
   });
 });
@@ -46,15 +46,29 @@ exports.listTransactions = asyncHandler(async (req, res) => {
 exports.getTransaction = asyncHandler(async (req, res) => {
   ensureRole(req.auth.role, [ROLES.PHARMACY]);
 
+  const pharmacyId = toObjectId(req.auth.id);
+  const { transactionId } = req.params;
+  const cacheKey = generateCacheKey('pharmacy:transaction', {
+    pharmacyId: pharmacyId.toString(),
+    transactionId,
+  });
+
+  // Try to get from cache first (cache for 5 minutes)
+  const cachedData = await getCache(cacheKey);
+  if (cachedData) {
+    return res.json(cachedData);
+  }
+
   const WalletTransaction = require('../../models/WalletTransaction');
   const transaction = await WalletTransaction.findOne({
-    _id: req.params.transactionId,
-    provider: req.auth.id,
+    _id: transactionId,
+    provider: pharmacyId,
     providerRole: ROLES.PHARMACY,
   })
     .populate('patient', 'firstName lastName phone email')
     .populate('booking', 'status medicines billingSummary')
     .populate('payment', 'orderId paymentId status amount currency')
+    .select('type amount grossAmount netAmount commissionAmount currency status creditedAt createdAt booking bookingModel patient payment description')
     .lean();
 
   if (!transaction) {
@@ -70,15 +84,21 @@ exports.getTransaction = asyncHandler(async (req, res) => {
     const PharmacyLead = require('../../models/PharmacyLead');
     bookingDetails = await PharmacyLead.findById(transaction.booking)
       .populate('doctor', 'firstName lastName')
+      .select('status medicines billingSummary patient doctor prescription')
       .lean();
   }
 
-  res.json({
+  const response = {
     success: true,
     transaction: {
       ...transaction,
       bookingDetails,
     },
-  });
+  };
+
+  // Cache for 5 minutes (300 seconds)
+  await setCache(cacheKey, response, 300);
+
+  res.json(response);
 });
 

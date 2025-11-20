@@ -16,7 +16,6 @@ const Appointment = require('../../models/Appointment');
 const Consultation = require('../../models/Consultation');
 const Prescription = require('../../models/Prescription');
 const LabLead = require('../../models/LabLead');
-const Notification = require('../../models/Notification');
 const ClinicSession = require('../../models/ClinicSession');
 const SessionToken = require('../../models/SessionToken');
 const PharmacyLead = require('../../models/PharmacyLead');
@@ -232,7 +231,6 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
     distinctConsultedPatients,
     upcomingAppointmentsRaw,
     recentReportsRaw,
-    notificationsRaw,
       walletOverview,
     ] = await Promise.all([
     Patient.countDocuments(),
@@ -282,10 +280,6 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
       .populate('preferredLaboratories', 'labName phone email address')
       .sort({ 'reportDetails.uploadedAt': -1 })
       .limit(10)
-      .lean(),
-    Notification.find()
-      .sort({ createdAt: -1 })
-      .limit(20)
       .lean(),
       getAdminWalletOverview(),
   ]);
@@ -349,30 +343,8 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
     })),
   }));
 
-  const recentActivities = notificationsRaw.slice(0, 10).map((item) => ({
-    id: item._id,
-    title: item.title,
-    message: item.message,
-    type: item.type || null,
-    priority: item.priority || 'normal',
-    createdAt: item.createdAt,
-  }));
-
-  const systemNotifications = notificationsRaw
-    .filter(
-      (item) =>
-        item.priority === 'high' ||
-        ['approval', 'warning', 'expiration'].includes(item.type)
-    )
-    .slice(0, 10)
-    .map((item) => ({
-      id: item._id,
-      title: item.title,
-      message: item.message,
-      type: item.type || null,
-      priority: item.priority || 'normal',
-      createdAt: item.createdAt,
-    }));
+  const recentActivities = [];
+  const systemNotifications = [];
 
   const months = [];
   const startForCharts = startOfMonth(addMonths(now, -11));

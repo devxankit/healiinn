@@ -3,7 +3,6 @@ const { SupportTicket, SUPPORT_TICKET_STATUS, SUPPORT_TICKET_PRIORITY } = requir
 const asyncHandler = require('../../middleware/asyncHandler');
 const { ROLES } = require('../../utils/constants');
 const { sendEmail } = require('../../services/emailService');
-const { publishNotification } = require('../../services/notificationPublisher');
 const Admin = require('../../models/Admin');
 
 const ROLE_TO_MODEL = {
@@ -85,31 +84,6 @@ Healiinn Platform`;
       )
     );
 
-    // Send push notifications to admins
-    if (admins.length) {
-      try {
-        await publishNotification({
-          type: 'SUPPORT_TICKET_NEW',
-          recipients: admins.map((admin) => ({
-            role: ROLES.ADMIN,
-            userId: admin._id,
-          })),
-          context: {
-            ticketNumber: ticket.ticketNumber,
-            roleName,
-            name,
-            subject,
-          },
-          data: {
-            ticketId: ticket._id.toString(),
-            ticketNumber: ticket.ticketNumber,
-            role,
-          },
-        });
-      } catch (error) {
-        console.error('Failed to publish admin support ticket notification', error);
-      }
-    }
   } catch (error) {
     console.error('Failed to notify admin of new support ticket', error);
   }
@@ -158,30 +132,6 @@ Healiinn Support Team`;
       html: emailHtml,
     }).catch((error) => console.error(`Failed to send support ticket update email to ${ticket.email}`, error));
 
-    // Send push notification to user
-    try {
-      await publishNotification({
-        type: 'SUPPORT_TICKET_UPDATED',
-        recipients: [
-          {
-            role: ticket.role,
-            userId: ticket.userId,
-          },
-        ],
-        context: {
-          ticketNumber: ticket.ticketNumber,
-          status,
-          adminResponse: adminResponse || undefined,
-        },
-        data: {
-          ticketId: ticket._id.toString(),
-          ticketNumber: ticket.ticketNumber,
-          status,
-        },
-      });
-    } catch (error) {
-      console.error('Failed to publish user support ticket notification', error);
-    }
   } catch (error) {
     console.error('Failed to notify user of support ticket update', error);
   }

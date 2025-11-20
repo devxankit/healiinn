@@ -1,7 +1,5 @@
 const Admin = require('../models/Admin');
 const { sendAdminPendingApprovalEmail } = require('./emailService');
-const { publishNotification } = require('./notificationPublisher');
-const { ROLES } = require('../utils/constants');
 
 const parseEmails = (value = '') =>
   value
@@ -47,32 +45,6 @@ const notifyAdminsOfPendingSignup = async ({ role, entity }) => {
       }).catch((error) => console.error(`Failed to send admin pending approval email to ${email}`, error))
     )
   );
-
-  if (admins.length) {
-    try {
-      await publishNotification({
-        type: 'ADMIN_KYC_SUBMITTED',
-        recipients: admins.map((admin) => ({
-          role: ROLES.ADMIN,
-          userId: admin._id,
-        })),
-        context: {
-          name:
-            entity?.firstName && entity?.lastName
-              ? `${entity.firstName} ${entity.lastName}`.trim()
-              : entity?.labName || entity?.pharmacyName || entity?.name || 'A user',
-          role,
-        },
-        data: {
-          role,
-          entityId: entity?._id ? String(entity._id) : undefined,
-          email: entity?.email,
-        },
-      });
-    } catch (error) {
-      console.error('Failed to publish admin pending approval notification', error);
-    }
-  }
 };
 
 module.exports = {
