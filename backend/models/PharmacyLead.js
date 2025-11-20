@@ -118,9 +118,16 @@ const pharmacyLeadSchema = new mongoose.Schema(
   }
 );
 
+// Indexes for query optimization
 pharmacyLeadSchema.index({ status: 1, createdAt: -1 });
 pharmacyLeadSchema.index({ doctor: 1, status: 1 });
 pharmacyLeadSchema.index({ patient: 1, createdAt: -1 });
+pharmacyLeadSchema.index({ acceptedBy: 1, status: 1, createdAt: -1 });
+pharmacyLeadSchema.index({ preferredPharmacies: 1, status: 1, createdAt: -1 });
+pharmacyLeadSchema.index({ acceptedBy: 1, createdAt: -1 });
+pharmacyLeadSchema.index({ patient: 1, acceptedBy: 1, status: 1 });
+pharmacyLeadSchema.index({ 'billingSummary.totalAmount': 1 });
+pharmacyLeadSchema.index({ updatedAt: -1 });
 
 module.exports = mongoose.model('PharmacyLead', pharmacyLeadSchema);
 

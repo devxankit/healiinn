@@ -108,18 +108,6 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     ],
   });
 
-  // Notify about withdrawal request
-  try {
-    const { notifyWithdrawalRequested } = require('../../services/notificationEvents');
-    await notifyWithdrawalRequested({
-      providerId: req.auth.id,
-      providerRole: ROLES.DOCTOR,
-      amount,
-      withdrawalId: request._id,
-    });
-  } catch (notificationError) {
-    console.error('Failed to send withdrawal request notification:', notificationError);
-  }
 
   res.status(201).json({
     success: true,

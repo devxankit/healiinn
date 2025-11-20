@@ -439,29 +439,6 @@ const createWalletTransaction = async ({
   wallet.lastTransactionAt = new Date();
   await wallet.save();
 
-  // Notify provider about transaction credit
-  try {
-    const { notifyTransactionCredited, notifyPaymentReceived } = require('./notificationEvents');
-    await notifyTransactionCredited({
-      providerId,
-      providerRole,
-      amount: grossAmount,
-      netAmount,
-      commissionAmount,
-      transactionId: transaction._id,
-      bookingType,
-    });
-    await notifyPaymentReceived({
-      providerId,
-      providerRole,
-      amount: grossAmount,
-      paymentId: paymentId ? paymentId.toString() : undefined,
-      bookingType,
-    });
-  } catch (notificationError) {
-    console.error('Failed to send transaction notification:', notificationError);
-  }
-
   return transaction;
 };
 

@@ -202,6 +202,10 @@ const PatientDoctorDetails = () => {
   const [notes, setNotes] = useState('')
   const [bookingStep, setBookingStep] = useState(1) // 1: Date/Time, 2: Details, 3: Confirmation
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [reviewRating, setReviewRating] = useState(0)
+  const [reviewComment, setReviewComment] = useState('')
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false)
 
   const availableDates = getAvailableDates()
   const timeSlots = selectedDate ? generateTimeSlots() : []
@@ -338,6 +342,13 @@ const PatientDoctorDetails = () => {
                 <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
                 <span className="text-sm font-semibold text-slate-700">{doctor.rating}</span>
                 <span className="text-sm text-slate-500">({doctor.reviewCount} reviews)</span>
+                <button
+                  type="button"
+                  onClick={() => setShowReviewModal(true)}
+                  className="ml-2 text-xs font-semibold text-[#11496c] hover:text-[#0d3a52] underline"
+                >
+                  Rate & Review
+                </button>
               </div>
             </div>
 
@@ -680,6 +691,129 @@ const PatientDoctorDetails = () => {
                     )}
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review & Rating Modal */}
+      {showReviewModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowReviewModal(false)
+          }}
+        >
+          <div className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Rate & Review</h2>
+                <p className="text-sm text-slate-600">{doctor.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReviewModal(false)}
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                <IoCloseOutline className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Rating Selection */}
+                <div>
+                  <label className="mb-3 block text-sm font-semibold text-slate-700">
+                    Your Rating
+                  </label>
+                  <div className="flex items-center justify-center gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setReviewRating(star)}
+                        className="transition-transform active:scale-95"
+                      >
+                        {star <= reviewRating ? (
+                          <IoStar className="h-8 w-8 text-amber-400" />
+                        ) : (
+                          <IoStarOutline className="h-8 w-8 text-slate-300" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {reviewRating > 0 && (
+                    <p className="mt-2 text-center text-sm text-slate-600">
+                      {reviewRating === 1 && 'Poor'}
+                      {reviewRating === 2 && 'Fair'}
+                      {reviewRating === 3 && 'Good'}
+                      {reviewRating === 4 && 'Very Good'}
+                      {reviewRating === 5 && 'Excellent'}
+                    </p>
+                  )}
+                </div>
+
+                {/* Review Comment */}
+                <div>
+                  <label htmlFor="reviewComment" className="mb-2 block text-sm font-semibold text-slate-700">
+                    Your Review (Optional)
+                  </label>
+                  <textarea
+                    id="reviewComment"
+                    rows={4}
+                    placeholder="Share your experience with this doctor..."
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:ring-offset-2"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="border-t border-slate-200 bg-white px-6 py-4">
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowReviewModal(false)
+                    setReviewRating(0)
+                    setReviewComment('')
+                  }}
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (reviewRating === 0) {
+                      alert('Please select a rating')
+                      return
+                    }
+                    setIsSubmittingReview(true)
+                    // Simulate API call
+                    await new Promise((resolve) => setTimeout(resolve, 1000))
+                    console.log('Review submitted:', {
+                      doctorId: doctor.id,
+                      rating: reviewRating,
+                      comment: reviewComment,
+                    })
+                    setIsSubmittingReview(false)
+                    setShowReviewModal(false)
+                    setReviewRating(0)
+                    setReviewComment('')
+                    // Show success message
+                    alert('Thank you for your review!')
+                  }}
+                  disabled={isSubmittingReview || reviewRating === 0}
+                  className="flex-1 rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                </button>
               </div>
             </div>
           </div>

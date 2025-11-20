@@ -537,22 +537,6 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
     await lead.save();
     await lead.populate('preferredLaboratories', 'labName phone email address');
     
-    // Notify laboratories about new request
-    const { notifyLabRequestReceived } = require('../../services/notificationEvents');
-    const Patient = require('../../models/Patient');
-    try {
-      const patient = await Patient.findById(prescription.patient._id).select('firstName lastName').lean();
-      const patientName = patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : 'Patient';
-      for (const lab of eligibleLabs) {
-        await notifyLabRequestReceived({
-          laboratoryId: lab._id,
-          patientName,
-          leadId: lead._id,
-        });
-      }
-    } catch (notificationError) {
-      console.error('Failed to send lab request notification:', notificationError);
-    }
     
     shareSummary = buildLabLeadSummary(lead.toObject());
   } else {
@@ -618,22 +602,6 @@ exports.sharePrescription = asyncHandler(async (req, res) => {
     await lead.save();
     await lead.populate('preferredPharmacies', 'pharmacyName phone email address');
     
-    // Notify pharmacies about new request
-    const { notifyPharmacyRequestReceived } = require('../../services/notificationEvents');
-    const Patient = require('../../models/Patient');
-    try {
-      const patient = await Patient.findById(prescription.patient._id).select('firstName lastName').lean();
-      const patientName = patient ? `${patient.firstName || ''} ${patient.lastName || ''}`.trim() : 'Patient';
-      for (const pharmacy of eligiblePharmacies) {
-        await notifyPharmacyRequestReceived({
-          pharmacyId: pharmacy._id,
-          patientName,
-          leadId: lead._id,
-        });
-      }
-    } catch (notificationError) {
-      console.error('Failed to send pharmacy request notification:', notificationError);
-    }
     
     shareSummary = buildPharmacyLeadSummary(lead.toObject());
   }

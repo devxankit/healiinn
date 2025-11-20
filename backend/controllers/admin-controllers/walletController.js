@@ -184,20 +184,6 @@ exports.updateWithdrawalStatus = asyncHandler(async (req, res) => {
 
   await request.save();
 
-  // Notify provider about withdrawal status update
-  try {
-    const { notifyWithdrawalStatusUpdated } = require('../../services/notificationEvents');
-    await notifyWithdrawalStatusUpdated({
-      providerId: request.provider,
-      providerRole: request.providerRole,
-      status,
-      amount: request.amount,
-      withdrawalId: request._id,
-      adminNote: adminNote || request.adminNote,
-    });
-  } catch (notificationError) {
-    console.error('Failed to send withdrawal status update notification:', notificationError);
-  }
 
   res.json({
     success: true,

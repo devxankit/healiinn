@@ -17,14 +17,6 @@ const {
   COMMISSION_RATE,
   getCommissionRateByRole,
 } = require('../utils/constants');
-const {
-  notifyAppointmentConfirmed,
-  notifyTokenCalled,
-  notifyTokenRecalled,
-  notifyTokenSkipped,
-  notifyTokenCompleted,
-  notifyTokenNoShow,
-} = require('./notificationEvents');
 const { createWalletTransaction } = require('./walletService');
 
 const SESSION_ROOM_PREFIX = 'session:';
@@ -686,15 +678,6 @@ const issueToken = async ({
     priority,
   });
 
-  await notifyAppointmentConfirmed({
-    patientId,
-    doctorId: session.doctor._id || session.doctor,
-    doctorName: formatDoctorName(session.doctor),
-    patientName: formatPatientName(patient),
-    appointmentDate: result.appointment.eta || session.startTime,
-    appointmentId: result.appointment._id,
-  });
-
   return {
     token: await SessionToken.findById(result.token._id).lean(),
     appointment: await Appointment.findById(result.appointment._id).lean(),
@@ -873,60 +856,6 @@ const updateTokenStatus = async ({ tokenId, doctorId, status, notes, io }) => {
 
   const freshToken = await SessionToken.findById(token._id).lean();
 
-  // Fire queued notifications with updated token data
-  // eslint-disable-next-line no-restricted-syntax
-  for (const notificationType of notifications) {
-    // eslint-disable-next-line no-await-in-loop
-    switch (notificationType) {
-      case 'called':
-        await notifyTokenCalled({
-          patientId: freshToken.patient,
-          doctorId: session.doctor,
-          doctorName,
-          tokenNumber: freshToken.tokenNumber,
-          sessionId: session._id,
-          eta: freshToken.eta,
-        });
-        break;
-      case 'completed':
-        await notifyTokenCompleted({
-          patientId: freshToken.patient,
-          doctorId: session.doctor,
-          doctorName,
-          tokenNumber: freshToken.tokenNumber,
-          sessionId: session._id,
-        });
-        break;
-      case 'skipped':
-        await notifyTokenSkipped({
-          doctorId: session.doctor,
-          patientId: freshToken.patient,
-          tokenNumber: freshToken.tokenNumber,
-          sessionId: session._id,
-        });
-        break;
-      case 'recalled':
-        await notifyTokenRecalled({
-          patientId: freshToken.patient,
-          doctorId: session.doctor,
-          doctorName,
-          tokenNumber: freshToken.tokenNumber,
-          sessionId: session._id,
-          eta: freshToken.eta,
-        });
-        break;
-      case 'no_show':
-        await notifyTokenNoShow({
-          doctorId: session.doctor,
-          patientId: freshToken.patient,
-          tokenNumber: freshToken.tokenNumber,
-          sessionId: session._id,
-        });
-        break;
-      default:
-        break;
-    }
-  }
 
   return {
     token: freshToken,

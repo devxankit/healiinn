@@ -155,51 +155,6 @@ const updateLeadStatus = async ({
 
   await lead.save();
 
-  // Send notifications for status changes
-  const { 
-    notifyPharmacyLeadStatusChange, 
-    notifyPharmacyRequestReceived, 
-    notifyPharmacyAccepted 
-  } = require('./notificationEvents');
-  const Pharmacy = require('../models/Pharmacy');
-  const Patient = require('../models/Patient');
-
-  try {
-    if (status === PHARMACY_LEAD_STATUS.NEW) {
-      // Notify all preferred pharmacies
-      const pharmacies = await Pharmacy.find({ _id: { $in: lead.preferredPharmacies } })
-        .select('pharmacyName')
-        .lean();
-      for (const pharmacy of pharmacies) {
-        await notifyPharmacyRequestReceived({
-          pharmacyId: pharmacy._id,
-          patientName: null, // Will be populated if needed
-          leadId: lead._id,
-        });
-      }
-    } else if (status === PHARMACY_LEAD_STATUS.ACCEPTED) {
-      const patient = await Patient.findById(lead.patient).select('firstName lastName').lean();
-      const pharmacy = await Pharmacy.findById(pharmacyId).select('pharmacyName').lean();
-      await notifyPharmacyAccepted({
-        patientId: lead.patient,
-        pharmacyName: pharmacy?.pharmacyName || 'Pharmacy',
-        leadId: lead._id,
-        totalAmount: billing?.totalAmount || 0,
-      });
-    } else {
-      // Notify status change
-      await notifyPharmacyLeadStatusChange({
-        patientId: lead.patient,
-        pharmacyId,
-        status,
-        leadId: lead._id,
-        notes,
-      });
-    }
-  } catch (notificationError) {
-    console.error('Failed to send pharmacy lead notification:', notificationError);
-    // Don't fail the update if notification fails
-  }
 
   await lead.populate([
     {

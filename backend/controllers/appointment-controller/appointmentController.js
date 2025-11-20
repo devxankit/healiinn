@@ -6,12 +6,6 @@ const Doctor = require('../../models/Doctor');
 const ClinicSession = require('../../models/ClinicSession');
 const SessionToken = require('../../models/SessionToken');
 const { ROLES, TOKEN_STATUS } = require('../../utils/constants');
-const {
-  notifyAppointmentConfirmed,
-  notifyAppointmentCancelled,
-  notifyDoctorOfNewAppointment,
-  notifyAppointmentReminder,
-} = require('../../services/notificationEvents');
 const { sendAppointmentReminderEmail } = require('../../services/emailService');
 const queueService = require('../../services/appointmentQueueService');
 
@@ -99,22 +93,6 @@ exports.acceptAppointment = asyncHandler(async (req, res) => {
     .lean();
 
   // Send notification to patient
-  try {
-    const doctorName = formatDoctorName(appointment.doctor);
-    const patientName = formatPatientName(appointment.patient);
-    const appointmentDate = formatDate(appointment.scheduledFor);
-
-    await notifyAppointmentConfirmed({
-      patientId: appointment.patient._id,
-      doctorId: appointment.doctor._id,
-      doctorName,
-      patientName,
-      appointmentDate,
-      appointmentId: appointment._id,
-    });
-  } catch (notificationError) {
-    console.error('Failed to send appointment acceptance notification:', notificationError);
-  }
 
   res.json({
     success: true,
@@ -226,20 +204,6 @@ exports.rejectAppointment = asyncHandler(async (req, res) => {
   }
 
   // Send notification to patient
-  try {
-    const doctorName = formatDoctorName(appointment.doctor);
-    const appointmentDate = formatDate(appointment.scheduledFor);
-
-    await notifyAppointmentCancelled({
-      patientId: appointment.patient._id,
-      doctorName,
-      appointmentDate,
-      appointmentId: appointment._id,
-    });
-  } catch (notificationError) {
-    console.error('Failed to send appointment rejection notification:', notificationError);
-  }
-
   res.json({
     success: true,
     message: 'Appointment rejected successfully.',
@@ -401,24 +365,6 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
     }
   }
 
-  // Send notification to patient
-  try {
-    const doctorName = formatDoctorName(appointment.doctor);
-    const patientName = formatPatientName(appointment.patient);
-    const appointmentDate = formatDate(newScheduledFor);
-
-    await notifyAppointmentConfirmed({
-      patientId: appointment.patient._id,
-      doctorId: appointment.doctor._id,
-      doctorName,
-      patientName,
-      appointmentDate,
-      appointmentId: appointment._id,
-    });
-  } catch (notificationError) {
-    console.error('Failed to send reschedule notification:', notificationError);
-  }
-
   res.json({
     success: true,
     message: 'Appointment rescheduled successfully.',
@@ -527,21 +473,6 @@ exports.cancelAppointment = asyncHandler(async (req, res) => {
     } catch (tokenError) {
       console.error('Failed to cancel associated token:', tokenError);
     }
-  }
-
-  // Send notification to patient
-  try {
-    const doctorName = formatDoctorName(appointment.doctor);
-    const appointmentDate = formatDate(appointment.scheduledFor);
-
-    await notifyAppointmentCancelled({
-      patientId: appointment.patient._id,
-      doctorName,
-      appointmentDate,
-      appointmentId: appointment._id,
-    });
-  } catch (notificationError) {
-    console.error('Failed to send cancellation notification:', notificationError);
   }
 
   res.json({
@@ -900,39 +831,26 @@ exports.sendAppointmentReminder = asyncHandler(async (req, res) => {
     });
   }
 
-  try {
-    const doctorName = formatDoctorName(appointment.doctor);
-    const patientName = formatPatientName(appointment.patient);
-    const formattedDate = formatDate(appointment.scheduledFor);
-
-    // Send in-app notification
-    await notifyAppointmentReminder({
-      patientId: appointment.patient._id,
-      doctorId: appointment.doctor._id,
-      doctorName,
-      patientName,
-      appointmentDate: formattedDate,
-      appointmentId: appointment._id,
-      hoursBefore: Number(hoursBefore) || 24,
-    });
-
-    // Send email reminder to patient if email is available
-    if (appointment.patient.email) {
-      try {
-        await sendAppointmentReminderEmail({
-          patientEmail: appointment.patient.email,
-          patientName,
-          doctorName,
-          appointmentDate: appointment.scheduledFor,
-          hoursBefore: Number(hoursBefore) || 24,
-        });
-      } catch (emailError) {
-        console.error('Failed to send appointment reminder email:', emailError);
-        // Don't fail the request if email fails, just log it
-      }
+  const doctorName = formatDoctorName(appointment.doctor);
+  const patientName = formatPatientName(appointment.patient);
+  
+  // Send email reminder to patient if email is available
+  if (appointment.patient.email) {
+    try {
+      await sendAppointmentReminderEmail({
+        patientEmail: appointment.patient.email,
+        patientName,
+        doctorName,
+        appointmentDate: appointment.scheduledFor,
+        hoursBefore: Number(hoursBefore) || 24,
+      });
+    } catch (emailError) {
+      console.error('Failed to send appointment reminder email:', emailError);
+      // Don't fail the request if email fails, just log it
     }
+  }
 
-    res.json({
+  res.json({
       success: true,
       message: 'Appointment reminder sent successfully.',
       appointment: {
@@ -950,13 +868,5 @@ exports.sendAppointmentReminder = asyncHandler(async (req, res) => {
         },
       },
     });
-  } catch (notificationError) {
-    console.error('Failed to send appointment reminder:', notificationError);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to send appointment reminder.',
-      error: notificationError.message,
-    });
-  }
 });
 

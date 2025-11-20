@@ -3,7 +3,6 @@ const LabLead = require('../models/LabLead');
 const Appointment = require('../models/Appointment');
 const Prescription = require('../models/Prescription');
 const { ROLES } = require('../utils/constants');
-const { notifyLabReportShared } = require('./notificationEvents');
 
 const getReportForPatient = async ({ reportId, patientId }) => {
   const report = await LabReport.findOne({
@@ -206,17 +205,6 @@ const shareReportWithDoctor = async ({
 
   await report.save();
 
-  // Send notification
-  try {
-    await notifyLabReportShared({
-      doctorId,
-      patientId,
-      reportId: report._id,
-      shareType,
-    });
-  } catch (notificationError) {
-    console.error('Failed to send report sharing notification:', notificationError);
-  }
 
   return report;
 };

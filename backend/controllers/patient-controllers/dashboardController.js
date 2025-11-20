@@ -5,7 +5,6 @@ const LabReport = require('../../models/LabReport');
 const LabLead = require('../../models/LabLead');
 const PharmacyLead = require('../../models/PharmacyLead');
 const Payment = require('../../models/Payment');
-const Notification = require('../../models/Notification');
 const Consultation = require('../../models/Consultation');
 const { ROLES, LAB_LEAD_STATUS, PHARMACY_LEAD_STATUS, CONSULTATION_STATUS } = require('../../utils/constants');
 
@@ -120,10 +119,6 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
     monthlySpent,
     yearlySpent,
     pendingPayments,
-    
-    // Notifications
-    notificationsRaw,
-    unreadNotificationsCount,
     
     // Recent activity (mixed timeline)
     recentActivityRaw,
@@ -277,38 +272,6 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
       status: 'pending',
     }),
     
-    // Notifications (last 10)
-    Notification.find({
-      'recipients.user': patientId,
-      'recipients.role': ROLES.PATIENT,
-    })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .lean(),
-    
-    // Unread notifications count
-    Notification.aggregate([
-      {
-        $match: {
-          'recipients.user': patientId,
-          'recipients.role': ROLES.PATIENT,
-        },
-      },
-      {
-        $unwind: '$recipients',
-      },
-      {
-        $match: {
-          'recipients.user': patientId,
-          'recipients.role': ROLES.PATIENT,
-          'recipients.readAt': null,
-        },
-      },
-      {
-        $count: 'count',
-      },
-    ]),
-    
     // Recent activity - Mixed timeline from appointments, prescriptions, reports
     Promise.all([
       // Recent appointments (last 10)
@@ -410,27 +373,6 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
       : null,
   }));
 
-  // Format notifications
-  const notifications = notificationsRaw.map((item) => {
-    const recipient = (item.recipients || []).find(
-      (entry) =>
-        entry.role === ROLES.PATIENT &&
-        entry.user &&
-        entry.user.toString() === patientId.toString()
-    );
-
-    return {
-      id: item._id,
-      title: item.title,
-      message: item.message,
-      type: item.type || null,
-      priority: item.priority || 'normal',
-      createdAt: item.createdAt,
-      readAt: recipient?.readAt || null,
-      data: item.data || null,
-    };
-  });
-
   // Build recent activity timeline
   const [recentAppointments, recentPrescriptionsForActivity, recentReportsForActivity] = recentActivityRaw;
   
@@ -520,14 +462,10 @@ exports.getDashboardOverview = asyncHandler(async (req, res) => {
         pending: pendingPayments,
         currency: 'INR',
       },
-      notifications: {
-        unread: unreadNotificationsCount[0]?.count || 0,
-      },
     },
     upcomingAppointments,
     recentPrescriptions,
     recentReports,
-    notifications,
     recentActivity: activityItems,
     pendingActions: {
       appointments: upcomingAppointments.filter((apt) => apt.status === 'scheduled' || apt.status === 'confirmed').length,

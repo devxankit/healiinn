@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoSearchOutline,
@@ -11,8 +11,13 @@ import {
   IoFlaskOutline,
   IoMedicalOutline,
   IoNotificationsOutline,
+  IoMenuOutline,
+  IoHomeOutline,
+  IoBagHandleOutline,
+  IoPeopleOutline,
   IoPersonCircleOutline,
 } from 'react-icons/io5'
+import PatientSidebar from '../patient-components/PatientSidebar'
 
 // Mock doctors data matching the image
 const mockDoctors = [
@@ -85,11 +90,21 @@ const renderStars = (rating) => {
   return stars
 }
 
+const navItems = [
+  { id: 'home', label: 'Home', to: '/patient/dashboard', Icon: IoHomeOutline },
+  { id: 'pharmacy', label: 'Pharmacy', to: '/patient/pharmacy', Icon: IoBagHandleOutline },
+  { id: 'doctors', label: 'Doctors', to: '/patient/doctors', Icon: IoPeopleOutline },
+  { id: 'laboratory', label: 'Laboratory', to: '/patient/laboratory', Icon: IoFlaskOutline },
+  { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
+]
+
 const PatientDashboard = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [activeFilter, setActiveFilter] = useState('All')
   const [activeTab, setActiveTab] = useState('Discover')
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const toggleButtonRef = useRef(null)
 
   const filteredDoctors = useMemo(() => {
     let doctors = [...mockDoctors]
@@ -120,6 +135,26 @@ const PatientDashboard = () => {
     navigate(`/patient/doctors/${doctorId}?book=true`)
   }
 
+  const handleSidebarToggle = () => {
+    if (isSidebarOpen) {
+      handleSidebarClose()
+    } else {
+      setIsSidebarOpen(true)
+    }
+  }
+
+  const handleSidebarClose = () => {
+    toggleButtonRef.current?.focus({ preventScroll: true })
+    setIsSidebarOpen(false)
+  }
+
+  const handleLogout = () => {
+    handleSidebarClose()
+    localStorage.removeItem('patientAuthToken')
+    sessionStorage.removeItem('patientAuthToken')
+    navigate('/', { replace: true })
+  }
+
   return (
     <section className="flex flex-col gap-4 pb-4 -mt-20">
       {/* Top Header with Gradient Background */}
@@ -138,7 +173,15 @@ const PatientDashboard = () => {
             </div>
             <div className="flex items-center gap-4 pt-0.5">
               <IoNotificationsOutline className="h-6 w-6 text-white" strokeWidth={1.5} />
-              <IoPersonCircleOutline className="h-6 w-6 text-white" strokeWidth={1.5} />
+              <button
+                type="button"
+                ref={toggleButtonRef}
+                onClick={handleSidebarToggle}
+                className="flex items-center justify-center p-1 rounded-lg transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/50"
+                aria-label="Toggle navigation menu"
+              >
+                <IoMenuOutline className="h-6 w-6 text-white" strokeWidth={1.5} />
+              </button>
             </div>
           </div>
           {/* Location Row */}
@@ -291,7 +334,8 @@ const PatientDashboard = () => {
           {filteredDoctors.map((doctor) => (
             <div
               key={doctor.id}
-              className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+              onClick={() => navigate(`/patient/doctors/${doctor.id}`)}
+              className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
             >
               <div className="p-4">
                 {/* Doctor Info Row */}
@@ -347,7 +391,10 @@ const PatientDashboard = () => {
 
                 {/* Take Token Button */}
                 <button
-                  onClick={() => handleTakeToken(doctor.id, doctor.fee)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleTakeToken(doctor.id, doctor.fee)
+                  }}
                   className="w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors shadow-sm"
                   style={{ 
                     backgroundColor: '#11496c',
@@ -371,6 +418,14 @@ const PatientDashboard = () => {
             </div>
           ))}
         </div>
+
+      {/* Sidebar */}
+      <PatientSidebar
+        isOpen={isSidebarOpen}
+        onClose={handleSidebarClose}
+        navItems={navItems}
+        onLogout={handleLogout}
+      />
     </section>
   )
 }

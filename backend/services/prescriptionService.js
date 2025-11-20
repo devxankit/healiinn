@@ -5,7 +5,6 @@ const PDFDocument = require('pdfkit');
 const Consultation = require('../models/Consultation');
 const Prescription = require('../models/Prescription');
 const { TOKEN_EVENTS } = require('../utils/constants');
-const { notifyPrescriptionReady } = require('./notificationEvents');
 
 const writeFileAsync = promisify(fs.writeFile);
 const mkdirAsync = promisify(fs.mkdir);
@@ -192,11 +191,7 @@ const createPrescription = async ({
     });
   }
 
-  await notifyPrescriptionReady({
-    patientId: consultation.patient._id,
-    doctorName: `${consultation.doctor.firstName || ''} ${consultation.doctor.lastName || ''}`.trim(),
-    prescriptionId: prescription._id,
-  });
+  // Email notification for prescription ready is sent via emailService
 
   return { prescription };
 };

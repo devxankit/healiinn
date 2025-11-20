@@ -6,7 +6,6 @@ const asyncHandler = require('../../middleware/asyncHandler');
 const { createOrder, verifySignature } = require('../../services/razorpayService');
 const { COMMISSION_RATE, ROLES, LAB_LEAD_STATUS, PHARMACY_LEAD_STATUS, getCommissionRateByRole } = require('../../utils/constants');
 const { createWalletTransaction } = require('../../services/walletService');
-const { notifyLabLeadStatusChange, notifyPharmacyLeadStatusChange } = require('../../services/notificationEvents');
 
 const ROLE_TO_MODEL = {
   [ROLES.PATIENT]: 'Patient',
@@ -257,19 +256,6 @@ const handlePostPaymentProcessing = async ({ payment, paymentId, orderId }) => {
       currency: labLead.billingSummary?.currency || payment.currency || 'INR',
       description: metadata.description || `Lab booking payment ${labLeadId.toString()}`,
     });
-
-    // Notify patient about payment confirmation
-    try {
-      await notifyLabLeadStatusChange({
-        patientId,
-        laboratoryId,
-        status: 'payment_confirmed',
-        leadId: labLeadId,
-        notes: 'Payment confirmed. Your lab booking is now confirmed.',
-      });
-    } catch (notificationError) {
-      console.error('Failed to send lab payment confirmation notification:', notificationError);
-    }
   }
 
   // Handle Pharmacy Booking Payment (Pharmacy)
@@ -360,18 +346,5 @@ const handlePostPaymentProcessing = async ({ payment, paymentId, orderId }) => {
       currency: pharmacyLead.billingSummary?.currency || payment.currency || 'INR',
       description: metadata.description || `Pharmacy booking payment ${pharmacyLeadId.toString()}`,
     });
-
-    // Notify patient about payment confirmation
-    try {
-      await notifyPharmacyLeadStatusChange({
-        patientId,
-        pharmacyId,
-        status: 'payment_confirmed',
-        leadId: pharmacyLeadId,
-        notes: 'Payment confirmed. Your pharmacy order is now confirmed.',
-      });
-    } catch (notificationError) {
-      console.error('Failed to send pharmacy payment confirmation notification:', notificationError);
-    }
   }
 };
