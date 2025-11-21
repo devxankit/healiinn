@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -18,6 +18,8 @@ import {
   IoCameraOutline,
   IoChevronDownOutline,
   IoChevronUpOutline,
+  IoHelpCircleOutline,
+  IoTimeOutline,
 } from 'react-icons/io5'
 
 const mockPatientData = {
@@ -689,8 +691,122 @@ const PatientProfile = () => {
             </div>
           )}
         </div>
+
+        {/* Support History */}
+        <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+          <button
+            type="button"
+            onClick={() => setActiveSection(activeSection === 'support' ? null : 'support')}
+            className="w-full flex items-center justify-between px-4 sm:px-6 py-4 sm:py-5 hover:bg-slate-50/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#11496c]/10">
+                <IoHelpCircleOutline className="h-5 w-5 text-[#11496c]" />
+              </div>
+              <h2 className="text-base sm:text-lg font-semibold text-slate-900">Support History</h2>
+            </div>
+            {activeSection === 'support' ? (
+              <IoChevronUpOutline className="h-5 w-5 text-slate-400" />
+            ) : (
+              <IoChevronDownOutline className="h-5 w-5 text-slate-400" />
+            )}
+          </button>
+          {activeSection === 'support' && (
+            <div className="px-4 sm:px-6 pb-4 sm:pb-5 border-t border-slate-100 pt-4 sm:pt-5">
+              <SupportHistory role="patient" />
+            </div>
+          )}
+        </div>
       </div>
     </section>
+  )
+}
+
+// Support History Component
+const SupportHistory = ({ role }) => {
+  const [supportRequests, setSupportRequests] = useState([])
+
+  useEffect(() => {
+    // TODO: Replace with actual API call
+    // const fetchSupportHistory = async () => {
+    //   const response = await fetch(`/api/${role}/support/history`)
+    //   const data = await response.json()
+    //   setSupportRequests(data)
+    // }
+    // fetchSupportHistory()
+
+    // Mock data
+    const mockRequests = [
+      {
+        id: '1',
+        note: 'Unable to book appointment with doctor.',
+        status: 'resolved',
+        createdAt: '2024-01-14T14:20:00Z',
+        updatedAt: '2024-01-15T09:15:00Z',
+        adminNote: 'Issue resolved. Appointment booking system updated.',
+      },
+    ]
+    setSupportRequests(mockRequests)
+  }, [role])
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
+      in_progress: { label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
+      resolved: { label: 'Resolved', color: 'bg-green-100 text-green-800' },
+      closed: { label: 'Closed', color: 'bg-slate-100 text-slate-800' },
+    }
+    const config = statusConfig[status] || statusConfig.pending
+    return (
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${config.color}`}>
+        {config.label}
+      </span>
+    )
+  }
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  if (supportRequests.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+        <p className="text-sm font-medium text-slate-600">No support requests yet</p>
+        <p className="mt-1 text-xs text-slate-500">Your support request history will appear here</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {supportRequests.map((request) => (
+        <div key={request.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <p className="text-sm font-medium text-slate-900 flex-1">{request.note}</p>
+            {getStatusBadge(request.status)}
+          </div>
+          {request.adminNote && (
+            <div className="mt-2 rounded bg-blue-50 p-2">
+              <p className="text-xs font-semibold text-blue-900">Admin Response:</p>
+              <p className="mt-1 text-xs text-blue-800">{request.adminNote}</p>
+            </div>
+          )}
+          <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+            <span>Submitted: {formatDate(request.createdAt)}</span>
+            {request.updatedAt !== request.createdAt && (
+              <span>Updated: {formatDate(request.updatedAt)}</span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 

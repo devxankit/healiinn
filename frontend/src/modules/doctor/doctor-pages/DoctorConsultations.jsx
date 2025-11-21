@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
+import jsPDF from 'jspdf'
 import {
   IoDocumentTextOutline,
   IoSearchOutline,
@@ -20,9 +21,61 @@ import {
   IoThermometerOutline,
   IoPulseOutline,
   IoWaterOutline,
+  IoPrintOutline,
+  IoEyeOutline,
+  IoArrowBackOutline,
 } from 'react-icons/io5'
 
-// Mock data
+// Get doctor info from localStorage (set when doctor saves profile)
+const getDoctorInfo = () => {
+  try {
+    const savedProfile = localStorage.getItem('doctorProfile')
+    if (savedProfile) {
+      const profile = JSON.parse(savedProfile)
+      console.log('Loaded profile from localStorage:', profile)
+      console.log('Digital Signature:', profile.digitalSignature)
+      
+      // Get signature - check multiple possible paths
+      let signature = ''
+      if (profile.digitalSignature?.imageUrl) {
+        signature = profile.digitalSignature.imageUrl
+      } else if (profile.digitalSignature) {
+        // If it's a string directly
+        signature = typeof profile.digitalSignature === 'string' ? profile.digitalSignature : ''
+      }
+      
+      return {
+        name: `${profile.firstName || 'Dr.'} ${profile.lastName || ''}`.trim() || profile.name || 'Dr. Unknown',
+        qualification: profile.qualification || 'MBBS',
+        licenseNumber: profile.licenseNumber || 'N/A',
+        clinicName: profile.clinicDetails?.name || profile.clinicName || 'Clinic',
+        clinicAddress: profile.clinicDetails?.address 
+          ? `${profile.clinicDetails.address.line1 || ''}${profile.clinicDetails.address.line2 ? ', ' + profile.clinicDetails.address.line2 : ''}, ${profile.clinicDetails.address.city || ''}, ${profile.clinicDetails.address.state || ''} - ${profile.clinicDetails.address.postalCode || ''}`
+          : profile.clinicAddress || '',
+        phone: profile.phone || profile.contactNumber || '',
+        email: profile.email || '',
+        specialization: profile.specialization || 'General Physician',
+        digitalSignature: signature,
+      }
+    }
+  } catch (error) {
+    console.error('Error loading doctor profile:', error)
+  }
+  
+  // Default fallback
+  return {
+    name: 'Dr. Sarah Mitchell',
+    qualification: 'MBBS, MD (Cardiology)',
+    licenseNumber: 'MD-12345',
+    clinicName: 'Heart Care Clinic',
+    clinicAddress: '123 Medical Center Drive, Suite 200, New York, NY 10001',
+    phone: '+1-555-123-4567',
+    email: 'sarah.mitchell@example.com',
+    specialization: 'General Physician',
+    digitalSignature: '',
+  }
+}
+
 const mockConsultations = [
   {
     id: 'cons-1',
@@ -35,6 +88,9 @@ const mockConsultations = [
     status: 'in-progress',
     reason: 'Hypertension follow-up',
     patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
+    patientPhone: '+1-555-987-6543',
+    patientEmail: 'john.doe@example.com',
+    patientAddress: '456 Patient Street, New York, NY 10002',
     diagnosis: '',
     vitals: {},
     medications: [],
@@ -106,14 +162,80 @@ const formatDate = (dateString) => {
 
 const DoctorConsultations = () => {
   const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const filterParam = searchParams.get('filter') || 'all'
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
   
   const [consultations, setConsultations] = useState(mockConsultations)
-  const [selectedConsultation, setSelectedConsultation] = useState(consultations[0])
+  
+  // Filter consultations based on URL parameter
+  const filteredConsultations = useMemo(() => {
+    if (filterParam === 'today') {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      
+      return consultations.filter((consultation) => {
+        const appointmentDate = new Date(consultation.appointmentTime)
+        return appointmentDate >= today && appointmentDate < tomorrow
+      })
+    } else if (filterParam === 'pending') {
+      return consultations.filter((consultation) => 
+        consultation.status === 'waiting' || consultation.status === 'pending'
+      )
+    } else {
+      return consultations
+    }
+  }, [consultations, filterParam])
+  
+  const [selectedConsultation, setSelectedConsultation] = useState(
+    filteredConsultations.length > 0 ? filteredConsultations[0] : null
+  )
+  
+  // Update selected consultation when filter changes
+  useEffect(() => {
+    if (filteredConsultations.length > 0 && (!selectedConsultation || !filteredConsultations.includes(selectedConsultation))) {
+      setSelectedConsultation(filteredConsultations[0])
+    } else if (filteredConsultations.length === 0) {
+      setSelectedConsultation(null)
+    }
+  }, [filteredConsultations, filterParam])
   const [activeTab, setActiveTab] = useState('vitals') // vitals, prescription, history, saved
   const [showAddMedication, setShowAddMedication] = useState(false)
   const [showAddInvestigation, setShowAddInvestigation] = useState(false)
-  const [savedPrescriptions, setSavedPrescriptions] = useState([])
+  
+  // Load saved prescriptions from localStorage on mount
+  const [savedPrescriptions, setSavedPrescriptions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('doctorSavedPrescriptions')
+      if (saved) {
+        return JSON.parse(saved)
+      }
+    } catch (error) {
+      console.error('Error loading saved prescriptions:', error)
+    }
+    return []
+  })
+  
+  const [viewingPrescription, setViewingPrescription] = useState(null)
+
+  // Get doctor info once and store in state to avoid multiple calls
+  const [doctorInfo, setDoctorInfo] = useState(() => getDoctorInfo())
+
+  // Update doctor info when component mounts or when needed
+  useEffect(() => {
+    setDoctorInfo(getDoctorInfo())
+  }, [])
+
+  // Save prescriptions to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('doctorSavedPrescriptions', JSON.stringify(savedPrescriptions))
+    } catch (error) {
+      console.error('Error saving prescriptions to localStorage:', error)
+    }
+  }, [savedPrescriptions])
 
   // Form states
   const [vitals, setVitals] = useState({
@@ -128,9 +250,11 @@ const DoctorConsultations = () => {
   })
 
   const [diagnosis, setDiagnosis] = useState('')
+  const [symptoms, setSymptoms] = useState('')
   const [medications, setMedications] = useState([])
   const [investigations, setInvestigations] = useState([])
   const [advice, setAdvice] = useState('')
+  const [followUpDate, setFollowUpDate] = useState('')
   const [newMedication, setNewMedication] = useState({
     name: '',
     dosage: '',
@@ -197,6 +321,325 @@ const DoctorConsultations = () => {
     setAttachments(attachments.filter((att) => att.id !== id))
   }
 
+  const generatePDF = (prescriptionData) => {
+    const doctorInfo = getDoctorInfo()
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 20
+    const tealColor = [17, 73, 108] // Teal color for header
+    const lightBlueColor = [230, 240, 255] // Light blue for diagnosis
+    const lightGrayColor = [245, 245, 245] // Light gray for medications
+    const lightPurpleColor = [240, 230, 250] // Light purple for tests
+    const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
+    let yPos = margin
+
+    // Header Section - Clinic Name in Teal (Large, Bold)
+    doc.setTextColor(...tealColor)
+    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold')
+    doc.text(doctorInfo.clinicName || 'Medical Clinic', pageWidth / 2, yPos, { align: 'center' })
+    yPos += 7
+
+    // Clinic Address (Centered)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    const addressLines = doc.splitTextToSize(doctorInfo.clinicAddress || 'Address not provided', pageWidth - 2 * margin)
+    addressLines.forEach((line) => {
+      doc.text(line, pageWidth / 2, yPos, { align: 'center' })
+      yPos += 4
+    })
+
+    // Contact Information (Left: Phone, Right: Email)
+    yPos += 1
+    doc.setFontSize(8)
+    const contactY = yPos
+    // Phone icon and number (left)
+    doc.setFillColor(200, 0, 0) // Red circle for phone
+    doc.circle(margin + 2, contactY - 1, 1.5, 'F')
+    doc.setTextColor(0, 0, 0)
+    doc.text(doctorInfo.phone || 'N/A', margin + 6, contactY)
+    
+    // Email icon and address (right)
+    doc.setFillColor(100, 100, 100) // Gray circle for email
+    doc.circle(pageWidth - margin - 2, contactY - 1, 1.5, 'F')
+    doc.text(doctorInfo.email || 'N/A', pageWidth - margin, contactY, { align: 'right' })
+    yPos += 5
+
+    // Teal horizontal line separator
+    doc.setDrawColor(...tealColor)
+    doc.setLineWidth(0.5)
+    doc.line(margin, yPos, pageWidth - margin, yPos)
+    yPos += 8
+
+    // Doctor Information (Left) and Patient Information (Right)
+    const infoStartY = yPos
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Doctor Information', margin, infoStartY)
+    doc.text('Patient Information', pageWidth - margin, infoStartY, { align: 'right' })
+    
+    yPos = infoStartY + 6
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    
+    // Doctor Info (Left)
+    doc.text(`Name: ${doctorInfo.name}`, margin, yPos)
+    doc.text(`Specialty: ${doctorInfo.specialization || 'General Physician'}`, margin, yPos + 4)
+    const currentDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    doc.text(`Date: ${currentDate}`, margin, yPos + 8)
+
+    // Patient Info (Right)
+    doc.text(`Name: ${prescriptionData.patientName}`, pageWidth - margin, yPos, { align: 'right' })
+    doc.text(`Age: ${selectedConsultation?.age || 'N/A'} years`, pageWidth - margin, yPos + 4, { align: 'right' })
+    doc.text(`Gender: ${selectedConsultation?.gender || 'N/A'}`, pageWidth - margin, yPos + 8, { align: 'right' })
+
+    yPos += 15
+
+    // Diagnosis Section with Light Blue Background Box
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Diagnosis', margin, yPos)
+    yPos += 6
+    
+    // Light blue rounded box for diagnosis
+    const diagnosisHeight = 8
+    doc.setFillColor(...lightBlueColor)
+    doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, diagnosisHeight, 2, 2, 'F')
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    const diagnosisText = prescriptionData.diagnosis || 'N/A'
+    doc.text(diagnosisText, margin + 4, yPos + 2)
+    yPos += diagnosisHeight + 4
+
+    // Symptoms Section with Green Bullet Points
+    if (prescriptionData.symptoms) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Symptoms', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      const symptomLines = prescriptionData.symptoms.split('\n').filter(line => line.trim())
+      symptomLines.forEach((symptom) => {
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        doc.text(symptom.trim(), margin + 5, yPos)
+        yPos += 4
+      })
+      yPos += 2
+    }
+
+    // Medications Section with Numbered Cards (Light Gray Background)
+    if (prescriptionData.medications && prescriptionData.medications.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medications', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.medications.forEach((med, idx) => {
+        // Check if we need a new page (with more space check)
+        if (yPos > pageHeight - 50) {
+          doc.addPage()
+          yPos = margin
+        }
+        
+        // Medication card with light gray background
+        const cardHeight = 22
+        doc.setFillColor(...lightGrayColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
+        
+        // Numbered square in teal (top-right corner)
+        const numberSize = 8
+        const numberX = pageWidth - margin - numberSize - 3
+        const numberY = yPos - 1
+        doc.setFillColor(...tealColor)
+        doc.roundedRect(numberX, numberY, numberSize, numberSize, 1, 1, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 1, { align: 'center' })
+        
+        // Medication name (bold, top)
+        doc.setTextColor(0, 0, 0)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.text(med.name, margin + 4, yPos + 3)
+        
+        // Medication details in 2 columns (left and right)
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'normal')
+        const leftColX = margin + 4
+        const rightColX = margin + (pageWidth - 2 * margin) / 2 + 5
+        const startY = yPos + 7
+        
+        // Left column
+        doc.text(`Dosage: ${med.dosage}`, leftColX, startY)
+        doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 4)
+        
+        // Right column
+        doc.text(`Frequency: ${med.frequency}`, rightColX, startY)
+        if (med.instructions) {
+          doc.text(`Instructions: ${med.instructions}`, rightColX, startY + 4)
+        }
+        
+        yPos += cardHeight + 4
+      })
+      yPos += 2
+    }
+
+    // Recommended Tests Section (Light Purple Boxes)
+    if (prescriptionData.investigations && prescriptionData.investigations.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Recommended Tests', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.investigations.forEach((inv) => {
+        // Light purple box for each test
+        const testBoxHeight = inv.notes ? 14 : 9
+        doc.setFillColor(...lightPurpleColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
+        
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text(inv.name, margin + 4, yPos + 2)
+        
+        if (inv.notes) {
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(80, 80, 80)
+          doc.text(inv.notes, margin + 4, yPos + 8)
+        }
+        
+        yPos += testBoxHeight + 3
+      })
+      yPos += 2
+    }
+
+    // Medical Advice Section with Green Bullet Points
+    if (prescriptionData.advice) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medical Advice', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      const adviceLines = prescriptionData.advice.split('\n').filter(line => line.trim())
+      adviceLines.forEach((advice) => {
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        doc.text(advice.trim(), margin + 5, yPos)
+        yPos += 4
+      })
+      yPos += 2
+    }
+
+    // Follow-up Appointment (Light Yellow Box)
+    if (prescriptionData.followUpDate) {
+      const followUpHeight = 12
+      doc.setFillColor(...lightYellowColor)
+      doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, followUpHeight, 2, 2, 'F')
+      
+      // Calendar icon (small square)
+      doc.setFillColor(255, 200, 0)
+      doc.roundedRect(margin + 2, yPos + 1, 3, 3, 0.5, 0.5, 'F')
+      
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text('Follow-up Appointment', margin + 7, yPos + 3)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      const followUpDate = new Date(prescriptionData.followUpDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      doc.text(followUpDate, margin + 7, yPos + 8)
+      yPos += followUpHeight + 5
+    }
+
+    // Footer with Doctor Signature (Right side)
+    // Calculate space needed for signature - ensure everything fits on one page
+    const signatureSpace = 30
+    const minYPos = pageHeight - signatureSpace - 5
+    if (yPos < minYPos) {
+      yPos = minYPos
+    }
+
+    // Doctor Signature (Right side)
+    const signatureX = pageWidth - margin - 55
+    const signatureY = yPos
+    
+    // Add digital signature image if available
+    if (doctorInfo.digitalSignature && doctorInfo.digitalSignature.trim() !== '') {
+      try {
+        console.log('Adding signature to PDF:', doctorInfo.digitalSignature.substring(0, 50) + '...')
+        
+        // Check if it's a base64 data URL
+        let imageData = doctorInfo.digitalSignature.trim()
+        
+        // Determine image format from data URL
+        let imageFormat = 'PNG'
+        if (imageData.includes('data:image/jpeg') || imageData.includes('data:image/jpg')) {
+          imageFormat = 'JPEG'
+        } else if (imageData.includes('data:image/png')) {
+          imageFormat = 'PNG'
+        } else if (imageData.includes('data:image/')) {
+          // Extract format from data URL
+          const match = imageData.match(/data:image\/(\w+);/)
+          if (match) {
+            imageFormat = match[1].toUpperCase()
+          }
+        }
+        
+        // Add signature image above the signature line (width: 50, height: 20)
+        // Position it above the line
+        doc.addImage(imageData, imageFormat, signatureX, signatureY - 18, 50, 20)
+        console.log('Signature added successfully')
+      } catch (error) {
+        console.error('Error adding signature image to PDF:', error)
+        // Fallback to line if image fails
+        doc.setDrawColor(0, 0, 0)
+        doc.setLineWidth(0.5)
+        doc.line(signatureX, signatureY, signatureX + 50, signatureY)
+      }
+    } else {
+      console.log('No signature found in doctorInfo')
+      // Draw a line for signature if no image
+      doc.setDrawColor(0, 0, 0)
+      doc.setLineWidth(0.5)
+      doc.line(signatureX, signatureY, signatureX + 50, signatureY)
+    }
+    
+    // Doctor name and designation below signature (centered under signature area)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text(doctorInfo.name, signatureX + 25, signatureY + 8, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.text(doctorInfo.specialization || 'General Physician', signatureX + 25, signatureY + 12, { align: 'center' })
+
+    // Disclaimer at bottom center
+    const disclaimerY = pageHeight - 6
+    doc.setFontSize(6)
+    doc.setTextColor(100, 100, 100)
+    doc.text('This is a digitally generated prescription. For any queries, please contact the clinic.', pageWidth / 2, disclaimerY, { align: 'center' })
+
+    // Save PDF
+    const fileName = `Prescription_${prescriptionData.patientName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`
+    doc.save(fileName)
+  }
+
+  const handleDownloadPrescription = (prescription) => {
+    generatePDF(prescription)
+  }
+
   const handleSavePrescription = async () => {
     if (!diagnosis) {
       alert('Please enter a diagnosis')
@@ -215,12 +658,16 @@ const DoctorConsultations = () => {
       patientId: selectedConsultation.patientId,
       patientName: selectedConsultation.patientName,
       patientImage: selectedConsultation.patientImage,
+      patientPhone: selectedConsultation.patientPhone,
+      patientEmail: selectedConsultation.patientEmail,
+      patientAddress: selectedConsultation.patientAddress,
       diagnosis,
+      symptoms,
       vitals,
       medications: [...medications],
       investigations: [...investigations],
       advice,
-      attachments: attachments.map((att) => ({ name: att.name, type: att.type })),
+      followUpDate,
       date: new Date().toISOString(),
       savedAt: new Date().toLocaleString('en-US', {
         month: 'short',
@@ -246,7 +693,6 @@ const DoctorConsultations = () => {
               medications,
               investigations,
               advice,
-              attachments,
             }
           : cons
       )
@@ -254,10 +700,11 @@ const DoctorConsultations = () => {
 
     // Reset form
     setDiagnosis('')
+    setSymptoms('')
     setMedications([])
     setInvestigations([])
     setAdvice('')
-    setAttachments([])
+    setFollowUpDate('')
     setVitals({
       bloodPressure: { systolic: '', diastolic: '' },
       temperature: '',
@@ -276,24 +723,139 @@ const DoctorConsultations = () => {
     setActiveTab('saved')
   }
 
+  // Get filter label
+  const getFilterLabel = () => {
+    switch (filterParam) {
+      case 'today':
+        return 'Today\'s Appointments'
+      case 'pending':
+        return 'Pending Consultations'
+      case 'all':
+      default:
+        return 'All Consultations'
+    }
+  }
+
   return (
     <>
       <DoctorNavbar />
       <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
-          {selectedConsultation ? (
-            <div className="grid gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
-              {/* Left Column - Patient Info & History */}
-              <div className="lg:col-span-1 space-y-3 sm:space-y-4">
-                {/* Patient Card */}
-                <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-5 shadow-md shadow-slate-200/50 hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
-                  <div className="flex items-start gap-2 sm:gap-3 lg:gap-4">
+        {/* Filter Header */}
+        {filterParam !== 'all' && (
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">{getFilterLabel()}</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  {filteredConsultations.length} {filteredConsultations.length === 1 ? 'consultation' : 'consultations'} found
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.history.pushState({}, '', '/doctor/consultations')}
+                className="text-sm font-medium text-[#11496c] hover:text-[#0d3a52]"
+              >
+                Show All
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Consultations List View (when no consultation selected or showing filtered results) */}
+        {!selectedConsultation && filteredConsultations.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-bold text-slate-900">
+              {filterParam !== 'all' ? getFilterLabel() : 'All Consultations'}
+            </h2>
+            <div className="space-y-3">
+              {filteredConsultations.map((consultation) => (
+                <div
+                  key={consultation.id}
+                  onClick={() => setSelectedConsultation(consultation)}
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm cursor-pointer transition-all hover:shadow-md hover:border-[#11496c]/30 active:scale-[0.98]"
+                >
+                  <div className="flex items-start gap-4">
                     <img
-                      src={selectedConsultation.patientImage}
-                      alt={selectedConsultation.patientName}
-                      className="h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 rounded-lg sm:rounded-xl object-cover ring-2 ring-slate-100 shrink-0"
+                      src={consultation.patientImage}
+                      alt={consultation.patientName}
+                      className="h-12 w-12 rounded-lg object-cover ring-2 ring-slate-100 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm sm:text-base lg:text-lg font-bold text-slate-900 truncate">{selectedConsultation.patientName}</h3>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-bold text-slate-900">{consultation.patientName}</h3>
+                          <p className="mt-1 text-sm text-slate-600">{consultation.reason}</p>
+                        </div>
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${
+                          consultation.status === 'completed' 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : consultation.status === 'waiting' || consultation.status === 'pending'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-slate-50 text-slate-700 border-slate-200'
+                        }`}>
+                          {consultation.status}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+                        <div className="flex items-center gap-1">
+                          <IoTimeOutline className="h-4 w-4" />
+                          <span>{formatDateTime(consultation.appointmentTime)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span>{consultation.age} years • {consultation.gender}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No Consultations Message */}
+        {filteredConsultations.length === 0 && (
+          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+            <IoDocumentTextOutline className="mx-auto h-16 w-16 text-slate-300" />
+            <h3 className="mt-4 text-lg font-semibold text-slate-900">No Consultations Found</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {filterParam === 'today' 
+                ? 'No appointments scheduled for today.'
+                : filterParam === 'pending'
+                ? 'No pending consultations at the moment.'
+                : 'No consultations available.'}
+            </p>
+          </div>
+        )}
+
+        {/* Consultation Detail View */}
+          {selectedConsultation ? (
+            <div className="space-y-4">
+              {/* Back Button */}
+              {filteredConsultations.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedConsultation(null)}
+                  className="flex items-center gap-2 text-sm font-medium text-[#11496c] hover:text-[#0d3a52]"
+                >
+                  <IoArrowBackOutline className="h-4 w-4" />
+                  Back to List
+                </button>
+              )}
+              
+              <div className="grid gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
+                {/* Left Column - Patient Info & History */}
+                <div className="lg:col-span-1 space-y-3 sm:space-y-4">
+                  {/* Patient Card */}
+                  <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-5 shadow-md shadow-slate-200/50 hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+                    <div className="flex items-start gap-2 sm:gap-3 lg:gap-4">
+                      <img
+                        src={selectedConsultation.patientImage}
+                        alt={selectedConsultation.patientName}
+                        className="h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 rounded-lg sm:rounded-xl object-cover ring-2 ring-slate-100 shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm sm:text-base lg:text-lg font-bold text-slate-900 truncate">{selectedConsultation.patientName}</h3>
                       <div className="mt-1 space-y-0.5 sm:space-y-1 text-[10px] sm:text-xs text-slate-600">
                         <p>
                           {selectedConsultation.age} years • {selectedConsultation.gender}
@@ -307,108 +869,6 @@ const DoctorConsultations = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* Full Medical History */}
-                {patientHistory && (
-                  <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-5 shadow-md shadow-slate-200/50 hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
-                    <h3 className="mb-3 sm:mb-4 lg:mb-5 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base font-bold text-slate-900">
-                      <IoMedicalOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] shrink-0" />
-                      Medical History
-                    </h3>
-                    <div className="space-y-3 sm:space-y-4">
-                      {/* Conditions */}
-                      <div>
-                        <p className="mb-1.5 sm:mb-2 text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                          Conditions
-                        </p>
-                        <div className="space-y-1.5 sm:space-y-2">
-                          {patientHistory.conditions.map((condition, idx) => (
-                            <div key={idx} className="rounded-lg bg-slate-50 p-1.5 sm:p-2">
-                              <p className="text-xs sm:text-sm font-semibold text-slate-900">{condition.name}</p>
-                              <p className="text-[10px] sm:text-xs text-slate-600">
-                                Since {formatDate(condition.diagnosedDate)} • {condition.status}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Allergies */}
-                      <div>
-                        <p className="mb-1.5 sm:mb-2 text-[10px] sm:text-xs font-semibold text-red-600 uppercase tracking-wide">Allergies</p>
-                        <div className="space-y-1.5 sm:space-y-2">
-                          {patientHistory.allergies.map((allergy, idx) => (
-                            <div key={idx} className="rounded-lg bg-red-50 p-1.5 sm:p-2">
-                              <p className="text-xs sm:text-sm font-semibold text-red-900">{allergy.name}</p>
-                              <p className="text-[10px] sm:text-xs text-red-700">
-                                {allergy.severity} • {allergy.reaction}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Current Medications */}
-                      <div>
-                        <p className="mb-1.5 sm:mb-2 text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                          Current Medications
-                        </p>
-                        <div className="space-y-1.5 sm:space-y-2">
-                          {patientHistory.medications.map((med, idx) => (
-                            <div key={idx} className="rounded-lg bg-emerald-50 p-1.5 sm:p-2">
-                              <p className="text-xs sm:text-sm font-semibold text-emerald-900">{med.name}</p>
-                              <p className="text-[10px] sm:text-xs text-emerald-700">
-                                {med.dosage} • {med.frequency}
-                              </p>
-                              <p className="text-[10px] sm:text-xs text-emerald-600">Since {formatDate(med.startDate)}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Previous Consultations */}
-                      <div>
-                        <p className="mb-2 text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                          Previous Consultations
-                        </p>
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                          {patientHistory.previousConsultations.map((consult, idx) => (
-                            <div key={idx} className="rounded-lg border border-slate-200 bg-white p-2">
-                              <p className="text-xs font-semibold text-slate-900">{consult.diagnosis}</p>
-                              <p className="text-xs text-slate-600">{formatDate(consult.date)}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Lab Reports */}
-                      <div>
-                        <p className="mb-2 text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                          Lab Reports
-                        </p>
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                          {patientHistory.labReports.map((report, idx) => (
-                            <div key={idx} className="rounded-lg border border-slate-200 bg-white p-2">
-                              <p className="text-xs font-semibold text-slate-900">{report.testName}</p>
-                              <p className="text-xs text-slate-600">
-                                {report.result} • {formatDate(report.date)}
-                              </p>
-                              <span
-                                className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                  report.status === 'Normal'
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'bg-amber-100 text-amber-700'
-                                }`}
-                              >
-                                {report.status}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Right Column - Consultation Form */}
@@ -461,7 +921,7 @@ const DoctorConsultations = () => {
                     }`}
                     style={activeTab === 'saved' ? { backgroundColor: '#11496c', boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.2)' } : {}}
                   >
-                    <span className="hidden sm:inline">Saved </span>Prescriptions
+                    Saved
                     {savedPrescriptions.length > 0 && (
                       <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] sm:text-xs font-bold text-white">
                         {savedPrescriptions.length}
@@ -674,22 +1134,145 @@ const DoctorConsultations = () => {
                         </div>
                       </div>
                     </div>
+
+                    {/* Add Vitals Button */}
+                    <div className="mt-4 sm:mt-5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Save vitals to patient history
+                          if (selectedConsultation && patientHistory) {
+                            const vitalsData = {
+                              ...vitals,
+                              date: new Date().toISOString(),
+                              recordedAt: new Date().toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }),
+                            }
+                            
+                            // Save to localStorage for patient history
+                            try {
+                              const historyKey = `patientHistory_${selectedConsultation.patientId}`
+                              const existingHistory = JSON.parse(localStorage.getItem(historyKey) || '{}')
+                              
+                              if (!existingHistory.vitalsRecords) {
+                                existingHistory.vitalsRecords = []
+                              }
+                              
+                              existingHistory.vitalsRecords.unshift(vitalsData)
+                              localStorage.setItem(historyKey, JSON.stringify(existingHistory))
+                              
+                              alert('Vitals added to patient history successfully!')
+                              
+                              // Reset vitals form
+                              setVitals({
+                                bloodPressure: { systolic: '', diastolic: '' },
+                                temperature: '',
+                                pulse: '',
+                                respiratoryRate: '',
+                                oxygenSaturation: '',
+                                weight: '',
+                                height: '',
+                                bmi: '',
+                              })
+                            } catch (error) {
+                              console.error('Error saving vitals to history:', error)
+                              alert('Error saving vitals. Please try again.')
+                            }
+                          } else {
+                            alert('Please select a patient first')
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"
+                      >
+                        <IoAddOutline className="h-5 w-5" />
+                        Add to Patient History
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {/* Prescription Tab */}
                 {activeTab === 'prescription' && (
                   <div className="space-y-3 sm:space-y-4 lg:space-y-5">
+                    {/* Prescription Header */}
+                    <div className="rounded-xl sm:rounded-2xl border-2 border-[#11496c] bg-gradient-to-br from-[rgba(17,73,108,0.05)] to-white p-4 sm:p-6 shadow-md shadow-slate-200/50">
+                      <div className="mb-4 border-b-2 border-[#11496c] pb-3">
+                        <h2 className="text-lg sm:text-xl font-bold text-[#11496c] text-center">PRESCRIPTION</h2>
+                        <p className="text-xs sm:text-sm text-slate-600 text-center mt-1">{doctorInfo.clinicName}</p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                        {/* Patient Information */}
+                        <div>
+                          <h3 className="text-xs sm:text-sm font-bold text-slate-900 mb-2">Patient Information</h3>
+                          <div className="space-y-1 text-[10px] sm:text-xs text-slate-700">
+                            <p><span className="font-semibold">Name:</span> {selectedConsultation.patientName}</p>
+                            <p><span className="font-semibold">Age:</span> {selectedConsultation.age} years | <span className="font-semibold">Gender:</span> {selectedConsultation.gender}</p>
+                            {selectedConsultation.patientPhone && (
+                              <p><span className="font-semibold">Phone:</span> {selectedConsultation.patientPhone}</p>
+                            )}
+                            {selectedConsultation.patientAddress && (
+                              <p><span className="font-semibold">Address:</span> {selectedConsultation.patientAddress}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Doctor Information */}
+                        <div>
+                          <h3 className="text-xs sm:text-sm font-bold text-slate-900 mb-2">Doctor Information</h3>
+                          <div className="space-y-1 text-[10px] sm:text-xs text-slate-700">
+                            <p className="font-semibold">{doctorInfo.name}</p>
+                            <p>{doctorInfo.qualification}</p>
+                            <p>{doctorInfo.clinicName}</p>
+                            <p>License: {doctorInfo.licenseNumber}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                        <p className="text-[10px] sm:text-xs text-slate-600">
+                          <span className="font-semibold">Date:</span> {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+
                     {/* Diagnosis */}
                     <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-6 shadow-md shadow-slate-200/50">
-                      <label className="mb-2 sm:mb-3 block text-xs sm:text-sm font-bold text-slate-900">Diagnosis *</label>
-                      <input
-                        type="text"
-                        value={diagnosis}
-                        onChange={(e) => setDiagnosis(e.target.value)}
-                        placeholder="Enter diagnosis..."
-                        className="w-full rounded-lg sm:rounded-xl border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
-                      />
+                      <label className="mb-2 sm:mb-3 block text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wide">Diagnosis *</label>
+                      <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 sm:p-4">
+                        <input
+                          type="text"
+                          value={diagnosis}
+                          onChange={(e) => setDiagnosis(e.target.value)}
+                          placeholder="Enter diagnosis..."
+                          className="w-full bg-transparent border-none outline-none text-xs sm:text-sm font-semibold text-slate-900 placeholder:text-slate-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Symptoms */}
+                    <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-6 shadow-md shadow-slate-200/50">
+                      <label className="mb-2 sm:mb-3 block text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wide">Symptoms</label>
+                      <div className="space-y-2">
+                        {symptoms.split('\n').filter(line => line.trim()).map((symptom, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-green-500 shrink-0"></div>
+                            <span className="text-xs sm:text-sm text-slate-700">{symptom.trim()}</span>
+                          </div>
+                        ))}
+                        <textarea
+                          value={symptoms}
+                          onChange={(e) => setSymptoms(e.target.value)}
+                          placeholder="Enter symptoms (one per line)...&#10;Example:&#10;High fever (102°F)&#10;Headache&#10;Body ache"
+                          rows="4"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
                     </div>
 
                     {/* Medications */}
@@ -709,28 +1292,33 @@ const DoctorConsultations = () => {
                       {medications.length === 0 ? (
                         <p className="py-3 sm:py-4 text-center text-xs sm:text-sm text-slate-500">No medications added</p>
                       ) : (
-                        <div className="space-y-2 sm:space-y-3">
-                          {medications.map((med) => (
+                        <div className="space-y-3 sm:space-y-4">
+                          {medications.map((med, idx) => (
                             <div
                               key={med.id}
-                              className="flex items-start gap-2 sm:gap-3 rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow"
+                              className="relative rounded-lg sm:rounded-xl border border-slate-200 bg-gray-50 p-3 sm:p-4 hover:shadow-md transition-shadow"
                             >
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{med.name}</p>
-                                <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-slate-600">
-                                  {med.dosage} • {med.frequency}
-                                  {med.duration && ` • ${med.duration}`}
-                                </p>
-                                {med.instructions && (
-                                  <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-slate-500 line-clamp-2">{med.instructions}</p>
-                                )}
+                              {/* Numbered badge in top-right corner */}
+                              <div className="absolute top-2 right-2 h-6 w-6 sm:h-7 sm:w-7 rounded bg-[#11496c] flex items-center justify-center">
+                                <span className="text-white text-xs sm:text-sm font-bold">{idx + 1}</span>
+                              </div>
+                              <div className="pr-8 sm:pr-10">
+                                <p className="text-sm sm:text-base font-bold text-slate-900 mb-2">{med.name}</p>
+                                <div className="space-y-1 text-xs sm:text-sm text-slate-700">
+                                  <p><span className="font-semibold">Dosage:</span> {med.dosage}</p>
+                                  <p><span className="font-semibold">Duration:</span> {med.duration || 'N/A'}</p>
+                                  <p><span className="font-semibold">Frequency:</span> {med.frequency}</p>
+                                  {med.instructions && (
+                                    <p><span className="font-semibold">Instructions:</span> {med.instructions}</p>
+                                  )}
+                                </div>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveMedication(med.id)}
-                                className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
+                                className="absolute bottom-2 right-2 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
                               >
-                                <IoTrashOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                <IoTrashOutline className="h-4 w-4" />
                               </button>
                             </div>
                           ))}
@@ -759,74 +1347,16 @@ const DoctorConsultations = () => {
                           {investigations.map((inv) => (
                             <div
                               key={inv.id}
-                              className="flex items-start gap-2 sm:gap-3 rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow"
+                              className="relative rounded-lg sm:rounded-xl border border-purple-200 bg-purple-50 p-3 sm:p-4 hover:shadow-md transition-shadow"
                             >
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{inv.name}</p>
-                                {inv.notes && <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-slate-600 line-clamp-2">{inv.notes}</p>}
+                              <div className="flex-1 min-w-0 pr-8">
+                                <p className="text-xs sm:text-sm font-bold text-slate-900 mb-1">{inv.name}</p>
+                                {inv.notes && <p className="text-xs text-slate-700">{inv.notes}</p>}
                               </div>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveInvestigation(inv.id)}
-                                className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
-                              >
-                                <IoTrashOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Advice */}
-                    <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-6 shadow-md shadow-slate-200/50">
-                      <label className="mb-2 sm:mb-3 block text-xs sm:text-sm font-bold text-slate-900">Advice</label>
-                      <textarea
-                        value={advice}
-                        onChange={(e) => setAdvice(e.target.value)}
-                        placeholder="Enter advice for patient..."
-                        rows="3"
-                        className="w-full rounded-lg sm:rounded-xl border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
-                      />
-                    </div>
-
-                    {/* Attachments */}
-                    <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-6 shadow-md shadow-slate-200/50">
-                      <div className="mb-3 sm:mb-4 lg:mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
-                        <h3 className="text-sm sm:text-base lg:text-lg font-bold text-slate-900">Attachments</h3>
-                        <label className="flex cursor-pointer items-center gap-1.5 sm:gap-2 rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95 w-full sm:w-auto">
-                          <IoAttachOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                          <span className="hidden sm:inline">Upload </span>Files
-                          <input
-                            type="file"
-                            multiple
-                            onChange={handleFileUpload}
-                            className="hidden"
-                            accept="image/*,.pdf,.doc,.docx"
-                          />
-                        </label>
-                      </div>
-
-                      {attachments.length === 0 ? (
-                        <p className="py-3 sm:py-4 text-center text-xs sm:text-sm text-slate-500">No attachments</p>
-                      ) : (
-                        <div className="space-y-1.5 sm:space-y-2">
-                          {attachments.map((att) => (
-                            <div
-                              key={att.id}
-                              className="flex items-center gap-2 sm:gap-3 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-2 sm:p-2.5 lg:p-3 hover:shadow-md transition-shadow"
-                            >
-                              <IoAttachOutline className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-slate-600" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs sm:text-sm font-medium text-slate-900 line-clamp-1">{att.name}</p>
-                                <p className="text-[10px] sm:text-xs text-slate-500">
-                                  {(att.size / 1024).toFixed(2)} KB • {att.type}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveAttachment(att.id)}
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
+                                className="absolute top-2 right-2 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
                               >
                                 <IoTrashOutline className="h-4 w-4" />
                               </button>
@@ -836,8 +1366,90 @@ const DoctorConsultations = () => {
                       )}
                     </div>
 
-                    {/* Save Button */}
-                    <div className="flex gap-3">
+                    {/* Advice */}
+                    <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-6 shadow-md shadow-slate-200/50">
+                      <label className="mb-2 sm:mb-3 block text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wide">Medical Advice</label>
+                      <div className="space-y-2 mb-3">
+                        {advice.split('\n').filter(line => line.trim()).map((adv, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-green-500 shrink-0"></div>
+                            <span className="text-xs sm:text-sm text-slate-700">{adv.trim()}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <textarea
+                        value={advice}
+                        onChange={(e) => setAdvice(e.target.value)}
+                        placeholder="Enter medical advice (one per line)...&#10;Example:&#10;Take adequate rest for 3-5 days&#10;Drink plenty of fluids&#10;Avoid cold foods"
+                        rows="4"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {/* Follow-up Appointment */}
+                    <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-6 shadow-md shadow-slate-200/50">
+                      <label className="mb-2 sm:mb-3 block text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wide">Follow-up Appointment (Optional)</label>
+                      <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 sm:p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="h-4 w-4 rounded bg-yellow-400 flex items-center justify-center shrink-0">
+                            <IoCalendarOutline className="h-3 w-3 text-yellow-900" />
+                          </div>
+                          <span className="text-xs sm:text-sm font-bold text-slate-900">Follow-up Appointment</span>
+                        </div>
+                        <input
+                          type="date"
+                          value={followUpDate}
+                          onChange={(e) => setFollowUpDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="w-full bg-transparent border-none outline-none text-xs sm:text-sm font-semibold text-slate-900"
+                        />
+                        {followUpDate && (
+                          <p className="text-xs sm:text-sm text-slate-700 mt-1">
+                            {new Date(followUpDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Prescription Footer */}
+                    <div className="rounded-xl sm:rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 sm:p-6 shadow-md shadow-slate-200/50">
+                      <div className="border-t-2 border-slate-200 pt-4">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                          {/* Doctor Details */}
+                          <div className="flex-1">
+                            <p className="text-xs sm:text-sm font-bold text-slate-900">{doctorInfo.name}</p>
+                            <p className="text-[10px] sm:text-xs text-slate-700">{doctorInfo.qualification}</p>
+                            <p className="text-[10px] sm:text-xs text-slate-700">{doctorInfo.clinicName}</p>
+                            <p className="text-[10px] sm:text-xs text-slate-600">License: {doctorInfo.licenseNumber}</p>
+                          </div>
+
+                          {/* Digital Signature */}
+                          <div className="flex flex-col items-end">
+                            {doctorInfo.digitalSignature && doctorInfo.digitalSignature.trim() !== '' ? (
+                              <div className="mb-2">
+                                <img
+                                  src={doctorInfo.digitalSignature}
+                                  alt="Doctor Signature"
+                                  className="h-12 w-32 sm:h-16 sm:w-40 object-contain border border-slate-200 rounded bg-white p-1"
+                                  onError={(e) => {
+                                    console.error('Error loading signature image:', e)
+                                    e.target.style.display = 'none'
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="h-12 w-32 sm:h-16 sm:w-40 border-2 border-dashed border-slate-300 rounded bg-slate-50 flex items-center justify-center mb-2">
+                                <p className="text-[8px] sm:text-[10px] text-slate-400 text-center px-1">No Signature</p>
+                              </div>
+                            )}
+                            <p className="text-[10px] sm:text-xs text-slate-600">Digital Signature</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         type="button"
                         onClick={handleSavePrescription}
@@ -846,6 +1458,28 @@ const DoctorConsultations = () => {
                         <IoCheckmarkCircleOutline className="h-5 w-5" />
                         Save Prescription
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const tempPrescription = {
+                            patientName: selectedConsultation.patientName,
+                            patientPhone: selectedConsultation.patientPhone,
+                            patientAddress: selectedConsultation.patientAddress,
+                            diagnosis,
+                            symptoms,
+                            medications,
+                            investigations,
+                            advice,
+                            followUpDate,
+                          }
+                          generatePDF(tempPrescription)
+                        }}
+                        disabled={!diagnosis || medications.length === 0}
+                        className="flex items-center justify-center gap-2 rounded-xl border-2 border-[#11496c] bg-white px-6 py-3.5 text-sm font-semibold text-[#11496c] shadow-sm transition hover:bg-[rgba(17,73,108,0.05)] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <IoPrintOutline className="h-5 w-5" />
+                        <span className="hidden sm:inline">Generate </span>PDF
+                      </button>
                     </div>
                   </div>
                 )}
@@ -853,13 +1487,151 @@ const DoctorConsultations = () => {
                 {/* Saved Prescriptions Tab */}
                 {activeTab === 'saved' && (
                   <div className="space-y-4">
-                    <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-md shadow-slate-200/50">
-                      <div className="mb-5 flex items-center justify-between">
-                        <h3 className="text-lg font-bold text-slate-900">Saved Prescriptions</h3>
-                        <span className="rounded-full bg-[rgba(17,73,108,0.15)] px-3 py-1 text-xs font-semibold text-[#11496c]">
-                          {savedPrescriptions.length} {savedPrescriptions.length === 1 ? 'Prescription' : 'Prescriptions'}
-                        </span>
+                    {viewingPrescription ? (
+                      /* Full Page View Prescription */
+                      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
+                        {/* Header */}
+                        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setViewingPrescription(null)}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100"
+                            >
+                              <IoArrowBackOutline className="h-5 w-5" />
+                            </button>
+                            <h2 className="text-lg sm:text-xl font-bold text-slate-900">Prescription Details</h2>
+                          </div>
+                        </div>
+                        
+                        {/* Content */}
+                        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+                          {/* Patient Info */}
+                          <div className="flex items-center gap-4 pb-4 border-b border-slate-200">
+                            <div className="h-14 w-14 rounded-lg bg-[#11496c] flex items-center justify-center shrink-0 shadow-sm">
+                              <span className="text-white text-lg font-bold">
+                                {viewingPrescription.patientName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-bold text-[#11496c]">{viewingPrescription.patientName}</h3>
+                              <p className="text-sm text-slate-600">Saved on {viewingPrescription.savedAt}</p>
+                            </div>
+                          </div>
+
+                          {/* Diagnosis */}
+                          <div>
+                            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Diagnosis</p>
+                            <p className="text-base font-semibold text-slate-900">{viewingPrescription.diagnosis}</p>
+                          </div>
+
+                          {/* Symptoms */}
+                          {viewingPrescription.symptoms && (
+                            <div>
+                              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Symptoms</p>
+                              <div className="space-y-1">
+                                {viewingPrescription.symptoms.split('\n').filter(line => line.trim()).map((symptom, idx) => (
+                                  <p key={idx} className="text-sm text-slate-700">• {symptom.trim()}</p>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Medications */}
+                          {viewingPrescription.medications && viewingPrescription.medications.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">
+                                Medications ({viewingPrescription.medications.length})
+                              </p>
+                              <div className="space-y-2">
+                                {viewingPrescription.medications.map((med, idx) => (
+                                  <div key={idx} className="rounded-lg bg-emerald-50 border border-emerald-100 p-3">
+                                    <p className="text-sm font-semibold text-emerald-900">{med.name}</p>
+                                    <p className="text-xs text-emerald-700 mt-1">
+                                      Dosage: {med.dosage} • Frequency: {med.frequency}
+                                      {med.duration && ` • Duration: ${med.duration}`}
+                                    </p>
+                                    {med.instructions && (
+                                      <p className="text-xs text-emerald-600 mt-1">Instructions: {med.instructions}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Investigations */}
+                          {viewingPrescription.investigations && viewingPrescription.investigations.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">
+                                Recommended Tests ({viewingPrescription.investigations.length})
+                              </p>
+                              <div className="space-y-2">
+                                {viewingPrescription.investigations.map((inv, idx) => (
+                                  <div key={idx} className="rounded-lg bg-[rgba(17,73,108,0.1)] border border-[rgba(17,73,108,0.2)] p-3">
+                                    <p className="text-sm font-semibold text-[#0a2d3f]">{inv.name}</p>
+                                    {inv.notes && (
+                                      <p className="text-xs text-[#11496c] mt-1">{inv.notes}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Advice */}
+                          {viewingPrescription.advice && (
+                            <div>
+                              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Medical Advice</p>
+                              <div className="space-y-1">
+                                {viewingPrescription.advice.split('\n').filter(line => line.trim()).map((advice, idx) => (
+                                  <p key={idx} className="text-sm text-slate-700">• {advice.trim()}</p>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Follow-up */}
+                          {viewingPrescription.followUpDate && (
+                            <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3">
+                              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">Follow-up Appointment</p>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {new Date(viewingPrescription.followUpDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="sticky bottom-0 flex gap-3 border-t border-slate-200 bg-white p-4 sm:p-6">
+                          <button
+                            type="button"
+                            onClick={() => setViewingPrescription(null)}
+                            className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Close
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleDownloadPrescription(viewingPrescription)
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52]"
+                          >
+                            <IoDownloadOutline className="h-5 w-5" />
+                            Download PDF
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      /* Saved Prescriptions List */
+                      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-md shadow-slate-200/50">
+                        <div className="mb-5 flex items-center justify-between">
+                          <h3 className="text-lg font-bold text-slate-900">Saved Prescriptions</h3>
+                          <span className="rounded-full bg-[rgba(17,73,108,0.15)] px-3 py-1 text-xs font-semibold text-[#11496c]">
+                            {savedPrescriptions.length} {savedPrescriptions.length === 1 ? 'Prescription' : 'Prescriptions'}
+                          </span>
+                        </div>
 
                       {savedPrescriptions.length === 0 ? (
                         <div className="py-12 text-center">
@@ -868,176 +1640,98 @@ const DoctorConsultations = () => {
                           <p className="mt-1 text-xs text-slate-500">Prescriptions you save will appear here</p>
                         </div>
                       ) : (
-                        <div className="space-y-4">
+                        <div className="space-y-3 sm:space-y-4">
                           {savedPrescriptions.map((prescription) => (
                             <div
                               key={prescription.id}
-                              className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm hover:shadow-md transition-shadow"
+                              className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-lg hover:border-[#11496c]/30 transition-all duration-200"
                             >
-                              <div className="flex items-start gap-4">
-                                <img
-                                  src={prescription.patientImage}
-                                  alt={prescription.patientName}
-                                  className="h-12 w-12 rounded-lg object-cover ring-2 ring-slate-100"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between gap-2">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                {/* Patient Avatar */}
+                                <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl bg-[#11496c] flex items-center justify-center shrink-0 shadow-md">
+                                  <span className="text-white text-lg sm:text-xl font-bold">
+                                    {prescription.patientName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                  </span>
+                                </div>
+
+                                {/* Patient Info & Details */}
+                                <div className="flex-1 min-w-0 w-full sm:w-auto">
+                                  <div className="flex items-start justify-between gap-3 mb-2">
                                     <div className="flex-1 min-w-0">
-                                      <h4 className="text-base font-bold text-slate-900">{prescription.patientName}</h4>
-                                      <p className="mt-1 text-xs text-slate-600">
-                                        Saved on {prescription.savedAt}
-                                      </p>
+                                      <h4 className="text-lg sm:text-xl font-bold text-[#11496c] mb-1">
+                                        {prescription.patientName}
+                                      </h4>
+                                      {prescription.diagnosis && (
+                                        <p className="text-sm font-semibold text-slate-900 mb-1">
+                                          {prescription.diagnosis}
+                                        </p>
+                                      )}
                                     </div>
-                                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-                                      Saved
-                                    </span>
                                   </div>
 
-                                  <div className="mt-4 space-y-3">
-                                    {/* Diagnosis */}
-                                    <div>
-                                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">
-                                        Diagnosis
-                                      </p>
-                                      <p className="text-sm font-semibold text-slate-900">{prescription.diagnosis}</p>
-                                    </div>
-
-                                    {/* Medications */}
-                                    {prescription.medications.length > 0 && (
-                                      <div>
-                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
-                                          Medications ({prescription.medications.length})
-                                        </p>
-                                        <div className="space-y-2">
-                                          {prescription.medications.map((med, idx) => (
-                                            <div
-                                              key={idx}
-                                              className="rounded-lg bg-emerald-50 border border-emerald-100 p-2.5"
-                                            >
-                                              <p className="text-sm font-semibold text-emerald-900">{med.name}</p>
-                                              <p className="text-xs text-emerald-700">
-                                                {med.dosage} • {med.frequency}
-                                                {med.duration && ` • ${med.duration}`}
-                                              </p>
-                                              {med.instructions && (
-                                                <p className="mt-1 text-xs text-emerald-600">{med.instructions}</p>
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
+                                  {/* Additional Information */}
+                                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-slate-600">
+                                    {prescription.savedAt && (
+                                      <div className="flex items-center gap-1">
+                                        <IoTimeOutline className="h-4 w-4 text-slate-500" />
+                                        <span>{prescription.savedAt}</span>
                                       </div>
                                     )}
-
-                                    {/* Investigations */}
-                                    {prescription.investigations.length > 0 && (
-                                      <div>
-                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
-                                          Investigations ({prescription.investigations.length})
-                                        </p>
-                                        <div className="space-y-2">
-                                          {prescription.investigations.map((inv, idx) => (
-                                            <div
-                                              key={idx}
-                                              className="rounded-lg bg-[rgba(17,73,108,0.1)] border border-[rgba(17,73,108,0.2)] p-2.5"
-                                            >
-                                              <p className="text-sm font-semibold text-[#0a2d3f]">{inv.name}</p>
-                                              {inv.notes && (
-                                                <p className="mt-1 text-xs text-[#11496c]">{inv.notes}</p>
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
+                                    {prescription.medications && prescription.medications.length > 0 && (
+                                      <div className="flex items-center gap-1">
+                                        <IoMedicalOutline className="h-4 w-4 text-emerald-600" />
+                                        <span className="font-semibold text-emerald-700">
+                                          {prescription.medications.length} {prescription.medications.length === 1 ? 'Medication' : 'Medications'}
+                                        </span>
                                       </div>
                                     )}
-
-                                    {/* Advice */}
-                                    {prescription.advice && (
-                                      <div>
-                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">
-                                          Advice
-                                        </p>
-                                        <p className="text-sm text-slate-700">{prescription.advice}</p>
-                                      </div>
-                                    )}
-
-                                    {/* Vitals */}
-                                    {(prescription.vitals.bloodPressure.systolic ||
-                                      prescription.vitals.temperature ||
-                                      prescription.vitals.pulse) && (
-                                      <div>
-                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
-                                          Vitals
-                                        </p>
-                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                          {prescription.vitals.bloodPressure.systolic && (
-                                            <div className="rounded-lg bg-slate-50 p-2">
-                                              <p className="text-slate-600">BP</p>
-                                              <p className="font-semibold text-slate-900">
-                                                {prescription.vitals.bloodPressure.systolic}/
-                                                {prescription.vitals.bloodPressure.diastolic} mmHg
-                                              </p>
-                                            </div>
-                                          )}
-                                          {prescription.vitals.temperature && (
-                                            <div className="rounded-lg bg-slate-50 p-2">
-                                              <p className="text-slate-600">Temp</p>
-                                              <p className="font-semibold text-slate-900">
-                                                {prescription.vitals.temperature}°F
-                                              </p>
-                                            </div>
-                                          )}
-                                          {prescription.vitals.pulse && (
-                                            <div className="rounded-lg bg-slate-50 p-2">
-                                              <p className="text-slate-600">Pulse</p>
-                                              <p className="font-semibold text-slate-900">
-                                                {prescription.vitals.pulse} bpm
-                                              </p>
-                                            </div>
-                                          )}
-                                          {prescription.vitals.bmi && (
-                                            <div className="rounded-lg bg-slate-50 p-2">
-                                              <p className="text-slate-600">BMI</p>
-                                              <p className="font-semibold text-slate-900">{prescription.vitals.bmi}</p>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Attachments */}
-                                    {prescription.attachments.length > 0 && (
-                                      <div>
-                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
-                                          Attachments ({prescription.attachments.length})
-                                        </p>
-                                        <div className="flex flex-wrap gap-2">
-                                          {prescription.attachments.map((att, idx) => (
-                                            <div
-                                              key={idx}
-                                              className="flex items-center gap-2 rounded-lg bg-slate-100 px-2.5 py-1.5"
-                                            >
-                                              <IoAttachOutline className="h-4 w-4 text-slate-600" />
-                                              <span className="text-xs font-medium text-slate-700">{att.name}</span>
-                                            </div>
-                                          ))}
-                                        </div>
+                                    {prescription.investigations && prescription.investigations.length > 0 && (
+                                      <div className="flex items-center gap-1">
+                                        <IoFlaskOutline className="h-4 w-4 text-purple-600" />
+                                        <span className="font-semibold text-purple-700">
+                                          {prescription.investigations.length} {prescription.investigations.length === 1 ? 'Test' : 'Tests'}
+                                        </span>
                                       </div>
                                     )}
                                   </div>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center gap-2 sm:gap-3 shrink-0 w-full sm:w-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingPrescription(prescription)}
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 sm:h-11 px-4 rounded-lg border-2 border-[#11496c] bg-white text-[#11496c] shadow-sm transition-all hover:bg-[#11496c] hover:text-white active:scale-95"
+                                    title="View Prescription"
+                                  >
+                                    <IoEyeOutline className="h-5 w-5" />
+                                    <span className="text-sm font-semibold">View</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadPrescription(prescription)}
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 sm:h-11 px-4 rounded-lg bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
+                                    title="Download PDF"
+                                  >
+                                    <IoDownloadOutline className="h-5 w-5" />
+                                    <span className="text-sm font-semibold">Download</span>
+                                  </button>
                                 </div>
                               </div>
                             </div>
                           ))}
                         </div>
                       )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* History Tab */}
-                {activeTab === 'history' && patientHistory && (
-                  <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-md shadow-slate-200/50">
-                    <h3 className="mb-5 text-lg font-bold text-slate-900">Full Medical History</h3>
+                {activeTab === 'history' && (
+                  <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 shadow-md shadow-slate-200/50">
+                    <h3 className="mb-4 sm:mb-5 text-base sm:text-lg font-bold text-slate-900">Patient Medical History</h3>
+                    {patientHistory ? (
                     <div className="space-y-6">
                       {/* Personal Info */}
                       <div>
@@ -1061,6 +1755,143 @@ const DoctorConsultations = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Conditions */}
+                      <div>
+                        <h4 className="mb-3 text-sm font-semibold text-slate-900 uppercase tracking-wide">
+                          Conditions
+                        </h4>
+                        <div className="space-y-2">
+                          {patientHistory.conditions.map((condition, idx) => (
+                            <div key={idx} className="rounded-lg bg-slate-50 p-3">
+                              <p className="text-sm font-semibold text-slate-900">{condition.name}</p>
+                              <p className="text-xs text-slate-600 mt-1">
+                                Since {formatDate(condition.diagnosedDate)} • {condition.status}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Allergies */}
+                      <div>
+                        <h4 className="mb-3 text-sm font-semibold text-slate-900 uppercase tracking-wide">
+                          Allergies
+                        </h4>
+                        <div className="space-y-2">
+                          {patientHistory.allergies.map((allergy, idx) => (
+                            <div key={idx} className="rounded-lg bg-red-50 p-3">
+                              <p className="text-sm font-semibold text-red-900">{allergy.name}</p>
+                              <p className="text-xs text-red-700 mt-1">
+                                {allergy.severity} • {allergy.reaction}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Current Medications */}
+                      <div>
+                        <h4 className="mb-3 text-sm font-semibold text-slate-900 uppercase tracking-wide">
+                          Current Medications
+                        </h4>
+                        <div className="space-y-2">
+                          {patientHistory.medications.map((med, idx) => (
+                            <div key={idx} className="rounded-lg bg-emerald-50 p-3">
+                              <p className="text-sm font-semibold text-emerald-900">{med.name}</p>
+                              <p className="text-xs text-emerald-700 mt-1">
+                                {med.dosage} • {med.frequency}
+                              </p>
+                              <p className="text-xs text-emerald-600 mt-1">Since {formatDate(med.startDate)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Vitals Records */}
+                      {(() => {
+                        try {
+                          const historyKey = `patientHistory_${selectedConsultation?.patientId}`
+                          const savedHistory = JSON.parse(localStorage.getItem(historyKey) || '{}')
+                          const vitalsRecords = savedHistory.vitalsRecords || []
+                          
+                          if (vitalsRecords.length > 0) {
+                            return (
+                              <div>
+                                <h4 className="mb-3 text-sm font-semibold text-slate-900 uppercase tracking-wide">
+                                  Vitals Records
+                                </h4>
+                                <div className="space-y-3 max-h-96 overflow-y-auto">
+                                  {vitalsRecords.map((vital, idx) => (
+                                    <div key={idx} className="rounded-lg border border-slate-200 bg-white p-4">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <p className="text-xs font-semibold text-slate-600">
+                                          {vital.recordedAt || formatDate(vital.date)}
+                                        </p>
+                                      </div>
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                                        {vital.bloodPressure?.systolic && vital.bloodPressure?.diastolic && (
+                                          <div>
+                                            <p className="text-slate-600">BP</p>
+                                            <p className="font-semibold text-slate-900">
+                                              {vital.bloodPressure.systolic}/{vital.bloodPressure.diastolic} mmHg
+                                            </p>
+                                          </div>
+                                        )}
+                                        {vital.temperature && (
+                                          <div>
+                                            <p className="text-slate-600">Temp</p>
+                                            <p className="font-semibold text-slate-900">{vital.temperature} °F</p>
+                                          </div>
+                                        )}
+                                        {vital.pulse && (
+                                          <div>
+                                            <p className="text-slate-600">Pulse</p>
+                                            <p className="font-semibold text-slate-900">{vital.pulse} bpm</p>
+                                          </div>
+                                        )}
+                                        {vital.respiratoryRate && (
+                                          <div>
+                                            <p className="text-slate-600">RR</p>
+                                            <p className="font-semibold text-slate-900">{vital.respiratoryRate} /min</p>
+                                          </div>
+                                        )}
+                                        {vital.oxygenSaturation && (
+                                          <div>
+                                            <p className="text-slate-600">SpO2</p>
+                                            <p className="font-semibold text-slate-900">{vital.oxygenSaturation}%</p>
+                                          </div>
+                                        )}
+                                        {vital.weight && (
+                                          <div>
+                                            <p className="text-slate-600">Weight</p>
+                                            <p className="font-semibold text-slate-900">{vital.weight} kg</p>
+                                          </div>
+                                        )}
+                                        {vital.height && (
+                                          <div>
+                                            <p className="text-slate-600">Height</p>
+                                            <p className="font-semibold text-slate-900">{vital.height} cm</p>
+                                          </div>
+                                        )}
+                                        {vital.bmi && (
+                                          <div>
+                                            <p className="text-slate-600">BMI</p>
+                                            <p className="font-semibold text-slate-900">{vital.bmi}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          }
+                        } catch (error) {
+                          console.error('Error loading vitals records:', error)
+                        }
+                        return null
+                      })()}
 
                       {/* Previous Consultations */}
                       <div>
@@ -1129,10 +1960,18 @@ const DoctorConsultations = () => {
                         </div>
                       </div>
                     </div>
+                    ) : (
+                      <div className="py-12 text-center">
+                        <IoMedicalOutline className="mx-auto h-16 w-16 text-slate-300" />
+                        <p className="mt-4 text-sm font-medium text-slate-600">No medical history available</p>
+                        <p className="mt-1 text-xs text-slate-500">This appears to be the patient's first visit</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
+          </div>
           ) : (
             <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
               <IoDocumentTextOutline className="mx-auto h-12 w-12 text-slate-300" />
@@ -1301,6 +2140,7 @@ const DoctorConsultations = () => {
           </div>
         </div>
       )}
+
     </>
   )
 }

@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IoArrowBackOutline,
   IoPeopleOutline,
   IoSearchOutline,
   IoCallOutline,
@@ -106,20 +105,6 @@ const LaboratoryPatients = () => {
 
   return (
     <section className="flex flex-col gap-4 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-        >
-          <IoArrowBackOutline className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Patients</h1>
-          <p className="text-sm text-slate-600">{filteredPatients.length} patients</p>
-        </div>
-      </div>
-
       {/* Search Bar */}
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">

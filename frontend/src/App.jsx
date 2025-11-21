@@ -19,6 +19,7 @@ import PatientLogin from './modules/patient/patient-pages/PatientLogin'
 import PatientTransactions from './modules/patient/patient-pages/PatientTransactions'
 import PatientAppointments from './modules/patient/patient-pages/PatientAppointments'
 import PatientOrders from './modules/patient/patient-pages/PatientOrders'
+import PatientSupport from './modules/patient/patient-pages/PatientSupport'
 import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
 import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
 import DoctorDashboard from './modules/doctor/doctor-pages/DoctorDashboard'
@@ -30,6 +31,7 @@ import WalletWithdraw from './modules/doctor/doctor-pages/WalletWithdraw'
 import WalletTransaction from './modules/doctor/doctor-pages/WalletTransaction'
 import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
 import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
+import DoctorSupport from './modules/doctor/doctor-pages/DoctorSupport'
 import PharmacyNavbar from './modules/pharmacy/pharmacy-components/PharmacyNavbar'
 import { PharmacySidebarProvider } from './modules/pharmacy/pharmacy-components/PharmacySidebarContext'
 import PharmacyDashboard from './modules/pharmacy/pharmacy-pages/PharmacyDashboard'
@@ -43,6 +45,7 @@ import PharmacyWalletBalance from './modules/pharmacy/pharmacy-pages/WalletBalan
 import PharmacyWalletEarning from './modules/pharmacy/pharmacy-pages/WalletEarning'
 import PharmacyWalletWithdraw from './modules/pharmacy/pharmacy-pages/WalletWithdraw'
 import PharmacyWalletTransaction from './modules/pharmacy/pharmacy-pages/WalletTransaction'
+import PharmacySupport from './modules/pharmacy/pharmacy-pages/PharmacySupport'
 import LaboratoryNavbar from './modules/laboratory/laboratory-components/LaboratoryNavbar'
 import LaboratoryDashboard from './modules/laboratory/laboratory-pages/LaboratoryDashboard'
 import LaboratoryOrders from './modules/laboratory/laboratory-pages/LaboratoryOrders'
@@ -55,6 +58,7 @@ import LaboratoryWalletBalance from './modules/laboratory/laboratory-pages/Walle
 import LaboratoryWalletEarning from './modules/laboratory/laboratory-pages/WalletEarning'
 import LaboratoryWalletWithdraw from './modules/laboratory/laboratory-pages/WalletWithdraw'
 import LaboratoryWalletTransaction from './modules/laboratory/laboratory-pages/WalletTransaction'
+import LaboratorySupport from './modules/laboratory/laboratory-pages/LaboratorySupport'
 import AdminNavbar from './modules/admin/admin-components/AdminNavbar'
 import AdminLogin from './modules/admin/admin-pages/AdminLogin'
 import AdminDashboard from './modules/admin/admin-pages/AdminDashboard'
@@ -65,6 +69,7 @@ import AdminLaboratories from './modules/admin/admin-pages/AdminLaboratories'
 import AdminVerification from './modules/admin/admin-pages/AdminVerification'
 import AdminProfile from './modules/admin/admin-pages/AdminProfile'
 import AdminWallet from './modules/admin/admin-pages/AdminWallet'
+import AdminSupport from './modules/admin/admin-pages/AdminSupport'
 
 function PatientRoutes() {
   const location = useLocation()
@@ -95,6 +100,7 @@ function PatientRoutes() {
                     <Route path="/transactions" element={<PatientTransactions />} />
                     <Route path="/appointments" element={<PatientAppointments />} />
           <Route path="/orders" element={<PatientOrders />} />
+          <Route path="/support" element={<PatientSupport />} />
         </Routes>
       </main>
     </>
@@ -121,6 +127,7 @@ function DoctorRoutes() {
           <Route path="/patients" element={<DoctorPatients />} />
           <Route path="/consultations" element={<DoctorConsultations />} />
           <Route path="/profile" element={<DoctorProfile />} />
+          <Route path="/support" element={<DoctorSupport />} />
         </Routes>
       </main>
     </>
@@ -158,6 +165,7 @@ function App() {
                     <Route path="/wallet/earning" element={<PharmacyWalletEarning />} />
                     <Route path="/wallet/withdraw" element={<PharmacyWalletWithdraw />} />
                     <Route path="/wallet/transaction" element={<PharmacyWalletTransaction />} />
+                    <Route path="/support" element={<PharmacySupport />} />
                   </Routes>
                 </main>
               </PharmacySidebarProvider>
@@ -183,6 +191,7 @@ function App() {
                     <Route path="/wallet/earning" element={<LaboratoryWalletEarning />} />
                     <Route path="/wallet/withdraw" element={<LaboratoryWalletWithdraw />} />
                     <Route path="/wallet/transaction" element={<LaboratoryWalletTransaction />} />
+                    <Route path="/support" element={<LaboratorySupport />} />
                   </Routes>
                 </main>
               </>
@@ -207,6 +216,7 @@ function App() {
                     <Route path="/wallet" element={<AdminWallet />} />
                     <Route path="/verification" element={<AdminVerification />} />
                     <Route path="/profile" element={<AdminProfile />} />
+                    <Route path="/support" element={<AdminSupport />} />
                   </Routes>
                 </main>
               </>

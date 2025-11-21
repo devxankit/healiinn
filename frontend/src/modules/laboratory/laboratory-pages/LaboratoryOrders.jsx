@@ -1,7 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  IoArrowBackOutline,
   IoBagHandleOutline,
   IoCheckmarkCircleOutline,
   IoTimeOutline,
@@ -100,7 +98,6 @@ const formatCurrency = (value) => {
 }
 
 const LaboratoryOrders = () => {
-  const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrder, setSelectedOrder] = useState(null)

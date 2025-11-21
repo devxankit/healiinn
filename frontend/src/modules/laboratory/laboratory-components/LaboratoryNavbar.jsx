@@ -8,27 +8,23 @@ import {
   IoMenuOutline,
   IoNotificationsOutline,
   IoPeopleOutline,
+  IoHelpCircleOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import LaboratorySidebar from './LaboratorySidebar'
 
-// Header/footer nav (includes wallet icon, same as sidebar menu)
-const navItems = [
-  { id: 'home', label: 'Home', to: '/laboratory/dashboard', Icon: IoHomeOutline },
-  { id: 'orders', label: 'Orders', to: '/laboratory/orders', Icon: IoBagHandleOutline },
-  { id: 'reports', label: 'Patients', to: '/laboratory/patients', Icon: IoPeopleOutline },
-  { id: 'wallet', label: 'Wallet', to: '/laboratory/wallet', Icon: IoWalletOutline },
-  { id: 'profile', label: 'Profile', to: '/laboratory/profile', Icon: IoPersonCircleOutline },
-]
-
-// Sidebar nav (includes Wallet, but no Services page)
+// Sidebar nav and desktop navbar (includes Support above Profile)
 const sidebarNavItems = [
   { id: 'home', label: 'Home', to: '/laboratory/dashboard', Icon: IoHomeOutline },
   { id: 'orders', label: 'Orders', to: '/laboratory/orders', Icon: IoBagHandleOutline },
   { id: 'reports', label: 'Patients', to: '/laboratory/patients', Icon: IoPeopleOutline },
   { id: 'wallet', label: 'Wallet', to: '/laboratory/wallet', Icon: IoWalletOutline },
+  { id: 'support', label: 'Support', to: '/laboratory/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/laboratory/profile', Icon: IoPersonCircleOutline },
 ]
+
+// Bottom nav items (without Support)
+const navItems = sidebarNavItems.filter((item) => item.id !== 'support')
 
 const LaboratoryNavbar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -82,7 +78,7 @@ const LaboratoryNavbar = () => {
           />
         </div>
         <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-slate-200 md:flex">
-          {navItems.map(({ id, label, to, Icon }) => (
+          {sidebarNavItems.map(({ id, label, to, Icon }) => (
             <NavLink
               key={id}
               to={to}

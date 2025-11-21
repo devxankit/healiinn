@@ -8,6 +8,7 @@ import {
   IoFlaskOutline,
   IoWalletOutline,
   IoShieldCheckmarkOutline,
+  IoHelpCircleOutline,
 } from 'react-icons/io5'
 
 const sidebarNavItems = [
@@ -18,6 +19,7 @@ const sidebarNavItems = [
   { id: 'laboratories', label: 'Laboratories', to: '/admin/laboratories', Icon: IoFlaskOutline },
   { id: 'pharmacies', label: 'Pharmacies', to: '/admin/pharmacies', Icon: IoBusinessOutline },
   { id: 'wallet', label: 'Wallet', to: '/admin/wallet', Icon: IoWalletOutline },
+  { id: 'support', label: 'Support', to: '/admin/support', Icon: IoHelpCircleOutline },
 ]
 
 const AdminSidebar = ({ isOpen, onClose, onLogout }) => {
