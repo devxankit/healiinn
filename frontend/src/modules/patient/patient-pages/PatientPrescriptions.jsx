@@ -397,20 +397,6 @@ const PatientPrescriptions = () => {
 
   return (
     <section className="flex flex-col gap-4 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => window.history.back()}
-          className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-        >
-          <IoArrowBackOutline className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Prescriptions</h1>
-          <p className="text-sm text-slate-600">View all prescriptions shared by doctors</p>
-        </div>
-      </div>
-
       {/* Filter Tabs */}
       <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-1">
         {[

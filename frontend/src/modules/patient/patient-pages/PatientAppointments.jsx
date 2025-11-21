@@ -110,17 +110,6 @@ const PatientAppointments = () => {
   if (!mockAppointments || mockAppointments.length === 0) {
     return (
       <section className="flex flex-col gap-4 pb-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-          >
-            <IoArrowBackOutline className="h-5 w-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">All Appointments</h1>
-          </div>
-        </div>
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <p className="text-lg font-semibold text-slate-700">No appointments available</p>
         </div>
@@ -177,20 +166,6 @@ const PatientAppointments = () => {
 
   return (
     <section className="flex flex-col gap-4 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-        >
-          <IoArrowBackOutline className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">All Appointments</h1>
-          <p className="text-sm text-slate-600">{filteredAppointments.length} appointments</p>
-        </div>
-      </div>
-
       {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
         {['all', 'confirmed', 'completed', 'cancelled', 'pending'].map((status) => (

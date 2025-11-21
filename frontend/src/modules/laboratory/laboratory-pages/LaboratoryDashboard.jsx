@@ -20,6 +20,7 @@ import {
   IoFlaskOutline,
   IoTrendingUpOutline,
   IoTrendingDownOutline,
+  IoChatbubbleOutline,
 } from 'react-icons/io5'
 
 const mockStats = {
@@ -27,6 +28,8 @@ const mockStats = {
   activePatients: 124,
   testReports: 45,
   notifications: 7,
+  recentOrders: 3,
+  requestResponses: 2,
   thisMonthEarnings: 18500.00,
   lastMonthEarnings: 16200.50,
   thisMonthOrders: 18,
@@ -44,6 +47,7 @@ const todayOrders = [
     deliveryType: 'home',
     testRequestId: 'test-3021',
     tests: ['Complete Blood Count (CBC)', 'Blood Glucose (Fasting)'],
+    createdAt: new Date().toISOString(),
   },
   {
     id: 'order-2',
@@ -55,6 +59,7 @@ const todayOrders = [
     deliveryType: 'pickup',
     testRequestId: 'test-3022',
     tests: ['Lipid Profile'],
+    createdAt: new Date().toISOString(),
   },
   {
     id: 'order-3',
@@ -66,6 +71,7 @@ const todayOrders = [
     deliveryType: 'home',
     testRequestId: 'test-3023',
     tests: ['Liver Function Test (LFT)', 'Kidney Function Test (KFT)'],
+    createdAt: new Date().toISOString(),
   },
   {
     id: 'order-4',
@@ -77,6 +83,7 @@ const todayOrders = [
     deliveryType: 'pickup',
     testRequestId: 'test-3024',
     tests: ['Thyroid Function Test'],
+    createdAt: new Date().toISOString(),
   },
 ]
 
@@ -271,7 +278,7 @@ const LaboratoryDashboard = () => {
         </header>
 
         {/* Stats Cards Grid */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {/* Total Orders */}
           <article
             onClick={() => navigate('/laboratory/orders')}
@@ -335,6 +342,46 @@ const LaboratoryDashboard = () => {
               </div>
             </div>
             <p className="text-[10px] text-slate-600 leading-tight">New alerts</p>
+          </article>
+
+          {/* Orders Card - Similar to Patient Dashboard */}
+          <article
+            onClick={() => navigate('/laboratory/orders')}
+            className="relative overflow-hidden rounded-xl border border-slate-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-700 leading-tight flex-1 min-w-0 pr-1">
+                ORDERS
+              </h3>
+              <div
+                className="flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0"
+                style={{ backgroundColor: '#3B82F6' }}
+              >
+                <IoBagHandleOutline className="h-4 w-4 text-white" />
+              </div>
+            </div>
+            <p className="text-xl font-bold text-slate-900 mb-0.5 leading-none">{mockStats.recentOrders}</p>
+            <p className="text-[10px] text-slate-500 leading-tight">Recent</p>
+          </article>
+
+          {/* Requests/Responses Card - Similar to Patient Dashboard */}
+          <article
+            onClick={() => navigate('/laboratory/requests')}
+            className="relative overflow-hidden rounded-xl border border-slate-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-700 leading-tight flex-1 min-w-0 pr-1">
+                REQUESTS
+              </h3>
+              <div
+                className="flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0"
+                style={{ backgroundColor: '#8B5CF6' }}
+              >
+                <IoChatbubbleOutline className="h-4 w-4 text-white" />
+              </div>
+            </div>
+            <p className="text-xl font-bold text-slate-900 mb-0.5 leading-none">{mockStats.requestResponses}</p>
+            <p className="text-[10px] text-slate-500 leading-tight">Responses</p>
           </article>
         </div>
 

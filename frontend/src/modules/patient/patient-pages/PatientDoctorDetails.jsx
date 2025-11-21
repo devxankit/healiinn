@@ -306,14 +306,6 @@ const PatientDoctorDetails = () => {
 
   return (
     <section className="flex flex-col gap-6 pb-4">
-      <button
-        onClick={() => navigate('/patient/doctors')}
-        className="flex items-center gap-2 text-sm font-semibold text-[#11496c] hover:text-[#0d3a52] self-start"
-      >
-        <IoArrowBackOutline className="h-5 w-5" aria-hidden="true" />
-        Back to Doctors
-      </button>
-
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="relative shrink-0">

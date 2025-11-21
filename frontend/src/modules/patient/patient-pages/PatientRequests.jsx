@@ -1,13 +1,19 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IoArrowBackOutline,
   IoCheckmarkCircleOutline,
   IoCloseOutline,
+  IoCloseCircleOutline,
   IoBagHandleOutline,
   IoFlaskOutline,
   IoCardOutline,
   IoReceiptOutline,
+  IoPersonOutline,
+  IoCallOutline,
+  IoMailOutline,
+  IoLocationOutline,
+  IoDocumentTextOutline,
+  IoTimeOutline,
 } from 'react-icons/io5'
 
 // Mock data for booking requests and responses
@@ -24,6 +30,27 @@ const mockRequests = [
     totalAmount: 350,
     message: 'Your booking request has been accepted. Please proceed with payment.',
     prescriptionId: 'presc-1',
+    // Patient Information
+    patient: {
+      name: 'John Doe',
+      phone: '+91 98765 12345',
+      email: 'john.doe@example.com',
+      address: '123 Main Street, Pune, Maharashtra 411001',
+      age: 32,
+      gender: 'Male',
+    },
+    // Provider Response
+    providerResponse: {
+      message: 'Your booking request has been accepted. Sample collection can be scheduled at your home address on Jan 15, 2025. Total amount: ₹350. Please proceed with payment.',
+      responseBy: 'MediCare Diagnostics Team',
+      responseTime: '2025-01-11T10:30:00',
+    },
+    // Doctor Information (from prescription)
+    doctor: {
+      name: 'Dr. Rajesh Kumar',
+      specialty: 'General Physician',
+      phone: '+91 98765 43210',
+    },
   },
   {
     id: 'req-2',
@@ -37,6 +64,57 @@ const mockRequests = [
     totalAmount: 1250,
     message: 'Medicines are available. Total amount: ₹1,250. Please confirm and pay.',
     prescriptionId: 'presc-2',
+    // Patient Information
+    patient: {
+      name: 'John Doe',
+      phone: '+91 98765 12345',
+      email: 'john.doe@example.com',
+      address: '123 Main Street, Pune, Maharashtra 411001',
+      age: 32,
+      gender: 'Male',
+    },
+    // Provider Response
+    providerResponse: {
+      message: 'All prescribed medicines are available in stock. We can deliver to your address within 2-3 hours. Total amount: ₹1,250. Please confirm and proceed with payment.',
+      responseBy: 'City Pharmacy Team',
+      responseTime: '2025-01-13T14:20:00',
+    },
+    // Doctor Information (from prescription)
+    doctor: {
+      name: 'Dr. Priya Sharma',
+      specialty: 'Cardiologist',
+      phone: '+91 98765 54321',
+    },
+  },
+  {
+    id: 'req-3',
+    type: 'lab',
+    providerName: 'HealthLab Center',
+    providerId: 'lab-2',
+    testName: 'Blood Glucose Test',
+    status: 'pending',
+    requestDate: '2025-01-14',
+    responseDate: null,
+    totalAmount: null,
+    message: null,
+    prescriptionId: 'presc-3',
+    // Patient Information
+    patient: {
+      name: 'John Doe',
+      phone: '+91 98765 12345',
+      email: 'john.doe@example.com',
+      address: '123 Main Street, Pune, Maharashtra 411001',
+      age: 32,
+      gender: 'Male',
+    },
+    // Provider Response (pending)
+    providerResponse: null,
+    // Doctor Information (from prescription)
+    doctor: {
+      name: 'Dr. Rajesh Kumar',
+      specialty: 'General Physician',
+      phone: '+91 98765 43210',
+    },
   },
 ]
 
@@ -66,6 +144,8 @@ const PatientRequests = () => {
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('card')
+  const [requests, setRequests] = useState(mockRequests)
+  const [cancelledRequests, setCancelledRequests] = useState([])
 
   const handlePayClick = (request) => {
     setSelectedRequest(request)
@@ -93,6 +173,44 @@ const PatientRequests = () => {
     }, 2000)
   }
 
+  const handleCancelRequest = async (request) => {
+    if (!request) return
+
+    // Confirm cancellation
+    const confirmCancel = window.confirm(
+      `Are you sure you want to cancel this ${request.type === 'lab' ? 'lab test' : 'pharmacy'} request?`
+    )
+
+    if (!confirmCancel) return
+
+    setIsProcessing(true)
+
+    // Simulate sending cancel request to pharmacy/laboratory
+    setTimeout(() => {
+      setIsProcessing(false)
+      
+      // In real app, this would be an API call to send cancel message to provider
+      const cancelMessage = {
+        requestId: request.id,
+        type: request.type,
+        providerId: request.providerId,
+        providerName: request.providerName,
+        message: `Request has been cancelled by patient. Request ID: ${request.id}`,
+        cancelledAt: new Date().toISOString(),
+      }
+      
+      // Log cancel request (in real app, this would be an API call)
+      console.log('Cancel request sent to provider:', cancelMessage)
+      
+      // Remove the request from the list (actually cancel it)
+      setRequests(prevRequests => prevRequests.filter(req => req.id !== request.id))
+      setCancelledRequests(prev => [...prev, { ...request, status: 'cancelled', cancelledAt: new Date().toISOString() }])
+      
+      // Show success message
+      alert(`Request cancelled successfully. Cancellation message sent to ${request.providerName}.`)
+    }, 1500)
+  }
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending':
@@ -105,6 +223,21 @@ const PatientRequests = () => {
         return 'bg-emerald-100 text-emerald-700'
       default:
         return 'bg-slate-100 text-slate-700'
+    }
+  }
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'pending':
+        return <IoTimeOutline className="h-3 w-3" />
+      case 'accepted':
+        return <IoCheckmarkCircleOutline className="h-3 w-3" />
+      case 'paid':
+        return <IoCardOutline className="h-3 w-3" />
+      case 'confirmed':
+        return <IoCheckmarkCircleOutline className="h-3 w-3" />
+      default:
+        return null
     }
   }
 
@@ -125,33 +258,16 @@ const PatientRequests = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur-sm">
-        <div className="flex items-center gap-4 px-4 py-4 sm:px-6">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-slate-200 active:scale-95"
-            aria-label="Go back"
-          >
-            <IoArrowBackOutline className="h-5 w-5" />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-slate-900">Requests & Responses</h1>
-            <p className="text-xs text-slate-600">Manage your booking requests and payments</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="px-4 py-6 sm:px-6">
-        <div className="space-y-3">
-          {mockRequests.map((request) => (
+      <main className="px-4 py-5 sm:px-6">
+        <div className="space-y-4">
+          {requests.map((request) => (
             <article
               key={request.id}
               className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
             >
               {/* Main Content */}
-              <div className="p-4">
-                <div className="flex items-start gap-3">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
                     request.type === 'lab' 
                       ? 'text-white shadow-lg' 
@@ -169,55 +285,138 @@ const PatientRequests = () => {
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-bold text-slate-900">
+                    {/* Title and Status - Prevent Overlap */}
+                    <div className="mb-3">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <h3 className="flex-1 min-w-0 text-base font-bold text-slate-900 leading-tight pr-2 line-clamp-2">
                           {request.type === 'lab' ? request.testName : request.medicineName}
                         </h3>
-                        <p className="mt-0.5 text-xs text-slate-600">{request.providerName}</p>
-                        <p className="mt-1 text-[10px] text-slate-500">
-                          {formatDate(request.requestDate)} • {request.responseDate && formatDate(request.responseDate)}
-                        </p>
-                      </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${getStatusColor(request.status)}`}>
-                        {getStatusLabel(request.status)}
-                      </span>
-                    </div>
-
-                    {/* Payment Info - Inline */}
-                    {request.status === 'accepted' && (
-                      <div className="mt-3 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.1)]/50 p-2.5">
-                        <p className="text-xs text-[#0a2d3f] leading-relaxed">{request.message}</p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-700">Total Amount:</span>
-                          <span className="text-lg font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
+                        <div className="shrink-0">
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${getStatusColor(request.status)}`}>
+                            {getStatusIcon(request.status)}
+                            <span>{getStatusLabel(request.status)}</span>
+                          </span>
                         </div>
                       </div>
-                    )}
-
-                    {/* Confirmed Status - Compact */}
-                    {request.status === 'confirmed' && (
-                      <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 p-2.5">
-                        <IoCheckmarkCircleOutline className="h-4 w-4 shrink-0 text-emerald-600" />
-                        <p className="text-xs font-semibold text-emerald-900 leading-relaxed">
-                          Booking confirmed! {request.type === 'lab' ? 'Test' : 'Medicine'} will be delivered as scheduled.
-                        </p>
-                      </div>
-                    )}
+                      <p className="text-xs text-slate-600 mb-1">{request.providerName}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {formatDate(request.requestDate)} • {request.responseDate && formatDate(request.responseDate)}
+                      </p>
+                    </div>
                   </div>
                 </div>
+
+                {/* Patient Information Section - Full Width */}
+                {request.patient && (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <IoPersonOutline className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                      <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Patient Information</h4>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-slate-700">
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">{request.patient.name}</span>
+                        <span className="text-slate-400">•</span>
+                        <span className="text-slate-500 text-[9px]">{request.patient.age} yrs, {request.patient.gender}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <IoCallOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{request.patient.phone}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <IoMailOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{request.patient.email}</span>
+                      </div>
+                      <div className="flex items-center gap-1 min-w-0 flex-1">
+                        <IoLocationOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                        <span className="truncate">{request.patient.address}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Provider Response Section - Full Width */}
+                {request.providerResponse ? (
+                  <div className="mt-3 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      {request.type === 'lab' ? (
+                        <IoFlaskOutline className="h-3.5 w-3.5 text-[#11496c] shrink-0" />
+                      ) : (
+                        <IoBagHandleOutline className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      )}
+                      <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">
+                        Response from {request.providerName}
+                      </h4>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-[10px] text-slate-700 leading-relaxed line-clamp-2">{request.providerResponse.message}</p>
+                      {request.totalAmount && (
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="font-semibold text-slate-600 uppercase tracking-wide">Total Amount:</span>
+                          <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-[9px] text-slate-500 pt-2 border-t border-slate-200/50">
+                        <span className="truncate flex-1 mr-2">{request.providerResponse.responseBy}</span>
+                        {request.providerResponse.responseTime && (
+                          <span className="flex items-center gap-0.5 shrink-0">
+                            <IoTimeOutline className="h-2.5 w-2.5" />
+                            {formatDate(request.providerResponse.responseTime)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <div className="flex items-center gap-1.5">
+                      <IoTimeOutline className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <p className="text-[10px] font-medium text-amber-900 leading-tight">
+                        Waiting for response from {request.providerName}...
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Doctor Information */}
+                {request.doctor && (
+                  <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-500 px-1">
+                    <IoDocumentTextOutline className="h-3 w-3 shrink-0" />
+                    <span className="leading-tight">Prescribed by: <span className="font-medium text-slate-700">{request.doctor.name}</span> ({request.doctor.specialty})</span>
+                  </div>
+                )}
+
+                {/* Confirmed Status - Compact */}
+                {request.status === 'confirmed' && (
+                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 p-3">
+                    <IoCheckmarkCircleOutline className="h-4 w-4 shrink-0 text-emerald-600" />
+                    <p className="text-xs font-semibold text-emerald-900 leading-relaxed">
+                      Booking confirmed! {request.type === 'lab' ? 'Test' : 'Medicine'} will be delivered as scheduled.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}
               {request.status === 'accepted' && (
-                <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-3">
+                <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-2.5 sm:p-3">
                   <button
                     type="button"
                     onClick={() => handlePayClick(request)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98]"
+                    disabled={isProcessing}
+                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-[#11496c] px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <IoCardOutline className="h-4 w-4" />
+                    <IoCardOutline className="h-3 w-3 shrink-0" />
                     Pay & Confirm
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCancelRequest(request)}
+                    disabled={isProcessing}
+                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-red-600 px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(220,38,38,0.3)] transition-all hover:bg-red-700 hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <IoCloseCircleOutline className="h-3 w-3 shrink-0" />
+                    Cancel
                   </button>
                   <button
                     type="button"
@@ -396,10 +595,10 @@ const PatientRequests = () => {
                       
                       downloadReceipt()
                     }}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow active:scale-95"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-700 text-white shadow-sm shadow-[rgba(51,65,85,0.3)] transition-all hover:bg-slate-800 hover:shadow active:scale-95"
                     aria-label="Download receipt"
                   >
-                    <IoReceiptOutline className="h-5 w-5" />
+                    <IoReceiptOutline className="h-4 w-4" />
                   </button>
                 </div>
               )}

@@ -25,6 +25,7 @@ import {
   IoPersonOutline,
   IoMailOutline,
   IoShareSocialOutline,
+  IoDownloadOutline,
 } from 'react-icons/io5'
 
 const testCategories = [
@@ -141,6 +142,10 @@ const mockReports = [
     date: '2025-01-10',
     status: 'completed',
     downloadUrl: '#',
+    doctorId: 'doc-1', // Doctor who prescribed the test (treating doctor)
+    doctorName: 'Dr. Sarah Mitchell',
+    doctorSpecialty: 'Cardiology',
+    doctorImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
   },
   {
     id: 'report-2',
@@ -149,6 +154,10 @@ const mockReports = [
     date: '2025-01-08',
     status: 'completed',
     downloadUrl: '#',
+    doctorId: 'doc-2', // Doctor who prescribed the test (treating doctor)
+    doctorName: 'Dr. John Smith',
+    doctorSpecialty: 'General Medicine',
+    doctorImage: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
   },
   {
     id: 'report-3',
@@ -157,6 +166,10 @@ const mockReports = [
     date: '2025-01-12',
     status: 'pending',
     downloadUrl: null,
+    doctorId: null, // No doctor associated with this test
+    doctorName: null,
+    doctorSpecialty: null,
+    doctorImage: null,
   },
 ]
 
@@ -276,6 +289,34 @@ const mockPatientData = {
   },
 }
 
+// Mock doctors list for sharing
+const mockDoctors = [
+  {
+    id: 'doc-1',
+    name: 'Dr. Sarah Mitchell',
+    specialty: 'Cardiology',
+    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'doc-2',
+    name: 'Dr. John Smith',
+    specialty: 'General Medicine',
+    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'doc-3',
+    name: 'Dr. James Wilson',
+    specialty: 'Orthopedic',
+    image: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'doc-4',
+    name: 'Dr. Emily Chen',
+    specialty: 'Neurology',
+    image: 'https://images.unsplash.com/photo-1594824476968-48fd8d2d7dc2?auto=format&fit=crop&w=400&q=80',
+  },
+]
+
 const PatientLaboratory = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
@@ -291,6 +332,11 @@ const PatientLaboratory = () => {
   const [detailLabId, setDetailLabId] = useState(null)
   const [showAllReports, setShowAllReports] = useState(false)
   const [showAllTests, setShowAllTests] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [selectedReport, setSelectedReport] = useState(null)
+  const [isSharing, setIsSharing] = useState(false)
+  const [selectedDoctorId, setSelectedDoctorId] = useState(null)
 
   const detailLab = useMemo(
     () => mockLabs.find((lab) => lab.id === detailLabId) || null,
@@ -453,6 +499,56 @@ const PatientLaboratory = () => {
     }
   }
 
+  const handleShareClick = (report) => {
+    setSelectedReport(report)
+    setSelectedDoctorId(null)
+    setShowShareModal(true)
+  }
+
+  const handleCloseShareModal = () => {
+    setShowShareModal(false)
+    setSelectedReport(null)
+    setSelectedDoctorId(null)
+  }
+
+  const handleViewClick = (report) => {
+    setSelectedReport(report)
+    setShowViewModal(true)
+  }
+
+  const handleCloseViewModal = () => {
+    setShowViewModal(false)
+    setSelectedReport(null)
+  }
+
+  const handleShareWithDoctor = async () => {
+    if (!selectedReport) return
+
+    setIsSharing(true)
+    
+    // If sharing with treating doctor (direct share)
+    if (selectedReport.doctorId && selectedDoctorId === selectedReport.doctorId) {
+      // Direct share - no booking needed
+      setTimeout(() => {
+        setIsSharing(false)
+        handleCloseShareModal()
+        alert(`Report "${selectedReport.testName}" shared successfully with ${selectedReport.doctorName}!`)
+      }, 1000)
+    } else if (selectedDoctorId) {
+      // Share with other doctor - requires booking
+      setTimeout(() => {
+        setIsSharing(false)
+        handleCloseShareModal()
+        const doctor = mockDoctors.find(doc => doc.id === selectedDoctorId)
+        if (doctor) {
+          alert(`Report "${selectedReport.testName}" will be shared with ${doctor.name} after booking appointment.`)
+          // Navigate to doctor details page with booking modal
+          navigate(`/patient/doctors/${selectedDoctorId}?book=true`)
+        }
+      }, 1000)
+    }
+  }
+
   return (
     <section className="flex flex-col gap-4 pb-4">
       {/* Search Bar - Outside Card */}
@@ -565,24 +661,34 @@ const PatientLaboratory = () => {
             {(showAllReports ? mockReports : mockReports.slice(0, 2)).map((report) => (
               <div
                 key={report.id}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-slate-300 hover:bg-slate-100"
+                className="rounded-xl border border-slate-200 bg-white p-3 transition hover:border-slate-300 hover:shadow-sm"
               >
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-900">{report.testName}</p>
-                  <p className="text-xs text-slate-600">{report.labName}</p>
-                  <p className="text-xs text-slate-500">{formatDate(report.date)}</p>
+                {/* Header with Report Info and Status Badge */}
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  {/* Report Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{report.testName}</p>
+                    <p className="text-xs text-slate-600 mt-0.5">{report.labName}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(report.date)}</p>
+                  </div>
+
+                  {/* Status Badge - Right Side */}
+                  <div className="flex-shrink-0">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold whitespace-nowrap ${
+                        report.status === 'completed'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
+                      {report.status === 'completed' ? 'Ready' : 'Pending'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
-                      report.status === 'completed'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-amber-100 text-amber-700'
-                    }`}
-                  >
-                    {report.status === 'completed' ? 'Ready' : 'Pending'}
-                  </span>
-                  {report.status === 'completed' && (
+
+                {/* Action Buttons - Download and Share Parallel */}
+                {report.status === 'completed' && (
+                  <div className="flex gap-2 border-t border-slate-100 pt-3">
                     <button
                       type="button"
                       onClick={() => {
@@ -739,12 +845,29 @@ const PatientLaboratory = () => {
                         
                         downloadPDF()
                       }}
-                      className="rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0d3a52] transition-colors active:scale-95"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                     >
-                      Download
+                      <IoDownloadOutline className="h-3.5 w-3.5" />
+                      <span>Download</span>
                     </button>
-                  )}
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => handleShareClick(report)}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border-2 border-[#11496c] bg-white px-3 py-2 text-xs font-semibold text-[#11496c] transition-all hover:bg-[rgba(17,73,108,0.1)] active:scale-95"
+                    >
+                      <IoShareSocialOutline className="h-3.5 w-3.5" />
+                      <span>Share</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleViewClick(report)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-700 text-white shadow-sm shadow-[rgba(51,65,85,0.3)] transition-all hover:bg-slate-800 hover:shadow active:scale-95"
+                      aria-label="View report details"
+                    >
+                      <IoEyeOutline className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1397,6 +1520,364 @@ const PatientLaboratory = () => {
               </div>
             </div>
           </article>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && selectedReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm">
+          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 p-6 sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-bold text-slate-900">Share Report with Doctor</h2>
+              <button
+                type="button"
+                onClick={handleCloseShareModal}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+              >
+                <IoCloseOutline className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4 rounded-lg bg-slate-50 p-3">
+                <p className="text-sm font-semibold text-slate-900 mb-1">Report:</p>
+                <p className="text-sm text-slate-600">{selectedReport.testName}</p>
+                <p className="text-xs text-slate-500 mt-1">{selectedReport.labName}</p>
+              </div>
+
+              {/* Treating Doctor - Direct Share */}
+              {selectedReport.doctorId && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-slate-700 mb-2">Your Treating Doctor (Direct Share):</p>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDoctorId(selectedReport.doctorId)}
+                    className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
+                      selectedDoctorId === selectedReport.doctorId
+                        ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={selectedReport.doctorImage}
+                        alt={selectedReport.doctorName}
+                        className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedReport.doctorName)}&background=3b82f6&color=fff&size=128&bold=true`
+                        }}
+                      />
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-slate-900">{selectedReport.doctorName}</h3>
+                        <p className="text-xs text-slate-600">{selectedReport.doctorSpecialty}</p>
+                      </div>
+                      {selectedDoctorId === selectedReport.doctorId && (
+                        <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-[#11496c]">✓ Can share directly (treatment ongoing)</p>
+                  </button>
+                </div>
+              )}
+
+              {/* Other Doctors - Requires Booking */}
+              <div>
+                <p className="text-xs font-semibold text-slate-700 mb-2">
+                  Other Doctors {selectedReport.doctorId && '(Requires Booking)'}:
+                </p>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {mockDoctors
+                    .filter((doc) => !selectedReport.doctorId || doc.id !== selectedReport.doctorId)
+                    .map((doctor) => (
+                      <button
+                        key={doctor.id}
+                        type="button"
+                        onClick={() => {
+                          // Other doctor selected - directly open appointment booking
+                          handleCloseShareModal()
+                          // Navigate to doctor details page with booking modal
+                          navigate(`/patient/doctors/${doctor.id}?book=true`)
+                        }}
+                        className="w-full rounded-xl border-2 p-3 text-left transition-all border-slate-200 bg-white hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-[0.98]"
+                      >
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={doctor.image}
+                            alt={doctor.name}
+                            className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100"
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
+                            }}
+                          />
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-slate-900">{doctor.name}</h3>
+                            <p className="text-xs text-slate-600">{doctor.specialty}</p>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs text-amber-600">⚠ Click to book appointment</p>
+                      </button>
+                    ))}
+                </div>
+              </div>
+
+              {/* Info message only for treating doctor */}
+              {selectedReport.doctorId && selectedDoctorId === selectedReport.doctorId && (
+                <div className="mt-4 rounded-lg bg-[rgba(17,73,108,0.1)] p-3">
+                  <p className="text-xs text-[#0a2d3f]">
+                    <strong>Direct Share:</strong> Report will be shared immediately with {selectedReport.doctorName}.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer buttons - only show for treating doctor */}
+            {selectedReport.doctorId && (
+              <div className="flex gap-3 border-t border-slate-200 p-6 sticky bottom-0 bg-white">
+                <button
+                  type="button"
+                  onClick={handleCloseShareModal}
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                {selectedDoctorId === selectedReport.doctorId && (
+                  <button
+                    type="button"
+                    onClick={handleShareWithDoctor}
+                    disabled={isSharing || !selectedDoctorId}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSharing ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        Sharing...
+                      </>
+                    ) : (
+                      <>
+                        <IoShareSocialOutline className="h-4 w-4" />
+                        Share Now
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
+            
+            {/* If no treating doctor, show just close button */}
+            {!selectedReport.doctorId && (
+              <div className="flex gap-3 border-t border-slate-200 p-6 sticky bottom-0 bg-white">
+                <button
+                  type="button"
+                  onClick={handleCloseShareModal}
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* View Report Modal */}
+      {showViewModal && selectedReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 p-6 sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-bold text-slate-900">Report Details</h2>
+              <button
+                type="button"
+                onClick={handleCloseViewModal}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+              >
+                <IoCloseOutline className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {/* Report Header */}
+              <div className="flex items-start gap-4 mb-6">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
+                style={{ 
+                  background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
+                  boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
+                }}>
+                  <IoFlaskOutline className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-slate-900">{selectedReport.testName}</h3>
+                  <p className="mt-1 text-sm text-slate-600">{selectedReport.labName}</p>
+                  <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <IoTimeOutline className="h-3.5 w-3.5" />
+                      <span>{formatDate(selectedReport.date)}</span>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                      selectedReport.status === 'completed'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {selectedReport.status === 'completed' ? 'Ready' : 'Pending'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Report Information */}
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <h4 className="text-sm font-semibold text-slate-900 mb-3">Report Information</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-600">Report ID:</span>
+                      <span className="text-xs font-semibold text-slate-900">{selectedReport.id}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-600">Test Name:</span>
+                      <span className="text-xs font-semibold text-slate-900">{selectedReport.testName}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-600">Laboratory:</span>
+                      <span className="text-xs font-semibold text-slate-900">{selectedReport.labName}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-600">Report Date:</span>
+                      <span className="text-xs font-semibold text-slate-900">{formatDate(selectedReport.date)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-slate-600">Status:</span>
+                      <span className={`text-xs font-semibold ${
+                        selectedReport.status === 'completed'
+                          ? 'text-emerald-700'
+                          : 'text-amber-700'
+                      }`}>
+                        {selectedReport.status === 'completed' ? 'Ready' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Associated Doctor Info */}
+                {selectedReport.doctorName && (
+                  <div className="rounded-2xl border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.1)]/50 p-4">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3">Associated Doctor</h4>
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={selectedReport.doctorImage}
+                        alt={selectedReport.doctorName}
+                        className="h-12 w-12 rounded-xl object-cover ring-2 ring-[rgba(17,73,108,0.2)]"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedReport.doctorName)}&background=3b82f6&color=fff&size=128&bold=true`
+                        }}
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{selectedReport.doctorName}</p>
+                        <p className="text-xs text-slate-600">{selectedReport.doctorSpecialty}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3 border-t border-slate-200 p-6 sticky bottom-0 bg-white">
+              <button
+                type="button"
+                onClick={handleCloseViewModal}
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleCloseViewModal()
+                  // Trigger download
+                  const downloadPDF = () => {
+                    const pdfContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Medical Report - ${selectedReport.testName}</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .header {
+      border-bottom: 3px solid #3b82f6;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #1e40af;
+      margin: 0;
+      font-size: 28px;
+    }
+    .section {
+      margin-bottom: 25px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #1e293b;
+      margin-bottom: 15px;
+      border-left: 4px solid #3b82f6;
+      padding-left: 10px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Medical Test Report</h1>
+  </div>
+  <div class="section">
+    <div class="section-title">Report Information</div>
+    <div class="info-row">
+      <span>Test Name:</span>
+      <span>${selectedReport.testName}</span>
+    </div>
+    <div class="info-row">
+      <span>Laboratory:</span>
+      <span>${selectedReport.labName}</span>
+    </div>
+    <div class="info-row">
+      <span>Report Date:</span>
+      <span>${formatDate(selectedReport.date)}</span>
+    </div>
+  </div>
+</body>
+</html>
+                    `
+                    const printWindow = window.open('', '_blank')
+                    printWindow.document.write(pdfContent)
+                    printWindow.document.close()
+                    setTimeout(() => {
+                      printWindow.focus()
+                      printWindow.print()
+                    }, 250)
+                  }
+                  downloadPDF()
+                }}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52]"
+              >
+                <IoDownloadOutline className="h-4 w-4" />
+                Download PDF
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>

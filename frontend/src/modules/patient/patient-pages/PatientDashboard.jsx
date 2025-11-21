@@ -16,8 +16,69 @@ import {
   IoBagHandleOutline,
   IoPeopleOutline,
   IoPersonCircleOutline,
+  IoChatbubbleOutline,
+  IoCheckmarkCircleOutline,
+  IoWalletOutline,
 } from 'react-icons/io5'
 import PatientSidebar from '../patient-components/PatientSidebar'
+
+// Category cards data
+const categoryCards = [
+  {
+    id: 'appointments',
+    title: 'APPOINTMENTS',
+    value: '12',
+    description: 'Upcoming',
+    iconBgColor: '#1976D2', // dark blue
+    icon: IoCalendarOutline,
+    route: '/patient/appointments',
+  },
+  {
+    id: 'prescriptions',
+    title: 'PRESCRIPTIONS',
+    value: '8',
+    description: 'Active',
+    iconBgColor: '#14B8A6', // teal-green
+    icon: IoDocumentTextOutline,
+    route: '/patient/prescriptions',
+  },
+  {
+    id: 'lab-tests',
+    title: 'LAB TESTS',
+    value: '5',
+    description: 'Pending',
+    iconBgColor: '#F97316', // orange
+    icon: IoFlaskOutline,
+    route: '/patient/laboratory',
+  },
+  {
+    id: 'medicines',
+    title: 'MEDICINES',
+    value: '15',
+    description: 'Available',
+    iconBgColor: '#EC4899', // pink/magenta
+    icon: IoStarOutline,
+    route: '/patient/pharmacy',
+  },
+  {
+    id: 'orders',
+    title: 'ORDERS',
+    value: '3',
+    description: 'Recent',
+    iconBgColor: '#3B82F6', // blue
+    icon: IoBagHandleOutline,
+    route: '/patient/orders',
+  },
+  {
+    id: 'requests',
+    title: 'REQUESTS',
+    value: '2',
+    description: 'Responses',
+    iconBgColor: '#8B5CF6', // purple
+    icon: IoChatbubbleOutline,
+    route: '/patient/requests',
+  },
+]
 
 // Mock doctors data matching the image
 const mockDoctors = [
@@ -102,7 +163,6 @@ const PatientDashboard = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [activeFilter, setActiveFilter] = useState('All')
-  const [activeTab, setActiveTab] = useState('Discover')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const toggleButtonRef = useRef(null)
 
@@ -192,124 +252,55 @@ const PatientDashboard = () => {
         </div>
       </header>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white border-b border-slate-100 -mx-4 px-4 mb-4">
-        <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
-          <button
-            onClick={() => setActiveTab('Discover')}
-            className={`flex-shrink-0 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'Discover'
-                ? 'border-transparent text-slate-500'
-                : 'border-transparent text-slate-500'
-            }`}
-            style={activeTab === 'Discover' ? { borderBottomColor: '#11496c', color: '#11496c' } : {}}
-          >
-            Discover
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('Appointments')
-              navigate('/patient/appointments')
+      {/* Search Bar */}
+      <div className="mb-4">
+        <div className="relative">
+          <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search doctors or specialties"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
+            onFocus={(e) => {
+              e.target.style.borderColor = '#11496c'
+              e.target.style.boxShadow = '0 0 0 2px rgba(17, 73, 108, 0.2)'
             }}
-            className={`flex-shrink-0 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'Appointments'
-                ? 'border-transparent text-slate-500'
-                : 'border-transparent text-slate-500'
-            }`}
-            style={activeTab === 'Appointments' ? { borderBottomColor: '#11496c', color: '#11496c' } : {}}
-          >
-            Appointments
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('Prescriptions')
-              navigate('/patient/prescriptions')
+            onBlur={(e) => {
+              e.target.style.borderColor = ''
+              e.target.style.boxShadow = ''
             }}
-            className={`flex-shrink-0 py-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'Prescriptions'
-                ? 'border-transparent text-slate-500'
-                : 'border-transparent text-slate-500'
-            }`}
-            style={activeTab === 'Prescriptions' ? { borderBottomColor: '#11496c', color: '#11496c' } : {}}
-          >
-            Prescriptions
-          </button>
+          />
         </div>
       </div>
-        {/* Search Bar */}
-        <div className="mb-4">
-          <div className="relative">
-            <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search doctors or specialties"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
-              onFocus={(e) => {
-                e.target.style.borderColor = '#11496c'
-                e.target.style.boxShadow = '0 0 0 2px rgba(17, 73, 108, 0.2)'
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = ''
-                e.target.style.boxShadow = ''
-              }}
-            />
-          </div>
-        </div>
 
-        {/* Category Section */}
-        <div className="mb-4">
-          <div className="grid grid-cols-4 gap-2">
-            {/* Appointments */}
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={() => navigate('/patient/appointments')}
-                className="w-full flex items-center justify-center p-3 rounded-xl transition-transform active:scale-95 aspect-square"
-                style={{ backgroundColor: '#E3F2FD' }}
-              >
-                <IoCalendarOutline className="h-5 w-5" style={{ color: '#1976D2' }} />
-              </button>
-              <span className="text-[10px] font-medium text-slate-700 text-center leading-tight">Appointments</span>
-            </div>
-
-            {/* Prescriptions */}
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={() => navigate('/patient/prescriptions')}
-                className="w-full flex items-center justify-center p-3 rounded-xl transition-transform active:scale-95 aspect-square"
-                style={{ backgroundColor: '#E8F5E9' }}
-              >
-                <IoDocumentTextOutline className="h-5 w-5" style={{ color: '#388E3C' }} />
-              </button>
-              <span className="text-[10px] font-medium text-slate-700 text-center leading-tight">Prescriptions</span>
-            </div>
-
-            {/* Lab Tests */}
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={() => navigate('/patient/laboratory')}
-                className="w-full flex items-center justify-center p-3 rounded-xl transition-transform active:scale-95 aspect-square"
-                style={{ backgroundColor: '#F3E5F5' }}
-              >
-                <IoFlaskOutline className="h-5 w-5" style={{ color: '#7B1FA2' }} />
-              </button>
-              <span className="text-[10px] font-medium text-slate-700 text-center leading-tight">Lab Tests</span>
-            </div>
-
-            {/* Medicines */}
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={() => navigate('/patient/pharmacy')}
-                className="w-full flex items-center justify-center p-3 rounded-xl transition-transform active:scale-95 aspect-square"
-                style={{ backgroundColor: '#FFF3E0' }}
-              >
-                <IoMedicalOutline className="h-5 w-5" style={{ color: '#F57C00' }} />
-              </button>
-              <span className="text-[10px] font-medium text-slate-700 text-center leading-tight">Medicines</span>
-            </div>
-          </div>
-        </div>
+      {/* Category Cards - 3x2 Grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {categoryCards.map((card) => {
+          const Icon = card.icon
+          return (
+            <button
+              key={card.id}
+              onClick={() => navigate(card.route)}
+              className="bg-white rounded-xl p-3 shadow-sm border border-slate-100 text-left transition-all hover:shadow-md active:scale-[0.98]"
+            >
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-700 leading-tight flex-1 min-w-0 pr-1">
+                  {card.title}
+                </h3>
+                <div
+                  className="flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0"
+                  style={{ backgroundColor: card.iconBgColor }}
+                >
+                  <Icon className="h-4 w-4 text-white" />
+                </div>
+              </div>
+              <p className="text-xl font-bold text-slate-900 mb-0.5 leading-none">{card.value}</p>
+              <p className="text-[10px] text-slate-500 leading-tight">{card.description}</p>
+            </button>
+          )
+        })}
+      </div>
 
         {/* Filter Buttons */}
         <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide pb-2">

@@ -50,6 +50,7 @@ import LaboratoryReports from './modules/laboratory/laboratory-pages/LaboratoryR
 import LaboratoryPatients from './modules/laboratory/laboratory-pages/LaboratoryPatients'
 import LaboratoryProfile from './modules/laboratory/laboratory-pages/LaboratoryProfile'
 import LaboratoryWallet from './modules/laboratory/laboratory-pages/LaboratoryWallet'
+import LaboratoryRequests from './modules/laboratory/laboratory-pages/LaboratoryRequests'
 import LaboratoryWalletBalance from './modules/laboratory/laboratory-pages/WalletBalance'
 import LaboratoryWalletEarning from './modules/laboratory/laboratory-pages/WalletEarning'
 import LaboratoryWalletWithdraw from './modules/laboratory/laboratory-pages/WalletWithdraw'
@@ -174,6 +175,7 @@ function App() {
                     <Route path="/" element={<Navigate to="/laboratory/dashboard" replace />} />
                     <Route path="/dashboard" element={<LaboratoryDashboard />} />
                     <Route path="/orders" element={<LaboratoryOrders />} />
+                    <Route path="/requests" element={<LaboratoryRequests />} />
                     <Route path="/patients" element={<LaboratoryReports />} />
                     <Route path="/profile" element={<LaboratoryProfile />} />
                     <Route path="/wallet" element={<LaboratoryWallet />} />

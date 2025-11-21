@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IoArrowBackOutline,
   IoFlaskOutline,
   IoBagHandleOutline,
   IoCheckmarkCircleOutline,
@@ -194,20 +193,6 @@ const PatientOrders = () => {
 
   return (
     <section className="flex flex-col gap-4 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-        >
-          <IoArrowBackOutline className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">My Orders</h1>
-          <p className="text-sm text-slate-600">{filteredOrders.length} orders</p>
-        </div>
-      </div>
-
       {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
         {['all', 'lab', 'pharmacy'].map((type) => (
@@ -234,13 +219,23 @@ const PatientOrders = () => {
           >
             <div className="flex items-start gap-3">
               {/* Icon */}
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                order.type === 'lab' ? 'bg-[rgba(17,73,108,0.15)]' : 'bg-amber-100'
-              }`}>
+              <div 
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-lg"
+                style={order.type === 'lab' 
+                  ? { 
+                      background: 'linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)',
+                      boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3), 0 2px 4px -1px rgba(59, 130, 246, 0.2)'
+                    }
+                  : {
+                      background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                      boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.3), 0 2px 4px -1px rgba(245, 158, 11, 0.2)'
+                    }
+                }
+              >
                 {order.type === 'lab' ? (
-                  <IoFlaskOutline className="h-6 w-6 text-[#11496c]" />
+                  <IoFlaskOutline className="h-6 w-6 text-white" />
                 ) : (
-                  <IoBagHandleOutline className="h-6 w-6 text-amber-600" />
+                  <IoBagHandleOutline className="h-6 w-6 text-white" />
                 )}
               </div>
 
