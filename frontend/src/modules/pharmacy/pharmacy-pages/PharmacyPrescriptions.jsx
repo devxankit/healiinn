@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   IoArrowBackOutline,
   IoDocumentTextOutline,
@@ -260,7 +259,6 @@ const formatDate = (dateString) => {
 }
 
 const PharmacyPrescriptions = () => {
-  const navigate = useNavigate()
   const [selectedPrescription, setSelectedPrescription] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [showBillModal, setShowBillModal] = useState(false)
@@ -1056,22 +1054,6 @@ const PharmacyPrescriptions = () => {
 
   return (
     <section className="flex flex-col gap-4 sm:gap-5 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3 sm:gap-4">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center rounded-full p-2 text-slate-600 transition-all hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(17,73,108,0.7)]"
-        >
-          <IoArrowBackOutline className="h-5 w-5 sm:h-6 sm:w-6" />
-        </button>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-slate-900 via-[#11496c] to-slate-700 bg-clip-text text-transparent">
-            Prescriptions
-          </h1>
-          <p className="mt-1 text-xs sm:text-sm text-slate-500">Manage and view all prescriptions</p>
-        </div>
-      </div>
-
       {/* Search Bar */}
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">

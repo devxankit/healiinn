@@ -8,17 +8,23 @@ import {
   IoPersonCircleOutline,
   IoMenuOutline,
   IoNotificationsOutline,
+  IoHelpCircleOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import PatientSidebar from './PatientSidebar'
 
-const navItems = [
+// All nav items for sidebar and desktop navbar (includes Support)
+const allNavItems = [
   { id: 'home', label: 'Home', to: '/patient/dashboard', Icon: IoHomeOutline },
   { id: 'pharmacy', label: 'Pharmacy', to: '/patient/pharmacy', Icon: IoBagHandleOutline },
   { id: 'doctors', label: 'Doctors', to: '/patient/doctors', Icon: IoPeopleOutline },
   { id: 'laboratory', label: 'Laboratory', to: '/patient/laboratory', Icon: IoFlaskOutline },
+  { id: 'support', label: 'Support', to: '/patient/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
 ]
+
+// Nav items for mobile bottom nav (without Support)
+const navItems = allNavItems.filter((item) => item.id !== 'support')
 
 const PatientNavbar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -76,7 +82,7 @@ const PatientNavbar = () => {
             />
           </div>
           <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg ring-1 ring-slate-200 md:flex" style={{ boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.1), 0 4px 6px -2px rgba(17, 73, 108, 0.05)' }}>
-            {navItems.map(({ id, label, to, Icon }) => (
+            {allNavItems.map(({ id, label, to, Icon }) => (
               <NavLink
                 key={id}
                 to={to}
@@ -121,7 +127,7 @@ const PatientNavbar = () => {
       <PatientSidebar
         isOpen={isSidebarOpen}
         onClose={handleSidebarClose}
-        navItems={navItems}
+        navItems={allNavItems}
         onLogout={handleLogout}
       />
 

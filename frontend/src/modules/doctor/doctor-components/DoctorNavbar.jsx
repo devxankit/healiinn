@@ -8,6 +8,7 @@ import {
   IoWalletOutline,
   IoDocumentTextOutline,
   IoPeopleOutline,
+  IoHelpCircleOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import DoctorSidebar from './DoctorSidebar'
@@ -17,11 +18,12 @@ const allNavItems = [
   { id: 'consultations', label: 'Consultations', to: '/doctor/consultations', Icon: IoDocumentTextOutline },
   { id: 'patients', label: 'Patients', to: '/doctor/patients', Icon: IoPeopleOutline },
   { id: 'wallet', label: 'Wallet', to: '/doctor/wallet', Icon: IoWalletOutline },
+  { id: 'support', label: 'Support', to: '/doctor/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/doctor/profile', Icon: IoPersonCircleOutline },
 ]
 
-// Navbar items for mobile bottom nav (Wallet, Dashboard, Patients, Consultations, Profile)
-const navbarItems = allNavItems
+// Navbar items for mobile bottom nav (without Support)
+const navbarItems = allNavItems.filter((item) => item.id !== 'support')
 
 const DoctorNavbar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)

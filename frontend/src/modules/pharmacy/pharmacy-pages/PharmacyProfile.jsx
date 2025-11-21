@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoPersonOutline,
@@ -17,7 +17,7 @@ import {
   IoBagHandleOutline,
   IoHomeOutline,
   IoShieldCheckmarkOutline,
-  IoArrowBackOutline,
+  IoHelpCircleOutline,
 } from 'react-icons/io5'
 
 const mockPharmacyData = {
@@ -148,20 +148,6 @@ const PharmacyProfile = () => {
 
   return (
     <section className="flex flex-col gap-6 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-        >
-          <IoArrowBackOutline className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Pharmacy Profile</h1>
-          <p className="text-sm text-slate-600">Manage your pharmacy information</p>
-        </div>
-      </div>
-
       {/* Profile Header */}
       <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-indigo-50/85 to-[rgba(17,73,108,0.05)] backdrop-blur-md p-4 sm:p-6 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-white/50">
         <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-[rgba(17,73,108,0.1)] blur-3xl pointer-events-none" />
@@ -621,8 +607,111 @@ const PharmacyProfile = () => {
             </div>
           )}
         </article>
+
+        {/* Support History */}
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <button
+            onClick={() => toggleSection('support')}
+            className="flex w-full items-center justify-between"
+          >
+            <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+              <IoHelpCircleOutline className="h-5 w-5 text-slate-600" />
+              Support History
+            </h3>
+            {activeSection === 'support' ? (
+              <IoChevronUpOutline className="h-5 w-5 text-slate-400" />
+            ) : (
+              <IoChevronDownOutline className="h-5 w-5 text-slate-400" />
+            )}
+          </button>
+          {activeSection === 'support' && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <SupportHistory role="pharmacy" />
+            </div>
+          )}
+        </article>
       </div>
     </section>
+  )
+}
+
+// Support History Component
+const SupportHistory = ({ role }) => {
+  const [supportRequests, setSupportRequests] = useState([])
+
+  useEffect(() => {
+    // TODO: Replace with actual API call
+    const mockRequests = [
+      {
+        id: '1',
+        note: 'Order delivery system not working properly.',
+        status: 'resolved',
+        createdAt: '2024-01-13T11:00:00Z',
+        updatedAt: '2024-01-14T16:30:00Z',
+        adminNote: 'Fixed delivery system issue.',
+      },
+    ]
+    setSupportRequests(mockRequests)
+  }, [role])
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
+      in_progress: { label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
+      resolved: { label: 'Resolved', color: 'bg-green-100 text-green-800' },
+      closed: { label: 'Closed', color: 'bg-slate-100 text-slate-800' },
+    }
+    const config = statusConfig[status] || statusConfig.pending
+    return (
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${config.color}`}>
+        {config.label}
+      </span>
+    )
+  }
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  if (supportRequests.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+        <p className="text-sm font-medium text-slate-600">No support requests yet</p>
+        <p className="mt-1 text-xs text-slate-500">Your support request history will appear here</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {supportRequests.map((request) => (
+        <div key={request.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <p className="text-sm font-medium text-slate-900 flex-1">{request.note}</p>
+            {getStatusBadge(request.status)}
+          </div>
+          {request.adminNote && (
+            <div className="mt-2 rounded bg-blue-50 p-2">
+              <p className="text-xs font-semibold text-blue-900">Admin Response:</p>
+              <p className="mt-1 text-xs text-blue-800">{request.adminNote}</p>
+            </div>
+          )}
+          <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+            <span>Submitted: {formatDate(request.createdAt)}</span>
+            {request.updatedAt !== request.createdAt && (
+              <span>Updated: {formatDate(request.updatedAt)}</span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 

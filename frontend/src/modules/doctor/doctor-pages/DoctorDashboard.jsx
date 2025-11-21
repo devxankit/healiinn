@@ -21,6 +21,7 @@ import {
   IoHomeOutline,
   IoPersonCircleOutline,
   IoChatbubbleOutline,
+  IoHelpCircleOutline,
 } from 'react-icons/io5'
 
 const mockStats = {
@@ -217,6 +218,7 @@ const DoctorDashboard = () => {
     { id: 'consultations', label: 'Consultations', to: '/doctor/consultations', Icon: IoDocumentTextOutline },
     { id: 'patients', label: 'Patients', to: '/doctor/patients', Icon: IoPeopleOutline },
     { id: 'wallet', label: 'Wallet', to: '/doctor/wallet', Icon: IoWalletOutline },
+    { id: 'support', label: 'Support', to: '/doctor/support', Icon: IoHelpCircleOutline },
     { id: 'profile', label: 'Profile', to: '/doctor/profile', Icon: IoPersonCircleOutline },
   ]
 
@@ -290,7 +292,7 @@ const DoctorDashboard = () => {
         <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
             {/* Total Patients */}
             <article
-              onClick={() => navigate('/doctor/patients')}
+              onClick={() => navigate('/doctor/patients?filter=all')}
               className="relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
             >
               <div className="flex items-start justify-between mb-2">
@@ -307,7 +309,7 @@ const DoctorDashboard = () => {
 
             {/* Total Consultations */}
             <article
-              onClick={() => navigate('/doctor/consultations')}
+              onClick={() => navigate('/doctor/consultations?filter=all')}
               className="relative overflow-hidden rounded-xl border border-emerald-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
             >
               <div className="flex items-start justify-between mb-2">
@@ -324,7 +326,7 @@ const DoctorDashboard = () => {
 
             {/* Today's Appointments */}
             <article
-              onClick={() => navigate('/doctor/consultations')}
+              onClick={() => navigate('/doctor/consultations?filter=today')}
               className="relative overflow-hidden rounded-xl border border-purple-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
             >
               <div className="flex items-start justify-between mb-2">
@@ -371,7 +373,7 @@ const DoctorDashboard = () => {
 
             {/* Pending Consultations */}
             <article
-              onClick={() => navigate('/doctor/consultations')}
+              onClick={() => navigate('/doctor/consultations?filter=pending')}
               className="relative overflow-hidden rounded-xl border border-orange-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
             >
               <div className="flex items-start justify-between mb-2">

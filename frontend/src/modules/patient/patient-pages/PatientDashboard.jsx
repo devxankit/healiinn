@@ -16,6 +16,7 @@ import {
   IoBagHandleOutline,
   IoPeopleOutline,
   IoPersonCircleOutline,
+  IoHelpCircleOutline,
 } from 'react-icons/io5'
 import PatientSidebar from '../patient-components/PatientSidebar'
 
@@ -95,6 +96,7 @@ const navItems = [
   { id: 'pharmacy', label: 'Pharmacy', to: '/patient/pharmacy', Icon: IoBagHandleOutline },
   { id: 'doctors', label: 'Doctors', to: '/patient/doctors', Icon: IoPeopleOutline },
   { id: 'laboratory', label: 'Laboratory', to: '/patient/laboratory', Icon: IoFlaskOutline },
+  { id: 'support', label: 'Support', to: '/patient/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
 ]
 

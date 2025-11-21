@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
@@ -26,6 +26,8 @@ import {
   IoAddOutline,
   IoTrashOutline,
   IoShieldCheckmarkOutline,
+  IoHelpCircleOutline,
+  IoImageOutline,
 } from 'react-icons/io5'
 
 const mockDoctorData = {
@@ -67,6 +69,10 @@ const mockDoctorData = {
   documents: {
     license: 'https://example.com/license.pdf',
     identityProof: 'https://example.com/id.pdf',
+  },
+  digitalSignature: {
+    imageUrl: '',
+    uploadedAt: null,
   },
   status: 'approved',
   rating: 4.8,
@@ -165,8 +171,50 @@ const DoctorProfile = () => {
     })
   }
 
+  const handleSignatureUpload = (event) => {
+    const file = event.target.files[0]
+    if (file) {
+      // Check if file is an image
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file')
+        return
+      }
+      
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB')
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setFormData((prev) => ({
+          ...prev,
+          digitalSignature: {
+            imageUrl: reader.result,
+            uploadedAt: new Date(),
+          },
+        }))
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleRemoveSignature = () => {
+    setFormData((prev) => ({
+      ...prev,
+      digitalSignature: {
+        imageUrl: '',
+        uploadedAt: null,
+      },
+    }))
+  }
+
   const handleSave = () => {
     console.log('Saving profile:', formData)
+    // Save to localStorage so it can be used in PDF generation
+    localStorage.setItem('doctorProfile', JSON.stringify(formData))
+    // TODO: Send digitalSignature.digitalSignature.imageUrl to backend
     setIsEditing(false)
     setActiveSection(null)
   }
@@ -1017,6 +1065,157 @@ const DoctorProfile = () => {
               )}
             </div>
 
+            {/* Digital Signature */}
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+              <button
+                type="button"
+                onClick={() => setActiveSection(activeSection === 'signature' ? null : 'signature')}
+                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
+              >
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">Digital Signature</h2>
+                {(activeSection === 'signature' || isEditing) ? (
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                ) : (
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                )}
+              </button>
+
+              {(activeSection === 'signature' || isEditing) && (
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-3 sm:space-y-4 pt-4 sm:pt-5">
+                  {formData.digitalSignature?.imageUrl ? (
+                    <div className="space-y-3 sm:space-y-4">
+                      {/* Signature Preview */}
+                      <div className="rounded-lg border-2 border-slate-200 bg-slate-50/50 p-4 sm:p-6">
+                        <div className="flex flex-col items-center justify-center">
+                          <div className="relative mb-3">
+                            <img
+                              src={formData.digitalSignature.imageUrl}
+                              alt="Digital Signature"
+                              className="max-w-full h-auto max-h-48 sm:max-h-64 rounded-lg shadow-md bg-white p-2 border border-slate-200"
+                              style={{ imageRendering: 'crisp-edges' }}
+                            />
+                          </div>
+                          {formData.digitalSignature.uploadedAt && (
+                            <p className="text-xs text-slate-500 mt-2">
+                              Uploaded: {formatDate(formData.digitalSignature.uploadedAt)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Edit Options */}
+                      {isEditing && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Update Signature
+                          </p>
+                          <div className="flex flex-row gap-2">
+                            <label 
+                              htmlFor="gallery-input-signature-update"
+                              className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-slate-50 hover:text-[#11496c] cursor-pointer shadow-sm"
+                            >
+                              <IoImageOutline className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                              Upload from Gallery
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleSignatureUpload}
+                                className="hidden"
+                                id="gallery-input-signature-update"
+                              />
+                            </label>
+                            <label 
+                              htmlFor="camera-input-signature-update"
+                              className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-[#11496c] bg-[#11496c] px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-[#0d3a52] hover:border-[#0d3a52] cursor-pointer shadow-sm"
+                            >
+                              <IoCameraOutline className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                              Capture from Camera
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={handleSignatureUpload}
+                                className="hidden"
+                                id="camera-input-signature-update"
+                              />
+                            </label>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemoveSignature}
+                            className="w-full flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-red-600 transition hover:border-red-400 hover:bg-red-50"
+                          >
+                            <IoTrashOutline className="h-4 w-4 sm:h-5 sm:w-5" />
+                            Remove Signature
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3 sm:space-y-4">
+                      {/* Empty State */}
+                      <div className="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50/50 p-6 sm:p-8 text-center">
+                        <IoImageOutline className="h-10 w-10 sm:h-14 sm:w-14 text-slate-400 mx-auto mb-3" />
+                        <p className="text-sm sm:text-base font-semibold text-slate-700 mb-1">
+                          No signature uploaded
+                        </p>
+                        <p className="text-xs sm:text-sm text-slate-500">
+                          Upload your digital signature image
+                        </p>
+                      </div>
+                      
+                      {/* Upload Options */}
+                      {isEditing && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Choose Upload Method
+                          </p>
+                          <div className="flex flex-row gap-2">
+                            <label 
+                              htmlFor="gallery-input-signature-empty"
+                              className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-center transition hover:border-[#11496c] hover:bg-slate-50 cursor-pointer shadow-sm"
+                            >
+                              <IoImageOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600 shrink-0" />
+                              <span className="text-xs sm:text-sm font-semibold text-slate-700">Upload from Gallery</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleSignatureUpload}
+                                className="hidden"
+                                id="gallery-input-signature-empty"
+                              />
+                            </label>
+                            <label 
+                              htmlFor="camera-input-signature-empty"
+                              className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-[#11496c] bg-[#11496c] px-2 sm:px-3 py-2 text-center transition hover:bg-[#0d3a52] hover:border-[#0d3a52] cursor-pointer shadow-sm"
+                            >
+                              <IoCameraOutline className="h-4 w-4 sm:h-5 sm:w-5 text-white shrink-0" />
+                              <span className="text-xs sm:text-sm font-semibold text-white">Capture from Camera</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={handleSignatureUpload}
+                                className="hidden"
+                                id="camera-input-signature-empty"
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!isEditing && formData.digitalSignature?.imageUrl && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <p className="text-[10px] sm:text-xs text-slate-500">
+                        Click "Edit Profile" to change or remove your digital signature
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Change Password */}
             <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
               <button
@@ -1077,9 +1276,127 @@ const DoctorProfile = () => {
                   </button>
                 </div>
               )}
-          </div>
+            </div>
+
+            {/* Support History */}
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+              <button
+                type="button"
+                onClick={() => setActiveSection(activeSection === 'support' ? null : 'support')}
+                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
+              >
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">Support History</h2>
+                {activeSection === 'support' ? (
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                ) : (
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                )}
+              </button>
+
+              {activeSection === 'support' && (
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-3 sm:space-y-4 pt-4 sm:pt-5">
+                  <SupportHistory role="doctor" />
+                </div>
+              )}
+            </div>
       </section>
     </>
+  )
+}
+
+// Support History Component
+const SupportHistory = ({ role }) => {
+  const [supportRequests, setSupportRequests] = useState([])
+
+  useEffect(() => {
+    // TODO: Replace with actual API call
+    // const fetchSupportHistory = async () => {
+    //   const response = await fetch(`/api/${role}/support/history`)
+    //   const data = await response.json()
+    //   setSupportRequests(data)
+    // }
+    // fetchSupportHistory()
+
+    // Mock data
+    const mockRequests = [
+      {
+        id: '1',
+        note: 'Need help with prescription management system.',
+        status: 'resolved',
+        createdAt: '2024-01-15T10:30:00Z',
+        updatedAt: '2024-01-16T14:20:00Z',
+        adminNote: 'Issue resolved. Prescription system updated.',
+      },
+      {
+        id: '2',
+        note: 'Unable to access patient records.',
+        status: 'in_progress',
+        createdAt: '2024-01-20T09:15:00Z',
+        updatedAt: '2024-01-20T11:30:00Z',
+        adminNote: 'Working on the issue.',
+      },
+    ]
+    setSupportRequests(mockRequests)
+  }, [role])
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
+      in_progress: { label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
+      resolved: { label: 'Resolved', color: 'bg-green-100 text-green-800' },
+      closed: { label: 'Closed', color: 'bg-slate-100 text-slate-800' },
+    }
+    const config = statusConfig[status] || statusConfig.pending
+    return (
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${config.color}`}>
+        {config.label}
+      </span>
+    )
+  }
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  if (supportRequests.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+        <p className="text-sm font-medium text-slate-600">No support requests yet</p>
+        <p className="mt-1 text-xs text-slate-500">Your support request history will appear here</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {supportRequests.map((request) => (
+        <div key={request.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <p className="text-sm font-medium text-slate-900 flex-1">{request.note}</p>
+            {getStatusBadge(request.status)}
+          </div>
+          {request.adminNote && (
+            <div className="mt-2 rounded bg-blue-50 p-2">
+              <p className="text-xs font-semibold text-blue-900">Admin Response:</p>
+              <p className="mt-1 text-xs text-blue-800">{request.adminNote}</p>
+            </div>
+          )}
+          <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+            <span>Submitted: {formatDate(request.createdAt)}</span>
+            {request.updatedAt !== request.createdAt && (
+              <span>Updated: {formatDate(request.updatedAt)}</span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 
