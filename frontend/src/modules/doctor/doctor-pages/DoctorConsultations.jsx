@@ -189,13 +189,45 @@ const DoctorConsultations = () => {
     }
   }, [consultations, filterParam])
   
-  const [selectedConsultation, setSelectedConsultation] = useState(
-    filteredConsultations.length > 0 ? filteredConsultations[0] : null
-  )
+  // Check if consultation is passed via navigation state
+  const passedConsultation = location.state?.selectedConsultation
+  
+  const [selectedConsultation, setSelectedConsultation] = useState(() => {
+    // Initialize with passed consultation if available
+    if (location.state?.selectedConsultation) {
+      return location.state.selectedConsultation
+    }
+    return filteredConsultations.length > 0 ? filteredConsultations[0] : null
+  })
+  
+  // Add passed consultation to consultations list and set as selected
+  useEffect(() => {
+    if (passedConsultation) {
+      setConsultations((prev) => {
+        // Check if consultation already exists
+        const exists = prev.find((c) => c.id === passedConsultation.id || c.patientId === passedConsultation.patientId)
+        if (!exists) {
+          return [passedConsultation, ...prev]
+        }
+        // Update existing consultation with passed data
+        return prev.map((c) => 
+          (c.id === passedConsultation.id || c.patientId === passedConsultation.patientId) ? passedConsultation : c
+        )
+      })
+      setSelectedConsultation(passedConsultation)
+      // Clear the navigation state after using it
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, []) // Run only once on mount
   
   // Update selected consultation when filter changes
   useEffect(() => {
-    if (filteredConsultations.length > 0 && (!selectedConsultation || !filteredConsultations.includes(selectedConsultation))) {
+    // Don't override if we just set it from passed consultation
+    if (passedConsultation && selectedConsultation?.id === passedConsultation.id) {
+      return
+    }
+    
+    if (filteredConsultations.length > 0 && (!selectedConsultation || !filteredConsultations.some(c => c.id === selectedConsultation.id))) {
       setSelectedConsultation(filteredConsultations[0])
     } else if (filteredConsultations.length === 0) {
       setSelectedConsultation(null)
@@ -922,11 +954,18 @@ const DoctorConsultations = () => {
                     style={activeTab === 'saved' ? { backgroundColor: '#11496c', boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.2)' } : {}}
                   >
                     Saved
-                    {savedPrescriptions.length > 0 && (
-                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] sm:text-xs font-bold text-white">
-                        {savedPrescriptions.length}
-                      </span>
-                    )}
+                    {(() => {
+                      const currentPatientPrescriptions = selectedConsultation 
+                        ? savedPrescriptions.filter((prescription) => 
+                            prescription.patientId === selectedConsultation.patientId
+                          )
+                        : []
+                      return currentPatientPrescriptions.length > 0 ? (
+                        <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] sm:text-xs font-bold text-white">
+                          {currentPatientPrescriptions.length}
+                        </span>
+                      ) : null
+                    })()}
                   </button>
                 </div>
 
@@ -1626,102 +1665,123 @@ const DoctorConsultations = () => {
                     ) : (
                       /* Saved Prescriptions List */
                       <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-md shadow-slate-200/50">
-                        <div className="mb-5 flex items-center justify-between">
-                          <h3 className="text-lg font-bold text-slate-900">Saved Prescriptions</h3>
-                          <span className="rounded-full bg-[rgba(17,73,108,0.15)] px-3 py-1 text-xs font-semibold text-[#11496c]">
-                            {savedPrescriptions.length} {savedPrescriptions.length === 1 ? 'Prescription' : 'Prescriptions'}
-                          </span>
-                        </div>
+                        {/* Filter prescriptions for current patient only */}
+                        {(() => {
+                          const filteredPrescriptions = selectedConsultation 
+                            ? savedPrescriptions.filter((prescription) => 
+                                prescription.patientId === selectedConsultation.patientId
+                              )
+                            : []
+                          
+                          return (
+                            <>
+                              <div className="mb-5 flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-slate-900">Saved Prescriptions</h3>
+                                <span className="rounded-full bg-[rgba(17,73,108,0.15)] px-3 py-1 text-xs font-semibold text-[#11496c]">
+                                  {filteredPrescriptions.length} {filteredPrescriptions.length === 1 ? 'Prescription' : 'Prescriptions'}
+                                </span>
+                              </div>
 
-                      {savedPrescriptions.length === 0 ? (
-                        <div className="py-12 text-center">
-                          <IoDocumentTextOutline className="mx-auto h-16 w-16 text-slate-300" />
-                          <p className="mt-4 text-sm font-medium text-slate-600">No saved prescriptions yet</p>
-                          <p className="mt-1 text-xs text-slate-500">Prescriptions you save will appear here</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3 sm:space-y-4">
-                          {savedPrescriptions.map((prescription) => (
+                              {!selectedConsultation ? (
+                                <div className="py-12 text-center">
+                                  <IoPersonOutline className="mx-auto h-16 w-16 text-slate-300" />
+                                  <p className="mt-4 text-sm font-medium text-slate-600">Please select a patient</p>
+                                  <p className="mt-1 text-xs text-slate-500">Select a patient to view their saved prescriptions</p>
+                                </div>
+                              ) : filteredPrescriptions.length === 0 ? (
+                                <div className="py-12 text-center">
+                                  <IoDocumentTextOutline className="mx-auto h-16 w-16 text-slate-300" />
+                                  <p className="mt-4 text-sm font-medium text-slate-600">No saved prescriptions for {selectedConsultation.patientName}</p>
+                                  <p className="mt-1 text-xs text-slate-500">Prescriptions you save for this patient will appear here</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {filteredPrescriptions.map((prescription) => (
                             <div
                               key={prescription.id}
-                              className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-lg hover:border-[#11496c]/30 transition-all duration-200"
+                              className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-[#11496c]/30 transition-all duration-200"
                             >
-                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                              <div className="flex items-center gap-3 mb-2">
                                 {/* Patient Avatar */}
-                                <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl bg-[#11496c] flex items-center justify-center shrink-0 shadow-md">
-                                  <span className="text-white text-lg sm:text-xl font-bold">
-                                    {prescription.patientName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                  </span>
-                                </div>
+                                <img
+                                  src={prescription.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.patientName)}&background=11496c&color=fff&size=160&bold=true`}
+                                  alt={prescription.patientName}
+                                  className="h-10 w-10 rounded-lg object-cover ring-2 ring-slate-100 shrink-0"
+                                  onError={(e) => {
+                                    e.target.onerror = null
+                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.patientName)}&background=11496c&color=fff&size=160&bold=true`
+                                  }}
+                                />
 
-                                {/* Patient Info & Details */}
-                                <div className="flex-1 min-w-0 w-full sm:w-auto">
-                                  <div className="flex items-start justify-between gap-3 mb-2">
-                                    <div className="flex-1 min-w-0">
-                                      <h4 className="text-lg sm:text-xl font-bold text-[#11496c] mb-1">
-                                        {prescription.patientName}
-                                      </h4>
-                                      {prescription.diagnosis && (
-                                        <p className="text-sm font-semibold text-slate-900 mb-1">
-                                          {prescription.diagnosis}
-                                        </p>
-                                      )}
-                                    </div>
+                                {/* Patient Name */}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-base font-bold text-slate-900 truncate">
+                                    {prescription.patientName}
+                                  </h4>
+                                </div>
+                              </div>
+
+                              {/* Diagnosis */}
+                              {prescription.diagnosis && (
+                                <p className="text-sm text-slate-900 mb-2 line-clamp-1">
+                                  {prescription.diagnosis}
+                                </p>
+                              )}
+
+                              {/* Additional Information */}
+                              <div className="flex flex-wrap items-center gap-2.5 mb-3 text-xs text-slate-600">
+                                {prescription.savedAt && (
+                                  <div className="flex items-center gap-1">
+                                    <IoTimeOutline className="h-3.5 w-3.5 text-slate-500" />
+                                    <span>{prescription.savedAt}</span>
                                   </div>
-
-                                  {/* Additional Information */}
-                                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-slate-600">
-                                    {prescription.savedAt && (
-                                      <div className="flex items-center gap-1">
-                                        <IoTimeOutline className="h-4 w-4 text-slate-500" />
-                                        <span>{prescription.savedAt}</span>
-                                      </div>
-                                    )}
-                                    {prescription.medications && prescription.medications.length > 0 && (
-                                      <div className="flex items-center gap-1">
-                                        <IoMedicalOutline className="h-4 w-4 text-emerald-600" />
-                                        <span className="font-semibold text-emerald-700">
-                                          {prescription.medications.length} {prescription.medications.length === 1 ? 'Medication' : 'Medications'}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {prescription.investigations && prescription.investigations.length > 0 && (
-                                      <div className="flex items-center gap-1">
-                                        <IoFlaskOutline className="h-4 w-4 text-purple-600" />
-                                        <span className="font-semibold text-purple-700">
-                                          {prescription.investigations.length} {prescription.investigations.length === 1 ? 'Test' : 'Tests'}
-                                        </span>
-                                      </div>
-                                    )}
+                                )}
+                                {prescription.medications && prescription.medications.length > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <IoMedicalOutline className="h-3.5 w-3.5 text-emerald-600" />
+                                    <span className="font-medium text-emerald-700">
+                                      {prescription.medications.length} {prescription.medications.length === 1 ? 'Medication' : 'Medications'}
+                                    </span>
                                   </div>
-                                </div>
+                                )}
+                                {prescription.investigations && prescription.investigations.length > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <IoFlaskOutline className="h-3.5 w-3.5 text-purple-600" />
+                                    <span className="font-medium text-purple-700">
+                                      {prescription.investigations.length} {prescription.investigations.length === 1 ? 'Test' : 'Tests'}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
 
-                                {/* Action Buttons */}
-                                <div className="flex items-center gap-2 sm:gap-3 shrink-0 w-full sm:w-auto">
-                                  <button
-                                    type="button"
-                                    onClick={() => setViewingPrescription(prescription)}
-                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 sm:h-11 px-4 rounded-lg border-2 border-[#11496c] bg-white text-[#11496c] shadow-sm transition-all hover:bg-[#11496c] hover:text-white active:scale-95"
-                                    title="View Prescription"
-                                  >
-                                    <IoEyeOutline className="h-5 w-5" />
-                                    <span className="text-sm font-semibold">View</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDownloadPrescription(prescription)}
-                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 sm:h-11 px-4 rounded-lg bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
-                                    title="Download PDF"
-                                  >
-                                    <IoDownloadOutline className="h-5 w-5" />
-                                    <span className="text-sm font-semibold">Download</span>
-                                  </button>
-                                </div>
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingPrescription(prescription)}
+                                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-slate-300 bg-white text-[#11496c] shadow-sm transition-all hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                                  title="View Prescription"
+                                >
+                                  <IoEyeOutline className="h-4 w-4" />
+                                  <span className="text-xs font-semibold">View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadPrescription(prescription)}
+                                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
+                                  title="Download PDF"
+                                >
+                                  <IoDownloadOutline className="h-4 w-4" />
+                                  <span className="text-xs font-semibold">Download</span>
+                                </button>
                               </div>
                             </div>
                           ))}
                         </div>
-                      )}
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>

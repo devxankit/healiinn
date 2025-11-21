@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoPeopleOutline,
@@ -133,6 +133,7 @@ const formatDate = (dateString) => {
 
 const DoctorPatients = () => {
   const location = useLocation()
+  const navigate = useNavigate()
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
   
   const [appointments, setAppointments] = useState(mockAppointments)
@@ -147,12 +148,44 @@ const DoctorPatients = () => {
   )
 
   const handleCallNext = (appointmentId) => {
+    const appointment = appointments.find((appt) => appt.id === appointmentId)
+    if (!appointment) return
+
+    // Update status locally
     setAppointments((prev) =>
       prev.map((appt) =>
         appt.id === appointmentId ? { ...appt, status: 'called' } : appt
       )
     )
-    alert('Patient called for consultation')
+
+    // Navigate to consultations page with patient data
+    // Convert appointment to consultation format
+    const consultationData = {
+      id: `cons-${appointment.id}`,
+      patientId: appointment.patientId,
+      patientName: appointment.patientName,
+      age: appointment.age,
+      gender: appointment.gender,
+      appointmentTime: appointment.appointmentTime,
+      appointmentType: appointment.appointmentType,
+      status: 'in-progress',
+      reason: appointment.reason,
+      patientImage: appointment.patientImage,
+      patientPhone: '+1-555-987-6543', // Default phone
+      patientEmail: `${appointment.patientName.toLowerCase().replace(' ', '.')}@example.com`, // Default email
+      patientAddress: '123 Patient Street, New York, NY 10001', // Default address
+      diagnosis: '',
+      vitals: {},
+      medications: [],
+      investigations: [],
+      advice: '',
+      attachments: [],
+    }
+
+    // Navigate to consultations page with patient data in state
+    navigate('/doctor/consultations', {
+      state: { selectedConsultation: consultationData },
+    })
   }
 
   const handleComplete = (appointmentId) => {
