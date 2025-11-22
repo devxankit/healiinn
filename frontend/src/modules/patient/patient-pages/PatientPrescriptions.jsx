@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import jsPDF from 'jspdf'
 import {
   IoDocumentTextOutline,
   IoCalendarOutline,
@@ -30,9 +31,10 @@ const mockPrescriptions = [
     issuedAt: '2025-01-10',
     status: 'active',
     diagnosis: 'Hypertension',
+    symptoms: 'High blood pressure\nHeadaches\nChest discomfort',
     medications: [
-      { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', duration: '30 days' },
-      { name: 'Losartan', dosage: '50mg', frequency: 'Once daily', duration: '30 days' },
+      { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', duration: '30 days', instructions: 'Take with food. Monitor blood pressure regularly.' },
+      { name: 'Losartan', dosage: '50mg', frequency: 'Once daily', duration: '30 days', instructions: 'Take in the morning. Avoid potassium supplements.' },
     ],
     investigations: [
       { name: 'ECG', notes: 'Routine checkup' },
@@ -56,9 +58,10 @@ const mockPrescriptions = [
     issuedAt: '2025-01-08',
     status: 'active',
     diagnosis: 'Dental Caries',
+    symptoms: 'Tooth pain\nSensitivity to hot and cold',
     medications: [
-      { name: 'Amoxicillin', dosage: '500mg', frequency: 'Three times daily', duration: '7 days' },
-      { name: 'Ibuprofen', dosage: '400mg', frequency: 'As needed for pain', duration: '5 days' },
+      { name: 'Amoxicillin', dosage: '500mg', frequency: 'Three times daily', duration: '7 days', instructions: 'Complete the full course. Take with meals to avoid stomach upset.' },
+      { name: 'Ibuprofen', dosage: '400mg', frequency: 'As needed for pain', duration: '5 days', instructions: 'Take with food. Do not exceed recommended dosage.' },
     ],
     investigations: [],
     advice: 'Maintain good oral hygiene. Avoid hard foods for the next few days.',
@@ -244,11 +247,8 @@ const PatientPrescriptions = () => {
   const [filter, setFilter] = useState('all') // all, active, completed
   const [showShareModal, setShowShareModal] = useState(false)
   const [sharePrescriptionId, setSharePrescriptionId] = useState(null)
-  const [selectedPharmacies, setSelectedPharmacies] = useState([])
-  const [selectedLabs, setSelectedLabs] = useState([])
   const [selectedDoctors, setSelectedDoctors] = useState([])
   const [shareSearchTerm, setShareSearchTerm] = useState('')
-  const [shareTab, setShareTab] = useState('pharmacy') // 'pharmacy', 'laboratory', or 'doctor'
   const [isSharing, setIsSharing] = useState(false)
 
   const filteredPrescriptions = mockPrescriptions.filter((presc) => {
@@ -257,22 +257,6 @@ const PatientPrescriptions = () => {
   })
 
   const currentPrescription = mockPrescriptions.find((p) => p.id === sharePrescriptionId)
-
-  const filteredPharmacies = mockPharmacies.filter((pharmacy) => {
-    const search = shareSearchTerm.toLowerCase()
-    return (
-      pharmacy.name.toLowerCase().includes(search) ||
-      pharmacy.location.toLowerCase().includes(search)
-    )
-  })
-
-  const filteredLabs = mockLabs.filter((lab) => {
-    const search = shareSearchTerm.toLowerCase()
-    return (
-      lab.name.toLowerCase().includes(search) ||
-      lab.location.toLowerCase().includes(search)
-    )
-  })
 
   const filteredDoctors = mockDoctors.filter((doctor) => {
     const search = shareSearchTerm.toLowerCase()
@@ -296,64 +280,377 @@ const PatientPrescriptions = () => {
 
   const handleShareClick = (prescriptionId) => {
     setSharePrescriptionId(prescriptionId)
-    setSelectedPharmacies([])
-    setSelectedLabs([])
     setSelectedDoctors([])
     setShareSearchTerm('')
-    setShareTab('pharmacy')
     setShowShareModal(true)
   }
 
   const handleCloseShareModal = () => {
     setShowShareModal(false)
     setSharePrescriptionId(null)
-    setSelectedPharmacies([])
-    setSelectedLabs([])
     setSelectedDoctors([])
     setShareSearchTerm('')
   }
 
+  const generatePDF = (prescriptionData) => {
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 20
+    const tealColor = [17, 73, 108] // Teal color for header
+    const lightBlueColor = [230, 240, 255] // Light blue for diagnosis
+    const lightGrayColor = [245, 245, 245] // Light gray for medications
+    const lightPurpleColor = [240, 230, 250] // Light purple for tests
+    const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
+    let yPos = margin
+
+    // Header Section - Clinic Name in Teal (Large, Bold)
+    // Since we don't have clinic info, use doctor's name and specialty
+    doc.setTextColor(...tealColor)
+    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Healiinn Prescription', pageWidth / 2, yPos, { align: 'center' })
+    yPos += 7
+
+    // Doctor Name and Specialty (Centered)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text(prescriptionData.doctor.name, pageWidth / 2, yPos, { align: 'center' })
+    yPos += 5
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text(prescriptionData.doctor.specialty, pageWidth / 2, yPos, { align: 'center' })
+    yPos += 5
+
+    // Teal horizontal line separator
+    doc.setDrawColor(...tealColor)
+    doc.setLineWidth(0.5)
+    doc.line(margin, yPos, pageWidth - margin, yPos)
+    yPos += 8
+
+    // Doctor Information (Left) and Patient Information (Right)
+    const infoStartY = yPos
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Doctor Information', margin, infoStartY)
+    doc.text('Prescription Details', pageWidth - margin, infoStartY, { align: 'right' })
+    
+    yPos = infoStartY + 6
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    
+    // Doctor Info (Left)
+    doc.text(`Name: ${prescriptionData.doctor.name}`, margin, yPos)
+    doc.text(`Specialty: ${prescriptionData.doctor.specialty}`, margin, yPos + 4)
+    const issuedDate = formatDate(prescriptionData.issuedAt)
+    doc.text(`Date: ${issuedDate}`, margin, yPos + 8)
+
+    // Prescription Info (Right)
+    doc.text(`Status: ${prescriptionData.status.charAt(0).toUpperCase() + prescriptionData.status.slice(1)}`, pageWidth - margin, yPos, { align: 'right' })
+    doc.text(`Issued: ${issuedDate}`, pageWidth - margin, yPos + 4, { align: 'right' })
+    if (prescriptionData.followUpAt) {
+      const followUpDate = formatDate(prescriptionData.followUpAt)
+      doc.text(`Follow-up: ${followUpDate}`, pageWidth - margin, yPos + 8, { align: 'right' })
+    }
+
+    yPos += 15
+
+    // Diagnosis Section with Light Blue Background Box
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Diagnosis', margin, yPos)
+    yPos += 6
+    
+    // Light blue rounded box for diagnosis
+    const diagnosisHeight = 8
+    doc.setFillColor(...lightBlueColor)
+    doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, diagnosisHeight, 2, 2, 'F')
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    const diagnosisText = prescriptionData.diagnosis || 'N/A'
+    doc.text(diagnosisText, margin + 4, yPos + 2)
+    yPos += diagnosisHeight + 4
+
+    // Symptoms Section with Green Bullet Points
+    if (prescriptionData.symptoms) {
+      // Check if we need a new page
+      if (yPos > pageHeight - 30) {
+        doc.addPage()
+        yPos = margin
+      }
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Symptoms', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      const symptomLines = typeof prescriptionData.symptoms === 'string' 
+        ? prescriptionData.symptoms.split('\n').filter(line => line.trim())
+        : Array.isArray(prescriptionData.symptoms)
+        ? prescriptionData.symptoms.filter(s => s && s.trim())
+        : [String(prescriptionData.symptoms)]
+      
+      symptomLines.forEach((symptom) => {
+        // Check if we need a new page for each line
+        if (yPos > pageHeight - 20) {
+          doc.addPage()
+          yPos = margin
+        }
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        const symptomText = typeof symptom === 'string' ? symptom.trim() : String(symptom)
+        doc.text(symptomText, margin + 5, yPos)
+        yPos += 4
+      })
+      yPos += 2
+    }
+
+    // Medications Section with Numbered Cards (Light Gray Background)
+    if (prescriptionData.medications && prescriptionData.medications.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medications', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.medications.forEach((med, idx) => {
+        // Check if we need a new page (with more space check)
+        if (yPos > pageHeight - 50) {
+          doc.addPage()
+          yPos = margin
+        }
+        
+        // Calculate card height based on instructions
+        const hasInstructions = med.instructions && med.instructions.trim()
+        let cardHeight = 22 // Base height
+        
+        // Calculate how many lines instructions will take (using right column width)
+        if (hasInstructions) {
+          doc.setFontSize(7)
+          const rightColMaxWidth = (pageWidth - 2 * margin) / 2 - 5
+          const instructionsLines = doc.splitTextToSize(med.instructions.trim(), rightColMaxWidth)
+          // Add extra height for instructions (label + text lines)
+          // Label takes 4 units, each line takes 4 units
+          cardHeight += 4 + (instructionsLines.length * 4)
+        }
+        
+        // Medication card with light gray background
+        doc.setFillColor(...lightGrayColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
+        
+        // Numbered square in teal (top-right corner)
+        const numberSize = 8
+        const numberX = pageWidth - margin - numberSize - 3
+        const numberY = yPos - 1
+        doc.setFillColor(...tealColor)
+        doc.roundedRect(numberX, numberY, numberSize, numberSize, 1, 1, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 1, { align: 'center' })
+        
+        // Medication name (bold, top)
+        doc.setTextColor(0, 0, 0)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.text(med.name, margin + 4, yPos + 3)
+        
+        // Medication details in 2 columns (left and right)
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'normal')
+        const leftColX = margin + 4
+        const rightColX = margin + (pageWidth - 2 * margin) / 2 + 5
+        const startY = yPos + 7
+        
+        // Left column
+        doc.text(`Dosage: ${med.dosage || 'N/A'}`, leftColX, startY)
+        doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 4)
+        
+        // Right column
+        doc.text(`Frequency: ${med.frequency || 'N/A'}`, rightColX, startY)
+        
+        // Instructions - displayed right below frequency in right column
+        if (hasInstructions) {
+          const instructionsText = med.instructions.trim()
+          // Calculate max width for right column (half of page width minus margins)
+          const rightColMaxWidth = (pageWidth - 2 * margin) / 2 - 5
+          const instructionsLines = doc.splitTextToSize(instructionsText, rightColMaxWidth)
+          
+          // Instructions label (bold)
+          doc.setFont('helvetica', 'bold')
+          doc.text('Instructions:', rightColX, startY + 4)
+          doc.setFont('helvetica', 'normal')
+          
+          // Instructions text (can wrap to multiple lines, right below label)
+          instructionsLines.forEach((line, lineIdx) => {
+            doc.text(line, rightColX, startY + 8 + (lineIdx * 4))
+          })
+        }
+        
+        yPos += cardHeight + 4
+      })
+      yPos += 2
+    }
+
+    // Recommended Tests Section (Light Purple Boxes)
+    if (prescriptionData.investigations && prescriptionData.investigations.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Recommended Tests', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.investigations.forEach((inv) => {
+        // Check if we need a new page
+        if (yPos > pageHeight - 30) {
+          doc.addPage()
+          yPos = margin
+        }
+        
+        // Light purple box for each test
+        const testBoxHeight = inv.notes ? 14 : 9
+        doc.setFillColor(...lightPurpleColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
+        
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text(inv.name, margin + 4, yPos + 2)
+        
+        if (inv.notes) {
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(80, 80, 80)
+          doc.text(inv.notes, margin + 4, yPos + 8)
+        }
+        
+        yPos += testBoxHeight + 3
+      })
+      yPos += 2
+    }
+
+    // Medical Advice Section with Green Bullet Points
+    if (prescriptionData.advice) {
+      // Check if we need a new page
+      if (yPos > pageHeight - 30) {
+        doc.addPage()
+        yPos = margin
+      }
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medical Advice', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      const adviceLines = prescriptionData.advice.split('\n').filter(line => line.trim())
+      adviceLines.forEach((advice) => {
+        // Check if we need a new page for each line
+        if (yPos > pageHeight - 20) {
+          doc.addPage()
+          yPos = margin
+        }
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        doc.text(advice.trim(), margin + 5, yPos)
+        yPos += 4
+      })
+      yPos += 2
+    }
+
+    // Follow-up Appointment (Light Yellow Box)
+    if (prescriptionData.followUpAt) {
+      // Check if we need a new page
+      if (yPos > pageHeight - 20) {
+        doc.addPage()
+        yPos = margin
+      }
+      
+      const followUpHeight = 12
+      doc.setFillColor(...lightYellowColor)
+      doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, followUpHeight, 2, 2, 'F')
+      
+      // Calendar icon (small square)
+      doc.setFillColor(255, 200, 0)
+      doc.roundedRect(margin + 2, yPos + 1, 3, 3, 0.5, 0.5, 'F')
+      
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text('Follow-up Appointment', margin + 7, yPos + 3)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      const followUpDate = formatDate(prescriptionData.followUpAt)
+      doc.text(followUpDate, margin + 7, yPos + 8)
+      yPos += followUpHeight + 5
+    }
+
+    // Footer with Doctor Signature (Right side)
+    // Calculate space needed for signature - ensure everything fits on one page
+    const signatureSpace = 30
+    const minYPos = pageHeight - signatureSpace - 5
+    if (yPos < minYPos) {
+      yPos = minYPos
+    }
+
+    // Doctor Signature (Right side)
+    const signatureX = pageWidth - margin - 55
+    const signatureY = yPos
+    
+    // Draw a line for signature
+    doc.setDrawColor(0, 0, 0)
+    doc.setLineWidth(0.5)
+    doc.line(signatureX, signatureY, signatureX + 50, signatureY)
+    
+    // Doctor name and designation below signature (centered under signature area)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text(prescriptionData.doctor.name, signatureX + 25, signatureY + 8, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.text(prescriptionData.doctor.specialty, signatureX + 25, signatureY + 12, { align: 'center' })
+
+    // Disclaimer at bottom center
+    const disclaimerY = pageHeight - 6
+    doc.setFontSize(6)
+    doc.setTextColor(100, 100, 100)
+    doc.text('This is a digitally generated prescription. For any queries, please contact the clinic.', pageWidth / 2, disclaimerY, { align: 'center' })
+
+    return doc
+  }
+
   const handleDownloadPDF = (prescription) => {
-    if (prescription.pdfUrl && prescription.pdfUrl !== '#') {
-      // Create a temporary anchor element to trigger download
-      const link = document.createElement('a')
-      link.href = prescription.pdfUrl
-      link.download = `prescription-${prescription.doctor.name.replace(/\s+/g, '-')}-${prescription.issuedAt}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-    } else {
-      // If no PDF URL, show alert (in real app, this would generate/download from API)
-      alert('PDF is being generated. Please try again in a moment.')
+    try {
+      const doc = generatePDF(prescription)
+      const fileName = `Prescription_${prescription.doctor.name.replace(/\s+/g, '_')}_${prescription.issuedAt}.pdf`
+      doc.save(fileName)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Error generating PDF. Please try again.')
     }
   }
 
   const handleViewPDF = (prescription) => {
-    if (prescription.pdfUrl && prescription.pdfUrl !== '#') {
-      // Open PDF in new tab
-      window.open(prescription.pdfUrl, '_blank')
-    } else {
-      // If no PDF URL, show alert (in real app, this would generate/view from API)
-      alert('PDF is not available yet. Please try again later.')
+    try {
+      const doc = generatePDF(prescription)
+      // Generate PDF blob and open in new window
+      const pdfBlob = doc.output('blob')
+      const pdfUrl = URL.createObjectURL(pdfBlob)
+      window.open(pdfUrl, '_blank')
+      // Clean up the URL after a delay
+      setTimeout(() => {
+        URL.revokeObjectURL(pdfUrl)
+      }, 100)
+    } catch (error) {
+      console.error('Error viewing PDF:', error)
+      alert('Error generating PDF. Please try again.')
     }
-  }
-
-  const togglePharmacySelection = (pharmacyId) => {
-    setSelectedPharmacies((prev) => {
-      if (prev.includes(pharmacyId)) {
-        return prev.filter((id) => id !== pharmacyId)
-      }
-      return [...prev, pharmacyId]
-    })
-  }
-
-  const toggleLabSelection = (labId) => {
-    setSelectedLabs((prev) => {
-      if (prev.includes(labId)) {
-        return prev.filter((id) => id !== labId)
-      }
-      return [...prev, labId]
-    })
   }
 
   const toggleDoctorSelection = (doctorId) => {
@@ -366,7 +663,7 @@ const PatientPrescriptions = () => {
   }
 
   const handleShare = async () => {
-    if (selectedPharmacies.length === 0 && selectedLabs.length === 0 && selectedDoctors.length === 0) {
+    if (selectedDoctors.length === 0) {
       return
     }
 
@@ -375,23 +672,16 @@ const PatientPrescriptions = () => {
     await new Promise((resolve) => setTimeout(resolve, 1500))
     console.log('Sharing prescription:', {
       prescriptionId: sharePrescriptionId,
-      pharmacies: selectedPharmacies,
-      laboratories: selectedLabs,
       doctors: selectedDoctors,
     })
     setIsSharing(false)
     
-    // If doctors are selected, navigate to first doctor's booking page
+    // Navigate to first doctor's booking page
     if (selectedDoctors.length > 0) {
       const firstDoctorId = selectedDoctors[0]
       handleCloseShareModal()
       // Navigate to doctor details page with booking modal open
       navigate(`/patient/doctors/${firstDoctorId}?book=true`)
-    } else {
-      setTimeout(() => {
-        handleCloseShareModal()
-        // Show success message
-      }, 1000)
     }
   }
 
@@ -528,77 +818,17 @@ const PatientPrescriptions = () => {
               </button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center justify-center border-b border-slate-200 bg-slate-50">
-              <button
-                type="button"
-                onClick={() => setShareTab('pharmacy')}
-                className={`relative flex items-center justify-center p-4 transition group ${
-                  shareTab === 'pharmacy'
-                    ? 'border-b-2 border-[#11496c] bg-white text-[#11496c]'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <IoBagHandleOutline className="h-5 w-5" />
-                {shareTab === 'pharmacy' && selectedPharmacies.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#11496c] text-[10px] font-bold text-white">
-                    {selectedPharmacies.length}
-                  </span>
-                )}
-                {/* Tooltip */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                  <div className="relative rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white whitespace-nowrap shadow-lg">
-                    Pharmacies
-                    <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShareTab('laboratory')}
-                className={`relative flex items-center justify-center p-4 transition group ${
-                  shareTab === 'laboratory'
-                    ? 'border-b-2 border-[#11496c] bg-white text-[#11496c]'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <IoFlaskOutline className="h-5 w-5" />
-                {shareTab === 'laboratory' && selectedLabs.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#11496c] text-[10px] font-bold text-white">
-                    {selectedLabs.length}
-                  </span>
-                )}
-                {/* Tooltip */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                  <div className="relative rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white whitespace-nowrap shadow-lg">
-                    Laboratories
-                    <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShareTab('doctor')}
-                className={`relative flex items-center justify-center p-4 transition group ${
-                  shareTab === 'doctor'
-                    ? 'border-b-2 border-[#11496c] bg-white text-[#11496c]'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <IoPeopleOutline className="h-5 w-5" />
-                {shareTab === 'doctor' && selectedDoctors.length > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#11496c] text-[10px] font-bold text-white">
+            {/* Header for Doctors */}
+            <div className="flex items-center justify-center border-b border-slate-200 bg-slate-50 px-6 py-4">
+              <div className="flex items-center gap-2">
+                <IoPeopleOutline className="h-5 w-5 text-[#11496c]" />
+                <h3 className="text-base font-semibold text-slate-900">Select Doctors</h3>
+                {selectedDoctors.length > 0 && (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#11496c] text-[10px] font-bold text-white">
                     {selectedDoctors.length}
                   </span>
                 )}
-                {/* Tooltip */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                  <div className="relative rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white whitespace-nowrap shadow-lg">
-                    Doctors
-                    <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-                  </div>
-                </div>
-              </button>
+              </div>
             </div>
 
             {/* Search */}
@@ -609,7 +839,7 @@ const PatientPrescriptions = () => {
                 </span>
                 <input
                   type="search"
-                  placeholder={`Search ${shareTab === 'pharmacy' ? 'pharmacies' : shareTab === 'laboratory' ? 'laboratories' : 'doctors'}...`}
+                  placeholder="Search doctors..."
                   value={shareSearchTerm}
                   onChange={(e) => setShareSearchTerm(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-10 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
@@ -619,177 +849,83 @@ const PatientPrescriptions = () => {
 
             {/* Content */}
             <div className="p-6">
-              {shareTab === 'pharmacy' ? (
-                <div className="space-y-3">
-                  {filteredPharmacies.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-slate-600">No pharmacies found</p>
-                    </div>
-                  ) : (
-                    filteredPharmacies.map((pharmacy) => {
-                      const isSelected = selectedPharmacies.includes(pharmacy.id)
-                      return (
-                        <button
-                          key={pharmacy.id}
-                          type="button"
-                          onClick={() => togglePharmacySelection(pharmacy.id)}
-                          className={`w-full flex items-center justify-between rounded-xl border-2 p-4 transition text-left ${
-                            isSelected
-                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 flex-1">
-                            <div
-                              className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                                isSelected ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              <IoBagHandleOutline className="h-5 w-5" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="text-sm font-semibold text-slate-900">{pharmacy.name}</h4>
-                              <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
-                                <IoLocationOutline className="h-3 w-3" />
-                                <span>{pharmacy.location}</span>
-                                <span className="font-semibold">{pharmacy.distance}</span>
-                              </div>
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
-                          )}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              ) : shareTab === 'laboratory' ? (
-                <div className="space-y-3">
-                  {filteredLabs.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-slate-600">No laboratories found</p>
-                    </div>
-                  ) : (
-                    filteredLabs.map((lab) => {
-                      const isSelected = selectedLabs.includes(lab.id)
-                      return (
-                        <button
-                          key={lab.id}
-                          type="button"
-                          onClick={() => toggleLabSelection(lab.id)}
-                          className={`w-full flex items-center justify-between rounded-xl border-2 p-4 transition text-left ${
-                            isSelected
-                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 flex-1">
-                            <div
-                              className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                                isSelected ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              <IoFlaskOutline className="h-5 w-5" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="text-sm font-semibold text-slate-900">{lab.name}</h4>
-                              <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
-                                <IoLocationOutline className="h-3 w-3" />
-                                <span>{lab.location}</span>
-                                <span className="font-semibold">{lab.distance}</span>
-                              </div>
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
-                          )}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Info Banner */}
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <div className="flex items-start gap-2">
-                      <IoInformationCircleOutline className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-xs font-semibold text-amber-900">Note</p>
-                        <p className="text-xs text-amber-800 mt-1">
-                          Doctors will need to book an appointment to view this prescription.
-                        </p>
-                      </div>
+              <div className="space-y-3">
+                {/* Info Banner */}
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <div className="flex items-start gap-2">
+                    <IoInformationCircleOutline className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-900">Note</p>
+                      <p className="text-xs text-amber-800 mt-1">
+                        Doctors will need to book an appointment to view this prescription.
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  {filteredDoctors.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-slate-600">No doctors found</p>
-                    </div>
-                  ) : (
-                    filteredDoctors.map((doctor) => {
-                      const isSelected = selectedDoctors.includes(doctor.id)
-                      return (
-                        <button
-                          key={doctor.id}
-                          type="button"
-                          onClick={() => toggleDoctorSelection(doctor.id)}
-                          className={`w-full flex items-center justify-between rounded-xl border-2 p-4 transition text-left ${
-                            isSelected
-                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 flex-1">
-                            <img
-                              src={doctor.image}
-                              alt={doctor.name}
-                              className={`h-12 w-12 rounded-xl object-cover ring-2 bg-slate-100 ${
-                                isSelected ? 'ring-[#11496c]' : 'ring-slate-200'
-                              }`}
-                              onError={(e) => {
-                                e.target.onerror = null
-                                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                              }}
-                            />
-                            <div className="flex-1">
-                              <h4 className="text-sm font-semibold text-slate-900">{doctor.name}</h4>
-                              <p className="text-xs text-[#11496c] mt-0.5">{doctor.specialty}</p>
-                              <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
-                                <IoLocationOutline className="h-3 w-3" />
-                                <span>{doctor.location}</span>
-                                <span className="font-semibold">{doctor.distance}</span>
-                              </div>
-                              <div className="mt-1 flex items-center gap-1">
-                                {renderStars(doctor.rating)}
-                                <span className="text-xs font-semibold text-slate-700 ml-1">{doctor.rating}</span>
-                              </div>
+                {filteredDoctors.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-slate-600">No doctors found</p>
+                  </div>
+                ) : (
+                  filteredDoctors.map((doctor) => {
+                    const isSelected = selectedDoctors.includes(doctor.id)
+                    return (
+                      <button
+                        key={doctor.id}
+                        type="button"
+                        onClick={() => toggleDoctorSelection(doctor.id)}
+                        className={`w-full flex items-center justify-between rounded-xl border-2 p-4 transition text-left ${
+                          isSelected
+                            ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <img
+                            src={doctor.image}
+                            alt={doctor.name}
+                            className={`h-12 w-12 rounded-xl object-cover ring-2 bg-slate-100 ${
+                              isSelected ? 'ring-[#11496c]' : 'ring-slate-200'
+                            }`}
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
+                            }}
+                          />
+                          <div className="flex-1">
+                            <h4 className="text-sm font-semibold text-slate-900">{doctor.name}</h4>
+                            <p className="text-xs text-[#11496c] mt-0.5">{doctor.specialty}</p>
+                            <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
+                              <IoLocationOutline className="h-3 w-3" />
+                              <span>{doctor.location}</span>
+                              <span className="font-semibold">{doctor.distance}</span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-1">
+                              {renderStars(doctor.rating)}
+                              <span className="text-xs font-semibold text-slate-700 ml-1">{doctor.rating}</span>
                             </div>
                           </div>
-                          {isSelected && (
-                            <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
-                          )}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              )}
+                        </div>
+                        {isSelected && (
+                          <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
+                        )}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
             </div>
 
             {/* Footer */}
             <div className="sticky bottom-0 border-t border-slate-200 bg-white px-6 py-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm text-slate-600">
-                  {selectedPharmacies.length + selectedLabs.length + selectedDoctors.length} selected
+                  {selectedDoctors.length} selected
                 </p>
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedPharmacies([])
-                    setSelectedLabs([])
                     setSelectedDoctors([])
                   }}
                   className="text-sm font-semibold text-slate-600 hover:text-slate-900"
@@ -808,7 +944,7 @@ const PatientPrescriptions = () => {
                 <button
                   type="button"
                   onClick={handleShare}
-                  disabled={selectedPharmacies.length === 0 && selectedLabs.length === 0 && selectedDoctors.length === 0 || isSharing}
+                  disabled={selectedDoctors.length === 0 || isSharing}
                   className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isSharing ? (

@@ -16,6 +16,9 @@ import {
   IoPersonOutline,
   IoCheckmarkCircleOutline,
   IoRefreshOutline,
+  IoStopOutline,
+  IoAddOutline,
+  IoCloseCircleOutline,
 } from 'react-icons/io5'
 
 // Mock data
@@ -131,21 +134,192 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// Get average consultation minutes from doctor profile
+const getAverageConsultationMinutes = () => {
+  try {
+    const profile = JSON.parse(localStorage.getItem('doctorProfile') || '{}')
+    return profile.averageConsultationMinutes || 20
+  } catch {
+    return 20
+  }
+}
+
+// Calculate max tokens based on session time and average consultation minutes
+const calculateMaxTokens = (startTime, endTime, averageMinutes) => {
+  const start = new Date(`2000-01-01T${startTime}`)
+  const end = new Date(`2000-01-01T${endTime}`)
+  const diffMs = end - start
+  const diffMinutes = diffMs / (1000 * 60)
+  return Math.floor(diffMinutes / averageMinutes)
+}
+
 const DoctorPatients = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
+  
+  // Session state
+  const [currentSession, setCurrentSession] = useState(() => {
+    // Load session from localStorage if exists
+    try {
+      const saved = localStorage.getItem('doctorCurrentSession')
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
+  const [showCreateSessionModal, setShowCreateSessionModal] = useState(false)
+  const [showCancelSessionModal, setShowCancelSessionModal] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  
+  // Session form state
+  const [sessionForm, setSessionForm] = useState({
+    date: new Date().toISOString().split('T')[0], // Today
+    startTime: '09:00',
+    endTime: '17:00',
+    averageConsultationMinutes: getAverageConsultationMinutes(),
+  })
   
   const [appointments, setAppointments] = useState(mockAppointments)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState(null)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
 
+  // Calculate max tokens for current session form
+  const maxTokens = currentSession
+    ? currentSession.maxTokens
+    : calculateMaxTokens(sessionForm.startTime, sessionForm.endTime, sessionForm.averageConsultationMinutes)
+
   const filteredAppointments = appointments.filter(
     (appt) =>
       appt.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       appt.reason.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  // Session management functions
+  const handleCreateSession = () => {
+    const session = {
+      id: `session-${Date.now()}`,
+      date: sessionForm.date,
+      startTime: sessionForm.startTime,
+      endTime: sessionForm.endTime,
+      averageConsultationMinutes: sessionForm.averageConsultationMinutes,
+      maxTokens: maxTokens,
+      status: 'scheduled',
+      createdAt: new Date().toISOString(),
+    }
+    
+    setCurrentSession(session)
+    localStorage.setItem('doctorCurrentSession', JSON.stringify(session))
+    setShowCreateSessionModal(false)
+    alert('Session created successfully! Click "Start Session" to begin the queue.')
+  }
+
+  const handleStartSession = () => {
+    if (!currentSession) return
+    
+    const updatedSession = {
+      ...currentSession,
+      status: 'active',
+      startedAt: new Date().toISOString(),
+    }
+    
+    setCurrentSession(updatedSession)
+    localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
+    alert('Session started! Queue is now active.')
+  }
+
+  const handleEndSession = () => {
+    if (!currentSession) return
+    
+    if (window.confirm('Are you sure you want to end this session? This will mark all remaining appointments.')) {
+      const updatedSession = {
+        ...currentSession,
+        status: 'completed',
+        endedAt: new Date().toISOString(),
+      }
+      
+      setCurrentSession(updatedSession)
+      localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
+      alert('Session ended successfully.')
+    }
+  }
+
+  const handleCancelSession = () => {
+    if (!cancelReason.trim()) {
+      alert('Please provide a reason for cancelling the session')
+      return
+    }
+
+    if (window.confirm('Are you sure? This will cancel all appointments for this session. Patients will be notified and can reschedule.')) {
+      const updatedSession = {
+        ...currentSession,
+        status: 'cancelled',
+        cancelledAt: new Date().toISOString(),
+        cancelReason: cancelReason.trim(),
+      }
+      
+      setCurrentSession(updatedSession)
+      localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
+      
+      // Cancel all appointments
+      setAppointments((prev) =>
+        prev.map((apt) => ({
+          ...apt,
+          status: 'cancelled',
+          cancelledBy: 'doctor',
+          cancelReason: 'Session cancelled by doctor',
+        }))
+      )
+      
+      // Store cancelled session info for patient notifications
+      try {
+        const cancelledSessions = JSON.parse(localStorage.getItem('cancelledSessions') || '[]')
+        cancelledSessions.push({
+          date: currentSession.date,
+          reason: cancelReason.trim(),
+          cancelledAt: new Date().toISOString(),
+        })
+        localStorage.setItem('cancelledSessions', JSON.stringify(cancelledSessions))
+      } catch (error) {
+        console.error('Error saving cancelled session:', error)
+      }
+      
+      setShowCancelSessionModal(false)
+      setCancelReason('')
+      alert('Session cancelled. All appointments have been cancelled and patients will be notified.')
+    }
+  }
+
+  const getSessionStatusColor = (status) => {
+    switch (status) {
+      case 'active':
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+      case 'scheduled':
+        return 'bg-blue-100 text-blue-700 border-blue-200'
+      case 'completed':
+        return 'bg-slate-100 text-slate-700 border-slate-200'
+      case 'cancelled':
+        return 'bg-red-100 text-red-700 border-red-200'
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200'
+    }
+  }
+
+  const getSessionStatusText = (status) => {
+    switch (status) {
+      case 'active':
+        return 'Active'
+      case 'scheduled':
+        return 'Scheduled'
+      case 'completed':
+        return 'Completed'
+      case 'cancelled':
+        return 'Cancelled'
+      default:
+        return 'Not Started'
+    }
+  }
 
   const handleCallNext = (appointmentId) => {
     const appointment = appointments.find((appt) => appt.id === appointmentId)
@@ -268,6 +442,83 @@ const DoctorPatients = () => {
     <>
       <DoctorNavbar />
       <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+          {/* Session Status Card */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <IoCalendarOutline className="h-5 w-5 text-[#11496c]" />
+                  <h3 className="text-sm font-bold text-slate-900">Today's Session</h3>
+                </div>
+                {currentSession ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getSessionStatusColor(currentSession.status)}`}>
+                        {getSessionStatusText(currentSession.status)}
+                      </span>
+                      <span className="text-xs text-slate-600">
+                        {formatTime(`${currentSession.date}T${currentSession.startTime}`)} - {formatTime(`${currentSession.date}T${currentSession.endTime}`)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-600">
+                      <span>Avg Time: {currentSession.averageConsultationMinutes} min/patient</span>
+                      <span>•</span>
+                      <span>Capacity: {appointments.filter(a => a.status !== 'cancelled' && a.status !== 'no-show').length} / {currentSession.maxTokens}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">No session created for today</p>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2 flex-wrap">
+                {!currentSession ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateSessionModal(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                  >
+                    <IoAddOutline className="h-4 w-4" />
+                    Create Session
+                  </button>
+                ) : (
+                  <>
+                    {currentSession.status === 'scheduled' && (
+                      <button
+                        type="button"
+                        onClick={handleStartSession}
+                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                      >
+                        <IoPlayOutline className="h-4 w-4" />
+                        Start Session
+                      </button>
+                    )}
+                    {currentSession.status === 'active' && (
+                      <button
+                        type="button"
+                        onClick={handleEndSession}
+                        className="flex items-center gap-1.5 rounded-lg bg-slate-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-700 active:scale-95"
+                      >
+                        <IoStopOutline className="h-4 w-4" />
+                        End Session
+                      </button>
+                    )}
+                    {(currentSession.status === 'scheduled' || currentSession.status === 'active') && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCancelSessionModal(true)}
+                        className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-100 active:scale-95"
+                      >
+                        <IoCloseCircleOutline className="h-4 w-4" />
+                        Cancel Session
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Search Bar */}
           <div className="mb-4">
             <div className="relative">
@@ -284,7 +535,21 @@ const DoctorPatients = () => {
 
           {/* Appointment Queue */}
           <div className="space-y-3">
-            {filteredAppointments.length === 0 ? (
+            {!currentSession ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                <IoCalendarOutline className="mx-auto h-12 w-12 text-slate-300" />
+                <p className="mt-4 text-sm font-medium text-slate-600">No session created</p>
+                <p className="mt-1 text-xs text-slate-500">Create a session to view patient queue</p>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateSessionModal(true)}
+                  className="mt-4 flex items-center gap-2 mx-auto rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                >
+                  <IoAddOutline className="h-4 w-4" />
+                  Create Session
+                </button>
+              </div>
+            ) : filteredAppointments.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                 <IoPeopleOutline className="mx-auto h-12 w-12 text-slate-300" />
                 <p className="mt-4 text-sm font-medium text-slate-600">No appointments found</p>
@@ -577,6 +842,195 @@ const DoctorPatients = () => {
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Session Modal */}
+      {showCreateSessionModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm"
+          onClick={() => setShowCreateSessionModal(false)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 p-4 sm:p-6">
+              <h2 className="text-lg font-bold text-slate-900">Create Session</h2>
+              <button
+                type="button"
+                onClick={() => setShowCreateSessionModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+              >
+                <IoCloseOutline className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 sm:p-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">Date</label>
+                <input
+                  type="date"
+                  value={sessionForm.date}
+                  onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-900">Start Time</label>
+                  <input
+                    type="time"
+                    value={sessionForm.startTime}
+                    onChange={(e) => {
+                      setSessionForm({ ...sessionForm, startTime: e.target.value })
+                    }}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-900">End Time</label>
+                  <input
+                    type="time"
+                    value={sessionForm.endTime}
+                    onChange={(e) => {
+                      setSessionForm({ ...sessionForm, endTime: e.target.value })
+                    }}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Average Consultation Time (minutes)
+                </label>
+                <input
+                  type="number"
+                  min="5"
+                  max="60"
+                  value={sessionForm.averageConsultationMinutes}
+                  onChange={(e) => {
+                    const value = Math.max(5, Math.min(60, parseInt(e.target.value) || 5))
+                    setSessionForm({ ...sessionForm, averageConsultationMinutes: value })
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+                />
+                <p className="mt-1 text-xs text-slate-500">Range: 5 - 60 minutes</p>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-slate-700">Max Capacity:</span>
+                  <span className="font-bold text-[#11496c]">{maxTokens} patients</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Based on session duration and average consultation time
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 border-t border-slate-200 p-4 sm:p-6">
+              <button
+                type="button"
+                onClick={() => setShowCreateSessionModal(false)}
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateSession}
+                disabled={!sessionForm.startTime || !sessionForm.endTime || sessionForm.startTime >= sessionForm.endTime}
+                className="flex-1 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] disabled:bg-slate-300 disabled:cursor-not-allowed"
+              >
+                Create Session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Session Modal */}
+      {showCancelSessionModal && currentSession && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm"
+          onClick={() => setShowCancelSessionModal(false)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 p-4 sm:p-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                  <IoCloseCircleOutline className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Cancel Session</h2>
+                  <p className="text-xs text-slate-600">{formatDate(currentSession.date)}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCancelSessionModal(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+              >
+                <IoCloseOutline className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-semibold text-red-800 mb-1">Warning</p>
+                <p className="text-xs text-red-700">
+                  Cancelling this session will cancel all appointments. Patients will be notified and can reschedule.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Reason for Cancellation <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Please provide a reason for cancelling this session..."
+                  rows="4"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c] resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 border-t border-slate-200 p-4 sm:p-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCancelSessionModal(false)
+                  setCancelReason('')
+                }}
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Keep Session
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelSession}
+                disabled={!cancelReason.trim()}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+              >
+                Cancel Session
               </button>
             </div>
           </div>

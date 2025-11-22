@@ -5,7 +5,6 @@ import {
   IoDocumentTextOutline,
   IoSearchOutline,
   IoTimeOutline,
-  IoArrowBackOutline,
   IoCheckmarkCircleOutline,
   IoCloseCircleOutline,
   IoPersonOutline,
@@ -400,16 +399,6 @@ const DoctorAllConsultations = () => {
     <>
       <DoctorNavbar />
       <section className="flex flex-col gap-4 pb-24">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/doctor/dashboard')}
-            className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-          >
-            <IoArrowBackOutline className="h-5 w-5" />
-          </button>
-        </div>
-
         {/* Statistics Cards - Clickable */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <button

@@ -5,14 +5,13 @@ import {
   IoCalendarOutline,
   IoSearchOutline,
   IoTimeOutline,
-  IoArrowBackOutline,
   IoCheckmarkCircleOutline,
-  IoCloseCircleOutline,
   IoVideocamOutline,
   IoCallOutline,
   IoPersonOutline,
   IoDocumentTextOutline,
-  IoPeopleOutline,
+  IoCloseCircleOutline,
+  IoCloseOutline,
 } from 'react-icons/io5'
 
 // Mock data for appointments
@@ -231,7 +230,10 @@ const DoctorAppointments = () => {
   const navigate = useNavigate()
   const [appointments, setAppointments] = useState(mockAllAppointments)
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterPeriod, setFilterPeriod] = useState('today') // 'today', 'monthly', 'yearly', 'all'
+  const [filterPeriod, setFilterPeriod] = useState('all') // 'today', 'monthly', 'yearly', 'all'
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [appointmentToCancel, setAppointmentToCancel] = useState(null)
+  const [cancelReason, setCancelReason] = useState('')
 
   // Get today's date for filtering
   const today = new Date()
@@ -342,23 +344,45 @@ const DoctorAppointments = () => {
     })
   }
 
+  const handleCancelClick = (e, appointment) => {
+    e.stopPropagation() // Prevent card click
+    setAppointmentToCancel(appointment)
+    setShowCancelModal(true)
+  }
+
+  const handleConfirmCancel = () => {
+    if (!appointmentToCancel || !cancelReason.trim()) {
+      alert('Please provide a reason for cancellation')
+      return
+    }
+
+    // Update appointment status to cancelled
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.id === appointmentToCancel.id
+          ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
+          : apt
+      )
+    )
+
+    // Close modal and reset
+    setShowCancelModal(false)
+    setAppointmentToCancel(null)
+    setCancelReason('')
+    
+    alert(`Appointment with ${appointmentToCancel.patientName} has been cancelled. Patient will be notified and can reschedule.`)
+  }
+
+  const handleCloseCancelModal = () => {
+    setShowCancelModal(false)
+    setAppointmentToCancel(null)
+    setCancelReason('')
+  }
+
   return (
     <>
       <DoctorNavbar />
       <section className="flex flex-col gap-4 pb-24">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/doctor/dashboard')}
-            className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-          >
-            <IoArrowBackOutline className="h-5 w-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Appointments</h1>
-            <p className="text-sm text-slate-600">{stats.total} total appointments</p>
-          </div>
-        </div>
 
         {/* Statistics Cards - Clickable */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
@@ -440,15 +464,15 @@ const DoctorAppointments = () => {
               return (
                 <div
                   key={appointment.id}
-                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md hover:border-[#11496c]/30 cursor-pointer"
-                  onClick={() => handleViewAppointment(appointment)}
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md hover:border-[#11496c]/30"
                 >
                   <div className="flex items-start gap-4">
                     {/* Patient Image */}
                     <img
                       src={appointment.patientImage}
                       alt={appointment.patientName}
-                      className="h-12 w-12 rounded-lg object-cover ring-2 ring-slate-100 shrink-0"
+                      className="h-12 w-12 rounded-lg object-cover ring-2 ring-slate-100 shrink-0 cursor-pointer"
+                      onClick={() => handleViewAppointment(appointment)}
                       onError={(e) => {
                         e.target.onerror = null
                         e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=3b82f6&color=fff&size=160`
@@ -458,26 +482,41 @@ const DoctorAppointments = () => {
                     {/* Appointment Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleViewAppointment(appointment)}>
                           <h3 className="text-base font-bold text-slate-900 truncate">{appointment.patientName}</h3>
                           <p className="text-sm text-slate-600 mt-0.5">{appointment.reason}</p>
                         </div>
-                        <span
-                          className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)}`}
-                        >
-                          {appointment.status === 'confirmed' ? (
-                            <IoCheckmarkCircleOutline className="h-3 w-3" />
-                          ) : appointment.status === 'completed' ? (
-                            <IoCheckmarkCircleOutline className="h-3 w-3" />
-                          ) : (
-                            <IoTimeOutline className="h-3 w-3" />
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)}`}
+                          >
+                            {appointment.status === 'confirmed' ? (
+                              <IoCheckmarkCircleOutline className="h-3 w-3" />
+                            ) : appointment.status === 'completed' ? (
+                              <IoCheckmarkCircleOutline className="h-3 w-3" />
+                            ) : appointment.status === 'cancelled' ? (
+                              <IoCloseCircleOutline className="h-3 w-3" />
+                            ) : (
+                              <IoTimeOutline className="h-3 w-3" />
+                            )}
+                            {appointment.status}
+                          </span>
+                          {appointment.status === 'confirmed' && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleCancelClick(e, appointment)}
+                              className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[10px] font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
+                              title="Cancel Appointment"
+                            >
+                              <IoCloseCircleOutline className="h-3.5 w-3.5" />
+                              Cancel
+                            </button>
                           )}
-                          {appointment.status}
-                        </span>
+                        </div>
                       </div>
 
                       {/* Appointment Details */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 cursor-pointer" onClick={() => handleViewAppointment(appointment)}>
                         <div className="flex items-center gap-1">
                           <IoCalendarOutline className="h-3.5 w-3.5 text-slate-500" />
                           <span>{formatDate(appointment.date)}</span>
@@ -508,6 +547,88 @@ const DoctorAppointments = () => {
           )}
         </div>
       </section>
+
+      {/* Cancel Appointment Modal */}
+      {showCancelModal && appointmentToCancel && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm"
+          onClick={handleCloseCancelModal}
+        >
+          <div
+            className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 p-4 sm:p-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                  <IoCloseCircleOutline className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Cancel Appointment</h2>
+                  <p className="text-xs text-slate-600">Patient: {appointmentToCancel.patientName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseCancelModal}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+              >
+                <IoCloseOutline className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 sm:p-6 space-y-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                  <IoCalendarOutline className="h-4 w-4 text-slate-400" />
+                  <span>{formatDate(appointmentToCancel.date)}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <IoTimeOutline className="h-4 w-4 text-slate-400" />
+                  <span>{formatTime(appointmentToCancel.time)}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Reason for Cancellation <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Please provide a reason for cancelling this appointment..."
+                  rows="4"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c] resize-none"
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  The patient will be notified and can reschedule for a new date and time.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 border-t border-slate-200 p-4 sm:p-6">
+              <button
+                type="button"
+                onClick={handleCloseCancelModal}
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Keep Appointment
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                disabled={!cancelReason.trim()}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+              >
+                Cancel Appointment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
