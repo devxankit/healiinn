@@ -189,13 +189,45 @@ const DoctorConsultations = () => {
     }
   }, [consultations, filterParam])
   
-  const [selectedConsultation, setSelectedConsultation] = useState(
-    filteredConsultations.length > 0 ? filteredConsultations[0] : null
-  )
+  // Check if consultation is passed via navigation state
+  const passedConsultation = location.state?.selectedConsultation
+  
+  const [selectedConsultation, setSelectedConsultation] = useState(() => {
+    // Initialize with passed consultation if available
+    if (location.state?.selectedConsultation) {
+      return location.state.selectedConsultation
+    }
+    return filteredConsultations.length > 0 ? filteredConsultations[0] : null
+  })
+  
+  // Add passed consultation to consultations list and set as selected
+  useEffect(() => {
+    if (passedConsultation) {
+      setConsultations((prev) => {
+        // Check if consultation already exists
+        const exists = prev.find((c) => c.id === passedConsultation.id || c.patientId === passedConsultation.patientId)
+        if (!exists) {
+          return [passedConsultation, ...prev]
+        }
+        // Update existing consultation with passed data
+        return prev.map((c) => 
+          (c.id === passedConsultation.id || c.patientId === passedConsultation.patientId) ? passedConsultation : c
+        )
+      })
+      setSelectedConsultation(passedConsultation)
+      // Clear the navigation state after using it
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, []) // Run only once on mount
   
   // Update selected consultation when filter changes
   useEffect(() => {
-    if (filteredConsultations.length > 0 && (!selectedConsultation || !filteredConsultations.includes(selectedConsultation))) {
+    // Don't override if we just set it from passed consultation
+    if (passedConsultation && selectedConsultation?.id === passedConsultation.id) {
+      return
+    }
+    
+    if (filteredConsultations.length > 0 && (!selectedConsultation || !filteredConsultations.some(c => c.id === selectedConsultation.id))) {
       setSelectedConsultation(filteredConsultations[0])
     } else if (filteredConsultations.length === 0) {
       setSelectedConsultation(null)
@@ -640,6 +672,313 @@ const DoctorConsultations = () => {
     generatePDF(prescription)
   }
 
+  const handleViewPrescriptionPDF = (prescriptionData) => {
+    const doctorInfo = getDoctorInfo()
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 20
+    const tealColor = [17, 73, 108] // Teal color for header
+    const lightBlueColor = [230, 240, 255] // Light blue for diagnosis
+    const lightGrayColor = [245, 245, 245] // Light gray for medications
+    const lightPurpleColor = [240, 230, 250] // Light purple for tests
+    const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
+    let yPos = margin
+
+    // Header Section - Clinic Name in Teal (Large, Bold)
+    doc.setTextColor(...tealColor)
+    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold')
+    doc.text(doctorInfo.clinicName || 'Medical Clinic', pageWidth / 2, yPos, { align: 'center' })
+    yPos += 7
+
+    // Clinic Address (Centered)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    const addressLines = doc.splitTextToSize(doctorInfo.clinicAddress || 'Address not provided', pageWidth - 2 * margin)
+    addressLines.forEach((line) => {
+      doc.text(line, pageWidth / 2, yPos, { align: 'center' })
+      yPos += 4
+    })
+
+    // Contact Information (Left: Phone, Right: Email)
+    yPos += 1
+    doc.setFontSize(8)
+    const contactY = yPos
+    // Phone icon and number (left)
+    doc.setFillColor(200, 0, 0) // Red circle for phone
+    doc.circle(margin + 2, contactY - 1, 1.5, 'F')
+    doc.setTextColor(0, 0, 0)
+    doc.text(doctorInfo.phone || 'N/A', margin + 6, contactY)
+    
+    // Email icon and address (right)
+    doc.setFillColor(100, 100, 100) // Gray circle for email
+    doc.circle(pageWidth - margin - 2, contactY - 1, 1.5, 'F')
+    doc.text(doctorInfo.email || 'N/A', pageWidth - margin, contactY, { align: 'right' })
+    yPos += 5
+
+    // Teal horizontal line separator
+    doc.setDrawColor(...tealColor)
+    doc.setLineWidth(0.5)
+    doc.line(margin, yPos, pageWidth - margin, yPos)
+    yPos += 8
+
+    // Doctor Information (Left) and Patient Information (Right)
+    const infoStartY = yPos
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Doctor Information', margin, infoStartY)
+    doc.text('Patient Information', pageWidth - margin, infoStartY, { align: 'right' })
+    
+    yPos = infoStartY + 6
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    
+    // Doctor Info (Left)
+    doc.text(`Name: ${doctorInfo.name}`, margin, yPos)
+    doc.text(`Specialty: ${doctorInfo.specialization || 'General Physician'}`, margin, yPos + 4)
+    const currentDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    doc.text(`Date: ${currentDate}`, margin, yPos + 8)
+
+    // Patient Info (Right)
+    doc.text(`Name: ${prescriptionData.patientName}`, pageWidth - margin, yPos, { align: 'right' })
+    doc.text(`Age: ${selectedConsultation?.age || 'N/A'} years`, pageWidth - margin, yPos + 4, { align: 'right' })
+    doc.text(`Gender: ${selectedConsultation?.gender || 'N/A'}`, pageWidth - margin, yPos + 8, { align: 'right' })
+
+    yPos += 15
+
+    // Diagnosis Section with Light Blue Background Box
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Diagnosis', margin, yPos)
+    yPos += 6
+    
+    // Light blue rounded box for diagnosis
+    const diagnosisHeight = 8
+    doc.setFillColor(...lightBlueColor)
+    doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, diagnosisHeight, 2, 2, 'F')
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    const diagnosisText = prescriptionData.diagnosis || 'N/A'
+    doc.text(diagnosisText, margin + 4, yPos + 2)
+    yPos += diagnosisHeight + 4
+
+    // Symptoms Section with Green Bullet Points
+    if (prescriptionData.symptoms) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Symptoms', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      const symptomLines = prescriptionData.symptoms.split('\n').filter(line => line.trim())
+      symptomLines.forEach((symptom) => {
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        doc.text(symptom.trim(), margin + 5, yPos)
+        yPos += 4
+      })
+      yPos += 2
+    }
+
+    // Medications Section with Numbered Cards (Light Gray Background)
+    if (prescriptionData.medications && prescriptionData.medications.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medications', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.medications.forEach((med, idx) => {
+        // Check if we need a new page (with more space check)
+        if (yPos > pageHeight - 50) {
+          doc.addPage()
+          yPos = margin
+        }
+        
+        // Medication card with light gray background
+        const cardHeight = 22
+        doc.setFillColor(...lightGrayColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
+        
+        // Numbered square in teal (top-right corner)
+        const numberSize = 8
+        const numberX = pageWidth - margin - numberSize - 3
+        const numberY = yPos - 1
+        doc.setFillColor(...tealColor)
+        doc.roundedRect(numberX, numberY, numberSize, numberSize, 1, 1, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 1, { align: 'center' })
+        
+        // Medication name (bold, top)
+        doc.setTextColor(0, 0, 0)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.text(med.name, margin + 4, yPos + 3)
+        
+        // Medication details in 2 columns (left and right)
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'normal')
+        const leftColX = margin + 4
+        const rightColX = margin + (pageWidth - 2 * margin) / 2 + 5
+        const startY = yPos + 7
+        
+        // Left column
+        doc.text(`Dosage: ${med.dosage}`, leftColX, startY)
+        doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 4)
+        
+        // Right column
+        doc.text(`Frequency: ${med.frequency}`, rightColX, startY)
+        if (med.instructions) {
+          doc.text(`Instructions: ${med.instructions}`, rightColX, startY + 4)
+        }
+        
+        yPos += cardHeight + 4
+      })
+      yPos += 2
+    }
+
+    // Recommended Tests Section (Light Purple Boxes)
+    if (prescriptionData.investigations && prescriptionData.investigations.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Recommended Tests', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.investigations.forEach((inv) => {
+        // Light purple box for each test
+        const testBoxHeight = inv.notes ? 14 : 9
+        doc.setFillColor(...lightPurpleColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
+        
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text(inv.name, margin + 4, yPos + 2)
+        
+        if (inv.notes) {
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(80, 80, 80)
+          doc.text(inv.notes, margin + 4, yPos + 8)
+        }
+        
+        yPos += testBoxHeight + 3
+      })
+      yPos += 2
+    }
+
+    // Medical Advice Section with Green Bullet Points
+    if (prescriptionData.advice) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medical Advice', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      const adviceLines = prescriptionData.advice.split('\n').filter(line => line.trim())
+      adviceLines.forEach((advice) => {
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        doc.text(advice.trim(), margin + 5, yPos)
+        yPos += 4
+      })
+      yPos += 2
+    }
+
+    // Follow-up Appointment (Light Yellow Box)
+    if (prescriptionData.followUpDate) {
+      const followUpHeight = 12
+      doc.setFillColor(...lightYellowColor)
+      doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, followUpHeight, 2, 2, 'F')
+      
+      // Calendar icon (small square)
+      doc.setFillColor(255, 200, 0)
+      doc.roundedRect(margin + 2, yPos + 1, 3, 3, 0.5, 0.5, 'F')
+      
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text('Follow-up Appointment', margin + 7, yPos + 3)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      const followUpDate = new Date(prescriptionData.followUpDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      doc.text(followUpDate, margin + 7, yPos + 8)
+      yPos += followUpHeight + 5
+    }
+
+    // Footer with Doctor Signature (Right side)
+    const signatureSpace = 30
+    const minYPos = pageHeight - signatureSpace - 5
+    if (yPos < minYPos) {
+      yPos = minYPos
+    }
+
+    // Doctor Signature (Right side)
+    const signatureX = pageWidth - margin - 55
+    const signatureY = yPos
+    
+    // Add digital signature image if available
+    if (doctorInfo.digitalSignature && doctorInfo.digitalSignature.trim() !== '') {
+      try {
+        let imageData = doctorInfo.digitalSignature.trim()
+        let imageFormat = 'PNG'
+        if (imageData.includes('data:image/jpeg') || imageData.includes('data:image/jpg')) {
+          imageFormat = 'JPEG'
+        } else if (imageData.includes('data:image/png')) {
+          imageFormat = 'PNG'
+        } else if (imageData.includes('data:image/')) {
+          const match = imageData.match(/data:image\/(\w+);/)
+          if (match) {
+            imageFormat = match[1].toUpperCase()
+          }
+        }
+        doc.addImage(imageData, imageFormat, signatureX, signatureY - 18, 50, 20)
+      } catch (error) {
+        console.error('Error adding signature image to PDF:', error)
+        doc.setDrawColor(0, 0, 0)
+        doc.setLineWidth(0.5)
+        doc.line(signatureX, signatureY, signatureX + 50, signatureY)
+      }
+    } else {
+      doc.setDrawColor(0, 0, 0)
+      doc.setLineWidth(0.5)
+      doc.line(signatureX, signatureY, signatureX + 50, signatureY)
+    }
+    
+    // Doctor name and designation below signature
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text(doctorInfo.name, signatureX + 25, signatureY + 8, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.text(doctorInfo.specialization || 'General Physician', signatureX + 25, signatureY + 12, { align: 'center' })
+
+    // Disclaimer at bottom center
+    const disclaimerY = pageHeight - 6
+    doc.setFontSize(6)
+    doc.setTextColor(100, 100, 100)
+    doc.text('This is a digitally generated prescription. For any queries, please contact the clinic.', pageWidth / 2, disclaimerY, { align: 'center' })
+
+    // Open PDF in new window for viewing
+    const pdfBlob = doc.output('blob')
+    const pdfUrl = URL.createObjectURL(pdfBlob)
+    window.open(pdfUrl, '_blank')
+    
+    // Clean up the URL after a delay
+    setTimeout(() => {
+      URL.revokeObjectURL(pdfUrl)
+    }, 1000)
+  }
+
   const handleSavePrescription = async () => {
     if (!diagnosis) {
       alert('Please enter a diagnosis')
@@ -831,18 +1170,6 @@ const DoctorConsultations = () => {
         {/* Consultation Detail View */}
           {selectedConsultation ? (
             <div className="space-y-4">
-              {/* Back Button */}
-              {filteredConsultations.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedConsultation(null)}
-                  className="flex items-center gap-2 text-sm font-medium text-[#11496c] hover:text-[#0d3a52]"
-                >
-                  <IoArrowBackOutline className="h-4 w-4" />
-                  Back to List
-                </button>
-              )}
-              
               <div className="grid gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
                 {/* Left Column - Patient Info & History */}
                 <div className="lg:col-span-1 space-y-3 sm:space-y-4">
@@ -914,7 +1241,7 @@ const DoctorConsultations = () => {
                   <button
                     type="button"
                     onClick={() => setActiveTab('saved')}
-                    className={`shrink-0 rounded-lg sm:rounded-xl px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-bold transition-all duration-200 relative ${
+                    className={`shrink-0 rounded-lg sm:rounded-xl px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-bold transition-all duration-200 ${
                       activeTab === 'saved'
                         ? 'text-white shadow-md scale-105'
                         : 'bg-white text-slate-600 shadow-md shadow-slate-200/50 hover:bg-slate-50 hover:shadow-lg hover:shadow-slate-200/60 border border-slate-200/80'
@@ -922,11 +1249,6 @@ const DoctorConsultations = () => {
                     style={activeTab === 'saved' ? { backgroundColor: '#11496c', boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.2)' } : {}}
                   >
                     Saved
-                    {savedPrescriptions.length > 0 && (
-                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] sm:text-xs font-bold text-white">
-                        {savedPrescriptions.length}
-                      </span>
-                    )}
                   </button>
                 </div>
 
@@ -1626,102 +1948,123 @@ const DoctorConsultations = () => {
                     ) : (
                       /* Saved Prescriptions List */
                       <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-md shadow-slate-200/50">
-                        <div className="mb-5 flex items-center justify-between">
-                          <h3 className="text-lg font-bold text-slate-900">Saved Prescriptions</h3>
-                          <span className="rounded-full bg-[rgba(17,73,108,0.15)] px-3 py-1 text-xs font-semibold text-[#11496c]">
-                            {savedPrescriptions.length} {savedPrescriptions.length === 1 ? 'Prescription' : 'Prescriptions'}
-                          </span>
-                        </div>
+                        {/* Filter prescriptions for current patient only */}
+                        {(() => {
+                          const filteredPrescriptions = selectedConsultation 
+                            ? savedPrescriptions.filter((prescription) => 
+                                prescription.patientId === selectedConsultation.patientId
+                              )
+                            : []
+                          
+                          return (
+                            <>
+                              <div className="mb-5 flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-slate-900">Saved Prescriptions</h3>
+                                <span className="rounded-full bg-[rgba(17,73,108,0.15)] px-3 py-1 text-xs font-semibold text-[#11496c]">
+                                  {filteredPrescriptions.length} {filteredPrescriptions.length === 1 ? 'Prescription' : 'Prescriptions'}
+                                </span>
+                              </div>
 
-                      {savedPrescriptions.length === 0 ? (
-                        <div className="py-12 text-center">
-                          <IoDocumentTextOutline className="mx-auto h-16 w-16 text-slate-300" />
-                          <p className="mt-4 text-sm font-medium text-slate-600">No saved prescriptions yet</p>
-                          <p className="mt-1 text-xs text-slate-500">Prescriptions you save will appear here</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3 sm:space-y-4">
-                          {savedPrescriptions.map((prescription) => (
+                              {!selectedConsultation ? (
+                                <div className="py-12 text-center">
+                                  <IoPersonOutline className="mx-auto h-16 w-16 text-slate-300" />
+                                  <p className="mt-4 text-sm font-medium text-slate-600">Please select a patient</p>
+                                  <p className="mt-1 text-xs text-slate-500">Select a patient to view their saved prescriptions</p>
+                                </div>
+                              ) : filteredPrescriptions.length === 0 ? (
+                                <div className="py-12 text-center">
+                                  <IoDocumentTextOutline className="mx-auto h-16 w-16 text-slate-300" />
+                                  <p className="mt-4 text-sm font-medium text-slate-600">No saved prescriptions for {selectedConsultation.patientName}</p>
+                                  <p className="mt-1 text-xs text-slate-500">Prescriptions you save for this patient will appear here</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {filteredPrescriptions.map((prescription) => (
                             <div
                               key={prescription.id}
-                              className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-lg hover:border-[#11496c]/30 transition-all duration-200"
+                              className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-[#11496c]/30 transition-all duration-200"
                             >
-                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                              <div className="flex items-center gap-3 mb-2">
                                 {/* Patient Avatar */}
-                                <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl bg-[#11496c] flex items-center justify-center shrink-0 shadow-md">
-                                  <span className="text-white text-lg sm:text-xl font-bold">
-                                    {prescription.patientName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                  </span>
-                                </div>
+                                <img
+                                  src={prescription.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.patientName)}&background=11496c&color=fff&size=160&bold=true`}
+                                  alt={prescription.patientName}
+                                  className="h-10 w-10 rounded-lg object-cover ring-2 ring-slate-100 shrink-0"
+                                  onError={(e) => {
+                                    e.target.onerror = null
+                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.patientName)}&background=11496c&color=fff&size=160&bold=true`
+                                  }}
+                                />
 
-                                {/* Patient Info & Details */}
-                                <div className="flex-1 min-w-0 w-full sm:w-auto">
-                                  <div className="flex items-start justify-between gap-3 mb-2">
-                                    <div className="flex-1 min-w-0">
-                                      <h4 className="text-lg sm:text-xl font-bold text-[#11496c] mb-1">
-                                        {prescription.patientName}
-                                      </h4>
-                                      {prescription.diagnosis && (
-                                        <p className="text-sm font-semibold text-slate-900 mb-1">
-                                          {prescription.diagnosis}
-                                        </p>
-                                      )}
-                                    </div>
+                                {/* Patient Name */}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-base font-bold text-slate-900 truncate">
+                                    {prescription.patientName}
+                                  </h4>
+                                </div>
+                              </div>
+
+                              {/* Diagnosis */}
+                              {prescription.diagnosis && (
+                                <p className="text-sm text-slate-900 mb-2 line-clamp-1">
+                                  {prescription.diagnosis}
+                                </p>
+                              )}
+
+                              {/* Additional Information */}
+                              <div className="flex flex-wrap items-center gap-2.5 mb-3 text-xs text-slate-600">
+                                {prescription.savedAt && (
+                                  <div className="flex items-center gap-1">
+                                    <IoTimeOutline className="h-3.5 w-3.5 text-slate-500" />
+                                    <span>{prescription.savedAt}</span>
                                   </div>
-
-                                  {/* Additional Information */}
-                                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-slate-600">
-                                    {prescription.savedAt && (
-                                      <div className="flex items-center gap-1">
-                                        <IoTimeOutline className="h-4 w-4 text-slate-500" />
-                                        <span>{prescription.savedAt}</span>
-                                      </div>
-                                    )}
-                                    {prescription.medications && prescription.medications.length > 0 && (
-                                      <div className="flex items-center gap-1">
-                                        <IoMedicalOutline className="h-4 w-4 text-emerald-600" />
-                                        <span className="font-semibold text-emerald-700">
-                                          {prescription.medications.length} {prescription.medications.length === 1 ? 'Medication' : 'Medications'}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {prescription.investigations && prescription.investigations.length > 0 && (
-                                      <div className="flex items-center gap-1">
-                                        <IoFlaskOutline className="h-4 w-4 text-purple-600" />
-                                        <span className="font-semibold text-purple-700">
-                                          {prescription.investigations.length} {prescription.investigations.length === 1 ? 'Test' : 'Tests'}
-                                        </span>
-                                      </div>
-                                    )}
+                                )}
+                                {prescription.medications && prescription.medications.length > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <IoMedicalOutline className="h-3.5 w-3.5 text-emerald-600" />
+                                    <span className="font-medium text-emerald-700">
+                                      {prescription.medications.length} {prescription.medications.length === 1 ? 'Medication' : 'Medications'}
+                                    </span>
                                   </div>
-                                </div>
+                                )}
+                                {prescription.investigations && prescription.investigations.length > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <IoFlaskOutline className="h-3.5 w-3.5 text-purple-600" />
+                                    <span className="font-medium text-purple-700">
+                                      {prescription.investigations.length} {prescription.investigations.length === 1 ? 'Test' : 'Tests'}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
 
-                                {/* Action Buttons */}
-                                <div className="flex items-center gap-2 sm:gap-3 shrink-0 w-full sm:w-auto">
-                                  <button
-                                    type="button"
-                                    onClick={() => setViewingPrescription(prescription)}
-                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 sm:h-11 px-4 rounded-lg border-2 border-[#11496c] bg-white text-[#11496c] shadow-sm transition-all hover:bg-[#11496c] hover:text-white active:scale-95"
-                                    title="View Prescription"
-                                  >
-                                    <IoEyeOutline className="h-5 w-5" />
-                                    <span className="text-sm font-semibold">View</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDownloadPrescription(prescription)}
-                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 sm:h-11 px-4 rounded-lg bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
-                                    title="Download PDF"
-                                  >
-                                    <IoDownloadOutline className="h-5 w-5" />
-                                    <span className="text-sm font-semibold">Download</span>
-                                  </button>
-                                </div>
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewPrescriptionPDF(prescription)}
+                                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-slate-300 bg-white text-[#11496c] shadow-sm transition-all hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                                  title="View Prescription PDF"
+                                >
+                                  <IoEyeOutline className="h-4 w-4" />
+                                  <span className="text-xs font-semibold">View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadPrescription(prescription)}
+                                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
+                                  title="Download PDF"
+                                >
+                                  <IoDownloadOutline className="h-4 w-4" />
+                                  <span className="text-xs font-semibold">Download</span>
+                                </button>
                               </div>
                             </div>
                           ))}
                         </div>
-                      )}
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>

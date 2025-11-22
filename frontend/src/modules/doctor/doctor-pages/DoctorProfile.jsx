@@ -66,6 +66,7 @@ const mockDoctorData = {
     { day: 'Wednesday', startTime: '09:00', endTime: '17:00' },
     { day: 'Friday', startTime: '09:00', endTime: '17:00' },
   ],
+  averageConsultationMinutes: 20, // Default 20 minutes per patient
   documents: {
     license: 'https://example.com/license.pdf',
     identityProof: 'https://example.com/id.pdf',
@@ -979,6 +980,43 @@ const DoctorProfile = () => {
                         <IoAddOutline className="h-3.5 w-3.5" />
                         Add Availability Day
                       </button>
+                    )}
+                  </div>
+
+                  {/* Average Consultation Minutes */}
+                  <div className="border-t border-slate-200 pt-4 sm:pt-5">
+                    <h3 className="mb-2 sm:mb-3 text-xs sm:text-sm font-semibold text-slate-900">Average Consultation Time Per Patient</h3>
+                    <p className="mb-2 text-[10px] sm:text-xs text-slate-500">
+                      Set the approximate time (in minutes) you spend per patient during consultations. This helps in scheduling and queue management.
+                    </p>
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="5"
+                            max="60"
+                            value={formData.averageConsultationMinutes || 20}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value) || 5
+                              const validatedValue = Math.max(5, Math.min(60, value))
+                              handleInputChange('averageConsultationMinutes', validatedValue)
+                            }}
+                            className="w-24 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+                          />
+                          <span className="text-xs sm:text-sm font-medium text-slate-700">minutes</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Range: 5 - 60 minutes
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 sm:p-3">
+                        <IoTimeOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] shrink-0" />
+                        <span className="text-sm sm:text-base font-semibold text-slate-900">
+                          {formData.averageConsultationMinutes || 20} minutes per patient
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>

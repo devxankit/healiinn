@@ -20,6 +20,7 @@ import {
   IoCheckmarkCircleOutline,
   IoWalletOutline,
   IoHelpCircleOutline,
+  IoArrowForwardOutline,
 } from 'react-icons/io5'
 import PatientSidebar from '../patient-components/PatientSidebar'
 
@@ -78,6 +79,40 @@ const categoryCards = [
     iconBgColor: '#8B5CF6', // purple
     icon: IoChatbubbleOutline,
     route: '/patient/requests',
+  },
+]
+
+// Mock upcoming appointments data
+const mockUpcomingAppointments = [
+  {
+    id: 'apt-1',
+    doctorName: 'Dr. Rajesh Kumar',
+    doctorImage: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
+    specialty: 'General Physician',
+    clinic: 'Shivaji Nagar Clinic',
+    date: '2025-01-15',
+    time: '10:00 AM',
+    status: 'confirmed',
+  },
+  {
+    id: 'apt-2',
+    doctorName: 'Dr. Priya Sharma',
+    doctorImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
+    specialty: 'Pediatrician',
+    clinic: 'Central Hospital',
+    date: '2025-01-16',
+    time: '02:30 PM',
+    status: 'confirmed',
+  },
+  {
+    id: 'apt-3',
+    doctorName: 'Dr. Amit Patel',
+    doctorImage: 'https://images.unsplash.com/photo-1622253692010-333f2da6031a?auto=format&fit=crop&w=400&q=80',
+    specialty: 'Cardiologist',
+    clinic: 'Heart Care Center',
+    date: '2025-01-17',
+    time: '11:00 AM',
+    status: 'pending',
   },
 ]
 
@@ -302,6 +337,58 @@ const PatientDashboard = () => {
             </button>
           )
         })}
+      </div>
+
+      {/* Upcoming Schedule Card */}
+      <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-slate-900">Upcoming Schedule</h2>
+          <button
+            onClick={() => navigate('/patient/appointments')}
+            className="flex items-center gap-1 text-sm font-semibold text-[#11496c] hover:text-[#0d3a52] transition-colors"
+          >
+            <span>See All</span>
+            <IoArrowForwardOutline className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {mockUpcomingAppointments.slice(0, 2).map((appointment) => (
+            <div
+              key={appointment.id}
+              onClick={() => {
+                // Navigate to appointment details or appointments page with appointment ID
+                navigate(`/patient/appointments?appointment=${appointment.id}`)
+              }}
+              className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-white hover:border-[#11496c] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+            >
+              <img
+                src={appointment.doctorImage}
+                alt={appointment.doctorName}
+                className="h-12 w-12 rounded-full object-cover border-2 border-slate-200 flex-shrink-0"
+                onError={(e) => {
+                  e.target.onerror = null
+                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.doctorName)}&background=11496c&color=fff&size=128&bold=true`
+                }}
+              />
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-slate-900 mb-0.5 leading-tight">{appointment.doctorName}</h3>
+                <p className="text-xs text-slate-600 mb-1.5">{appointment.specialty}</p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mb-1">
+                  <div className="flex items-center gap-1">
+                    <IoCalendarOutline className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>{new Date(appointment.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <IoTimeOutline className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>{appointment.time}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500">{appointment.clinic}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
         {/* Filter Buttons */}

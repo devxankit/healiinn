@@ -31,6 +31,9 @@ import WalletWithdraw from './modules/doctor/doctor-pages/WalletWithdraw'
 import WalletTransaction from './modules/doctor/doctor-pages/WalletTransaction'
 import DoctorConsultations from './modules/doctor/doctor-pages/DoctorConsultations'
 import DoctorPatients from './modules/doctor/doctor-pages/DoctorPatients'
+import DoctorAllPatients from './modules/doctor/doctor-pages/DoctorAllPatients'
+import DoctorAppointments from './modules/doctor/doctor-pages/DoctorAppointments'
+import DoctorAllConsultations from './modules/doctor/doctor-pages/DoctorAllConsultations'
 import DoctorSupport from './modules/doctor/doctor-pages/DoctorSupport'
 import PharmacyNavbar from './modules/pharmacy/pharmacy-components/PharmacyNavbar'
 import { PharmacySidebarProvider } from './modules/pharmacy/pharmacy-components/PharmacySidebarContext'
@@ -125,6 +128,9 @@ function DoctorRoutes() {
           <Route path="/wallet/withdraw" element={<WalletWithdraw />} />
           <Route path="/wallet/transaction" element={<WalletTransaction />} />
           <Route path="/patients" element={<DoctorPatients />} />
+          <Route path="/all-patients" element={<DoctorAllPatients />} />
+          <Route path="/appointments" element={<DoctorAppointments />} />
+          <Route path="/all-consultations" element={<DoctorAllConsultations />} />
           <Route path="/consultations" element={<DoctorConsultations />} />
           <Route path="/profile" element={<DoctorProfile />} />
           <Route path="/support" element={<DoctorSupport />} />
