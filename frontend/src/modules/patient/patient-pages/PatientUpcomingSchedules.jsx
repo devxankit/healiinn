@@ -30,7 +30,7 @@ const upcomingAppointments = [
     specialty: 'Cardiology Consultation',
     status: 'CONFIRMED',
     countdown: 'IN 5 DAYS',
-    type: 'VIDEO CALL',
+    type: 'IN-PERSON VISIT',
     token: 'TOKEN #8',
     date: 'Wednesday, 28 July',
     time: '10:30 - 11:00',

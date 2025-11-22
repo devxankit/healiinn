@@ -1,109 +1,189 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import {
-  IoArrowBackOutline,
   IoReceiptOutline,
   IoCheckmarkCircleOutline,
   IoCloseCircleOutline,
   IoTimeOutline,
   IoCalendarOutline,
+  IoFlaskOutline,
+  IoBagHandleOutline,
+  IoPeopleOutline,
 } from 'react-icons/io5'
 
-const mockTransactions = [
-  {
-    id: 'txn-1',
-    type: 'Appointment',
-    doctor: 'Dr. Alana Rueter',
-    amount: 500,
-    status: 'completed',
-    date: '2024-01-15',
-    time: '10:30 AM',
-    transactionId: 'TXN123456789',
-    paymentMethod: 'UPI',
-  },
-  {
-    id: 'txn-2',
-    type: 'Lab Test',
-    doctor: 'Dr. Sarah Mitchell',
-    amount: 1200,
-    status: 'completed',
-    date: '2024-01-14',
-    time: '02:15 PM',
-    transactionId: 'TXN123456790',
-    paymentMethod: 'Credit Card',
-  },
-  {
-    id: 'txn-3',
-    type: 'Pharmacy',
-    doctor: 'Dr. James Wilson',
-    amount: 850,
-    status: 'pending',
-    date: '2024-01-13',
-    time: '11:00 AM',
-    transactionId: 'TXN123456791',
-    paymentMethod: 'Wallet',
-  },
-  {
-    id: 'txn-4',
-    type: 'Appointment',
-    doctor: 'Dr. Emily Chen',
-    amount: 900,
-    status: 'completed',
-    date: '2024-01-12',
-    time: '09:45 AM',
-    transactionId: 'TXN123456792',
-    paymentMethod: 'Debit Card',
-  },
-  {
-    id: 'txn-5',
-    type: 'Appointment',
-    doctor: 'Dr. Michael Brown',
-    amount: 600,
-    status: 'failed',
-    date: '2024-01-11',
-    time: '03:20 PM',
-    transactionId: 'TXN123456793',
-    paymentMethod: 'UPI',
-  },
-]
-
 const PatientTransactions = () => {
-  const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
+  const [transactions, setTransactions] = useState([])
+
+  // Mock transactions for demonstration
+  const mockTransactions = [
+    {
+      id: 'txn-1',
+      type: 'Appointment',
+      category: 'doctor',
+      providerName: 'Dr. Rajesh Kumar',
+      amount: 500,
+      status: 'completed',
+      date: '2025-01-15',
+      time: '10:30 AM',
+      transactionId: 'TXN-APP-001',
+      paymentMethod: 'UPI',
+      queueNumber: 5,
+    },
+    {
+      id: 'txn-2',
+      type: 'Lab Test',
+      category: 'laboratory',
+      providerName: 'MediCare Diagnostics',
+      serviceName: 'Complete Blood Count (CBC)',
+      amount: 350,
+      status: 'completed',
+      date: '2025-01-14',
+      time: '02:15 PM',
+      transactionId: 'TXN-LAB-002',
+      paymentMethod: 'Credit Card',
+    },
+    {
+      id: 'txn-3',
+      type: 'Pharmacy',
+      category: 'pharmacy',
+      providerName: 'City Pharmacy',
+      serviceName: 'Prescription Medicines',
+      amount: 1250,
+      status: 'pending',
+      date: '2025-01-13',
+      time: '11:00 AM',
+      transactionId: 'TXN-PHAR-003',
+      paymentMethod: 'Wallet',
+    },
+    {
+      id: 'txn-4',
+      type: 'Appointment',
+      category: 'doctor',
+      providerName: 'Dr. Priya Sharma',
+      amount: 600,
+      status: 'completed',
+      date: '2025-01-12',
+      time: '09:45 AM',
+      transactionId: 'TXN-APP-004',
+      paymentMethod: 'Debit Card',
+      queueNumber: 3,
+    },
+    {
+      id: 'txn-5',
+      type: 'Lab Test',
+      category: 'laboratory',
+      providerName: 'HealthLab Center',
+      serviceName: 'Blood Glucose Test',
+      amount: 450,
+      status: 'completed',
+      date: '2025-01-11',
+      time: '03:20 PM',
+      transactionId: 'TXN-LAB-005',
+      paymentMethod: 'UPI',
+    },
+    {
+      id: 'txn-6',
+      type: 'Pharmacy',
+      category: 'pharmacy',
+      providerName: 'MediPlus Pharmacy',
+      serviceName: 'Prescription Medicines',
+      amount: 850,
+      status: 'failed',
+      date: '2025-01-10',
+      time: '04:00 PM',
+      transactionId: 'TXN-PHAR-006',
+      paymentMethod: 'Credit Card',
+    },
+  ]
+
+  // Load all transactions from localStorage and combine with mock data
+  useEffect(() => {
+    const loadTransactions = () => {
+      const allTransactions = []
+
+      // Load Doctor Appointments
+      try {
+        const appointments = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
+        appointments.forEach((appt) => {
+          if (appt.amount || appt.fee) {
+            allTransactions.push({
+              id: `appt-${appt.id}`,
+              type: 'Appointment',
+              category: 'doctor',
+              providerName: appt.doctorName || 'Doctor',
+              amount: appt.amount || appt.fee || 0,
+              status: appt.status === 'confirmed' || appt.status === 'completed' ? 'completed' : appt.status || 'pending',
+              date: appt.appointmentDate || appt.date || new Date().toISOString().split('T')[0],
+              time: appt.appointmentTime ? appt.appointmentTime.split('T')[1]?.substring(0, 5) : 'N/A',
+              transactionId: `TXN-APP-${appt.id}`,
+              paymentMethod: appt.paymentMethod || 'Online',
+              queueNumber: appt.queueNumber,
+            })
+          }
+        })
+      } catch (error) {
+        console.error('Error loading appointments:', error)
+      }
+
+      // Load Lab and Pharmacy Requests (from PatientRequests)
+      try {
+        const requests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+        requests.forEach((req) => {
+          // Only include paid/confirmed requests
+          if (req.totalAmount && (req.status === 'paid' || req.status === 'confirmed' || req.status === 'accepted')) {
+            allTransactions.push({
+              id: `req-${req.id}`,
+              type: req.type === 'lab' ? 'Lab Test' : 'Pharmacy',
+              category: req.type === 'lab' ? 'laboratory' : 'pharmacy',
+              providerName: req.providerName || (req.type === 'lab' ? 'Laboratory' : 'Pharmacy'),
+              serviceName: req.type === 'lab' ? req.testName : req.medicineName,
+              amount: req.totalAmount,
+              status: req.status === 'paid' || req.status === 'confirmed' ? 'completed' : req.status === 'accepted' ? 'pending' : 'pending',
+              date: req.responseDate || req.requestDate || new Date().toISOString().split('T')[0],
+              time: req.responseTime ? new Date(req.responseTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+              transactionId: `TXN-${req.type.toUpperCase()}-${req.id}`,
+              paymentMethod: req.paymentMethod || 'Online',
+              requestId: req.id,
+            })
+          }
+        })
+      } catch (error) {
+        console.error('Error loading requests:', error)
+      }
+
+      // If no transactions found, use mock data
+      if (allTransactions.length === 0) {
+        allTransactions.push(...mockTransactions)
+      }
+
+      // Sort by date (newest first)
+      allTransactions.sort((a, b) => {
+        const dateA = new Date(a.date)
+        const dateB = new Date(b.date)
+        return dateB - dateA
+      })
+
+      setTransactions(allTransactions)
+    }
+
+    loadTransactions()
+  }, [])
 
   const filteredTransactions = filter === 'all' 
-    ? mockTransactions 
-    : mockTransactions.filter(txn => txn.status === filter)
-
-  // Ensure we have data
-  if (!mockTransactions || mockTransactions.length === 0) {
-    return (
-      <section className="flex flex-col gap-4 pb-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-          >
-            <IoArrowBackOutline className="h-5 w-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Transactions</h1>
-          </div>
-        </div>
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <p className="text-lg font-semibold text-slate-700">No transactions available</p>
-        </div>
-      </section>
-    )
-  }
+    ? transactions 
+    : transactions.filter(txn => txn.status === filter)
 
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed':
+      case 'confirmed':
+      case 'paid':
         return 'bg-emerald-100 text-emerald-700'
       case 'pending':
+      case 'accepted':
         return 'bg-amber-100 text-amber-700'
       case 'failed':
+      case 'cancelled':
         return 'bg-red-100 text-red-700'
       default:
         return 'bg-slate-100 text-slate-700'
@@ -113,13 +193,37 @@ const PatientTransactions = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'completed':
+      case 'confirmed':
+      case 'paid':
         return <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
       case 'pending':
+      case 'accepted':
         return <IoTimeOutline className="h-3.5 w-3.5" />
       case 'failed':
+      case 'cancelled':
         return <IoCloseCircleOutline className="h-3.5 w-3.5" />
       default:
         return null
+    }
+  }
+
+  const getTypeIcon = (type, category) => {
+    if (category === 'laboratory' || type === 'Lab Test') {
+      return <IoFlaskOutline className="h-6 w-6 text-[#11496c]" />
+    } else if (category === 'pharmacy' || type === 'Pharmacy') {
+      return <IoBagHandleOutline className="h-6 w-6 text-amber-600" />
+    } else {
+      return <IoPeopleOutline className="h-6 w-6 text-purple-600" />
+    }
+  }
+
+  const getTypeBgColor = (category) => {
+    if (category === 'laboratory') {
+      return 'bg-[rgba(17,73,108,0.1)]'
+    } else if (category === 'pharmacy') {
+      return 'bg-amber-100'
+    } else {
+      return 'bg-purple-100'
     }
   }
 
@@ -140,22 +244,16 @@ const PatientTransactions = () => {
     }
   }
 
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+    }).format(amount)
+  }
+
   return (
     <section className="flex flex-col gap-4 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-        >
-          <IoArrowBackOutline className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Transactions</h1>
-          <p className="text-sm text-slate-600">{filteredTransactions.length} transactions</p>
-        </div>
-      </div>
-
       {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
         {['all', 'completed', 'pending', 'failed'].map((status) => (
@@ -183,8 +281,8 @@ const PatientTransactions = () => {
           >
             <div className="flex items-start gap-3">
               {/* Icon */}
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-100">
-                <IoReceiptOutline className="h-6 w-6 text-purple-600" />
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${getTypeBgColor(transaction.category)}`}>
+                {getTypeIcon(transaction.type, transaction.category)}
               </div>
 
               {/* Main Content with Amount on Right */}
@@ -195,18 +293,26 @@ const PatientTransactions = () => {
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-base font-semibold text-slate-900">{transaction.type}</h3>
                     <div className="shrink-0">
-                      <p className="text-lg font-bold text-slate-900 whitespace-nowrap">₹{transaction.amount}</p>
+                      <p className="text-lg font-bold text-slate-900 whitespace-nowrap">{formatCurrency(transaction.amount)}</p>
                     </div>
                   </div>
 
-                  {/* Doctor Name */}
-                  <p className="text-sm font-medium text-slate-600">{transaction.doctor}</p>
+                  {/* Provider/Service Name */}
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">{transaction.providerName}</p>
+                    {transaction.serviceName && (
+                      <p className="text-xs text-slate-500 mt-0.5">{transaction.serviceName}</p>
+                    )}
+                    {transaction.queueNumber && (
+                      <p className="text-xs text-slate-500 mt-0.5">Token: #{transaction.queueNumber}</p>
+                    )}
+                  </div>
 
-                  {/* Status Badge - Consistently placed here */}
+                  {/* Status Badge */}
                   <div>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(transaction.status)}`}>
                       {getStatusIcon(transaction.status)}
-                      <span className="capitalize">{transaction.status}</span>
+                      <span className="capitalize">{transaction.status === 'paid' ? 'completed' : transaction.status === 'accepted' ? 'pending' : transaction.status}</span>
                     </span>
                   </div>
 
@@ -216,10 +322,12 @@ const PatientTransactions = () => {
                       <IoCalendarOutline className="h-3.5 w-3.5 shrink-0" />
                       <span>{formatDate(transaction.date)}</span>
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <IoTimeOutline className="h-3.5 w-3.5 shrink-0" />
-                      <span>{transaction.time}</span>
-                    </span>
+                    {transaction.time && transaction.time !== 'N/A' && (
+                      <span className="flex items-center gap-1.5">
+                        <IoTimeOutline className="h-3.5 w-3.5 shrink-0" />
+                        <span>{transaction.time}</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Transaction ID and Payment */}
@@ -248,4 +356,3 @@ const PatientTransactions = () => {
 }
 
 export default PatientTransactions
-

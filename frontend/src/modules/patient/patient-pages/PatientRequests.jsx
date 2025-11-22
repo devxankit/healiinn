@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import {
   IoCheckmarkCircleOutline,
   IoCloseOutline,
@@ -14,6 +13,7 @@ import {
   IoLocationOutline,
   IoDocumentTextOutline,
   IoTimeOutline,
+  IoDownloadOutline,
 } from 'react-icons/io5'
 
 // Mock data for booking requests and responses
@@ -139,13 +139,230 @@ const formatCurrency = (amount) => {
 }
 
 const PatientRequests = () => {
-  const navigate = useNavigate()
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [requests, setRequests] = useState(mockRequests)
-  const [cancelledRequests, setCancelledRequests] = useState([])
+  const [, setCancelledRequests] = useState([])
+  const [receiptPdfUrl, setReceiptPdfUrl] = useState(null)
+
+  const handleViewReceipt = (request) => {
+    setSelectedRequest(request)
+    // Generate PDF and display in viewer
+    generateReceiptPDF(request)
+    setShowReceiptModal(true)
+  }
+
+  const generateReceiptPDF = (request) => {
+    const receiptContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Booking Receipt - ${request.type === 'lab' ? request.testName : request.medicineName}</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .header {
+      border-bottom: 3px solid #11496c;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #11496c;
+      margin: 0;
+      font-size: 28px;
+    }
+    .header .subtitle {
+      color: #64748b;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    .section {
+      margin-bottom: 25px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #1e293b;
+      margin-bottom: 15px;
+      border-left: 4px solid #11496c;
+      padding-left: 10px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .info-label {
+      font-weight: 600;
+      color: #475569;
+    }
+    .info-value {
+      color: #1e293b;
+    }
+    .amount-box {
+      background-color: rgba(17, 73, 108, 0.05);
+      border: 2px solid #11496c;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+    .amount-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 20px;
+      font-weight: bold;
+      color: #11496c;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 5px 15px;
+      border-radius: 20px;
+      background-color: rgba(17, 73, 108, 0.15);
+      color: #11496c;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 2px solid #e2e8f0;
+      text-align: center;
+      color: #64748b;
+      font-size: 12px;
+    }
+    @media print {
+      body { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Booking Receipt</h1>
+    <div class="subtitle">Healiinn - Your Health Partner</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Booking Information</div>
+    <div class="info-row">
+      <span class="info-label">Request ID:</span>
+      <span class="info-value">${request.id}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Type:</span>
+      <span class="info-value">${request.type === 'lab' ? 'Laboratory Test' : 'Pharmacy Order'}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">${request.type === 'lab' ? 'Test Name' : 'Medicine'}:</span>
+      <span class="info-value">${request.type === 'lab' ? request.testName : request.medicineName}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Provider:</span>
+      <span class="info-value">${request.providerName}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Status:</span>
+      <span class="info-value">
+        <span class="status-badge">${getStatusLabel(request.status)}</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Timeline</div>
+    <div class="info-row">
+      <span class="info-label">Requested Date:</span>
+      <span class="info-value">${formatDate(request.requestDate)}</span>
+    </div>
+    ${request.responseDate ? `
+    <div class="info-row">
+      <span class="info-label">Response Date:</span>
+      <span class="info-value">${formatDate(request.responseDate)}</span>
+    </div>
+    ` : ''}
+  </div>
+
+  ${request.patient ? `
+  <div class="section">
+    <div class="section-title">Patient Information</div>
+    <div class="info-row">
+      <span class="info-label">Name:</span>
+      <span class="info-value">${request.patient.name} • ${request.patient.age} yrs, ${request.patient.gender}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Phone:</span>
+      <span class="info-value">${request.patient.phone}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Email:</span>
+      <span class="info-value">${request.patient.email}</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Address:</span>
+      <span class="info-value">${request.patient.address}</span>
+    </div>
+  </div>
+  ` : ''}
+
+  ${request.providerResponse ? `
+  <div class="section">
+    <div class="section-title">Provider Message</div>
+    <p style="color: #1e293b; line-height: 1.6;">${request.providerResponse.message}</p>
+  </div>
+  ` : ''}
+
+  ${request.totalAmount ? `
+  <div class="amount-box">
+    <div class="amount-row">
+      <span>Total Amount:</span>
+      <span>${formatCurrency(request.totalAmount)}</span>
+    </div>
+  </div>
+  ` : ''}
+
+  <div class="footer">
+    <p>This is an electronically generated receipt.</p>
+    <p>For any queries, please contact ${request.providerName}</p>
+    <p>Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+  </div>
+</body>
+</html>
+    `
+    
+    // Create blob URL for PDF
+    const blob = new Blob([receiptContent], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    setReceiptPdfUrl(url)
+  }
+
+  useEffect(() => {
+    return () => {
+      // Cleanup blob URL when component unmounts or modal closes
+      if (receiptPdfUrl) {
+        URL.revokeObjectURL(receiptPdfUrl)
+      }
+    }
+  }, [receiptPdfUrl])
+
+  const handleCloseReceiptModal = () => {
+    setShowReceiptModal(false)
+    setSelectedRequest(null)
+    // Cleanup blob URL
+    if (receiptPdfUrl) {
+      URL.revokeObjectURL(receiptPdfUrl)
+      setReceiptPdfUrl(null)
+    }
+  }
+
 
   const handlePayClick = (request) => {
     setSelectedRequest(request)
@@ -420,183 +637,9 @@ const PatientRequests = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      // Generate and download PDF receipt
-                      const downloadReceipt = () => {
-                        const receiptContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Booking Receipt - ${request.type === 'lab' ? request.testName : request.medicineName}</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 40px;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    .header {
-      border-bottom: 3px solid #3b82f6;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
-    }
-    .header h1 {
-      color: #1e40af;
-      margin: 0;
-      font-size: 28px;
-    }
-    .header .subtitle {
-      color: #64748b;
-      margin-top: 5px;
-      font-size: 14px;
-    }
-    .section {
-      margin-bottom: 25px;
-    }
-    .section-title {
-      font-size: 18px;
-      font-weight: bold;
-      color: #1e293b;
-      margin-bottom: 15px;
-      border-left: 4px solid #3b82f6;
-      padding-left: 10px;
-    }
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px 0;
-      border-bottom: 1px solid #e2e8f0;
-    }
-    .info-label {
-      font-weight: 600;
-      color: #475569;
-    }
-    .info-value {
-      color: #1e293b;
-    }
-    .amount-box {
-      background-color: #eff6ff;
-      border: 2px solid #3b82f6;
-      border-radius: 8px;
-      padding: 20px;
-      margin-top: 20px;
-    }
-    .amount-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 20px;
-      font-weight: bold;
-      color: #1e40af;
-    }
-    .status-badge {
-      display: inline-block;
-      padding: 5px 15px;
-      border-radius: 20px;
-      background-color: #dbeafe;
-      color: #1e40af;
-      font-weight: 600;
-      font-size: 14px;
-    }
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 2px solid #e2e8f0;
-      text-align: center;
-      color: #64748b;
-      font-size: 12px;
-    }
-    @media print {
-      body { padding: 20px; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Booking Receipt</h1>
-    <div class="subtitle">Healiinn - Your Health Partner</div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Booking Information</div>
-    <div class="info-row">
-      <span class="info-label">Request ID:</span>
-      <span class="info-value">${request.id}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Type:</span>
-      <span class="info-value">${request.type === 'lab' ? 'Laboratory Test' : 'Pharmacy Order'}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">${request.type === 'lab' ? 'Test Name' : 'Medicine'}:</span>
-      <span class="info-value">${request.type === 'lab' ? request.testName : request.medicineName}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Provider:</span>
-      <span class="info-value">${request.providerName}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Status:</span>
-      <span class="info-value">
-        <span class="status-badge">${getStatusLabel(request.status)}</span>
-      </span>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Timeline</div>
-    <div class="info-row">
-      <span class="info-label">Requested Date:</span>
-      <span class="info-value">${formatDate(request.requestDate)}</span>
-    </div>
-    ${request.responseDate ? `
-    <div class="info-row">
-      <span class="info-label">Response Date:</span>
-      <span class="info-value">${formatDate(request.responseDate)}</span>
-    </div>
-    ` : ''}
-  </div>
-
-  ${request.message ? `
-  <div class="section">
-    <div class="section-title">Provider Message</div>
-    <p style="color: #1e293b; line-height: 1.6;">${request.message}</p>
-  </div>
-  ` : ''}
-
-  <div class="amount-box">
-    <div class="amount-row">
-      <span>Total Amount:</span>
-      <span>${formatCurrency(request.totalAmount)}</span>
-    </div>
-  </div>
-
-  <div class="footer">
-    <p>This is an electronically generated receipt.</p>
-    <p>For any queries, please contact ${request.providerName}</p>
-    <p>Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-  </div>
-</body>
-</html>
-                        `
-                        
-                        // Create print window
-                        const printWindow = window.open('', '_blank')
-                        printWindow.document.write(receiptContent)
-                        printWindow.document.close()
-                        
-                        // Wait for content to load, then trigger print
-                        setTimeout(() => {
-                          printWindow.focus()
-                          printWindow.print()
-                        }, 250)
-                      }
-                      
-                      downloadReceipt()
-                    }}
+                    onClick={() => handleViewReceipt(request)}
                     className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-700 text-white shadow-sm shadow-[rgba(51,65,85,0.3)] transition-all hover:bg-slate-800 hover:shadow active:scale-95"
-                    aria-label="Download receipt"
+                    aria-label="View receipt"
                   >
                     <IoReceiptOutline className="h-4 w-4" />
                   </button>
@@ -606,6 +649,62 @@ const PatientRequests = () => {
           ))}
         </div>
       </main>
+
+      {/* Receipt Detail Modal - PDF View */}
+      {showReceiptModal && selectedRequest && receiptPdfUrl && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-slate-900"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseReceiptModal()
+            }
+          }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between bg-white border-b border-slate-200 px-4 py-3 sm:px-6">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-[#11496c]">Booking Receipt</h2>
+              <p className="text-xs text-slate-600">Healiinn - Your Health Partner</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  // Download PDF
+                  const link = document.createElement('a')
+                  link.href = receiptPdfUrl
+                  link.download = `Receipt_${selectedRequest.id}_${selectedRequest.type === 'lab' ? selectedRequest.testName : selectedRequest.medicineName}.html`
+                  link.target = '_blank'
+                  document.body.appendChild(link)
+                  link.click()
+                  document.body.removeChild(link)
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+                title="Download PDF"
+              >
+                <IoDownloadOutline className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseReceiptModal}
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+              >
+                <IoCloseOutline className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* PDF Viewer */}
+          <div className="flex-1 overflow-hidden bg-slate-100">
+            <iframe
+              src={receiptPdfUrl}
+              className="w-full h-full border-0"
+              title="Booking Receipt"
+              style={{ minHeight: '100%' }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Payment Modal */}
       {showPaymentModal && selectedRequest && (

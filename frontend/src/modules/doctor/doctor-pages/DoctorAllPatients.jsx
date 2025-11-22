@@ -169,30 +169,60 @@ const DoctorAllPatients = () => {
   }, [patients])
 
   const handleViewPatient = (patient) => {
-    // Navigate to consultations page with this patient
+    // Load saved prescription data for this patient from localStorage
+    let savedPrescriptionData = null
+    try {
+      const patientPrescriptionsKey = `patientPrescriptions_${patient.patientId}`
+      const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+      
+      // Get the most recent prescription for this patient
+      if (patientPrescriptions.length > 0) {
+        savedPrescriptionData = patientPrescriptions[0]
+      }
+    } catch (error) {
+      console.error('Error loading prescription data:', error)
+    }
+    
+    // Load saved consultation data from localStorage
+    let savedConsultationData = null
+    try {
+      const savedConsultations = JSON.parse(localStorage.getItem('doctorConsultations') || '[]')
+      savedConsultationData = savedConsultations.find((c) => c.patientId === patient.patientId)
+    } catch (error) {
+      console.error('Error loading consultation data:', error)
+    }
+    
+    // Merge saved data with patient data
+    const consultationData = {
+      id: `cons-${patient.id}`,
+      patientId: patient.patientId,
+      patientName: patient.patientName,
+      age: patient.age,
+      gender: patient.gender,
+      appointmentTime: savedConsultationData?.appointmentTime || patient.lastVisit || new Date().toISOString(),
+      appointmentType: patient.patientType === 'new' ? 'New' : 'Follow-up',
+      status: savedConsultationData?.status || 'completed',
+      reason: patient.lastDiagnosis || 'Consultation',
+      patientImage: patient.patientImage,
+      patientPhone: patient.patientPhone,
+      patientEmail: patient.patientEmail,
+      patientAddress: patient.patientAddress,
+      // Use saved prescription data if available
+      diagnosis: savedPrescriptionData?.diagnosis || savedConsultationData?.diagnosis || '',
+      symptoms: savedPrescriptionData?.symptoms || savedConsultationData?.symptoms || '',
+      vitals: savedPrescriptionData?.vitals || savedConsultationData?.vitals || {},
+      medications: savedPrescriptionData?.medications || savedConsultationData?.medications || [],
+      investigations: savedPrescriptionData?.investigations || savedConsultationData?.investigations || [],
+      advice: savedPrescriptionData?.advice || savedConsultationData?.advice || '',
+      followUpDate: savedPrescriptionData?.followUpDate || savedConsultationData?.followUpDate || '',
+      attachments: savedConsultationData?.attachments || [],
+    }
+    
+    // Navigate to consultations page with this patient and loadSavedData flag
     navigate('/doctor/consultations', {
       state: {
-        selectedConsultation: {
-          id: `cons-${patient.id}`,
-          patientId: patient.patientId,
-          patientName: patient.patientName,
-          age: patient.age,
-          gender: patient.gender,
-          appointmentTime: new Date().toISOString(),
-          appointmentType: patient.patientType === 'new' ? 'New' : 'Follow-up',
-          status: 'in-progress',
-          reason: patient.lastDiagnosis || 'Consultation',
-          patientImage: patient.patientImage,
-          patientPhone: patient.patientPhone,
-          patientEmail: patient.patientEmail,
-          patientAddress: patient.patientAddress,
-          diagnosis: '',
-          vitals: {},
-          medications: [],
-          investigations: [],
-          advice: '',
-          attachments: [],
-        },
+        selectedConsultation: consultationData,
+        loadSavedData: true, // Flag to indicate we should load saved data and bypass session check
       },
     })
   }

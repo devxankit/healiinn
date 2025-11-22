@@ -10,8 +10,6 @@ import {
   IoPersonOutline,
   IoCalendarOutline,
   IoMedicalOutline,
-  IoVideocamOutline,
-  IoCallOutline,
 } from 'react-icons/io5'
 
 // Helper function to get today's date string
@@ -74,7 +72,7 @@ const getMockAllConsultations = () => {
     appointmentType: 'New',
     status: 'completed',
     reason: 'Chest pain evaluation',
-    type: 'Video',
+    type: 'In-person',
     diagnosis: 'Anxiety',
   },
   {
@@ -88,7 +86,7 @@ const getMockAllConsultations = () => {
     appointmentType: 'Follow-up',
     status: 'pending',
     reason: 'Quick check-up',
-    type: 'Audio',
+    type: 'In-person',
     diagnosis: '',
   },
   // This month consultations (previous days this month)
@@ -117,7 +115,7 @@ const getMockAllConsultations = () => {
     appointmentType: 'New',
     status: 'completed',
     reason: 'Annual checkup',
-    type: 'Video',
+    type: 'In-person',
     diagnosis: 'Healthy',
   },
   {
@@ -145,7 +143,7 @@ const getMockAllConsultations = () => {
     appointmentType: 'Follow-up',
     status: 'completed',
     reason: 'Lab results review',
-    type: 'Audio',
+    type: 'In-person',
     diagnosis: 'Normal Results',
   },
   {
@@ -159,7 +157,7 @@ const getMockAllConsultations = () => {
     appointmentType: 'New',
     status: 'completed',
     reason: 'Initial consultation',
-    type: 'Video',
+    type: 'In-person',
     diagnosis: 'General Health Check',
   },
   // This year consultations (sample from previous months)
@@ -188,7 +186,7 @@ const getMockAllConsultations = () => {
     appointmentType: 'Follow-up',
     status: 'completed',
     reason: 'Diabetes management',
-    type: 'Video',
+    type: 'In-person',
     diagnosis: 'Type 2 Diabetes',
   },
   {
@@ -216,7 +214,7 @@ const getMockAllConsultations = () => {
     appointmentType: 'New',
     status: 'completed',
     reason: 'Annual checkup',
-    type: 'Video',
+    type: 'In-person',
     diagnosis: 'Healthy',
   },
   ]
@@ -241,14 +239,8 @@ const formatDate = (dateString) => {
 }
 
 const getTypeIcon = (type) => {
-  switch (type) {
-    case 'Video':
-      return IoVideocamOutline
-    case 'Audio':
-      return IoCallOutline
-    default:
-      return IoPersonOutline
-  }
+  // Only in-person consultations are supported
+  return IoPersonOutline
 }
 
 const getStatusColor = (status) => {
@@ -377,20 +369,55 @@ const DoctorAllConsultations = () => {
   }, [consultations, today, tomorrow, currentMonthStart, currentMonthEnd, currentYearStart, currentYearEnd])
 
   const handleViewConsultation = (consultation) => {
+    // Load saved prescription data for this patient from localStorage
+    let savedPrescriptionData = null
+    try {
+      const patientPrescriptionsKey = `patientPrescriptions_${consultation.patientId}`
+      const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+      
+      // Find prescription for this specific consultation
+      const prescription = patientPrescriptions.find((p) => p.consultationId === consultation.id)
+      if (prescription) {
+        savedPrescriptionData = prescription
+      } else if (patientPrescriptions.length > 0) {
+        // If no exact match, get the most recent prescription for this patient
+        savedPrescriptionData = patientPrescriptions[0]
+      }
+    } catch (error) {
+      console.error('Error loading prescription data:', error)
+    }
+    
+    // Load saved consultation data from localStorage
+    let savedConsultationData = null
+    try {
+      const savedConsultations = JSON.parse(localStorage.getItem('doctorConsultations') || '[]')
+      savedConsultationData = savedConsultations.find((c) => c.id === consultation.id || c.patientId === consultation.patientId)
+    } catch (error) {
+      console.error('Error loading consultation data:', error)
+    }
+    
+    // Merge saved data with consultation data
+    const consultationData = {
+      ...consultation,
+      patientPhone: savedConsultationData?.patientPhone || '+1-555-987-6543',
+      patientEmail: savedConsultationData?.patientEmail || `${consultation.patientName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+      patientAddress: savedConsultationData?.patientAddress || '123 Patient Street, New York, NY 10001',
+      // Use saved prescription data if available
+      diagnosis: savedPrescriptionData?.diagnosis || savedConsultationData?.diagnosis || consultation.diagnosis || '',
+      symptoms: savedPrescriptionData?.symptoms || savedConsultationData?.symptoms || '',
+      vitals: savedPrescriptionData?.vitals || savedConsultationData?.vitals || {},
+      medications: savedPrescriptionData?.medications || savedConsultationData?.medications || [],
+      investigations: savedPrescriptionData?.investigations || savedConsultationData?.investigations || [],
+      advice: savedPrescriptionData?.advice || savedConsultationData?.advice || '',
+      followUpDate: savedPrescriptionData?.followUpDate || savedConsultationData?.followUpDate || '',
+      attachments: savedConsultationData?.attachments || [],
+    }
+    
     // Navigate to consultations page with this consultation
     navigate('/doctor/consultations', {
       state: {
-        selectedConsultation: {
-          ...consultation,
-          patientPhone: '+1-555-987-6543',
-          patientEmail: `${consultation.patientName.toLowerCase().replace(' ', '.')}@example.com`,
-          patientAddress: '123 Patient Street, New York, NY 10001',
-          vitals: {},
-          medications: [],
-          investigations: [],
-          advice: '',
-          attachments: [],
-        },
+        selectedConsultation: consultationData,
+        loadSavedData: true, // Flag to indicate we should load saved data
       },
     })
   }

@@ -175,46 +175,57 @@ const PatientDoctors = () => {
   const filteredDoctors = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
 
-    return mockDoctors
-      .filter((doctor) => {
-        if (selectedSpecialty !== 'all' && doctor.specialty.toLowerCase() !== selectedSpecialty) {
+    let filtered = mockDoctors.filter((doctor) => {
+      // Filter by specialty
+      if (selectedSpecialty !== 'all') {
+        const doctorSpecialty = doctor.specialty.toLowerCase()
+        const selectedSpecialtyLower = selectedSpecialty.toLowerCase()
+        if (doctorSpecialty !== selectedSpecialtyLower) {
           return false
         }
+      }
 
-        if (normalizedSearch) {
-          const searchableText = [
-            doctor.name,
-            doctor.specialty,
-            doctor.location,
-            doctor.education,
-            ...doctor.languages,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase()
+      // Filter by search term
+      if (normalizedSearch) {
+        const searchableFields = [
+          doctor.name,
+          doctor.specialty,
+          doctor.location,
+          doctor.education,
+          ...(doctor.languages || []),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
 
-          return searchableText.includes(normalizedSearch)
-        }
+        // Check if any word in search term matches
+        const searchWords = normalizedSearch.split(/\s+/).filter(Boolean)
+        const matches = searchWords.every((word) => searchableFields.includes(word))
+        
+        return matches
+      }
 
-        return true
-      })
-      .sort((a, b) => {
-        if (sortBy === 'rating') {
-          return b.rating - a.rating
-        }
-        if (sortBy === 'fee-low') {
-          return a.consultationFee - b.consultationFee
-        }
-        if (sortBy === 'fee-high') {
-          return b.consultationFee - a.consultationFee
-        }
-        if (sortBy === 'distance') {
-          const aDist = parseFloat(a.distance.replace(' km', ''))
-          const bDist = parseFloat(b.distance.replace(' km', ''))
-          return aDist - bDist
-        }
+      return true
+    })
+
+    // Sort results
+    return filtered.sort((a, b) => {
+      if (sortBy === 'rating') {
         return b.rating - a.rating
-      })
+      }
+      if (sortBy === 'fee-low') {
+        return a.consultationFee - b.consultationFee
+      }
+      if (sortBy === 'fee-high') {
+        return b.consultationFee - a.consultationFee
+      }
+      if (sortBy === 'distance') {
+        const aDist = parseFloat(a.distance.replace(' km', ''))
+        const bDist = parseFloat(b.distance.replace(' km', ''))
+        return aDist - bDist
+      }
+      return b.rating - a.rating
+    })
   }, [searchTerm, selectedSpecialty, sortBy])
 
   const handleCardClick = (doctorId) => {
@@ -231,9 +242,9 @@ const PatientDoctors = () => {
           </span>
           <input
             id="doctor-search"
-            type="search"
+            type="text"
             placeholder="Search by name, specialty, or location..."
-            className="w-full rounded-lg border bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:bg-white hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 sm:text-base"
+            className="w-full rounded-lg border bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:bg-white hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:border-[#11496c] sm:text-base"
             style={{ borderColor: 'rgba(17, 73, 108, 0.3)' }}
             onFocus={(e) => {
               e.target.style.borderColor = '#11496c'
@@ -254,7 +265,11 @@ const PatientDoctors = () => {
               }
             }}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value
+              setSearchTerm(value)
+            }}
+            autoComplete="off"
           />
         </div>
       </div>

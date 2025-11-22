@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { HiChevronDown } from 'react-icons/hi'
+import jsPDF from 'jspdf'
 import {
   IoSearchOutline,
   IoCallOutline,
@@ -646,6 +647,356 @@ const PatientPharmacy = () => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [detailPharmacy])
+
+  // Format date helper for PDF
+  const formatDateForPDF = (dateString) => {
+    if (!dateString) return '—'
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) return '—'
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(date)
+  }
+
+  // Generate PDF from prescription data (matching doctor's format)
+  const generatePrescriptionPDF = (prescriptionData) => {
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 20
+    const tealColor = [17, 73, 108] // Teal color for header
+    const lightBlueColor = [230, 240, 255] // Light blue for diagnosis
+    const lightGrayColor = [245, 245, 245] // Light gray for medications
+    const lightPurpleColor = [240, 230, 250] // Light purple for tests
+    const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
+    let yPos = margin
+
+    // Get clinic info from prescription or use defaults
+    const clinicName = prescriptionData.doctor?.clinicName || 'Medical Clinic'
+    const clinicAddress = prescriptionData.doctor?.clinicAddress || 'Address not provided'
+    const doctorPhone = prescriptionData.doctor?.phone || 'N/A'
+    const doctorEmail = prescriptionData.doctor?.email || 'N/A'
+
+    // Header Section - Clinic Name in Teal (Large, Bold)
+    doc.setTextColor(...tealColor)
+    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold')
+    doc.text(clinicName, pageWidth / 2, yPos, { align: 'center' })
+    yPos += 7
+
+    // Clinic Address (Centered)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    const addressLines = doc.splitTextToSize(clinicAddress, pageWidth - 2 * margin)
+    addressLines.forEach((line) => {
+      doc.text(line, pageWidth / 2, yPos, { align: 'center' })
+      yPos += 4
+    })
+
+    // Contact Information (Left: Phone, Right: Email)
+    yPos += 1
+    doc.setFontSize(8)
+    const contactY = yPos
+    // Phone icon and number (left)
+    doc.setFillColor(200, 0, 0) // Red circle for phone
+    doc.circle(margin + 2, contactY - 1, 1.5, 'F')
+    doc.setTextColor(0, 0, 0)
+    doc.text(doctorPhone, margin + 6, contactY)
+    
+    // Email icon and address (right)
+    doc.setFillColor(100, 100, 100) // Gray circle for email
+    doc.circle(pageWidth - margin - 2, contactY - 1, 1.5, 'F')
+    doc.text(doctorEmail, pageWidth - margin, contactY, { align: 'right' })
+    yPos += 5
+
+    // Teal horizontal line separator
+    doc.setDrawColor(...tealColor)
+    doc.setLineWidth(0.5)
+    doc.line(margin, yPos, pageWidth - margin, yPos)
+    yPos += 8
+
+    // Doctor Information (Left) and Patient Information (Right)
+    const infoStartY = yPos
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Doctor Information', margin, infoStartY)
+    doc.text('Patient Information', pageWidth - margin, infoStartY, { align: 'right' })
+    
+    yPos = infoStartY + 6
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    
+    // Doctor Info (Left)
+    doc.text(`Name: ${prescriptionData.doctor.name}`, margin, yPos)
+    doc.text(`Specialty: ${prescriptionData.doctor.specialty || 'General Physician'}`, margin, yPos + 4)
+    const issuedDate = formatDateForPDF(prescriptionData.issuedAt)
+    doc.text(`Date: ${issuedDate}`, margin, yPos + 8)
+
+    // Patient Info (Right) - Get from prescription data or use defaults
+    const patientName = prescriptionData.patientName || 'Patient Name'
+    const patientAge = prescriptionData.patientAge || prescriptionData.age || 'N/A'
+    const patientGender = prescriptionData.patientGender || prescriptionData.gender || 'N/A'
+    doc.text(`Name: ${patientName}`, pageWidth - margin, yPos, { align: 'right' })
+    doc.text(`Age: ${patientAge} years`, pageWidth - margin, yPos + 4, { align: 'right' })
+    doc.text(`Gender: ${patientGender}`, pageWidth - margin, yPos + 8, { align: 'right' })
+
+    yPos += 15
+
+    // Diagnosis Section with Light Blue Background Box
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Diagnosis', margin, yPos)
+    yPos += 6
+    
+    // Light blue rounded box for diagnosis
+    const diagnosisHeight = 8
+    doc.setFillColor(...lightBlueColor)
+    doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, diagnosisHeight, 2, 2, 'F')
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    const diagnosisText = prescriptionData.diagnosis || 'N/A'
+    doc.text(diagnosisText, margin + 4, yPos + 2)
+    yPos += diagnosisHeight + 4
+
+    // Symptoms Section with Green Bullet Points
+    if (prescriptionData.symptoms) {
+      if (yPos > pageHeight - 30) {
+        doc.addPage()
+        yPos = margin
+      }
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Symptoms', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      const symptomLines = typeof prescriptionData.symptoms === 'string' 
+        ? prescriptionData.symptoms.split('\n').filter(line => line.trim())
+        : Array.isArray(prescriptionData.symptoms)
+        ? prescriptionData.symptoms.filter(s => s && s.trim())
+        : [String(prescriptionData.symptoms)]
+      
+      symptomLines.forEach((symptom) => {
+        if (yPos > pageHeight - 20) {
+          doc.addPage()
+          yPos = margin
+        }
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        const symptomText = typeof symptom === 'string' ? symptom.trim() : String(symptom)
+        doc.text(symptomText, margin + 5, yPos)
+        yPos += 4
+      })
+      yPos += 2
+    }
+
+    // Medications Section with Numbered Cards (Light Gray Background)
+    if (prescriptionData.medications && prescriptionData.medications.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medications', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.medications.forEach((med, idx) => {
+        // Check if we need a new page (with more space check)
+        if (yPos > pageHeight - 50) {
+          doc.addPage()
+          yPos = margin
+        }
+        
+        // Medication card with light gray background
+        const cardHeight = 22
+        doc.setFillColor(...lightGrayColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
+        
+        // Numbered square in teal (top-right corner)
+        const numberSize = 8
+        const numberX = pageWidth - margin - numberSize - 3
+        const numberY = yPos - 1
+        doc.setFillColor(...tealColor)
+        doc.roundedRect(numberX, numberY, numberSize, numberSize, 1, 1, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 1, { align: 'center' })
+        
+        // Medication name (bold, top)
+        doc.setTextColor(0, 0, 0)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.text(med.name, margin + 4, yPos + 3)
+        
+        // Medication details in 2 columns (left and right)
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'normal')
+        const leftColX = margin + 4
+        const rightColX = margin + (pageWidth - 2 * margin) / 2 + 5
+        const startY = yPos + 7
+        
+        // Left column
+        doc.text(`Dosage: ${med.dosage || 'N/A'}`, leftColX, startY)
+        doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 4)
+        
+        // Right column
+        doc.text(`Frequency: ${med.frequency || 'N/A'}`, rightColX, startY)
+        if (med.instructions) {
+          doc.text(`Instructions: ${med.instructions}`, rightColX, startY + 4)
+        }
+        
+        yPos += cardHeight + 4
+      })
+      yPos += 2
+    }
+
+    // Recommended Tests Section (Light Purple Boxes)
+    if (prescriptionData.investigations && prescriptionData.investigations.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Recommended Tests', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.investigations.forEach((inv) => {
+        if (yPos > pageHeight - 30) {
+          doc.addPage()
+          yPos = margin
+        }
+        
+        const testBoxHeight = inv.notes ? 14 : 9
+        doc.setFillColor(...lightPurpleColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
+        
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text(inv.name, margin + 4, yPos + 2)
+        
+        if (inv.notes) {
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(80, 80, 80)
+          doc.text(inv.notes, margin + 4, yPos + 8)
+        }
+        
+        yPos += testBoxHeight + 3
+      })
+      yPos += 2
+    }
+
+    // Medical Advice Section with Green Bullet Points
+    if (prescriptionData.advice) {
+      if (yPos > pageHeight - 30) {
+        doc.addPage()
+        yPos = margin
+      }
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medical Advice', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      const adviceLines = prescriptionData.advice.split('\n').filter(line => line.trim())
+      adviceLines.forEach((advice) => {
+        if (yPos > pageHeight - 20) {
+          doc.addPage()
+          yPos = margin
+        }
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        doc.text(advice.trim(), margin + 5, yPos)
+        yPos += 4
+      })
+      yPos += 2
+    }
+
+    // Follow-up Appointment (Light Yellow Box)
+    if (prescriptionData.followUpAt) {
+      if (yPos > pageHeight - 20) {
+        doc.addPage()
+        yPos = margin
+      }
+      
+      const followUpHeight = 12
+      doc.setFillColor(...lightYellowColor)
+      doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, followUpHeight, 2, 2, 'F')
+      
+      // Calendar icon (small square)
+      doc.setFillColor(255, 200, 0)
+      doc.roundedRect(margin + 2, yPos + 1, 3, 3, 0.5, 0.5, 'F')
+      
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text('Follow-up Appointment', margin + 7, yPos + 3)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      const followUpDate = formatDateForPDF(prescriptionData.followUpAt)
+      doc.text(followUpDate, margin + 7, yPos + 8)
+      yPos += followUpHeight + 5
+    }
+
+    // Footer with Doctor Signature (Right side)
+    const signatureSpace = 30
+    const minYPos = pageHeight - signatureSpace - 5
+    if (yPos < minYPos) {
+      yPos = minYPos
+    }
+
+    // Doctor Signature (Right side)
+    const signatureX = pageWidth - margin - 55
+    const signatureY = yPos
+    
+    // Draw a line for signature
+    doc.setDrawColor(0, 0, 0)
+    doc.setLineWidth(0.5)
+    doc.line(signatureX, signatureY, signatureX + 50, signatureY)
+    
+    // Doctor name and designation below signature (centered under signature area)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text(prescriptionData.doctor.name, signatureX + 25, signatureY + 8, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.text(prescriptionData.doctor.specialty, signatureX + 25, signatureY + 12, { align: 'center' })
+
+    // Disclaimer at bottom center
+    const disclaimerY = pageHeight - 6
+    doc.setFontSize(6)
+    doc.setTextColor(100, 100, 100)
+    doc.text('This is a digitally generated prescription. For any queries, please contact the clinic.', pageWidth / 2, disclaimerY, { align: 'center' })
+
+    return doc
+  }
+
+  // Handle View PDF button click
+  const handleViewPrescriptionPDF = () => {
+    if (!selectedPrescription) return
+    
+    try {
+      const doc = generatePrescriptionPDF(selectedPrescription)
+      // Generate PDF blob and open in new window
+      const pdfBlob = doc.output('blob')
+      const pdfUrl = URL.createObjectURL(pdfBlob)
+      window.open(pdfUrl, '_blank')
+      // Clean up the URL after a delay
+      setTimeout(() => {
+        URL.revokeObjectURL(pdfUrl)
+      }, 1000)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Error generating PDF. Please try again.')
+    }
+  }
 
   useEffect(() => {
     if (!bookingPharmacy) {
@@ -1375,7 +1726,8 @@ const PatientPharmacy = () => {
                               </div>
                               <button
                                 type="button"
-                                className="rounded-lg bg-[rgba(17,73,108,0.1)] px-2.5 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-semibold text-[#11496c] hover:bg-[rgba(17,73,108,0.15)] shrink-0"
+                                onClick={handleViewPrescriptionPDF}
+                                className="rounded-lg bg-[rgba(17,73,108,0.1)] px-2.5 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-semibold text-[#11496c] hover:bg-[rgba(17,73,108,0.15)] shrink-0 transition"
                               >
                                 View PDF
                               </button>

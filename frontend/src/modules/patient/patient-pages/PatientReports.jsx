@@ -144,19 +144,76 @@ const PatientReports = () => {
 
     setIsSharing(true)
     
+    const patientId = 'pat-current' // In real app, get from auth
+    const selectedDoctor = mockDoctors.find(doc => doc.id === selectedDoctorId)
+    
     // If sharing with associated doctor (direct share)
     if (selectedReport.doctorId && selectedDoctorId === selectedReport.doctorId) {
-      // Direct share - no booking needed
+      // Direct share - save to localStorage for doctor to access
+      try {
+        const sharedReport = {
+          ...selectedReport,
+          sharedWithDoctorId: selectedDoctorId,
+          sharedAt: new Date().toISOString(),
+          patientId: patientId,
+          // Ensure PDF URL is included
+          pdfFileUrl: selectedReport.pdfFileUrl || selectedReport.downloadUrl,
+          pdfFileName: selectedReport.pdfFileName || `${selectedReport.testName?.replace(/\s+/g, '_') || 'Report'}_${selectedReport.date || 'Report'}.pdf`,
+        }
+        
+        // Save to patient-specific key
+        const sharedReportsKey = `sharedLabReports_${patientId}`
+        const existingReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
+        // Check if already shared
+        const alreadyShared = existingReports.find(r => r.id === selectedReport.id && r.sharedWithDoctorId === selectedDoctorId)
+        if (!alreadyShared) {
+          existingReports.push(sharedReport)
+          localStorage.setItem(sharedReportsKey, JSON.stringify(existingReports))
+        }
+        
+        // Also save to doctor-specific key for easy access
+        const doctorSharedReportsKey = `doctorSharedLabReports_${selectedDoctorId}`
+        const doctorReports = JSON.parse(localStorage.getItem(doctorSharedReportsKey) || '[]')
+        if (!doctorReports.find(r => r.id === selectedReport.id && r.patientId === patientId)) {
+          doctorReports.push(sharedReport)
+          localStorage.setItem(doctorSharedReportsKey, JSON.stringify(doctorReports))
+        }
+      } catch (error) {
+        console.error('Error saving shared report:', error)
+      }
+      
       setTimeout(() => {
         setIsSharing(false)
         handleCloseShareModal()
         alert(`Report shared successfully with ${selectedReport.doctorName}`)
       }, 1000)
-    } else if (selectedDoctorId) {
-      // Share with other doctor - requires booking
+    } else if (selectedDoctorId && selectedDoctor) {
+      // Share with other doctor - requires booking, but save for when appointment is booked
+      try {
+        const sharedReport = {
+          ...selectedReport,
+          sharedWithDoctorId: selectedDoctorId,
+          sharedAt: new Date().toISOString(),
+          patientId: patientId,
+          pendingAppointment: true, // Mark as pending appointment
+        }
+        
+        // Save to patient-specific key
+        const sharedReportsKey = `sharedLabReports_${patientId}`
+        const existingReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
+        const alreadyShared = existingReports.find(r => r.id === selectedReport.id && r.sharedWithDoctorId === selectedDoctorId)
+        if (!alreadyShared) {
+          existingReports.push(sharedReport)
+          localStorage.setItem(sharedReportsKey, JSON.stringify(existingReports))
+        }
+      } catch (error) {
+        console.error('Error saving shared report:', error)
+      }
+      
       setTimeout(() => {
         setIsSharing(false)
         handleCloseShareModal()
+        alert(`Report "${selectedReport.testName}" will be shared with ${selectedDoctor.name} after booking appointment.`)
         // Navigate to doctor details page with booking modal
         navigate(`/patient/doctors/${selectedDoctorId}?book=true`)
       }, 1000)

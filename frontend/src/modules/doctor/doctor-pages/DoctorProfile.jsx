@@ -18,7 +18,6 @@ import {
   IoChevronUpOutline,
   IoSchoolOutline,
   IoLanguageOutline,
-  IoVideocamOutline,
   IoTimeOutline,
   IoDocumentTextOutline,
   IoBriefcaseOutline,
@@ -48,7 +47,7 @@ const mockDoctorData = {
     { institution: 'Johns Hopkins Hospital', degree: 'Residency', year: 2018 },
   ],
   languages: ['English', 'Spanish', 'French'],
-  consultationModes: ['in_person', 'video', 'audio'],
+  consultationModes: ['in_person'],
   clinicDetails: {
     name: 'Heart Care Clinic',
     address: {
@@ -707,28 +706,26 @@ const DoctorProfile = () => {
                         <h3 className="mb-2 text-xs font-semibold text-slate-900">Consultation Modes</h3>
                         {isEditing ? (
                           <div className="space-y-1.5">
-                            {['in_person', 'video', 'audio', 'chat'].map((mode) => (
-                              <label key={mode} className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={formData.consultationModes?.includes(mode) || false}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      handleArrayAdd('consultationModes', mode)
-                                    } else {
-                                      const index = formData.consultationModes?.indexOf(mode)
-                                      if (index !== undefined && index !== -1) {
-                                        handleArrayRemove('consultationModes', index)
-                                      }
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={formData.consultationModes?.includes('in_person') || false}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    handleArrayAdd('consultationModes', 'in_person')
+                                  } else {
+                                    const index = formData.consultationModes?.indexOf('in_person')
+                                    if (index !== undefined && index !== -1) {
+                                      handleArrayRemove('consultationModes', index)
                                     }
-                                  }}
-                                  className="h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] shrink-0"
-                                />
-                                <span className="text-xs font-medium text-slate-900 capitalize">
-                                  {mode.replace('_', ' ')}
-                                </span>
-                              </label>
-                            ))}
+                                  }
+                                }}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] shrink-0"
+                              />
+                              <span className="text-xs font-medium text-slate-900 capitalize">
+                                In Person
+                              </span>
+                            </label>
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-1.5">
@@ -738,7 +735,7 @@ const DoctorProfile = () => {
                                   key={index}
                                   className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700"
                                 >
-                                  <IoVideocamOutline className="h-2.5 w-2.5 shrink-0" />
+                                  <IoPersonOutline className="h-2.5 w-2.5 shrink-0" />
                                   {mode.replace('_', ' ')}
                                 </span>
                               ))
@@ -994,20 +991,46 @@ const DoctorProfile = () => {
                         <div className="flex items-center gap-3">
                           <input
                             type="number"
-                            min="5"
+                            min="0"
                             max="60"
-                            value={formData.averageConsultationMinutes || 20}
+                            value={formData.averageConsultationMinutes ?? ''}
                             onChange={(e) => {
-                              const value = parseInt(e.target.value) || 5
-                              const validatedValue = Math.max(5, Math.min(60, value))
-                              handleInputChange('averageConsultationMinutes', validatedValue)
+                              const inputValue = e.target.value
+                              
+                              // Allow empty input while typing
+                              if (inputValue === '') {
+                                handleInputChange('averageConsultationMinutes', '')
+                                return
+                              }
+                              
+                              // Parse the number
+                              const numValue = parseInt(inputValue, 10)
+                              
+                              // If it's a valid number and within range
+                              if (!isNaN(numValue) && numValue >= 0 && numValue <= 60) {
+                                handleInputChange('averageConsultationMinutes', numValue)
+                              }
+                            }}
+                            onBlur={(e) => {
+                              // On blur, ensure we have a valid value (default to 20 if empty)
+                              const inputValue = e.target.value.trim()
+                              if (inputValue === '') {
+                                handleInputChange('averageConsultationMinutes', 20)
+                              } else {
+                                const numValue = parseInt(inputValue, 10)
+                                if (isNaN(numValue) || numValue < 0 || numValue > 60) {
+                                  handleInputChange('averageConsultationMinutes', 20)
+                                } else {
+                                  handleInputChange('averageConsultationMinutes', numValue)
+                                }
+                              }
                             }}
                             className="w-24 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
                           />
                           <span className="text-xs sm:text-sm font-medium text-slate-700">minutes</span>
                         </div>
                         <p className="text-[10px] text-slate-500">
-                          Range: 5 - 60 minutes
+                          Range: 0 - 60 minutes
                         </p>
                       </div>
                     ) : (

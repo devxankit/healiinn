@@ -21,6 +21,7 @@ import {
   IoWalletOutline,
   IoHelpCircleOutline,
   IoArrowForwardOutline,
+  IoReceiptOutline,
 } from 'react-icons/io5'
 import PatientSidebar from '../patient-components/PatientSidebar'
 
@@ -192,6 +193,7 @@ const navItems = [
   { id: 'pharmacy', label: 'Pharmacy', to: '/patient/pharmacy', Icon: IoBagHandleOutline },
   { id: 'doctors', label: 'Doctors', to: '/patient/doctors', Icon: IoPeopleOutline },
   { id: 'laboratory', label: 'Laboratory', to: '/patient/laboratory', Icon: IoFlaskOutline },
+  { id: 'transactions', label: 'Transactions', to: '/patient/transactions', Icon: IoReceiptOutline },
   { id: 'support', label: 'Support', to: '/patient/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
 ]
@@ -297,8 +299,11 @@ const PatientDashboard = () => {
             type="text"
             placeholder="Search doctors or specialties"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
+            onChange={(e) => {
+              const value = e.target.value
+              setSearchTerm(value)
+            }}
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:border-[#11496c] transition-all"
             onFocus={(e) => {
               e.target.style.borderColor = '#11496c'
               e.target.style.boxShadow = '0 0 0 2px rgba(17, 73, 108, 0.2)'
@@ -391,6 +396,10 @@ const PatientDashboard = () => {
         </div>
       </div>
 
+      {/* Doctors Section */}
+      <div>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Nearby Doctors</h2>
+        
         {/* Filter Buttons */}
         <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide pb-2">
           {['All', 'Nearest', 'Shortest Wait', 'Highest'].map((filter) => (
@@ -411,7 +420,20 @@ const PatientDashboard = () => {
 
         {/* Doctor Cards */}
         <div className="space-y-4">
-          {filteredDoctors.map((doctor) => (
+          {filteredDoctors.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-4">
+                <IoPeopleOutline className="h-8 w-8" />
+              </div>
+              <p className="text-lg font-semibold text-slate-700">No doctors found</p>
+              <p className="text-sm text-slate-500 mt-1">
+                {searchTerm.trim() 
+                  ? `No doctors match "${searchTerm}". Try a different search term.`
+                  : 'No doctors available at the moment.'}
+              </p>
+            </div>
+          ) : (
+            filteredDoctors.map((doctor) => (
             <div
               key={doctor.id}
               onClick={() => navigate(`/patient/doctors/${doctor.id}`)}
@@ -496,8 +518,10 @@ const PatientDashboard = () => {
                 </button>
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
+      </div>
 
       {/* Sidebar */}
       <PatientSidebar

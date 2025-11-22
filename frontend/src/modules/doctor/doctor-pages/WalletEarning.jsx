@@ -54,10 +54,10 @@ const mockEarningData = {
     {
       id: 'earn-5',
       amount: 1000.00,
-      description: 'Video consultation - Patient: David Wilson',
+      description: 'In-person consultation - Patient: David Wilson',
       date: '2025-01-10T14:20:00',
       status: 'completed',
-      category: 'Video Consultation',
+      category: 'In-Person Consultation',
     },
   ],
 }

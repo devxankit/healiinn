@@ -6,8 +6,6 @@ import {
   IoSearchOutline,
   IoTimeOutline,
   IoCheckmarkCircleOutline,
-  IoVideocamOutline,
-  IoCallOutline,
   IoPersonOutline,
   IoDocumentTextOutline,
   IoCloseCircleOutline,
@@ -37,7 +35,7 @@ const mockAllAppointments = [
     patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160',
     date: '2025-01-15',
     time: '10:30 AM',
-    type: 'Video',
+    type: 'In-person',
     status: 'confirmed',
     duration: '45 min',
     reason: 'Initial consultation',
@@ -50,8 +48,8 @@ const mockAllAppointments = [
     patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
     date: '2025-01-15',
     time: '02:00 PM',
-    type: 'Audio',
-    status: 'pending',
+    type: 'In-person',
+    status: 'scheduled', // Backend status - will display as 'pending'
     duration: '20 min',
     reason: 'Quick check-up',
     appointmentType: 'Follow-up',
@@ -77,7 +75,7 @@ const mockAllAppointments = [
     patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=8b5cf6&color=fff&size=160',
     date: '2025-01-14',
     time: '11:00 AM',
-    type: 'Video',
+    type: 'In-person',
     status: 'completed',
     duration: '30 min',
     reason: 'Annual checkup',
@@ -103,7 +101,7 @@ const mockAllAppointments = [
     patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=6366f1&color=fff&size=160',
     date: '2025-01-12',
     time: '02:30 PM',
-    type: 'Audio',
+    type: 'In-person',
     status: 'completed',
     duration: '20 min',
     reason: 'Lab results review',
@@ -116,7 +114,7 @@ const mockAllAppointments = [
     patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=160',
     date: '2025-01-11',
     time: '10:00 AM',
-    type: 'Video',
+    type: 'In-person',
     status: 'completed',
     duration: '30 min',
     reason: 'Initial consultation',
@@ -142,7 +140,7 @@ const mockAllAppointments = [
     patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160',
     date: '2025-01-09',
     time: '11:30 AM',
-    type: 'Video',
+    type: 'In-person',
     status: 'completed',
     duration: '45 min',
     reason: 'Chest pain evaluation',
@@ -169,7 +167,7 @@ const mockAllAppointments = [
     patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
     date: '2024-11-15',
     time: '10:00 AM',
-    type: 'Video',
+    type: 'In-person',
     status: 'completed',
     duration: '30 min',
     reason: 'Arthritis consultation',
@@ -201,18 +199,51 @@ const formatTime = (timeString) => {
 }
 
 const getTypeIcon = (type) => {
-  switch (type) {
-    case 'Video':
-      return IoVideocamOutline
-    case 'Audio':
-      return IoCallOutline
+  // Only in-person consultations are supported
+  return IoPersonOutline
+}
+
+// Map backend status to frontend display status
+const mapBackendStatusToDisplay = (backendStatus) => {
+  switch (backendStatus) {
+    case 'scheduled':
+      return 'pending' // Backend 'scheduled' shows as 'pending' for doctor
+    case 'confirmed':
+      return 'confirmed'
+    case 'completed':
+      return 'completed'
+    case 'cancelled':
+      return 'cancelled'
+    case 'no_show':
+      return 'no_show'
     default:
-      return IoPersonOutline
+      return backendStatus || 'pending'
+  }
+}
+
+// Map frontend display status back to backend status
+const mapDisplayStatusToBackend = (displayStatus) => {
+  switch (displayStatus) {
+    case 'pending':
+      return 'scheduled' // Frontend 'pending' is backend 'scheduled'
+    case 'confirmed':
+      return 'confirmed'
+    case 'completed':
+      return 'completed'
+    case 'cancelled':
+      return 'cancelled'
+    case 'no_show':
+      return 'no_show'
+    default:
+      return displayStatus || 'scheduled'
   }
 }
 
 const getStatusColor = (status) => {
-  switch (status) {
+  // Handle both backend and frontend statuses
+  const displayStatus = status === 'scheduled' ? 'pending' : status
+  
+  switch (displayStatus) {
     case 'confirmed':
       return 'bg-emerald-50 text-emerald-700 border-emerald-200'
     case 'pending':
@@ -221,6 +252,8 @@ const getStatusColor = (status) => {
       return 'bg-blue-50 text-blue-700 border-blue-200'
     case 'cancelled':
       return 'bg-red-50 text-red-700 border-red-200'
+    case 'no_show':
+      return 'bg-orange-50 text-orange-700 border-orange-200'
     default:
       return 'bg-slate-50 text-slate-700 border-slate-200'
   }
@@ -487,21 +520,26 @@ const DoctorAppointments = () => {
                           <p className="text-sm text-slate-600 mt-0.5">{appointment.reason}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)}`}
-                          >
-                            {appointment.status === 'confirmed' ? (
-                              <IoCheckmarkCircleOutline className="h-3 w-3" />
-                            ) : appointment.status === 'completed' ? (
-                              <IoCheckmarkCircleOutline className="h-3 w-3" />
-                            ) : appointment.status === 'cancelled' ? (
-                              <IoCloseCircleOutline className="h-3 w-3" />
-                            ) : (
-                              <IoTimeOutline className="h-3 w-3" />
-                            )}
-                            {appointment.status}
-                          </span>
-                          {appointment.status === 'confirmed' && (
+                          {(() => {
+                            const displayStatus = mapBackendStatusToDisplay(appointment.status)
+                            return (
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)}`}
+                              >
+                                {displayStatus === 'confirmed' ? (
+                                  <IoCheckmarkCircleOutline className="h-3 w-3" />
+                                ) : displayStatus === 'completed' ? (
+                                  <IoCheckmarkCircleOutline className="h-3 w-3" />
+                                ) : displayStatus === 'cancelled' ? (
+                                  <IoCloseCircleOutline className="h-3 w-3" />
+                                ) : (
+                                  <IoTimeOutline className="h-3 w-3" />
+                                )}
+                                {displayStatus}
+                              </span>
+                            )
+                          })()}
+                          {(appointment.status === 'confirmed' || appointment.status === 'scheduled') && (
                             <button
                               type="button"
                               onClick={(e) => handleCancelClick(e, appointment)}

@@ -11,8 +11,7 @@ import {
   IoStarOutline,
   IoCheckmarkCircleOutline,
   IoLocationOutline,
-  IoCallOutline,
-  IoVideocamOutline,
+  IoPersonOutline,
   IoTrendingUpOutline,
   IoTrendingDownOutline,
   IoNotificationsOutline,
@@ -64,7 +63,7 @@ const allAppointments = [
     patientImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
     date: getTodayDateString(),
     time: '10:30 AM',
-    type: 'Video',
+    type: 'In-person',
     status: 'confirmed',
     duration: '45 min',
     reason: 'Initial consultation',
@@ -75,7 +74,7 @@ const allAppointments = [
     patientImage: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
     date: getTodayDateString(),
     time: '02:00 PM',
-    type: 'Audio',
+    type: 'In-person',
     status: 'pending',
     duration: '20 min',
     reason: 'Quick check-up',
@@ -100,7 +99,7 @@ const recentConsultations = [
     patientImage: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
     date: '2025-01-15',
     time: '10:00 AM',
-    type: 'Video',
+    type: 'In-person',
     status: 'completed',
     fee: 1500,
     notes: 'Follow-up required in 2 weeks',
@@ -122,7 +121,7 @@ const recentConsultations = [
     patientImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
     date: '2025-01-14',
     time: '11:00 AM',
-    type: 'Audio',
+    type: 'In-person',
     status: 'completed',
     fee: 1200,
     notes: 'Lab tests recommended',
@@ -133,7 +132,7 @@ const recentConsultations = [
     patientImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
     date: '2025-01-13',
     time: '09:30 AM',
-    type: 'Video',
+    type: 'In-person',
     status: 'pending',
     fee: 1500,
     notes: 'Awaiting payment',
@@ -173,16 +172,8 @@ const getStatusColor = (status) => {
 }
 
 const getTypeIcon = (type) => {
-  switch (type.toLowerCase()) {
-    case 'video':
-      return IoVideocamOutline
-    case 'audio':
-      return IoCallOutline
-    case 'chat':
-      return IoChatbubbleOutline
-    default:
-      return IoLocationOutline
-  }
+  // Only in-person consultations are supported
+  return IoPersonOutline
 }
 
 const DoctorDashboard = () => {
@@ -257,7 +248,14 @@ const DoctorDashboard = () => {
                   Shivaji Nagar Clinic • <span className="text-white font-medium">Online</span>
                 </p>
               </div>
-              <div className="relative">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
+                  aria-label="Notifications"
+                >
+                  <IoNotificationsOutline className="h-5 w-5 sm:h-6 sm:w-6" />
+                </button>
                 <button
                   type="button"
                   onClick={handleSidebarToggle}

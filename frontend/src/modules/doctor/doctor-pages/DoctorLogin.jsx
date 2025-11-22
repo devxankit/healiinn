@@ -14,7 +14,6 @@ import {
   IoMedicalOutline,
   IoSchoolOutline,
   IoLanguageOutline,
-  IoVideocamOutline,
   IoTimeOutline,
   IoDocumentTextOutline,
 } from 'react-icons/io5'
@@ -1672,19 +1671,17 @@ const DoctorLogin = () => {
                     Consultation Modes
                   </label>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {['in_person', 'video', 'audio', 'chat'].map((mode) => (
-                      <label key={mode} className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 cursor-pointer hover:bg-slate-100 transition">
-                        <input
-                          type="checkbox"
-                          name="consultationModes"
-                          value={mode}
-                          checked={doctorSignupData.consultationModes.includes(mode)}
-                          onChange={handleDoctorSignupChange}
-                          className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
-                        />
-                        <span className="text-sm text-slate-700 capitalize">{mode.replace('_', ' ')}</span>
-                      </label>
-                    ))}
+                    <label className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 cursor-pointer hover:bg-slate-100 transition">
+                      <input
+                        type="checkbox"
+                        name="consultationModes"
+                        value="in_person"
+                        checked={doctorSignupData.consultationModes.includes('in_person')}
+                        onChange={handleDoctorSignupChange}
+                        className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                      />
+                      <span className="text-sm text-slate-700 capitalize">In Person</span>
+                    </label>
                   </div>
                 </section>
 
