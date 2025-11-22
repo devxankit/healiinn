@@ -64,8 +64,10 @@ const PatientNavbar = () => {
   const handleLogout = () => {
     handleSidebarClose()
     localStorage.removeItem('patientAuthToken')
+    localStorage.removeItem('patientRefreshToken')
     sessionStorage.removeItem('patientAuthToken')
-    navigate('/', { replace: true })
+    sessionStorage.removeItem('patientRefreshToken')
+    navigate('/patient/login', { replace: true })
   }
 
   return (

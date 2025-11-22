@@ -197,6 +197,10 @@ const PatientProfile = () => {
                     type="button"
                     onClick={() => {
                       if (window.confirm('Are you sure you want to sign out?')) {
+                        localStorage.removeItem('patientAuthToken')
+                        localStorage.removeItem('patientRefreshToken')
+                        sessionStorage.removeItem('patientAuthToken')
+                        sessionStorage.removeItem('patientRefreshToken')
                         window.location.href = '/patient/login'
                       }
                     }}
