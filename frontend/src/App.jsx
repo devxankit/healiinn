@@ -52,11 +52,15 @@ import PharmacySupport from './modules/pharmacy/pharmacy-pages/PharmacySupport'
 import LaboratoryNavbar from './modules/laboratory/laboratory-components/LaboratoryNavbar'
 import LaboratoryDashboard from './modules/laboratory/laboratory-pages/LaboratoryDashboard'
 import LaboratoryOrders from './modules/laboratory/laboratory-pages/LaboratoryOrders'
-import LaboratoryReports from './modules/laboratory/laboratory-pages/LaboratoryReports'
 import LaboratoryPatients from './modules/laboratory/laboratory-pages/LaboratoryPatients'
+import LaboratoryPatientOrders from './modules/laboratory/laboratory-pages/LaboratoryPatientOrders'
 import LaboratoryProfile from './modules/laboratory/laboratory-pages/LaboratoryProfile'
 import LaboratoryWallet from './modules/laboratory/laboratory-pages/LaboratoryWallet'
 import LaboratoryRequests from './modules/laboratory/laboratory-pages/LaboratoryRequests'
+import LaboratoryReports from './modules/laboratory/laboratory-pages/LaboratoryReports'
+import LaboratoryTestReports from './modules/laboratory/laboratory-pages/LaboratoryTestReports'
+import LaboratoryPatientStatistics from './modules/laboratory/laboratory-pages/LaboratoryPatientStatistics'
+import LaboratoryPatientDetails from './modules/laboratory/laboratory-pages/LaboratoryPatientDetails'
 import LaboratoryWalletBalance from './modules/laboratory/laboratory-pages/WalletBalance'
 import LaboratoryWalletEarning from './modules/laboratory/laboratory-pages/WalletEarning'
 import LaboratoryWalletWithdraw from './modules/laboratory/laboratory-pages/WalletWithdraw'
@@ -190,7 +194,12 @@ function App() {
                     <Route path="/dashboard" element={<LaboratoryDashboard />} />
                     <Route path="/orders" element={<LaboratoryOrders />} />
                     <Route path="/requests" element={<LaboratoryRequests />} />
-                    <Route path="/patients" element={<LaboratoryReports />} />
+                    <Route path="/reports" element={<LaboratoryReports />} />
+                    <Route path="/test-reports" element={<LaboratoryTestReports />} />
+                    <Route path="/patients" element={<LaboratoryPatients />} />
+                    <Route path="/patients/orders" element={<LaboratoryPatientOrders />} />
+                    <Route path="/patient-statistics" element={<LaboratoryPatientStatistics />} />
+                    <Route path="/patient-details" element={<LaboratoryPatientDetails />} />
                     <Route path="/profile" element={<LaboratoryProfile />} />
                     <Route path="/wallet" element={<LaboratoryWallet />} />
                     <Route path="/wallet/balance" element={<LaboratoryWalletBalance />} />
@@ -198,6 +207,7 @@ function App() {
                     <Route path="/wallet/withdraw" element={<LaboratoryWalletWithdraw />} />
                     <Route path="/wallet/transaction" element={<LaboratoryWalletTransaction />} />
                     <Route path="/support" element={<LaboratorySupport />} />
+                    
                   </Routes>
                 </main>
               </>

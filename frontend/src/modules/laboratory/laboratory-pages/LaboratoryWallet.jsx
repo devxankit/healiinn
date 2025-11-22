@@ -6,7 +6,6 @@ import {
   IoCashOutline,
   IoReceiptOutline,
   IoArrowForwardOutline,
-  IoShieldCheckmarkOutline,
 } from 'react-icons/io5'
 
 // Mock data
@@ -35,20 +34,6 @@ const LaboratoryWallet = () => {
 
   return (
     <section className="flex flex-col gap-6 pb-4">
-      {/* Header Section */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Wallet</h1>
-            <p className="mt-1.5 text-sm text-slate-600">Manage your laboratory earnings and withdrawals</p>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 border border-emerald-100">
-            <IoShieldCheckmarkOutline className="h-5 w-5 text-emerald-600" />
-            <span className="text-xs font-semibold text-emerald-700 hidden sm:inline">Secure</span>
-          </div>
-        </div>
-      </div>
-
       {/* Main Balance Card - Hero Section */}
       <div className="relative overflow-hidden rounded-3xl border border-[rgba(17,73,108,0.15)] bg-gradient-to-br from-[#11496c] via-[#1a5f7a] to-[#2a8ba8] p-6 sm:p-8 text-white shadow-2xl shadow-[rgba(17,73,108,0.25)]">
         {/* Animated Background Elements */}
