@@ -9,6 +9,7 @@ import {
   IoMenuOutline,
   IoNotificationsOutline,
   IoHelpCircleOutline,
+  IoReceiptOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import PatientSidebar from './PatientSidebar'
@@ -19,12 +20,13 @@ const allNavItems = [
   { id: 'pharmacy', label: 'Pharmacy', to: '/patient/pharmacy', Icon: IoBagHandleOutline },
   { id: 'doctors', label: 'Doctors', to: '/patient/doctors', Icon: IoPeopleOutline },
   { id: 'laboratory', label: 'Laboratory', to: '/patient/laboratory', Icon: IoFlaskOutline },
+  { id: 'transactions', label: 'Transactions', to: '/patient/transactions', Icon: IoReceiptOutline },
   { id: 'support', label: 'Support', to: '/patient/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
 ]
 
-// Nav items for mobile bottom nav (without Support)
-const navItems = allNavItems.filter((item) => item.id !== 'support')
+// Nav items for mobile bottom nav (without Support and Transactions)
+const navItems = allNavItems.filter((item) => item.id !== 'support' && item.id !== 'transactions')
 
 const PatientNavbar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -64,8 +66,10 @@ const PatientNavbar = () => {
   const handleLogout = () => {
     handleSidebarClose()
     localStorage.removeItem('patientAuthToken')
+    localStorage.removeItem('patientRefreshToken')
     sessionStorage.removeItem('patientAuthToken')
-    navigate('/', { replace: true })
+    sessionStorage.removeItem('patientRefreshToken')
+    navigate('/patient/login', { replace: true })
   }
 
   return (

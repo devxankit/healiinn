@@ -400,27 +400,23 @@ const PatientLogin = () => {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-white">
+    <div className="relative flex min-h-screen flex-col bg-gradient-to-br from-slate-50 via-white to-slate-50">
       {/* Subtle background pattern */}
-      <div className="absolute inset-0 -z-10 opacity-30">
+      <div className="absolute inset-0 -z-10 opacity-40">
         <div className="absolute left-0 top-0 h-64 w-64 rounded-full bg-[rgba(17,73,108,0.08)] blur-3xl" />
         <div className="absolute right-0 bottom-0 h-96 w-96 rounded-full bg-[rgba(17,73,108,0.06)] blur-3xl" />
       </div>
 
-      {/* Main Content */}
-      <main className="flex flex-1 flex-col">
-        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-8 sm:px-6 sm:py-8 md:px-8">
-          {/* Top spacing (replaces logo space) */}
-          <div className="mb-6 sm:mb-8"></div>
-
-          {/* Form Section */}
-          <div className="mx-auto w-full max-w-lg">
+      {/* Main Content - Centered on mobile */}
+      <main className="flex flex-1 flex-col items-center justify-center px-4 py-6 sm:px-6 sm:py-8">
+        {/* Form Section - Centered with max width */}
+        <div className="w-full max-w-md mx-auto">
             {/* Title */}
-            <div className="mb-6 text-center sm:mb-8">
-              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+            <div className="mb-8 text-center">
+              <h2 className="text-3xl font-bold text-slate-900 mb-2">
                 {isLogin ? 'Welcome Back' : 'Create Your Account'}
               </h2>
-              <p className="mt-2 text-sm text-slate-600 sm:mt-3 sm:text-base">
+              <p className="text-sm text-slate-600 leading-relaxed">
                 {isLogin
                   ? 'Sign in to access your appointments, prescriptions, and personalized care.'
                   : 'Join Healiinn to manage your health journey with ease.'}
@@ -428,15 +424,15 @@ const PatientLogin = () => {
             </div>
 
             {/* Mode Toggle */}
-            <div className="mb-6 flex items-center justify-center sm:mb-8">
-              <div className="relative inline-flex items-center gap-1 rounded-2xl bg-slate-100 p-1.5 shadow-inner">
+            <div className="mb-8 flex items-center justify-center">
+              <div className="relative flex items-center gap-1 rounded-2xl bg-slate-100 p-1.5 shadow-inner w-full max-w-xs">
                 {/* Sliding background indicator */}
                 <motion.div
                   layoutId="patientLoginSignupToggle"
                   className="absolute rounded-xl bg-[#11496c] shadow-md shadow-[#11496c]/15"
                   style={{
-                    left: isLogin ? '0.375rem' : '50%',
-                    width: 'calc(50% - 0.375rem)',
+                    left: isLogin ? '0.375rem' : 'calc(50% + 0.1875rem)',
+                    width: 'calc(50% - 0.5625rem)',
                     height: 'calc(100% - 0.75rem)',
                   }}
                   transition={{
@@ -448,7 +444,7 @@ const PatientLogin = () => {
                 <motion.button
                   type="button"
                   onClick={() => handleModeChange('login')}
-                  className={`relative z-10 rounded-xl px-6 py-2.5 text-sm font-semibold sm:px-8 sm:py-3 sm:text-base ${
+                  className={`relative z-10 flex-1 rounded-xl py-2.5 text-sm font-semibold text-center sm:py-3 sm:text-base ${
                     isLogin
                       ? 'text-white'
                       : 'text-slate-500 hover:text-slate-700'
@@ -462,7 +458,7 @@ const PatientLogin = () => {
                 <motion.button
                   type="button"
                   onClick={() => handleModeChange('signup')}
-                  className={`relative z-10 rounded-xl px-6 py-2.5 text-sm font-semibold sm:px-8 sm:py-3 sm:text-base ${
+                  className={`relative z-10 flex-1 rounded-xl py-2.5 text-sm font-semibold text-center sm:py-3 sm:text-base ${
                     !isLogin
                       ? 'text-white'
                       : 'text-slate-500 hover:text-slate-700'
@@ -627,31 +623,48 @@ const PatientLogin = () => {
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="flex flex-col gap-5 sm:gap-6"
               >
-                {/* Step Indicator */}
-                <div className="flex items-center justify-center gap-2 mb-4">
-                  {[1, 2, 3].map((step) => (
-                    <div key={step} className="flex items-center">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition ${
-                          signupStep >= step
-                            ? 'bg-[#11496c] text-white'
-                            : 'bg-slate-200 text-slate-500'
-                        }`}
-                      >
-                        {step}
-                      </div>
-                      {step < 3 && (
+                {/* Enhanced Step Indicator */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    {[1, 2, 3].map((step) => (
+                      <div key={step} className="flex items-center">
                         <div
-                          className={`h-1 w-8 sm:w-12 transition ${
-                            signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                          className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold transition-all duration-300 shadow-sm ${
+                            signupStep === step
+                              ? 'bg-[#11496c] text-white scale-110 shadow-md shadow-[#11496c]/30'
+                              : signupStep > step
+                              ? 'bg-[#11496c] text-white'
+                              : 'bg-slate-200 text-slate-500'
                           }`}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="text-center text-sm text-slate-600 mb-4">
-                  Step {signupStep} of {totalSignupSteps}
+                        >
+                          {signupStep > step ? (
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            step
+                          )}
+                        </div>
+                        {step < 3 && (
+                          <div
+                            className={`h-1.5 w-12 sm:w-16 rounded-full transition-all duration-300 ${
+                              signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                            }`}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-slate-700">
+                      Step {signupStep} of {totalSignupSteps}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {signupStep === 1 && 'Basic Information'}
+                      {signupStep === 2 && 'Personal Details'}
+                      {signupStep === 3 && 'Address & Emergency Contact'}
+                    </p>
+                  </div>
                 </div>
 
                 <form onSubmit={handleSignupSubmit} className="flex flex-col gap-5 sm:gap-6">
@@ -663,7 +676,10 @@ const PatientLogin = () => {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-5"
                   >
-                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h3>
+                    <div className="mb-6 pb-4 border-b border-slate-200">
+                      <h3 className="text-xl font-bold text-slate-900 mb-1">Basic Information</h3>
+                      <p className="text-xs text-slate-500">Let's start with your essential details</p>
+                    </div>
                     <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                       <div className="flex flex-col gap-1.5">
                         <label htmlFor="firstName" className="text-sm font-semibold text-slate-700">
@@ -814,7 +830,10 @@ const PatientLogin = () => {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-5"
                   >
-                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Personal Details</h3>
+                    <div className="mb-6 pb-4 border-b border-slate-200">
+                      <h3 className="text-xl font-bold text-slate-900 mb-1">Personal Details</h3>
+                      <p className="text-xs text-slate-500">Help us personalize your experience</p>
+                    </div>
                     <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                       <div className="flex flex-col gap-1.5">
                         <label htmlFor="dateOfBirth" className="text-sm font-semibold text-slate-700">
@@ -890,7 +909,10 @@ const PatientLogin = () => {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-5"
                   >
-                    <h3 className="text-lg font-semibold text-slate-900 mb-4">Address & Emergency Contact</h3>
+                    <div className="mb-6 pb-4 border-b border-slate-200">
+                      <h3 className="text-xl font-bold text-slate-900 mb-1">Address & Emergency Contact</h3>
+                      <p className="text-xs text-slate-500">Almost there! Just a few more details</p>
+                    </div>
                     <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                       <div className="flex flex-col gap-1.5 sm:col-span-2">
                         <label htmlFor="address.line1" className="text-sm font-semibold text-slate-700">
@@ -1059,43 +1081,55 @@ const PatientLogin = () => {
                 )}
 
                 {/* Navigation Buttons */}
-                <div className="flex flex-col gap-3">
-                  {signupStep < totalSignupSteps ? (
-                    <button
-                      type="button"
-                      onClick={handleNextStep}
-                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
-                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
-                    >
-                      Next
-                      <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      disabled={isSubmitting || !signupData.termsAccepted}
-                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
-                    >
-                      {isSubmitting ? (
-                        'Submitting application...'
-                      ) : (
-                        <>
-                          Complete Signup
-                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
-                        </>
-                      )}
-                    </button>
-                  )}
-                  {signupStep > 1 && (
-                    <button
-                      type="button"
-                      onClick={handlePreviousStep}
-                      className="flex h-12 w-full items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
-                    >
-                      Previous
-                    </button>
-                  )}
+                <div className="flex flex-col gap-3 mt-8">
+                  <div className="flex gap-3">
+                    {signupStep > 1 && (
+                      <button
+                        type="button"
+                        onClick={handlePreviousStep}
+                        className="flex h-12 flex-1 items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                      >
+                        Previous
+                      </button>
+                    )}
+                    {signupStep < totalSignupSteps ? (
+                      <button
+                        type="button"
+                        onClick={handleNextStep}
+                        className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 ${
+                          signupStep > 1 ? 'flex-1' : 'w-full'
+                        }`}
+                        style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                      >
+                        Next
+                        <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !signupData.termsAccepted}
+                        className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${
+                          signupStep > 1 ? 'flex-1' : 'w-full'
+                        }`}
+                        style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            Complete Signup
+                            <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 </form>
 
@@ -1112,13 +1146,12 @@ const PatientLogin = () => {
               </motion.div>
             )}
             </AnimatePresence>
-          </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-slate-100 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-2 px-4 py-4 text-center text-xs text-slate-500 sm:px-6 sm:py-5 md:px-8">
+      <footer className="relative z-10 border-t border-slate-100 bg-white/95 backdrop-blur mt-auto">
+        <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-4 py-4 text-center text-xs text-slate-500">
           <span>Secure patient access powered by Healiinn</span>
           <span>
             Need help? Contact your{' '}

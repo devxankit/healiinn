@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams, useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import jsPDF from 'jspdf'
 import {
@@ -24,6 +24,7 @@ import {
   IoPrintOutline,
   IoEyeOutline,
   IoArrowBackOutline,
+  IoCreateOutline,
 } from 'react-icons/io5'
 
 // Get doctor info from localStorage (set when doctor saves profile)
@@ -162,77 +163,343 @@ const formatDate = (dateString) => {
 
 const DoctorConsultations = () => {
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const filterParam = searchParams.get('filter') || 'all'
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
   
-  const [consultations, setConsultations] = useState(mockConsultations)
+  // Load consultations from localStorage on mount (only if session is active, or if viewing from all consultations)
+  const [consultations, setConsultations] = useState(() => {
+    // If viewing from all consultations page, don't check session
+    if (location.state?.loadSavedData) {
+      return []
+    }
+    
+    try {
+      // First check if session is active
+      const session = localStorage.getItem('doctorCurrentSession')
+      if (!session) {
+        // No active session - don't load consultations
+        return []
+      }
+      
+      const saved = localStorage.getItem('doctorConsultations')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        return parsed
+      }
+    } catch (error) {
+      console.error('Error loading consultations from localStorage:', error)
+    }
+    return [] // Don't show mock consultations by default
+  })
   
   // Filter consultations based on URL parameter
   const filteredConsultations = useMemo(() => {
+    let filtered = consultations
+    
     if (filterParam === 'today') {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const tomorrow = new Date(today)
       tomorrow.setDate(tomorrow.getDate() + 1)
       
-      return consultations.filter((consultation) => {
+      filtered = consultations.filter((consultation) => {
         const appointmentDate = new Date(consultation.appointmentTime)
         return appointmentDate >= today && appointmentDate < tomorrow
       })
     } else if (filterParam === 'pending') {
-      return consultations.filter((consultation) => 
+      filtered = consultations.filter((consultation) => 
         consultation.status === 'waiting' || consultation.status === 'pending'
       )
-    } else {
-      return consultations
     }
+    
+    // Sort by status: in-progress/called first, then completed
+    return filtered.sort((a, b) => {
+      if (a.status === 'completed' && b.status !== 'completed') return 1
+      if (a.status !== 'completed' && b.status === 'completed') return -1
+      return 0
+    })
   }, [consultations, filterParam])
   
   // Check if consultation is passed via navigation state
   const passedConsultation = location.state?.selectedConsultation
   
   const [selectedConsultation, setSelectedConsultation] = useState(() => {
-    // Initialize with passed consultation if available
+    // First check if consultation is passed via navigation state (from all consultations page or called patient)
     if (location.state?.selectedConsultation) {
+      // If loadSavedData flag is set, we're viewing from all consultations - don't check session
+      if (location.state?.loadSavedData) {
+        return location.state.selectedConsultation
+      }
+      // Otherwise, check if session is active (for called patients)
+      try {
+        const session = localStorage.getItem('doctorCurrentSession')
+        if (!session) {
+          // No active session, but if consultation is passed, still show it
+          return location.state.selectedConsultation
+        }
+      } catch (error) {
+        console.error('Error checking session:', error)
+      }
       return location.state.selectedConsultation
     }
-    return filteredConsultations.length > 0 ? filteredConsultations[0] : null
+    
+    // If no passed consultation, check for active session before loading from localStorage
+    try {
+      const session = localStorage.getItem('doctorCurrentSession')
+      if (!session) {
+        // No active session, clear consultation data
+        localStorage.removeItem('doctorSelectedConsultation')
+        localStorage.removeItem('doctorConsultations')
+        return null
+      }
+    } catch (error) {
+      console.error('Error checking session:', error)
+    }
+    
+    // If no passed consultation, try to load from localStorage (for persistence when navigating back)
+    try {
+      const saved = localStorage.getItem('doctorSelectedConsultation')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Only load if it's an active consultation (not completed) and session is active
+        if (parsed.status === 'in-progress' || parsed.status === 'called') {
+          // Double check session is still active
+          const session = localStorage.getItem('doctorCurrentSession')
+          if (session) {
+            return parsed
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading selected consultation from localStorage:', error)
+    }
+    
+    // Don't auto-select from filteredConsultations - only show if explicitly called
+    return null
   })
   
+  // Save consultations to localStorage whenever they change
+  useEffect(() => {
+    try {
+      // Save all consultations (only called patients, no mock data)
+      if (consultations.length > 0) {
+        localStorage.setItem('doctorConsultations', JSON.stringify(consultations))
+      } else {
+        localStorage.removeItem('doctorConsultations')
+      }
+    } catch (error) {
+      console.error('Error saving consultations to localStorage:', error)
+    }
+  }, [consultations])
+  
+  // Save selectedConsultation to localStorage for persistence
+  useEffect(() => {
+    try {
+      if (selectedConsultation) {
+        // Only save if it's an active consultation (not completed)
+        if (selectedConsultation.status === 'in-progress' || selectedConsultation.status === 'called') {
+          localStorage.setItem('doctorSelectedConsultation', JSON.stringify(selectedConsultation))
+        } else {
+          // Remove from localStorage if completed
+          localStorage.removeItem('doctorSelectedConsultation')
+        }
+      } else {
+        localStorage.removeItem('doctorSelectedConsultation')
+      }
+    } catch (error) {
+      console.error('Error saving selected consultation to localStorage:', error)
+    }
+  }, [selectedConsultation])
+
   // Add passed consultation to consultations list and set as selected
   useEffect(() => {
     if (passedConsultation) {
+      // Create a mutable copy of passedConsultation
+      let updatedConsultation = { ...passedConsultation }
+      
+      // Load saved prescription data if loadSavedData flag is set
+      if (location.state?.loadSavedData) {
+        try {
+          const patientPrescriptionsKey = `patientPrescriptions_${passedConsultation.patientId}`
+          const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+          
+          // Find prescription for this specific consultation
+          let prescription = patientPrescriptions.find((p) => p.consultationId === passedConsultation.id)
+          if (!prescription && patientPrescriptions.length > 0) {
+            // If no exact match, get the most recent prescription for this patient
+            prescription = patientPrescriptions[0]
+          }
+          
+          if (prescription) {
+            // Load prescription data into form
+            setDiagnosis(prescription.diagnosis || '')
+            setSymptoms(prescription.symptoms || '')
+            setMedications(prescription.medications || [])
+            setInvestigations(prescription.investigations || [])
+            setAdvice(prescription.advice || '')
+            setFollowUpDate(prescription.followUpDate || '')
+            setVitals(prescription.vitals || {
+              bloodPressure: { systolic: '', diastolic: '' },
+              temperature: '',
+              pulse: '',
+              respiratoryRate: '',
+              oxygenSaturation: '',
+              weight: '',
+              height: '',
+              bmi: '',
+            })
+            
+            // Update consultation with prescription data
+            updatedConsultation = {
+              ...updatedConsultation,
+              diagnosis: prescription.diagnosis || updatedConsultation.diagnosis || '',
+              symptoms: prescription.symptoms || updatedConsultation.symptoms || '',
+              vitals: prescription.vitals || updatedConsultation.vitals || {},
+              medications: prescription.medications || updatedConsultation.medications || [],
+              investigations: prescription.investigations || updatedConsultation.investigations || [],
+              advice: prescription.advice || updatedConsultation.advice || '',
+              followUpDate: prescription.followUpDate || updatedConsultation.followUpDate || '',
+            }
+          }
+        } catch (error) {
+          console.error('Error loading saved prescription data:', error)
+        }
+      }
+      
       setConsultations((prev) => {
         // Check if consultation already exists
-        const exists = prev.find((c) => c.id === passedConsultation.id || c.patientId === passedConsultation.patientId)
+        const exists = prev.find((c) => c.id === updatedConsultation.id || c.patientId === updatedConsultation.patientId)
         if (!exists) {
-          return [passedConsultation, ...prev]
+          // Add new consultation at the beginning
+          return [updatedConsultation, ...prev]
         }
-        // Update existing consultation with passed data
-        return prev.map((c) => 
-          (c.id === passedConsultation.id || c.patientId === passedConsultation.patientId) ? passedConsultation : c
-        )
+        // Update existing consultation with passed data (but preserve status if it was completed)
+        return prev.map((c) => {
+          if (c.id === updatedConsultation.id || c.patientId === updatedConsultation.patientId) {
+            // If existing consultation is completed, don't overwrite with in-progress
+            if (c.status === 'completed') {
+              return c
+            }
+            return updatedConsultation
+          }
+          return c
+        })
       })
-      setSelectedConsultation(passedConsultation)
+      setSelectedConsultation(updatedConsultation)
+      
+      // Load shared prescriptions from consultation data (if patient shared them during booking)
+      if (updatedConsultation.sharedPrescriptions && updatedConsultation.sharedPrescriptions.length > 0) {
+        // Shared prescriptions are already in consultation data
+        console.log('Shared prescriptions loaded:', updatedConsultation.sharedPrescriptions)
+      }
+      
+      // Load saved prescriptions for this patient
+      try {
+        const patientPrescriptionsKey = `patientPrescriptions_${passedConsultation.patientId}`
+        const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+        // Filter prescriptions for this consultation or show all for this patient
+        const relevantPrescriptions = patientPrescriptions.filter((p) => 
+          p.consultationId === passedConsultation.id || p.patientId === passedConsultation.patientId
+        )
+        if (relevantPrescriptions.length > 0) {
+          setSavedPrescriptions(relevantPrescriptions)
+          // If viewing from all consultations page, switch to saved prescriptions tab
+          if (location.state?.loadSavedData) {
+            setActiveTab('saved')
+          }
+        } else if (location.state?.loadSavedData) {
+          // If no saved prescriptions but viewing from all consultations, show history tab
+          setActiveTab('history')
+        }
+      } catch (error) {
+        console.error('Error loading saved prescriptions:', error)
+      }
+      
       // Clear the navigation state after using it
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, []) // Run only once on mount
+  }, [passedConsultation, location.state?.loadSavedData]) // Run when passedConsultation changes
   
-  // Update selected consultation when filter changes
+  // Check for active session and clear consultation if session ended (but not if viewing from all consultations)
+  useEffect(() => {
+    // Don't clear if we're viewing from all consultations page
+    if (location.state?.loadSavedData) {
+      return
+    }
+    
+    try {
+      const session = localStorage.getItem('doctorCurrentSession')
+      if (!session) {
+        // No active session - clear consultation data
+        setSelectedConsultation(null)
+        setConsultations([])
+        localStorage.removeItem('doctorSelectedConsultation')
+        localStorage.removeItem('doctorConsultations')
+        return
+      }
+    } catch (error) {
+      console.error('Error checking session:', error)
+    }
+  }, [location.pathname, location.state?.loadSavedData])
+  
+  // Reload selectedConsultation from localStorage when navigating back (but not if viewing from all consultations)
+  useEffect(() => {
+    // Don't reload if we're viewing from all consultations page
+    if (location.state?.loadSavedData) {
+      return
+    }
+    
+    if (location.pathname === '/doctor/consultations' && !location.state?.selectedConsultation) {
+      try {
+        // First check if session is active
+        const session = localStorage.getItem('doctorCurrentSession')
+        if (!session) {
+          // No active session - don't load consultations
+          setSelectedConsultation(null)
+          setConsultations([])
+          return
+        }
+        
+        const saved = localStorage.getItem('doctorSelectedConsultation')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          // Only load if it's an active consultation
+          if (parsed.status === 'in-progress' || parsed.status === 'called') {
+            setSelectedConsultation(parsed)
+            // Also ensure it's in consultations list
+            setConsultations((prev) => {
+              const exists = prev.find((c) => c.id === parsed.id)
+              if (!exists) {
+                return [parsed, ...prev]
+              }
+              return prev.map((c) => (c.id === parsed.id ? parsed : c))
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error reloading selected consultation:', error)
+      }
+    }
+  }, [location.pathname, location.state])
+  
+  // Update selected consultation when filter changes (but only if consultation was passed)
   useEffect(() => {
     // Don't override if we just set it from passed consultation
     if (passedConsultation && selectedConsultation?.id === passedConsultation.id) {
       return
     }
     
-    if (filteredConsultations.length > 0 && (!selectedConsultation || !filteredConsultations.some(c => c.id === selectedConsultation.id))) {
-      setSelectedConsultation(filteredConsultations[0])
-    } else if (filteredConsultations.length === 0) {
-      setSelectedConsultation(null)
+    // Only update if a consultation was explicitly passed (patient was called)
+    // Don't auto-select from filteredConsultations
+    if (filteredConsultations.length === 0 && selectedConsultation) {
+      // If no consultations match filter and we have a selected one, keep it if it was passed
+      if (!passedConsultation) {
+        setSelectedConsultation(null)
+      }
     }
-  }, [filteredConsultations, filterParam])
+  }, [filteredConsultations, filterParam, passedConsultation])
   const [activeTab, setActiveTab] = useState('vitals') // vitals, prescription, history, saved
   const [showAddMedication, setShowAddMedication] = useState(false)
   const [showAddInvestigation, setShowAddInvestigation] = useState(false)
@@ -251,6 +518,59 @@ const DoctorConsultations = () => {
   })
   
   const [viewingPrescription, setViewingPrescription] = useState(null)
+  const [editingPrescriptionId, setEditingPrescriptionId] = useState(null)
+  const [sharedLabReports, setSharedLabReports] = useState([])
+  const [showReportViewer, setShowReportViewer] = useState(false)
+  const [selectedReport, setSelectedReport] = useState(null)
+
+  // Function to load shared lab reports
+  const loadSharedLabReports = (patientId, doctorId) => {
+    try {
+      // Check multiple possible storage keys where patients might share reports
+      const sharedReportsKey = `sharedLabReports_${patientId}`
+      const doctorSharedReportsKey = `doctorSharedLabReports_${doctorId || 'doc-current'}`
+      
+      // Try to load from patient-specific key first
+      let allSharedReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
+      
+      // Also check doctor-specific shared reports
+      const doctorReports = JSON.parse(localStorage.getItem(doctorSharedReportsKey) || '[]')
+      
+      // Combine and filter for this patient
+      const combinedReports = [...allSharedReports, ...doctorReports.filter(r => r.patientId === patientId)]
+      
+      // Filter reports shared with current doctor (in real app, use actual doctor ID)
+      const currentDoctorId = doctorId || 'doc-current' // In real app, get from auth
+      const reportsForDoctor = combinedReports.filter((report) => {
+        // Show reports if:
+        // 1. Shared with current doctor ID
+        // 2. Shared with doctorId from consultation
+        // 3. No specific doctor ID (show all for this patient)
+        // 4. Patient ID matches
+        return (
+          report.sharedWithDoctorId === currentDoctorId || 
+          report.sharedWithDoctorId === doctorId ||
+          !report.sharedWithDoctorId ||
+          (report.patientId === patientId && !report.sharedWithDoctorId)
+        )
+      })
+      
+      console.log('Loaded shared lab reports:', reportsForDoctor)
+      setSharedLabReports(reportsForDoctor)
+    } catch (error) {
+      console.error('Error loading shared lab reports:', error)
+      setSharedLabReports([])
+    }
+  }
+
+  // Load shared reports when consultation is selected
+  useEffect(() => {
+    if (selectedConsultation?.patientId) {
+      loadSharedLabReports(selectedConsultation.patientId, selectedConsultation.doctorId)
+    } else {
+      setSharedLabReports([])
+    }
+  }, [selectedConsultation?.patientId, selectedConsultation?.doctorId])
 
   // Get doctor info once and store in state to avoid multiple calls
   const [doctorInfo, setDoctorInfo] = useState(() => getDoctorInfo())
@@ -672,6 +992,40 @@ const DoctorConsultations = () => {
     generatePDF(prescription)
   }
 
+  const handleEditPrescription = (prescription) => {
+    // Load prescription data into form
+    setDiagnosis(prescription.diagnosis || '')
+    setSymptoms(prescription.symptoms || '')
+    setMedications(prescription.medications || [])
+    setInvestigations(prescription.investigations || [])
+    setAdvice(prescription.advice || '')
+    setFollowUpDate(prescription.followUpDate || '')
+    setVitals(prescription.vitals || {
+      bloodPressure: { systolic: '', diastolic: '' },
+      temperature: '',
+      pulse: '',
+      respiratoryRate: '',
+      oxygenSaturation: '',
+      weight: '',
+      height: '',
+      bmi: '',
+    })
+    
+    // Set editing mode
+    setEditingPrescriptionId(prescription.id)
+    
+    // Switch to prescription tab
+    setActiveTab('prescription')
+    
+    // Scroll to prescription form
+    setTimeout(() => {
+      const prescriptionSection = document.querySelector('[data-prescription-section]')
+      if (prescriptionSection) {
+        prescriptionSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 100)
+  }
+
   const handleViewPrescriptionPDF = (prescriptionData) => {
     const doctorInfo = getDoctorInfo()
     const doc = new jsPDF()
@@ -990,9 +1344,8 @@ const DoctorConsultations = () => {
       return
     }
 
-    // Simulate API call
     const prescriptionData = {
-      id: Date.now().toString(),
+      id: editingPrescriptionId || Date.now().toString(),
       consultationId: selectedConsultation.id,
       patientId: selectedConsultation.patientId,
       patientName: selectedConsultation.patientName,
@@ -1015,29 +1368,75 @@ const DoctorConsultations = () => {
         hour: '2-digit',
         minute: '2-digit',
       }),
+      updatedAt: editingPrescriptionId ? new Date().toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }) : undefined,
     }
 
-    // Save prescription to state
-    setSavedPrescriptions((prev) => [prescriptionData, ...prev])
+    // Update or add prescription
+    if (editingPrescriptionId) {
+      // Update existing prescription
+      setSavedPrescriptions((prev) =>
+        prev.map((presc) =>
+          presc.id === editingPrescriptionId ? prescriptionData : presc
+        )
+      )
+      
+      // Also update patient's localStorage so they see the updated prescription
+      try {
+        const patientPrescriptionsKey = `patientPrescriptions_${prescriptionData.patientId}`
+        const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+        const updatedPatientPrescriptions = patientPrescriptions.map((presc) =>
+          presc.id === editingPrescriptionId ? prescriptionData : presc
+        )
+        localStorage.setItem(patientPrescriptionsKey, JSON.stringify(updatedPatientPrescriptions))
+      } catch (error) {
+        console.error('Error updating patient prescriptions:', error)
+      }
+      
+      alert('Prescription updated successfully!')
+    } else {
+      // Add new prescription
+      setSavedPrescriptions((prev) => [prescriptionData, ...prev])
+      
+      // Also add to patient's localStorage
+      try {
+        const patientPrescriptionsKey = `patientPrescriptions_${prescriptionData.patientId}`
+        const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+        patientPrescriptions.unshift(prescriptionData)
+        localStorage.setItem(patientPrescriptionsKey, JSON.stringify(patientPrescriptions))
+      } catch (error) {
+        console.error('Error saving patient prescriptions:', error)
+      }
+      
+      alert('Prescription saved successfully!')
+    }
     
-    // Update consultation status
+    // Update consultation status in both consultations list and selectedConsultation
+    const updatedConsultation = {
+      ...selectedConsultation,
+      status: 'completed',
+      diagnosis,
+      vitals,
+      medications,
+      investigations,
+      advice,
+    }
+    
     setConsultations((prev) =>
       prev.map((cons) =>
-        cons.id === selectedConsultation.id
-          ? {
-              ...cons,
-              status: 'completed',
-              diagnosis,
-              vitals,
-              medications,
-              investigations,
-              advice,
-            }
-          : cons
+        cons.id === selectedConsultation.id ? updatedConsultation : cons
       )
     )
+    
+    // Also update selectedConsultation state
+    setSelectedConsultation(updatedConsultation)
 
-    // Reset form
+    // Reset form and editing state
     setDiagnosis('')
     setSymptoms('')
     setMedications([])
@@ -1054,9 +1453,9 @@ const DoctorConsultations = () => {
       height: '',
       bmi: '',
     })
+    setEditingPrescriptionId(null)
 
     console.log('Prescription saved:', prescriptionData)
-    alert('Prescription saved successfully!')
     
     // Switch to saved prescriptions tab
     setActiveTab('saved')
@@ -1100,11 +1499,11 @@ const DoctorConsultations = () => {
           </div>
         )}
 
-        {/* Consultations List View (when no consultation selected or showing filtered results) */}
+        {/* Consultations List View - Only show if patient was called */}
         {!selectedConsultation && filteredConsultations.length > 0 && (
           <div className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900">
-              {filterParam !== 'all' ? getFilterLabel() : 'All Consultations'}
+              {filterParam !== 'all' ? getFilterLabel() : 'Active Consultations'}
             </h2>
             <div className="space-y-3">
               {filteredConsultations.map((consultation) => (
@@ -1130,9 +1529,13 @@ const DoctorConsultations = () => {
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : consultation.status === 'waiting' || consultation.status === 'pending'
                             ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : consultation.status === 'in-progress' || consultation.status === 'called'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
                             : 'bg-slate-50 text-slate-700 border-slate-200'
                         }`}>
-                          {consultation.status}
+                          {consultation.status === 'in-progress' ? 'IN-PROGRESS' : 
+                           consultation.status === 'called' ? 'IN-PROGRESS' :
+                           consultation.status.toUpperCase()}
                         </span>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-600">
@@ -1152,18 +1555,22 @@ const DoctorConsultations = () => {
           </div>
         )}
 
-        {/* No Consultations Message */}
-        {filteredConsultations.length === 0 && (
+        {/* No Consultations Message - Only show when no patient was called and not viewing from all consultations */}
+        {!selectedConsultation && filteredConsultations.length === 0 && !location.state?.loadSavedData && (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-            <IoDocumentTextOutline className="mx-auto h-16 w-16 text-slate-300" />
-            <h3 className="mt-4 text-lg font-semibold text-slate-900">No Consultations Found</h3>
+            <IoPersonOutline className="mx-auto h-16 w-16 text-slate-300" />
+            <h3 className="mt-4 text-lg font-semibold text-slate-900">No Patient Selected</h3>
             <p className="mt-2 text-sm text-slate-600">
-              {filterParam === 'today' 
-                ? 'No appointments scheduled for today.'
-                : filterParam === 'pending'
-                ? 'No pending consultations at the moment.'
-                : 'No consultations available.'}
+              Please call a patient from the queue to start consultation.
             </p>
+            <button
+              type="button"
+              onClick={() => navigate('/doctor/patients')}
+              className="mt-4 flex items-center gap-2 mx-auto rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+            >
+              <IoArrowBackOutline className="h-4 w-4" />
+              Go to Patient Queue
+            </button>
           </div>
         )}
 
@@ -1520,7 +1927,199 @@ const DoctorConsultations = () => {
 
                 {/* Prescription Tab */}
                 {activeTab === 'prescription' && (
-                  <div className="space-y-3 sm:space-y-4 lg:space-y-5">
+                  <div className="space-y-3 sm:space-y-4 lg:space-y-5" data-prescription-section>
+                    {/* Shared Lab Reports from Patient */}
+                    {sharedLabReports && sharedLabReports.length > 0 && (
+                      <div className="rounded-xl sm:rounded-2xl border-2 border-blue-200 bg-blue-50 p-3 sm:p-4 lg:p-6 shadow-md mb-4">
+                        <div className="mb-3 sm:mb-4 flex items-center gap-2">
+                          <IoFlaskOutline className="h-5 w-5 sm:h-6 sm:w-6 text-blue-700" />
+                          <h3 className="text-sm sm:text-base lg:text-lg font-bold text-blue-900">
+                            Shared Lab Reports from Patient
+                          </h3>
+                        </div>
+                        <p className="mb-4 text-xs sm:text-sm text-blue-800">
+                          Patient has shared {sharedLabReports.length} lab report(s) with you
+                        </p>
+                        <div className="space-y-3 sm:space-y-4">
+                          {sharedLabReports.map((report, idx) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-blue-300 bg-white p-3 sm:p-4 shadow-sm cursor-pointer hover:shadow-md transition"
+                              onClick={() => {
+                                setSelectedReport(report)
+                                setShowReportViewer(true)
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <p className="text-sm sm:text-base font-bold text-slate-900">
+                                    {report.testName || report.reportName || 'Lab Report'}
+                                  </p>
+                                  {report.labName && (
+                                    <p className="text-xs sm:text-sm text-slate-600 mt-1">
+                                      {report.labName}
+                                    </p>
+                                  )}
+                                  {report.date && (
+                                    <p className="text-xs text-slate-500 mt-1">
+                                      Report Date: {formatDate(report.date)}
+                                    </p>
+                                  )}
+                                  {report.sharedAt && (
+                                    <p className="text-xs text-blue-600 mt-1">
+                                      Shared: {formatDate(report.sharedAt)}
+                                    </p>
+                                  )}
+                                  {report.status && (
+                                    <span
+                                      className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                        report.status === 'Normal' || report.status === 'ready'
+                                          ? 'bg-emerald-100 text-emerald-700'
+                                          : 'bg-amber-100 text-amber-700'
+                                      }`}
+                                    >
+                                      {report.status}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedReport(report)
+                                      setShowReportViewer(true)
+                                    }}
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-blue-600 transition hover:bg-blue-100"
+                                    title="View Report"
+                                  >
+                                    <IoEyeOutline className="h-4 w-4" />
+                                  </button>
+                                  {(report.pdfFileUrl || (report.downloadUrl && report.downloadUrl !== '#')) && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        const pdfUrl = report.pdfFileUrl || report.downloadUrl
+                                        if (pdfUrl) {
+                                          // Create download link
+                                          const link = document.createElement('a')
+                                          link.href = pdfUrl
+                                          link.download = report.pdfFileName || `${(report.testName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`
+                                          link.target = '_blank'
+                                          document.body.appendChild(link)
+                                          link.click()
+                                          document.body.removeChild(link)
+                                        } else {
+                                          alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
+                                        }
+                                      }}
+                                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#11496c] transition hover:bg-[rgba(17,73,108,0.1)]"
+                                      title="Download Report"
+                                    >
+                                      <IoDownloadOutline className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Shared Prescriptions from Other Doctors */}
+                    {selectedConsultation?.sharedPrescriptions && selectedConsultation.sharedPrescriptions.length > 0 && (
+                      <div className="rounded-xl sm:rounded-2xl border-2 border-amber-200 bg-amber-50 p-3 sm:p-4 lg:p-6 shadow-md">
+                        <div className="mb-3 sm:mb-4 flex items-center gap-2">
+                          <IoDocumentTextOutline className="h-5 w-5 sm:h-6 sm:w-6 text-amber-700" />
+                          <h3 className="text-sm sm:text-base lg:text-lg font-bold text-amber-900">
+                            Shared Prescriptions from Other Doctors
+                          </h3>
+                        </div>
+                        <p className="mb-4 text-xs sm:text-sm text-amber-800">
+                          Patient has shared {selectedConsultation.sharedPrescriptions.length} prescription(s) from previous consultations
+                        </p>
+                        <div className="space-y-3 sm:space-y-4">
+                          {selectedConsultation.sharedPrescriptions.map((sharedPresc, idx) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-amber-300 bg-white p-3 sm:p-4 shadow-sm"
+                            >
+                              <div className="mb-3 flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <p className="text-sm sm:text-base font-bold text-slate-900">
+                                    {sharedPresc.doctor?.name || 'Previous Doctor'}
+                                  </p>
+                                  <p className="text-xs sm:text-sm text-slate-600">
+                                    {sharedPresc.doctor?.specialty || 'General'} • {sharedPresc.diagnosis || 'Consultation'}
+                                  </p>
+                                  {sharedPresc.issuedAt && (
+                                    <p className="text-xs text-slate-500 mt-1">
+                                      Issued: {new Date(sharedPresc.issuedAt).toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric',
+                                      })}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {sharedPresc.diagnosis && (
+                                <div className="mb-3 rounded-lg bg-blue-50 border border-blue-200 p-2">
+                                  <p className="text-xs font-semibold text-blue-900 mb-1">Diagnosis</p>
+                                  <p className="text-xs sm:text-sm text-blue-800">{sharedPresc.diagnosis}</p>
+                                </div>
+                              )}
+                              
+                              {sharedPresc.medications && sharedPresc.medications.length > 0 && (
+                                <div className="mb-3">
+                                  <p className="text-xs font-semibold text-slate-700 mb-2">Medications ({sharedPresc.medications.length})</p>
+                                  <div className="space-y-2">
+                                    {sharedPresc.medications.map((med, medIdx) => (
+                                      <div key={medIdx} className="rounded border border-slate-200 bg-slate-50 p-2">
+                                        <p className="text-xs sm:text-sm font-semibold text-slate-900">{med.name}</p>
+                                        <div className="text-xs text-slate-600 mt-1">
+                                          {med.dosage && <span>Dosage: {med.dosage}</span>}
+                                          {med.frequency && <span className="ml-2">Frequency: {med.frequency}</span>}
+                                          {med.duration && <span className="ml-2">Duration: {med.duration}</span>}
+                                        </div>
+                                        {med.instructions && (
+                                          <p className="text-xs text-slate-500 mt-1">{med.instructions}</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {sharedPresc.investigations && sharedPresc.investigations.length > 0 && (
+                                <div className="mb-3">
+                                  <p className="text-xs font-semibold text-slate-700 mb-2">Investigations ({sharedPresc.investigations.length})</p>
+                                  <div className="space-y-1">
+                                    {sharedPresc.investigations.map((inv, invIdx) => (
+                                      <div key={invIdx} className="rounded border border-purple-200 bg-purple-50 p-2">
+                                        <p className="text-xs sm:text-sm font-semibold text-slate-900">{inv.name}</p>
+                                        {inv.notes && <p className="text-xs text-slate-600 mt-1">{inv.notes}</p>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {sharedPresc.advice && (
+                                <div className="rounded-lg bg-green-50 border border-green-200 p-2">
+                                  <p className="text-xs font-semibold text-green-900 mb-1">Advice</p>
+                                  <p className="text-xs sm:text-sm text-green-800">{sharedPresc.advice}</p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Prescription Header */}
                     <div className="rounded-xl sm:rounded-2xl border-2 border-[#11496c] bg-gradient-to-br from-[rgba(17,73,108,0.05)] to-white p-4 sm:p-6 shadow-md shadow-slate-200/50">
                       <div className="mb-4 border-b-2 border-[#11496c] pb-3">
@@ -2041,21 +2640,29 @@ const DoctorConsultations = () => {
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleViewPrescriptionPDF(prescription)}
-                                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-slate-300 bg-white text-[#11496c] shadow-sm transition-all hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
-                                  title="View Prescription PDF"
-                                >
-                                  <IoEyeOutline className="h-4 w-4" />
-                                  <span className="text-xs font-semibold">View</span>
-                                </button>
-                                <button
-                                  type="button"
                                   onClick={() => handleDownloadPrescription(prescription)}
-                                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
-                                  title="Download PDF"
+                                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-slate-300 bg-white text-[#11496c] shadow-sm transition-all hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                                  title="Download Prescription PDF"
                                 >
                                   <IoDownloadOutline className="h-4 w-4" />
                                   <span className="text-xs font-semibold">Download</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditPrescription(prescription)}
+                                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
+                                  title="Edit Prescription"
+                                >
+                                  <IoCreateOutline className="h-4 w-4" />
+                                  <span className="text-xs font-semibold">Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewPrescriptionPDF(prescription)}
+                                  className="flex items-center justify-center h-9 w-9 rounded-lg border border-slate-300 bg-white text-[#11496c] shadow-sm transition-all hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                                  title="View Prescription PDF"
+                                >
+                                  <IoEyeOutline className="h-4 w-4" />
                                 </button>
                               </div>
                             </div>
@@ -2274,32 +2881,166 @@ const DoctorConsultations = () => {
                           Lab Reports
                         </h4>
                         <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {patientHistory.labReports.map((report, idx) => (
-                            <div key={idx} className="rounded-lg border border-slate-200 bg-white p-4">
-                              <div className="flex items-start justify-between">
+                          {/* Shared Lab Reports from Patient */}
+                          {sharedLabReports && sharedLabReports.length > 0 && sharedLabReports.map((report, idx) => {
+                            // Get PDF URL from report
+                            const pdfUrl = report.pdfFileUrl || report.downloadUrl
+                            return (
+                            <div key={`shared-${idx}`} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                              <div className="mb-3">
                                 <div className="flex-1">
-                                  <p className="font-semibold text-slate-900">{report.testName}</p>
-                                  <p className="mt-1 text-sm text-slate-700">{report.result}</p>
-                                  <p className="mt-1 text-xs text-slate-600">{formatDate(report.date)}</p>
-                                  <span
-                                    className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                      report.status === 'Normal'
-                                        ? 'bg-emerald-100 text-emerald-700'
-                                        : 'bg-amber-100 text-amber-700'
-                                    }`}
-                                  >
-                                    {report.status}
-                                  </span>
+                                  {/* Test Name - Bold */}
+                                  <p className="font-bold text-base text-slate-900 mb-1">{report.testName || report.reportName || 'Lab Report'}</p>
+                                  {/* Result Value */}
+                                  {report.result && (
+                                    <p className="text-sm text-slate-700 mb-1">{report.result}</p>
+                                  )}
+                                  {/* Date */}
+                                  {report.date && (
+                                    <p className="text-xs text-slate-600 mb-2">{formatDate(report.date)}</p>
+                                  )}
+                                  {/* Status Badge */}
+                                  {report.status && (
+                                    <span
+                                      className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                                        report.status === 'Normal' || report.status === 'ready' || report.status === 'completed'
+                                          ? 'bg-emerald-100 text-emerald-700'
+                                          : 'bg-amber-100 text-amber-700'
+                                      }`}
+                                    >
+                                      {report.status}
+                                    </span>
+                                  )}
                                 </div>
+                              </div>
+                              {/* View and Download Buttons */}
+                              <div className="flex gap-2 pt-3 border-t border-slate-100">
                                 <button
                                   type="button"
-                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#11496c] transition hover:bg-[rgba(17,73,108,0.1)]"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    // Only show PDF viewer if PDF is available
+                                    if (pdfUrl && pdfUrl !== '#') {
+                                      setSelectedReport(report)
+                                      setShowReportViewer(true)
+                                    } else {
+                                      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
+                                    }
+                                  }}
+                                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                                 >
-                                  <IoDownloadOutline className="h-4 w-4" />
+                                  <IoEyeOutline className="h-3.5 w-3.5" />
+                                  <span>View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (pdfUrl && pdfUrl !== '#') {
+                                      // Create download link
+                                      const link = document.createElement('a')
+                                      link.href = pdfUrl
+                                      link.download = report.pdfFileName || `${(report.testName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`
+                                      link.target = '_blank'
+                                      document.body.appendChild(link)
+                                      link.click()
+                                      document.body.removeChild(link)
+                                    } else {
+                                      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
+                                    }
+                                  }}
+                                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52]"
+                                >
+                                  <IoDownloadOutline className="h-3.5 w-3.5" />
+                                  <span>Download</span>
                                 </button>
                               </div>
                             </div>
-                          ))}
+                            )
+                          })}
+                          
+                          {/* Patient History Lab Reports */}
+                          {patientHistory.labReports.map((report, idx) => {
+                            const pdfUrl = report.pdfFileUrl || report.downloadUrl
+                            return (
+                            <div key={idx} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                              <div className="mb-3">
+                                <div className="flex-1">
+                                  {/* Test Name - Bold */}
+                                  <p className="font-bold text-base text-slate-900 mb-1">{report.testName}</p>
+                                  {/* Result Value */}
+                                  {report.result && (
+                                    <p className="text-sm text-slate-700 mb-1">{report.result}</p>
+                                  )}
+                                  {/* Date */}
+                                  {report.date && (
+                                    <p className="text-xs text-slate-600 mb-2">{formatDate(report.date)}</p>
+                                  )}
+                                  {/* Status Badge */}
+                                  {report.status && (
+                                    <span
+                                      className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                                        report.status === 'Normal'
+                                          ? 'bg-emerald-100 text-emerald-700'
+                                          : 'bg-amber-100 text-amber-700'
+                                      }`}
+                                    >
+                                      {report.status}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {/* View and Download Buttons */}
+                              <div className="flex gap-2 pt-3 border-t border-slate-100">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    // Only show PDF viewer if PDF is available
+                                    if (pdfUrl && pdfUrl !== '#') {
+                                      setSelectedReport(report)
+                                      setShowReportViewer(true)
+                                    } else {
+                                      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
+                                    }
+                                  }}
+                                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                                >
+                                  <IoEyeOutline className="h-3.5 w-3.5" />
+                                  <span>View</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (pdfUrl && pdfUrl !== '#') {
+                                      const link = document.createElement('a')
+                                      link.href = pdfUrl
+                                      link.download = report.pdfFileName || `${(report.testName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`
+                                      link.target = '_blank'
+                                      document.body.appendChild(link)
+                                      link.click()
+                                      document.body.removeChild(link)
+                                    } else {
+                                      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
+                                    }
+                                  }}
+                                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52]"
+                                >
+                                  <IoDownloadOutline className="h-3.5 w-3.5" />
+                                  <span>Download</span>
+                                </button>
+                              </div>
+                            </div>
+                            )
+                          })}
+                          
+                          {/* Show message if no reports */}
+                          {(!sharedLabReports || sharedLabReports.length === 0) && patientHistory.labReports.length === 0 && (
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-center">
+                              <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-300 mb-3" />
+                              <p className="text-sm font-medium text-slate-600">No lab reports available</p>
+                              <p className="text-xs text-slate-500 mt-1">Patient can share lab reports with you</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2484,6 +3225,111 @@ const DoctorConsultations = () => {
         </div>
       )}
 
+      {/* Lab Report Viewer Modal */}
+      {showReportViewer && selectedReport && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm"
+          onClick={() => {
+            setShowReportViewer(false)
+            setSelectedReport(null)
+          }}
+        >
+          <div
+            className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 py-4 rounded-t-2xl">
+              <div className="flex-1">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                  {selectedReport.testName || selectedReport.reportName || 'Lab Report'}
+                </h2>
+                {selectedReport.labName && (
+                  <p className="text-sm text-slate-600 mt-1">{selectedReport.labName}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {(selectedReport.pdfFileUrl || (selectedReport.downloadUrl && selectedReport.downloadUrl !== '#')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pdfUrl = selectedReport.pdfFileUrl || selectedReport.downloadUrl
+                      if (pdfUrl) {
+                        // Create download link
+                        const link = document.createElement('a')
+                        link.href = pdfUrl
+                        link.download = selectedReport.pdfFileName || `${(selectedReport.testName || 'Report').replace(/\s+/g, '_')}_${selectedReport.date || 'Report'}.pdf`
+                        link.target = '_blank'
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                      }
+                    }}
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+                    title="Download PDF"
+                  >
+                    <IoDownloadOutline className="h-5 w-5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowReportViewer(false)
+                    setSelectedReport(null)
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+                >
+                  <IoCloseOutline className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content - Always show PDF if available, otherwise show message */}
+            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {(selectedReport.pdfFileUrl || (selectedReport.downloadUrl && selectedReport.downloadUrl !== '#')) ? (
+                <div className="w-full h-full min-h-[500px] rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+                  <object
+                    data={`${selectedReport.pdfFileUrl || selectedReport.downloadUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                    type="application/pdf"
+                    className="w-full h-full min-h-[500px]"
+                    style={{ border: 'none' }}
+                  >
+                    <iframe
+                      src={`${selectedReport.pdfFileUrl || selectedReport.downloadUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                      className="w-full h-full min-h-[500px]"
+                      style={{ border: 'none' }}
+                      title="Lab Report PDF"
+                    />
+                    <div className="p-6 text-center">
+                      <p className="text-sm text-slate-600 mb-4">Unable to display PDF in browser.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const pdfUrl = selectedReport.pdfFileUrl || selectedReport.downloadUrl
+                          if (pdfUrl) {
+                            window.open(pdfUrl, '_blank')
+                          }
+                        }}
+                        className="rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0d3a52]"
+                      >
+                        Open PDF in New Tab
+                      </button>
+                    </div>
+                  </object>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-center">
+                  <IoFlaskOutline className="mx-auto h-16 w-16 text-slate-300 mb-4" />
+                  <p className="text-sm font-medium text-slate-600 mb-2">PDF Report Not Available</p>
+                  <p className="text-xs text-slate-500">
+                    PDF report will be available once the lab uploads it.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

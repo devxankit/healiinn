@@ -147,27 +147,6 @@ const renderStars = (rating) => {
   return stars
 }
 
-// Generate available time slots
-const generateTimeSlots = () => {
-  const slots = []
-  const startHour = 9
-  const endHour = 18
-  const interval = 30 // minutes
-
-  for (let hour = startHour; hour < endHour; hour++) {
-    for (let minute = 0; minute < 60; minute += interval) {
-      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-      const time12 = new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      })
-      slots.push({ value: time, label: time12 })
-    }
-  }
-  return slots
-}
-
 // Get next 7 days
 const getAvailableDates = () => {
   const dates = []
@@ -196,10 +175,10 @@ const PatientDoctorDetails = () => {
   const doctor = mockDoctors[id]
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
-  const [selectedTime, setSelectedTime] = useState('')
   const [appointmentType, setAppointmentType] = useState('in_person')
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
+  const [selectedPrescriptions, setSelectedPrescriptions] = useState([]) // Prescriptions to share
   const [bookingStep, setBookingStep] = useState(1) // 1: Date/Time, 2: Details, 3: Confirmation
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showReviewModal, setShowReviewModal] = useState(false)
@@ -208,7 +187,49 @@ const PatientDoctorDetails = () => {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
 
   const availableDates = getAvailableDates()
-  const timeSlots = selectedDate ? generateTimeSlots() : []
+
+  // Function to get session info and token availability for selected date
+  const getSessionInfoForDate = (date) => {
+    try {
+      const doctorSessions = JSON.parse(localStorage.getItem('doctorSessions') || '[]')
+      const sessionForDate = doctorSessions.find(
+        (s) => s.date === date && (s.status === 'scheduled' || s.status === 'active')
+      )
+      
+      if (!sessionForDate) {
+        return { available: false, maxTokens: 0, currentBookings: 0, nextToken: null }
+      }
+      
+      // Count existing appointments for this date and doctor
+      const doctorAppointments = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
+      const patientAppointments = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
+      
+      // Combine both sources
+      const allAppointments = [...doctorAppointments, ...patientAppointments]
+      
+      // Filter appointments for this date and doctor
+      const appointmentsForDate = allAppointments.filter(
+        (apt) => apt.appointmentDate === date && apt.doctorId === doctor.id && 
+        apt.status !== 'cancelled' && apt.status !== 'no-show' && apt.status !== 'completed'
+      )
+      
+      const currentBookings = appointmentsForDate.length
+      const maxTokens = sessionForDate.maxTokens || 0
+      const nextToken = currentBookings < maxTokens ? currentBookings + 1 : null
+      const available = currentBookings < maxTokens
+      
+      return {
+        available,
+        maxTokens,
+        currentBookings,
+        nextToken,
+        session: sessionForDate,
+      }
+    } catch (error) {
+      console.error('Error getting session info:', error)
+      return { available: false, maxTokens: 0, currentBookings: 0, nextToken: null }
+    }
+  }
 
   useEffect(() => {
     if (showBookingModal) {
@@ -241,14 +262,29 @@ const PatientDoctorDetails = () => {
     }
   }, [doctor, searchParams, navigate, id])
 
+  // Load patient prescriptions from localStorage
+  const getPatientPrescriptions = () => {
+    try {
+      const patientId = 'pat-current' // In real app, get from auth
+      const patientPrescriptionsKey = `patientPrescriptions_${patientId}`
+      const saved = localStorage.getItem(patientPrescriptionsKey)
+      if (saved) {
+        return JSON.parse(saved)
+      }
+    } catch (error) {
+      console.error('Error loading patient prescriptions:', error)
+    }
+    return []
+  }
+
   const handleBookingClick = () => {
     setShowBookingModal(true)
     setBookingStep(1)
     setSelectedDate('')
-    setSelectedTime('')
     setAppointmentType('in_person')
     setReason('')
     setNotes('')
+    setSelectedPrescriptions([])
   }
 
   const handleCloseModal = () => {
@@ -257,7 +293,13 @@ const PatientDoctorDetails = () => {
   }
 
   const handleNextStep = () => {
-    if (bookingStep === 1 && selectedDate && selectedTime) {
+    if (bookingStep === 1 && selectedDate) {
+      // Check if booking is available for selected date
+      const sessionInfo = getSessionInfoForDate(selectedDate)
+      if (!sessionInfo.available) {
+        alert('This date is fully booked. Please select another date.')
+        return
+      }
       setBookingStep(2)
     } else if (bookingStep === 2) {
       setBookingStep(3)
@@ -272,21 +314,75 @@ const PatientDoctorDetails = () => {
 
   const handleConfirmBooking = async () => {
     setIsSubmitting(true)
+    
+    // Get shared prescription data
+    const sharedPrescriptionsData = selectedPrescriptions.map((prescId) => {
+      const patientPrescriptions = getPatientPrescriptions()
+      return patientPrescriptions.find((p) => p.id === prescId)
+    }).filter(Boolean)
+
+    // Get token number for this booking
+    const sessionInfo = getSessionInfoForDate(selectedDate)
+    if (!sessionInfo.available || !sessionInfo.nextToken) {
+      alert('This date is no longer available. Please select another date.')
+      setIsSubmitting(false)
+      setBookingStep(1)
+      return
+    }
+
+    // Create appointment data
+    const appointmentData = {
+      id: `appt-${Date.now()}`,
+      doctorId: doctor.id,
+      patientId: 'pat-current', // In real app, get from auth
+      patientName: 'Current Patient', // In real app, get from auth
+      age: 30, // In real app, get from patient profile
+      gender: 'male', // In real app, get from patient profile
+      appointmentDate: selectedDate,
+      appointmentType: appointmentType === 'in_person' ? 'New' : 'Follow-up',
+      status: 'waiting',
+      queueNumber: sessionInfo.nextToken, // Assign token number
+      reason: reason || 'Consultation',
+      patientImage: `https://ui-avatars.com/api/?name=Patient&background=11496c&color=fff&size=160`,
+      patientPhone: '+1-555-000-0000', // In real app, get from patient profile
+      patientEmail: 'patient@example.com', // In real app, get from patient profile
+      patientAddress: '123 Patient Street', // In real app, get from patient profile
+      sharedPrescriptions: sharedPrescriptionsData, // Prescriptions shared by patient
+      sharedPrescriptionIds: selectedPrescriptions, // IDs of shared prescriptions
+      createdAt: new Date().toISOString(),
+    }
+    
+    // Save appointment to localStorage (this will be picked up by doctor's session)
+    try {
+      const existingAppointments = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
+      existingAppointments.push(appointmentData)
+      localStorage.setItem('patientAppointments', JSON.stringify(existingAppointments))
+      
+      // Also add to doctor's appointments if session exists for that date
+      const doctorSessions = JSON.parse(localStorage.getItem('doctorSessions') || '[]')
+      const sessionForDate = doctorSessions.find(
+        (s) => s.date === selectedDate && (s.status === 'scheduled' || s.status === 'active')
+      )
+      
+      if (sessionForDate) {
+        const doctorAppointments = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
+        doctorAppointments.push(appointmentData)
+        localStorage.setItem('doctorAppointments', JSON.stringify(doctorAppointments))
+      }
+    } catch (error) {
+      console.error('Error saving appointment:', error)
+    }
+    
     // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1500))
-    console.log('Booking confirmed:', {
-      doctorId: doctor.id,
-      date: selectedDate,
-      time: selectedTime,
-      type: appointmentType,
-      reason,
-      notes,
-    })
+    console.log('Booking confirmed:', appointmentData)
+    
     setIsSubmitting(false)
+    alert('Appointment booked successfully! You will receive a confirmation shortly.')
+    
     // Show success and close after delay
     setTimeout(() => {
       handleCloseModal()
-      // Optionally show success message
     }, 2000)
   }
 
@@ -448,58 +544,91 @@ const PatientDoctorDetails = () => {
 
             {/* Content */}
             <div className="p-6">
-              {/* Step 1: Date & Time Selection */}
+              {/* Step 1: Date Selection */}
               {bookingStep === 1 && (
                 <div className="space-y-6">
                   <div>
-                    <h3 className="mb-4 text-lg font-semibold text-slate-900">Select Date & Time</h3>
+                    <h3 className="mb-4 text-lg font-semibold text-slate-900">Select Date</h3>
+                    <p className="mb-4 text-sm text-slate-600">
+                      Select your preferred date. The system will automatically assign you a time slot based on availability.
+                    </p>
                     
                     <div className="mb-6">
                       <label className="mb-2 block text-sm font-semibold text-slate-700">Date</label>
                       <div className="overflow-x-auto rounded-lg border border-slate-200 p-2 scrollbar-hide [-webkit-overflow-scrolling:touch]">
                         <div className="flex gap-2">
-                          {availableDates.map((date) => (
-                            <button
-                              key={date.value}
-                              type="button"
-                              onClick={() => setSelectedDate(date.value)}
-                              className={`shrink-0 rounded-xl border-2 px-4 py-3 text-sm font-semibold transition ${
-                                selectedDate === date.value
-                                  ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)] text-[#0d3a52]'
-                                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                              }`}
-                            >
-                              <div className="text-xs text-slate-500">{date.label.split(',')[0]}</div>
-                              <div className="mt-1 whitespace-nowrap">{date.label.split(',')[1]?.trim()}</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {selectedDate && (
-                      <div>
-                        <label className="mb-2 block text-sm font-semibold text-slate-700">Time Slot</label>
-                        <div className="overflow-x-auto rounded-lg border border-slate-200 p-2 scrollbar-hide [-webkit-overflow-scrolling:touch]">
-                          <div className="flex gap-2">
-                            {timeSlots.map((slot) => (
+                          {availableDates.map((date) => {
+                            const sessionInfo = getSessionInfoForDate(date.value)
+                            const isFull = !sessionInfo.available
+                            return (
                               <button
-                                key={slot.value}
+                                key={date.value}
                                 type="button"
-                                onClick={() => setSelectedTime(slot.value)}
-                                className={`shrink-0 rounded-lg border-2 px-3 py-2 text-sm font-semibold transition whitespace-nowrap ${
-                                  selectedTime === slot.value
+                                onClick={() => !isFull && setSelectedDate(date.value)}
+                                disabled={isFull}
+                                className={`shrink-0 rounded-xl border-2 px-4 py-3 text-sm font-semibold transition ${
+                                  isFull
+                                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    : selectedDate === date.value
                                     ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)] text-[#0d3a52]'
                                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                                 }`}
                               >
-                                {slot.label}
+                                <div className="text-xs text-slate-500">{date.label.split(',')[0]}</div>
+                                <div className="mt-1 whitespace-nowrap">{date.label.split(',')[1]?.trim()}</div>
+                                {isFull && (
+                                  <div className="mt-1 text-[10px] text-red-500">Full</div>
+                                )}
                               </button>
-                            ))}
-                          </div>
+                            )
+                          })}
                         </div>
                       </div>
-                    )}
+                    </div>
+
+                    {/* Token and Availability Info */}
+                    {selectedDate && (() => {
+                      const sessionInfo = getSessionInfoForDate(selectedDate)
+                      if (!sessionInfo.available && sessionInfo.maxTokens === 0) {
+                        return (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                            <p className="text-sm font-medium text-amber-800">
+                              No session available for this date. Please select another date.
+                            </p>
+                          </div>
+                        )
+                      }
+                      if (!sessionInfo.available) {
+                        return (
+                          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                            <p className="text-sm font-medium text-red-800">
+                              This date is fully booked. Please select another date.
+                            </p>
+                            <p className="text-xs text-red-600 mt-1">
+                              Current bookings: {sessionInfo.currentBookings} / {sessionInfo.maxTokens}
+                            </p>
+                          </div>
+                        )
+                      }
+                      return (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-emerald-900">
+                                Your Token Number: <span className="text-lg">{sessionInfo.nextToken}</span>
+                              </p>
+                              <p className="text-xs text-emerald-700 mt-1">
+                                {sessionInfo.currentBookings} of {sessionInfo.maxTokens} slots booked
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-2xl font-bold text-emerald-700">{sessionInfo.nextToken}</div>
+                              <div className="text-[10px] text-emerald-600">Token</div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               )}
@@ -540,7 +669,7 @@ const PatientDoctorDetails = () => {
                       />
                     </div>
 
-                    <div>
+                    <div className="mb-6">
                       <label htmlFor="notes" className="mb-2 block text-sm font-semibold text-slate-700">
                         Additional Notes (Optional)
                       </label>
@@ -553,93 +682,156 @@ const PatientDoctorDetails = () => {
                         className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
                       />
                     </div>
+
+                    {/* Share Prescriptions Section */}
+                    <div>
+                      <label className="mb-3 block text-sm font-semibold text-slate-700">
+                        Share Previous Prescriptions (Optional)
+                      </label>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <p className="mb-3 text-xs text-slate-600">
+                          Select prescriptions from other doctors to share with {doctor.name}
+                        </p>
+                        {getPatientPrescriptions().length === 0 ? (
+                          <p className="text-xs text-slate-500 italic">No previous prescriptions available</p>
+                        ) : (
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {getPatientPrescriptions().map((prescription) => (
+                              <label
+                                key={prescription.id}
+                                className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 cursor-pointer hover:border-[#11496c]/30 transition"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedPrescriptions.includes(prescription.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedPrescriptions([...selectedPrescriptions, prescription.id])
+                                    } else {
+                                      setSelectedPrescriptions(selectedPrescriptions.filter((id) => id !== prescription.id))
+                                    }
+                                  }}
+                                  className="mt-1 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-slate-900">
+                                        {prescription.doctor?.name || 'Previous Doctor'}
+                                      </p>
+                                      <p className="text-xs text-slate-600">
+                                        {prescription.doctor?.specialty || 'General'} • {prescription.diagnosis || 'Consultation'}
+                                      </p>
+                                      <p className="text-xs text-slate-500 mt-1">
+                                        {prescription.issuedAt ? new Date(prescription.issuedAt).toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          year: 'numeric',
+                                        }) : 'Date not available'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Step 3: Confirmation */}
-              {bookingStep === 3 && (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)]">
-                      <IoCheckmarkCircle className="h-10 w-10 text-[#11496c]" />
-                    </div>
-                    <h3 className="mb-2 text-xl font-bold text-slate-900">Confirm Your Appointment</h3>
-                    <p className="text-sm text-slate-600">Please review your appointment details</p>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <div className="space-y-4">
-                      <div className="flex items-start gap-4">
-                        <img
-                          src={doctor.image}
-                          alt={doctor.name}
-                          className="h-16 w-16 rounded-2xl object-cover bg-slate-100"
-                          onError={(e) => {
-                            e.target.onerror = null
-                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                          }}
-                        />
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-slate-900">{doctor.name}</h4>
-                          <p className="text-sm text-slate-600">{doctor.specialty}</p>
-                          <p className="mt-1 text-sm text-slate-500">{doctor.location}</p>
-                        </div>
+              {bookingStep === 3 && (() => {
+                const sessionInfo = getSessionInfoForDate(selectedDate)
+                return (
+                  <div className="space-y-6">
+                    <div className="text-center">
+                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)]">
+                        <IoCheckmarkCircle className="h-10 w-10 text-[#11496c]" />
                       </div>
+                      <h3 className="mb-2 text-xl font-bold text-slate-900">Confirm Your Appointment</h3>
+                      <p className="text-sm text-slate-600">Please review your appointment details</p>
+                    </div>
 
-                      <div className="space-y-2 border-t border-slate-200 pt-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-600">Date</span>
-                          <span className="text-sm font-semibold text-slate-900">
-                            {selectedDate
-                              ? new Date(selectedDate).toLocaleDateString('en-US', {
-                                  weekday: 'long',
-                                  month: 'long',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                })
-                              : '—'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-600">Time</span>
-                          <span className="text-sm font-semibold text-slate-900">
-                            {selectedTime
-                              ? new Date(`2000-01-01T${selectedTime}`).toLocaleTimeString('en-US', {
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                })
-                              : '—'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-slate-600">Type</span>
-                          <span className="text-sm font-semibold text-slate-900">
-                            {appointmentType === 'in_person'
-                              ? 'In-Person'
-                              : appointmentType === 'video'
-                              ? 'Video Call'
-                              : appointmentType === 'audio'
-                              ? 'Audio Call'
-                              : 'Online'}
-                          </span>
-                        </div>
-                        {reason && (
-                          <div className="flex items-start justify-between">
-                            <span className="text-sm text-slate-600">Reason</span>
-                            <span className="text-right text-sm font-semibold text-slate-900">{reason}</span>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-4">
+                          <img
+                            src={doctor.image}
+                            alt={doctor.name}
+                            className="h-16 w-16 rounded-2xl object-cover bg-slate-100"
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
+                            }}
+                          />
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-slate-900">{doctor.name}</h4>
+                            <p className="text-sm text-slate-600">{doctor.specialty}</p>
+                            <p className="mt-1 text-sm text-slate-500">{doctor.location}</p>
                           </div>
-                        )}
-                        <div className="flex items-center justify-between border-t border-slate-200 pt-3">
-                          <span className="text-base font-semibold text-slate-900">Consultation Fee</span>
-                          <span className="text-lg font-bold text-slate-900">₹{doctor.consultationFee}</span>
+                        </div>
+
+                        <div className="space-y-2 border-t border-slate-200 pt-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600">Date</span>
+                            <span className="text-sm font-semibold text-slate-900">
+                              {selectedDate
+                                ? new Date(selectedDate).toLocaleDateString('en-US', {
+                                    weekday: 'long',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })
+                                : '—'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600">Time</span>
+                            <span className="text-sm font-semibold text-slate-900">
+                              Will be assigned by system
+                            </span>
+                          </div>
+                          {sessionInfo.nextToken && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-slate-600">Token Number</span>
+                              <span className="text-lg font-bold text-[#11496c]">
+                                #{sessionInfo.nextToken}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-600">Type</span>
+                            <span className="text-sm font-semibold text-slate-900">
+                              In-Person
+                            </span>
+                          </div>
+                          {reason && (
+                            <div className="flex items-start justify-between">
+                              <span className="text-sm text-slate-600">Reason</span>
+                              <span className="text-right text-sm font-semibold text-slate-900">{reason}</span>
+                            </div>
+                          )}
+                          {selectedPrescriptions.length > 0 && (
+                            <div className="flex items-start justify-between border-t border-slate-200 pt-3">
+                              <span className="text-sm text-slate-600">Shared Prescriptions</span>
+                              <span className="text-right text-sm font-semibold text-slate-900">
+                                {selectedPrescriptions.length} prescription(s)
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+                            <span className="text-base font-semibold text-slate-900">Consultation Fee</span>
+                            <span className="text-lg font-bold text-slate-900">₹{doctor.consultationFee}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
 
             {/* Footer Actions */}
@@ -658,7 +850,7 @@ const PatientDoctorDetails = () => {
                   <button
                     type="button"
                     onClick={handleNextStep}
-                    disabled={bookingStep === 1 && (!selectedDate || !selectedTime)}
+                    disabled={bookingStep === 1 && (!selectedDate || !getSessionInfoForDate(selectedDate).available)}
                     className="flex-1 rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Next

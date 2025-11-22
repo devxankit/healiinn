@@ -21,7 +21,7 @@ const mockAppointments = [
     },
     date: '2025-01-15',
     time: '10:00 AM',
-    status: 'upcoming',
+    status: 'scheduled', // Backend status - will display as 'scheduled'
     type: 'In-Person',
     clinic: 'Shivaji Nagar Clinic',
     location: '123 Market Street, Pune, Maharashtra',
@@ -38,7 +38,7 @@ const mockAppointments = [
     },
     date: '2025-01-16',
     time: '02:30 PM',
-    status: 'upcoming',
+    status: 'scheduled', // Backend status - will display as 'scheduled'
     type: 'In-Person',
     clinic: 'Central Hospital',
     location: '77 Elm Avenue, Pune, Maharashtra',
@@ -55,7 +55,7 @@ const mockAppointments = [
     },
     date: '2025-01-17',
     time: '11:00 AM',
-    status: 'upcoming',
+    status: 'scheduled', // Backend status - will display as 'scheduled'
     type: 'In-Person',
     clinic: 'Heart Care Center',
     location: '200 Park Ave, Pune, Maharashtra',
@@ -90,7 +90,7 @@ const mockAppointments = [
     date: '2024-12-18',
     time: '02:00 PM',
     status: 'completed',
-    type: 'Video Call',
+    type: 'In-Person',
     clinic: 'Bone & Joint Clinic',
     location: '150 Broadway, New York, NY',
     token: null,
@@ -134,13 +134,75 @@ const mockAppointments = [
   },
 ]
 
+// Map backend status to frontend display status
+const mapBackendStatusToDisplay = (backendStatus) => {
+  switch (backendStatus) {
+    case 'scheduled':
+      return 'scheduled' // Backend 'scheduled' shows as 'scheduled' for patient
+    case 'confirmed':
+      return 'confirmed'
+    case 'completed':
+      return 'completed'
+    case 'cancelled':
+      return 'cancelled'
+    case 'no_show':
+      return 'no_show'
+    default:
+      return backendStatus || 'scheduled'
+  }
+}
+
+const getStatusColor = (status) => {
+  // Handle both backend and frontend statuses
+  const displayStatus = mapBackendStatusToDisplay(status)
+  
+  switch (displayStatus) {
+    case 'confirmed':
+      return 'bg-[rgba(17,73,108,0.15)] text-[#11496c]'
+    case 'scheduled':
+      return 'bg-blue-100 text-blue-700'
+    case 'upcoming': // Legacy support
+      return 'bg-blue-100 text-blue-700'
+    case 'completed':
+      return 'bg-emerald-100 text-emerald-700'
+    case 'cancelled':
+      return 'bg-red-100 text-red-700'
+    case 'no_show':
+      return 'bg-orange-100 text-orange-700'
+    default:
+      return 'bg-slate-100 text-slate-700'
+  }
+}
+
+const getStatusIcon = (status) => {
+  const displayStatus = mapBackendStatusToDisplay(status)
+  switch (displayStatus) {
+    case 'confirmed':
+      return <IoCheckmarkCircleOutline className="h-4 w-4" />
+    case 'scheduled':
+      return <IoCalendarOutline className="h-4 w-4" />
+    case 'upcoming': // Legacy support
+      return <IoCalendarOutline className="h-4 w-4" />
+    case 'completed':
+      return <IoCheckmarkCircleOutline className="h-4 w-4" />
+    case 'cancelled':
+      return <IoCloseCircleOutline className="h-4 w-4" />
+    default:
+      return null
+  }
+}
+
 const PatientAppointments = () => {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
 
   const filteredAppointments = filter === 'all'
     ? mockAppointments
-    : mockAppointments.filter(apt => apt.status === filter)
+    : mockAppointments.filter(apt => {
+        const displayStatus = mapBackendStatusToDisplay(apt.status)
+        // Support both backend status and legacy 'upcoming' status
+        return displayStatus === filter || (filter === 'scheduled' && apt.status === 'upcoming')
+      })
 
   // Ensure we have data
   if (!mockAppointments || mockAppointments.length === 0) {
@@ -151,36 +213,6 @@ const PatientAppointments = () => {
         </div>
       </section>
     )
-  }
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-[rgba(17,73,108,0.15)] text-[#11496c]'
-      case 'upcoming':
-        return 'bg-blue-100 text-blue-700'
-      case 'completed':
-        return 'bg-emerald-100 text-emerald-700'
-      case 'cancelled':
-        return 'bg-red-100 text-red-700'
-      default:
-        return 'bg-slate-100 text-slate-700'
-    }
-  }
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'confirmed':
-        return <IoCheckmarkCircleOutline className="h-4 w-4" />
-      case 'upcoming':
-        return <IoCalendarOutline className="h-4 w-4" />
-      case 'completed':
-        return <IoCheckmarkCircleOutline className="h-4 w-4" />
-      case 'cancelled':
-        return <IoCloseCircleOutline className="h-4 w-4" />
-      default:
-        return null
-    }
   }
 
   const formatDate = (dateString) => {
@@ -204,7 +236,7 @@ const PatientAppointments = () => {
     <section className="flex flex-col gap-4 pb-4">
       {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {['all', 'upcoming', 'confirmed', 'completed', 'cancelled'].map((status) => (
+        {['all', 'scheduled', 'confirmed', 'completed', 'cancelled'].map((status) => (
           <button
             key={status}
             onClick={() => setFilter(status)}
@@ -214,7 +246,7 @@ const PatientAppointments = () => {
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
           >
-            {status}
+            {status === 'scheduled' ? 'Scheduled' : status}
           </button>
         ))}
       </div>
@@ -237,7 +269,10 @@ const PatientAppointments = () => {
                     e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
                   }}
                 />
-                {(appointment.status === 'confirmed' || appointment.status === 'upcoming') && (
+                {(() => {
+                  const displayStatus = mapBackendStatusToDisplay(appointment.status)
+                  return (displayStatus === 'confirmed' || displayStatus === 'scheduled' || appointment.status === 'upcoming')
+                })() && (
                   <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 ring-2 ring-white">
                     <IoCalendarOutline className="h-3 w-3 text-white" />
                   </span>
@@ -250,10 +285,15 @@ const PatientAppointments = () => {
                     <h3 className="text-base font-semibold text-slate-900">{appointment.doctor.name}</h3>
                     <p className="text-sm text-[#11496c]">{appointment.doctor.specialty}</p>
                   </div>
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold shrink-0 ${getStatusColor(appointment.status)}`}>
-                    {getStatusIcon(appointment.status)}
-                    {appointment.status}
-                  </span>
+                  {(() => {
+                    const displayStatus = mapBackendStatusToDisplay(appointment.status)
+                    return (
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold shrink-0 ${getStatusColor(appointment.status)}`}>
+                        {getStatusIcon(appointment.status)}
+                        {displayStatus === 'scheduled' ? 'Scheduled' : displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)}
+                      </span>
+                    )
+                  })()}
                 </div>
 
                 <div className="space-y-2 text-sm text-slate-600">

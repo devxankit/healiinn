@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -55,6 +55,7 @@ const PatientProfile = () => {
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
   const [formData, setFormData] = useState(mockPatientData)
+  const fileInputRef = useRef(null)
 
   const formatDate = (dateString) => {
     if (!dateString) return '—'
@@ -109,6 +110,67 @@ const PatientProfile = () => {
     setActiveSection(null)
   }
 
+  const handleProfileImageChange = (event) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file')
+        return
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB')
+        return
+      }
+
+      // Create a FileReader to convert image to data URL
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setFormData((prev) => ({
+          ...prev,
+          profileImage: reader.result,
+        }))
+        // Save to localStorage
+        try {
+          const patientProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
+          patientProfile.profileImage = reader.result
+          localStorage.setItem('patientProfile', JSON.stringify(patientProfile))
+        } catch (error) {
+          console.error('Error saving profile image:', error)
+        }
+      }
+      reader.onerror = () => {
+        alert('Error reading image file')
+      }
+      reader.readAsDataURL(file)
+    }
+    // Reset input value to allow selecting the same file again
+    if (event.target) {
+      event.target.value = ''
+    }
+  }
+
+  const handleProfileImageClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  // Load profile image from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
+      if (savedProfile.profileImage) {
+        setFormData((prev) => ({
+          ...prev,
+          profileImage: savedProfile.profileImage,
+        }))
+      }
+    } catch (error) {
+      console.error('Error loading profile image:', error)
+    }
+  }, [])
+
   return (
     <section className="flex flex-col gap-4 pb-4">
       {/* Profile Header Card */}
@@ -120,6 +182,14 @@ const PatientProfile = () => {
             {/* Profile Image */}
             <div className="relative shrink-0">
               <div className="relative h-24 w-24 sm:h-28 sm:w-28">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileImageChange}
+                  className="hidden"
+                  aria-label="Upload profile picture"
+                />
                 <img
                   src={formData.profileImage}
                   alt={`${formData.firstName} ${formData.lastName}`}
@@ -132,7 +202,9 @@ const PatientProfile = () => {
                 {isEditing && (
                   <button
                     type="button"
+                    onClick={handleProfileImageClick}
                     className="absolute -bottom-1 -right-1 flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white text-[#11496c] shadow-lg transition hover:scale-110"
+                    aria-label="Change profile picture"
                   >
                     <IoCameraOutline className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
@@ -197,6 +269,10 @@ const PatientProfile = () => {
                     type="button"
                     onClick={() => {
                       if (window.confirm('Are you sure you want to sign out?')) {
+                        localStorage.removeItem('patientAuthToken')
+                        localStorage.removeItem('patientRefreshToken')
+                        sessionStorage.removeItem('patientAuthToken')
+                        sessionStorage.removeItem('patientRefreshToken')
                         window.location.href = '/patient/login'
                       }
                     }}
