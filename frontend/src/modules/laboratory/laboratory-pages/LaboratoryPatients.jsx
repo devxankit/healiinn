@@ -11,6 +11,7 @@ import {
   IoPersonOutline,
   IoMedicalOutline,
   IoFlaskOutline,
+  IoCloseOutline,
 } from 'react-icons/io5'
 
 const mockPatients = [
@@ -99,7 +100,9 @@ const LaboratoryPatients = () => {
       (patient) =>
         patient.name.toLowerCase().includes(normalizedSearch) ||
         patient.phone.includes(normalizedSearch) ||
-        patient.email.toLowerCase().includes(normalizedSearch)
+        patient.email.toLowerCase().includes(normalizedSearch) ||
+        patient.address.city.toLowerCase().includes(normalizedSearch) ||
+        patient.address.state.toLowerCase().includes(normalizedSearch)
     )
   }, [searchTerm])
 
@@ -129,13 +132,13 @@ const LaboratoryPatients = () => {
           filteredPatients.map((patient) => (
             <article
               key={patient.id}
-                className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md sm:p-5"
+              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md sm:p-5"
             >
               <div className="flex items-start gap-3">
                 <img
                   src={patient.image}
                   alt={patient.name}
-                  className="h-16 w-16 rounded-xl object-cover bg-slate-100"
+                  className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100 bg-slate-100"
                   onError={(e) => {
                     e.target.onerror = null
                     e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name)}&background=3b82f6&color=fff&size=128&bold=true`
@@ -143,102 +146,36 @@ const LaboratoryPatients = () => {
                 />
                 <div className="flex-1">
                   <h3 className="text-base font-semibold text-slate-900">{patient.name}</h3>
-                  <p className="text-xs text-slate-500">
-                    {patient.age} years, {patient.gender}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <a
-                      href={`tel:${patient.phone}`}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      <IoCallOutline className="h-3 w-3" />
-                      {patient.phone}
-                    </a>
-                    <a
-                      href={`mailto:${patient.email}`}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      <IoMailOutline className="h-3 w-3" />
-                      Email
-                    </a>
-                  </div>
+                  <p className="text-xs text-slate-500">Age: {patient.age}, Gender: {patient.gender}</p>
+                  <p className="text-xs text-slate-500">Last Test: {formatDateTime(patient.lastTestDate)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-slate-900">{formatCurrency(patient.totalSpent)}</p>
+                  <p className="text-xs text-slate-500">{patient.totalTests} Tests</p>
                 </div>
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Tests</p>
-                  <p className="mt-1 text-lg font-bold text-slate-900">{patient.totalTests}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Spent</p>
-                  <p className="mt-1 text-lg font-bold text-slate-900">{formatCurrency(patient.totalSpent)}</p>
-                </div>
-              </div>
-
-              {/* Medical Info */}
-              {(patient.medicalHistory.length > 0 || patient.allergies.length > 0) && (
-                <div className="space-y-2">
-                  {patient.medicalHistory.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-slate-600 mb-1">Medical History</p>
-                      <div className="flex flex-wrap gap-1">
-                        {patient.medicalHistory.map((condition, idx) => (
-                          <span
-                            key={idx}
-                            className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-medium text-blue-700"
-                          >
-                            {condition}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {patient.allergies.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-slate-600 mb-1">Allergies</p>
-                      <div className="flex flex-wrap gap-1">
-                        {patient.allergies.map((allergy, idx) => (
-                          <span
-                            key={idx}
-                            className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-medium text-red-700"
-                          >
-                            {allergy}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Address */}
-              <div className="flex items-start gap-2 text-xs text-slate-600">
-                <IoLocationOutline className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{formatAddress(patient.address)}</span>
-              </div>
-
-              {/* Last Test */}
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <IoCalendarOutline className="h-3 w-3" />
-                <span>Last test: {formatDateTime(patient.lastTestDate)}</span>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={`tel:${patient.phone}`}
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                >
+                  <IoCallOutline className="h-4 w-4" />
+                  Call
+                </a>
+                <a
+                  href={`mailto:${patient.email}`}
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                >
+                  <IoMailOutline className="h-4 w-4" />
+                  Email
+                </a>
                 <button
                   onClick={() => setSelectedPatient(patient)}
-                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
                 >
-                  <IoDocumentTextOutline className="mr-1 inline h-4 w-4" />
+                  <IoDocumentTextOutline className="h-4 w-4" />
                   View Details
-                </button>
-                <button
-                  onClick={() => navigate(`/laboratory/orders?patientId=${patient.id}`)}
-                  className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
-                >
-                  View Orders
                 </button>
               </div>
             </article>
@@ -262,7 +199,7 @@ const LaboratoryPatients = () => {
                 onClick={() => setSelectedPatient(null)}
                 className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
               >
-                ×
+                <IoCloseOutline className="h-5 w-5" />
               </button>
             </div>
             <div className="p-4 space-y-4">
@@ -270,7 +207,7 @@ const LaboratoryPatients = () => {
                 <img
                   src={selectedPatient.image}
                   alt={selectedPatient.name}
-                  className="h-20 w-20 rounded-xl object-cover bg-slate-100"
+                  className="h-16 w-16 rounded-xl object-cover ring-2 ring-slate-100 bg-slate-100"
                   onError={(e) => {
                     e.target.onerror = null
                     e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPatient.name)}&background=3b82f6&color=fff&size=160&bold=true`
@@ -278,79 +215,30 @@ const LaboratoryPatients = () => {
                 />
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">{selectedPatient.name}</h3>
-                  <p className="text-sm text-slate-500">
-                    {selectedPatient.age} years, {selectedPatient.gender}
-                  </p>
+                  <p className="text-sm text-slate-600">Age: {selectedPatient.age}, Gender: {selectedPatient.gender}</p>
                 </div>
               </div>
-
               <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                  <IoPersonOutline className="h-4 w-4" />
-                  Contact Information
-                </h4>
+                <h4 className="text-sm font-semibold text-slate-700 mb-2">Contact Information</h4>
                 <div className="space-y-1 text-sm">
                   <p><span className="font-medium">Phone:</span> {selectedPatient.phone}</p>
                   <p><span className="font-medium">Email:</span> {selectedPatient.email}</p>
                   <p><span className="font-medium">Address:</span> {formatAddress(selectedPatient.address)}</p>
                 </div>
               </div>
-
               <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                  <IoMedicalOutline className="h-4 w-4" />
-                  Medical Information
-                </h4>
-                <div className="space-y-2 text-sm">
-                  {selectedPatient.medicalHistory.length > 0 ? (
-                    <div>
-                      <p className="font-medium text-slate-600">Medical History:</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedPatient.medicalHistory.map((condition, idx) => (
-                          <span
-                            key={idx}
-                            className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
-                          >
-                            {condition}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-slate-500">No medical history recorded</p>
-                  )}
-                  {selectedPatient.allergies.length > 0 && (
-                    <div>
-                      <p className="font-medium text-slate-600">Allergies:</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {selectedPatient.allergies.map((allergy, idx) => (
-                          <span
-                            key={idx}
-                            className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700"
-                          >
-                            {allergy}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                <h4 className="text-sm font-semibold text-slate-700 mb-2">Medical History</h4>
+                <div className="space-y-1 text-sm">
+                  <p><span className="font-medium">Conditions:</span> {selectedPatient.medicalHistory.length > 0 ? selectedPatient.medicalHistory.join(', ') : 'None'}</p>
+                  <p><span className="font-medium">Allergies:</span> {selectedPatient.allergies.length > 0 ? selectedPatient.allergies.join(', ') : 'None'}</p>
                 </div>
               </div>
-
               <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                  <IoFlaskOutline className="h-4 w-4" />
-                  Test Statistics
-                </h4>
-                <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Tests</p>
-                    <p className="mt-1 text-xl font-bold text-slate-900">{selectedPatient.totalTests}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Spent</p>
-                    <p className="mt-1 text-xl font-bold text-slate-900">{formatCurrency(selectedPatient.totalSpent)}</p>
-                  </div>
+                <h4 className="text-sm font-semibold text-slate-700 mb-2">Test History</h4>
+                <div className="space-y-1 text-sm">
+                  <p><span className="font-medium">Total Tests:</span> {selectedPatient.totalTests}</p>
+                  <p><span className="font-medium">Total Spent:</span> {formatCurrency(selectedPatient.totalSpent)}</p>
+                  <p><span className="font-medium">Last Test:</span> {formatDateTime(selectedPatient.lastTestDate)}</p>
                 </div>
               </div>
             </div>
@@ -362,4 +250,3 @@ const LaboratoryPatients = () => {
 }
 
 export default LaboratoryPatients
-

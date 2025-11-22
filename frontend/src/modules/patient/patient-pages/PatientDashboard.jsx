@@ -19,6 +19,7 @@ import {
   IoChatbubbleOutline,
   IoCheckmarkCircleOutline,
   IoWalletOutline,
+  IoHelpCircleOutline,
 } from 'react-icons/io5'
 import PatientSidebar from '../patient-components/PatientSidebar'
 

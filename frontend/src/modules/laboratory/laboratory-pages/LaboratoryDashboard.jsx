@@ -364,9 +364,9 @@ const LaboratoryDashboard = () => {
             <p className="text-[10px] text-slate-500 leading-tight">Recent</p>
           </article>
 
-          {/* Requests/Responses Card - Similar to Patient Dashboard */}
+          {/* Requests Card - Connects to Patients Page */}
           <article
-            onClick={() => navigate('/laboratory/requests')}
+            onClick={() => navigate('/laboratory/patients')}
             className="relative overflow-hidden rounded-xl border border-slate-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
           >
             <div className="flex items-center justify-between mb-2 gap-2">
