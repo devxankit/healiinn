@@ -2,7 +2,7 @@ const AppSetting = require('../models/AppSetting');
 
 const NEARBY_RADIUS_KEY = 'nearbyRadiusKm';
 
-const DEFAULT_NEARBY_RADIUS_KM = Number(process.env.DEFAULT_NEARBY_RADIUS_KM) || 5;
+const DEFAULT_NEARBY_RADIUS_KM = Number(process.env.DEFAULT_NEARBY_RADIUS_KM) || 10;
 
 const getSetting = async (key) => {
   return AppSetting.findOne({ key });
