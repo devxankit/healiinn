@@ -1098,80 +1098,83 @@ const PharmacyPrescriptions = () => {
           {filteredPrescriptions.map((prescription) => (
             <article
               key={prescription.id}
-              className="group relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-sm transition-all duration-300 hover:border-[rgba(17,73,108,0.3)] hover:shadow-xl hover:shadow-[rgba(17,73,108,0.05)]"
+              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-[rgba(17,73,108,0.2)] hover:shadow-md"
             >
-              {/* Decorative gradient background */}
-              <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-[rgba(17,73,108,0.08)] blur-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-              <div className="absolute -left-8 -bottom-8 h-24 w-24 rounded-full bg-indigo-100/15 blur-xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-              
-              <div className="relative flex items-start gap-3 sm:gap-4">
-                {/* Prescription Thumbnail */}
-                <div className="relative h-16 w-16 sm:h-20 sm:w-20 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-[rgba(17,73,108,0.1)] via-indigo-50 to-[rgba(17,73,108,0.1)] ring-2 ring-[rgba(17,73,108,0.15)] transition-all duration-300 group-hover:ring-[rgba(17,73,108,0.3)] group-hover:scale-105 shadow-sm">
-                  <IoDocumentTextOutline className="absolute inset-0 m-auto h-10 w-10 sm:h-12 sm:w-12 text-[#1a5f7a] transition-colors group-hover:text-[#11496c]" />
-                </div>
-
-                {/* Prescription Details */}
+              {/* Header Section - Name and Action Buttons */}
+              <div className="flex items-start justify-between mb-4">
+                {/* Patient Name - Heading */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">{prescription.patient.name}</h3>
-                      <p className="text-sm text-[#11496c] font-medium mt-0.5">Age: {prescription.patient.age} years • {prescription.patient.gender}</p>
-                      <p className="mt-2 text-sm sm:text-base font-bold text-slate-900">{prescription.diagnosis}</p>
-                      <p className="mt-1 text-xs sm:text-sm text-slate-500">{prescription.clinic.name}</p>
-                    </div>
-                    <div className="flex items-start justify-between sm:flex-col sm:items-end sm:text-right shrink-0 gap-2">
-                      <p className="text-xs sm:text-sm font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">{formatDate(prescription.issuedAt)}</p>
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadPDF(prescription)}
-                          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition-all duration-200 hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] active:scale-95 shadow-sm hover:shadow"
-                          aria-label="Download"
-                        >
-                          <IoDownloadOutline className="h-4 w-4 sm:h-5 sm:w-5" />
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition-all duration-200 hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] active:scale-95 shadow-sm hover:shadow"
-                          aria-label="Share"
-                        >
-                          <IoShareSocialOutline className="h-4 w-4 sm:h-5 sm:w-5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Summary Icons - Enhanced Design */}
-                  <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-2 sm:gap-3">
-                    <div className="flex items-center gap-1.5 rounded-lg bg-[rgba(17,73,108,0.1)] px-2.5 py-1.5 sm:px-3 sm:py-2 border border-[rgba(17,73,108,0.15)] shadow-sm transition-all hover:bg-[rgba(17,73,108,0.15)] hover:border-[rgba(17,73,108,0.2)] hover:shadow">
-                      <IoBagHandleOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c]" />
-                      <span className="text-xs sm:text-sm font-bold text-[#11496c]">{prescription.medications.length}</span>
-                      <span className="text-xs sm:text-sm font-semibold text-[#11496c]">meds</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 rounded-lg bg-[rgba(17,73,108,0.1)] px-2.5 py-1.5 sm:px-3 sm:py-2 border border-[rgba(17,73,108,0.15)] shadow-sm transition-all hover:bg-[rgba(17,73,108,0.15)] hover:border-[rgba(17,73,108,0.2)] hover:shadow">
-                      <IoFlaskOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c]" />
-                      <span className="text-xs sm:text-sm font-bold text-[#11496c]">{prescription.recommendedTests.length}</span>
-                      <span className="text-xs sm:text-sm font-semibold text-[#11496c]">tests</span>
-                    </div>
-                    {prescription.followUpAt && (
-                      <div className="flex items-center gap-1.5 rounded-lg bg-orange-50/90 px-2.5 py-1.5 sm:px-3 sm:py-2 border border-orange-100 shadow-sm transition-all hover:bg-orange-100/90 hover:border-orange-200 hover:shadow">
-                        <IoCalendarOutline className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
-                        <span className="text-xs sm:text-sm font-semibold text-orange-600">Follow-up:</span>
-                        <span className="text-xs sm:text-sm font-bold text-orange-600">{formatDate(prescription.followUpAt)}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* View Details Button */}
+                  <h3 className="text-lg font-bold text-slate-900 leading-tight">{prescription.patient.name}</h3>
+                </div>
+                
+                {/* Download and Share Icons - Top Right */}
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
                   <button
                     type="button"
-                    onClick={() => setSelectedPrescription(prescription)}
-                    className="mt-3 sm:mt-4 w-full rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
+                    onClick={() => handleDownloadPDF(prescription)}
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600 active:scale-95"
+                    aria-label="Download"
                   >
-                    View Details
+                    <IoDownloadOutline className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600 active:scale-95"
+                    aria-label="Share"
+                  >
+                    <IoShareSocialOutline className="h-4 w-4" />
                   </button>
                 </div>
               </div>
+
+              {/* Information - Line by Line */}
+              <div className="space-y-2.5">
+                {/* Age and Gender */}
+                <p className="text-sm text-slate-600">Age: {prescription.patient.age} years • {prescription.patient.gender}</p>
+                
+                {/* Condition/Diagnosis */}
+                <div>
+                  <p className="text-sm font-bold text-slate-900">{prescription.diagnosis}</p>
+                </div>
+                
+                {/* Clinic Name */}
+                <p className="text-xs text-slate-500">{prescription.clinic.name}</p>
+                
+                {/* Date */}
+                <p className="text-xs text-slate-600">{formatDate(prescription.issuedAt)}</p>
+              </div>
+
+              {/* Summary Pills - Light Blue Background */}
+              <div className="flex flex-wrap items-center gap-2 mt-3 mb-3">
+                <div className="flex items-center gap-1.5 rounded-full bg-[rgba(59,130,246,0.1)] px-2.5 py-1 border border-[rgba(59,130,246,0.2)]">
+                  <IoBagHandleOutline className="h-3.5 w-3.5 text-blue-700" />
+                  <span className="text-xs font-semibold text-blue-700">{prescription.medications.length} meds</span>
+                </div>
+                {prescription.recommendedTests.length > 0 && (
+                  <div className="flex items-center gap-1.5 rounded-full bg-[rgba(59,130,246,0.1)] px-2.5 py-1 border border-[rgba(59,130,246,0.2)]">
+                    <IoFlaskOutline className="h-3.5 w-3.5 text-blue-700" />
+                    <span className="text-xs font-semibold text-blue-700">{prescription.recommendedTests.length} tests</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Follow-up Section - Orange Background */}
+              {prescription.followUpAt && (
+                <div className="flex items-center gap-2 rounded-lg bg-orange-50 px-2.5 py-1.5 mb-3 border border-orange-100">
+                  <IoCalendarOutline className="h-4 w-4 text-orange-600 shrink-0" />
+                  <span className="text-xs font-semibold text-orange-600">Follow-up:</span>
+                  <span className="text-xs font-bold text-orange-700">{formatDate(prescription.followUpAt)}</span>
+                </div>
+              )}
+
+              {/* View Details Button - Dark Blue */}
+              <button
+                type="button"
+                onClick={() => setSelectedPrescription(prescription)}
+                className="w-full rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
+              >
+                View Details
+              </button>
             </article>
           ))}
         </div>

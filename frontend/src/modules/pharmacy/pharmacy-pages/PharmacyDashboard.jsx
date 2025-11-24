@@ -12,20 +12,15 @@ import {
   IoLocationOutline,
   IoArrowForwardOutline,
   IoWalletOutline,
-  IoTrendingUpOutline,
-  IoTrendingDownOutline,
 } from 'react-icons/io5'
 import { usePharmacySidebar } from '../pharmacy-components/PharmacySidebarContext'
 
 const mockStats = {
   totalOrders: 24,
+  totalPatients: 180,
   activePatients: 156,
+  inactivePatients: 24,
   pendingPrescriptions: 12,
-  notifications: 5,
-  thisMonthEarnings: 12500.00,
-  lastMonthEarnings: 10800.50,
-  thisMonthOrders: 24,
-  lastMonthOrders: 20,
 }
 
 const todayOrders = [
@@ -193,9 +188,6 @@ const PharmacyDashboard = () => {
   const navigate = useNavigate()
   const { toggleSidebar } = usePharmacySidebar()
 
-  const earningsChange = ((mockStats.thisMonthEarnings - mockStats.lastMonthEarnings) / mockStats.lastMonthEarnings) * 100
-  const ordersChange = ((mockStats.thisMonthOrders - mockStats.lastMonthOrders) / mockStats.lastMonthOrders) * 100
-
   return (
     <section className="flex flex-col gap-4 pb-24 -mt-20">
       {/* Top Header with Gradient Background */}
@@ -216,7 +208,15 @@ const PharmacyDashboard = () => {
                 Market Street • <span className="text-white font-medium">Online</span>
               </p>
             </div>
-            <div className="relative">
+            <div className="flex items-center gap-2">
+              {/* Notification Icon */}
+              <button
+                type="button"
+                className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
+                aria-label="Notifications"
+              >
+                <IoNotificationsOutline className="h-5 w-5 sm:h-6 sm:w-6" />
+              </button>
               <button
                 type="button"
                 onClick={toggleSidebar}
@@ -249,21 +249,21 @@ const PharmacyDashboard = () => {
           <p className="text-[10px] text-slate-600 leading-tight">This month</p>
         </article>
 
-        {/* Active Patients */}
+        {/* Total Patients */}
         <article
-          onClick={() => navigate('/pharmacy/patients')}
+          onClick={() => navigate('/pharmacy/patient-statistics')}
           className="relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
         >
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1">Active Patients</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.activePatients}</p>
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1">Total Patients</p>
+              <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.totalPatients}</p>
             </div>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#11496c] text-white">
               <IoPeopleOutline className="text-base" aria-hidden="true" />
             </div>
           </div>
-          <p className="text-[10px] text-slate-600 leading-tight">Currently active</p>
+          <p className="text-[10px] text-slate-600 leading-tight">All patients</p>
         </article>
 
         {/* Prescriptions */}
@@ -281,20 +281,6 @@ const PharmacyDashboard = () => {
             </div>
           </div>
           <p className="text-[10px] text-slate-600 leading-tight">Pending review</p>
-        </article>
-
-        {/* Notifications */}
-        <article className="relative overflow-hidden rounded-xl border border-purple-100 bg-white p-3 shadow-sm">
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Notifications</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.notifications}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500 text-white">
-              <IoNotificationsOutline className="text-base" aria-hidden="true" />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-600 leading-tight">New alerts</p>
         </article>
       </div>
 
@@ -454,11 +440,11 @@ const PharmacyDashboard = () => {
         <section aria-labelledby="patients-title" className="space-y-3">
           <header className="flex items-center justify-between">
             <h2 id="patients-title" className="text-base font-semibold text-slate-900">
-              Recent Patients
+              Patients
             </h2>
             <button
               type="button"
-              onClick={() => navigate('/pharmacy/patients')}
+              onClick={() => navigate('/pharmacy/patient-statistics')}
               className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
             >
               See all
@@ -507,75 +493,6 @@ const PharmacyDashboard = () => {
         </section>
       </div>
 
-      {/* Earnings Overview */}
-      <section aria-labelledby="earnings-title">
-        <header className="mb-3 flex items-center justify-between">
-          <h2 id="earnings-title" className="text-base font-semibold text-slate-900">
-            Earnings Overview
-          </h2>
-          <button
-            type="button"
-            onClick={() => navigate('/pharmacy/wallet')}
-            className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
-          >
-            View details
-          </button>
-        </header>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">This Month</p>
-                <p className="mt-1 text-2xl font-bold text-slate-900">{formatCurrency(mockStats.thisMonthEarnings)}</p>
-                <div className="mt-1 flex items-center gap-1 text-xs">
-                  {earningsChange >= 0 ? (
-                    <>
-                      <IoTrendingUpOutline className="h-3 w-3 text-emerald-600" />
-                      <span className="text-emerald-600">+{earningsChange.toFixed(1)}%</span>
-                    </>
-                  ) : (
-                    <>
-                      <IoTrendingDownOutline className="h-3 w-3 text-red-600" />
-                      <span className="text-red-600">{earningsChange.toFixed(1)}%</span>
-                    </>
-                  )}
-                  <span className="text-slate-500">vs last month</span>
-                </div>
-            </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100">
-                <IoWalletOutline className="h-6 w-6 text-emerald-600" />
-            </div>
-          </div>
-        </article>
-
-          <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">This Month Orders</p>
-                <p className="mt-1 text-2xl font-bold text-slate-900">{mockStats.thisMonthOrders}</p>
-                <div className="mt-1 flex items-center gap-1 text-xs">
-                  {ordersChange >= 0 ? (
-                    <>
-                      <IoTrendingUpOutline className="h-3 w-3 text-emerald-600" />
-                      <span className="text-emerald-600">+{ordersChange.toFixed(1)}%</span>
-                    </>
-                  ) : (
-                    <>
-                      <IoTrendingDownOutline className="h-3 w-3 text-red-600" />
-                      <span className="text-red-600">{ordersChange.toFixed(1)}%</span>
-                    </>
-                  )}
-                  <span className="text-slate-500">vs last month</span>
-                </div>
-            </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.15)]">
-                <IoBagHandleOutline className="h-6 w-6 text-[#11496c]" />
-            </div>
-          </div>
-        </article>
-      </div>
-      </section>
     </section>
   )
 }

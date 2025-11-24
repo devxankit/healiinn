@@ -305,11 +305,11 @@ const PharmacyOrders = () => {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-2">
                   {order.status === 'pending' && (
                     <button
                       onClick={() => handleStatusUpdate(order.id, 'ready')}
-                      className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
+                      className="flex-1 rounded-lg bg-gradient-to-r from-[#11496c] to-[#0d3a52] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:shadow-md hover:scale-[1.01] active:scale-95"
                     >
                       Mark Ready
                     </button>
@@ -317,32 +317,32 @@ const PharmacyOrders = () => {
                   {order.status === 'ready' && (
                     <button
                       onClick={() => handleStatusUpdate(order.id, 'delivered')}
-                      className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-emerald-400/40 transition-all hover:bg-emerald-600 active:scale-95"
+                      className="flex-1 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-400/40 transition-all hover:bg-emerald-600 hover:scale-[1.01] active:scale-95"
                     >
                       Mark Delivered
                     </button>
                   )}
+                  <button
+                    onClick={() => setSelectedOrder(order)}
+                    className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white p-2.5 text-[#11496c] transition-all hover:border-[rgba(17,73,108,0.3)] hover:bg-slate-50 active:scale-95"
+                    aria-label="View order details"
+                  >
+                    <IoDocumentTextOutline className="h-5 w-5" />
+                  </button>
                   <a
                     href={`tel:${order.patientPhone}`}
-                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                    className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white p-2.5 text-[#11496c] transition-all hover:border-[rgba(17,73,108,0.3)] hover:bg-slate-50 active:scale-95"
+                    aria-label="Call patient"
                   >
-                    <IoCallOutline className="h-4 w-4" />
-                    Call
+                    <IoCallOutline className="h-5 w-5" />
                   </a>
                   <a
                     href={`mailto:${order.patientEmail}`}
-                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                    className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white p-2.5 text-[#11496c] transition-all hover:border-[rgba(17,73,108,0.3)] hover:bg-slate-50 active:scale-95"
+                    aria-label="Email patient"
                   >
-                    <IoMailOutline className="h-4 w-4" />
-                    Email
+                    <IoMailOutline className="h-5 w-5" />
                   </a>
-                  <button
-                    onClick={() => setSelectedOrder(order)}
-                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                  >
-                    <IoDocumentTextOutline className="h-4 w-4" />
-                    View Details
-                  </button>
                 </div>
               </article>
             )

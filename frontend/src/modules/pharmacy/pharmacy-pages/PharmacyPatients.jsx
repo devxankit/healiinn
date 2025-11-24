@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IoArrowBackOutline,
   IoPeopleOutline,
   IoSearchOutline,
   IoCallOutline,
@@ -147,29 +146,15 @@ const PharmacyPatients = () => {
 
   return (
     <section className="flex flex-col gap-4 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center rounded-full p-2 text-slate-600 transition hover:bg-slate-100"
-        >
-          <IoArrowBackOutline className="h-5 w-5" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Patients</h1>
-          <p className="text-sm text-slate-600">{filteredPatients.length} patients</p>
-        </div>
-      </div>
-
       {/* Search Bar */}
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#11496c]">
           <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
         </span>
         <input
           type="search"
           placeholder="Search by name, phone, or email..."
-          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-slate-300 hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+          className="w-full rounded-lg border border-[rgba(17,73,108,0.2)] bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-[rgba(17,73,108,0.3)] hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -185,7 +170,7 @@ const PharmacyPatients = () => {
           filteredPatients.map((patient) => (
             <article
               key={patient.id}
-              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-lg sm:p-5"
+              className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-[rgba(17,73,108,0.2)] hover:shadow-md sm:p-5"
             >
               <div className="flex items-start gap-3">
                 <img
@@ -205,16 +190,16 @@ const PharmacyPatients = () => {
                   <div className="mt-2 flex flex-wrap gap-2">
                     <a
                       href={`tel:${patient.phone}`}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex items-center gap-1 rounded-lg border border-[rgba(17,73,108,0.2)] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#11496c] transition-all hover:bg-[rgba(17,73,108,0.05)] hover:border-[rgba(17,73,108,0.3)]"
                     >
-                      <IoCallOutline className="h-3 w-3" />
+                      <IoCallOutline className="h-3.5 w-3.5" />
                       {patient.phone}
                     </a>
                     <a
                       href={`mailto:${patient.email}`}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      className="inline-flex items-center gap-1 rounded-lg border border-[rgba(17,73,108,0.2)] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#11496c] transition-all hover:bg-[rgba(17,73,108,0.05)] hover:border-[rgba(17,73,108,0.3)]"
                     >
-                      <IoMailOutline className="h-3 w-3" />
+                      <IoMailOutline className="h-3.5 w-3.5" />
                       Email
                     </a>
                   </div>
@@ -222,13 +207,13 @@ const PharmacyPatients = () => {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
+              <div className="grid grid-cols-2 gap-3 rounded-lg bg-[rgba(17,73,108,0.05)] p-3 border border-[rgba(17,73,108,0.1)]">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Orders</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">Total Orders</p>
                   <p className="mt-1 text-lg font-bold text-slate-900">{patient.totalOrders}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Spent</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">Total Spent</p>
                   <p className="mt-1 text-lg font-bold text-slate-900">{formatCurrency(patient.totalSpent)}</p>
                 </div>
               </div>
@@ -285,14 +270,14 @@ const PharmacyPatients = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => setSelectedPatient(patient)}
-                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                  className="flex-1 rounded-lg border border-[rgba(17,73,108,0.2)] bg-white px-3 py-2.5 text-xs font-semibold text-[#11496c] transition-all hover:border-[rgba(17,73,108,0.3)] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
                 >
                   <IoDocumentTextOutline className="mr-1 inline h-4 w-4" />
                   View Details
                 </button>
                 <button
                   onClick={() => navigate(`/pharmacy/orders?patientId=${patient.id}`)}
-                  className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
+                  className="flex-1 rounded-lg bg-gradient-to-r from-[#11496c] to-[#0d3a52] px-3 py-2.5 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:shadow-md hover:scale-[1.02] active:scale-95"
                 >
                   View Orders
                 </button>
@@ -305,18 +290,18 @@ const PharmacyPatients = () => {
       {/* Patient Details Modal */}
       {selectedPatient && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-3 pb-3 sm:items-center sm:px-4 sm:pb-6"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm px-3 pb-3 sm:items-center sm:px-4 sm:pb-6"
           onClick={() => setSelectedPatient(null)}
         >
           <div
-            className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl"
+            className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white p-4">
-              <h2 className="text-lg font-bold text-slate-900">Patient Details</h2>
+            <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-[#11496c] to-[#0d3a52] p-4 rounded-t-2xl">
+              <h2 className="text-lg font-bold text-white">Patient Details</h2>
               <button
                 onClick={() => setSelectedPatient(null)}
-                className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                className="rounded-full p-1.5 text-white/80 transition hover:bg-white/20 hover:text-white"
               >
                 ×
               </button>
@@ -341,7 +326,7 @@ const PharmacyPatients = () => {
               </div>
 
               <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                <h4 className="text-sm font-semibold text-[#11496c] mb-2 flex items-center gap-2">
                   <IoPersonOutline className="h-4 w-4" />
                   Contact Information
                 </h4>
@@ -353,7 +338,7 @@ const PharmacyPatients = () => {
               </div>
 
               <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                <h4 className="text-sm font-semibold text-[#11496c] mb-2 flex items-center gap-2">
                   <IoMedicalOutline className="h-4 w-4" />
                   Medical Information
                 </h4>
@@ -394,14 +379,14 @@ const PharmacyPatients = () => {
               </div>
 
               <div>
-                <h4 className="text-sm font-semibold text-slate-700 mb-2">Order Statistics</h4>
-                <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3">
+                <h4 className="text-sm font-semibold text-[#11496c] mb-2">Order Statistics</h4>
+                <div className="grid grid-cols-2 gap-3 rounded-lg bg-[rgba(17,73,108,0.05)] p-3 border border-[rgba(17,73,108,0.1)]">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Orders</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">Total Orders</p>
                     <p className="mt-1 text-xl font-bold text-slate-900">{selectedPatient.totalOrders}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Spent</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">Total Spent</p>
                     <p className="mt-1 text-xl font-bold text-slate-900">{formatCurrency(selectedPatient.totalSpent)}</p>
                   </div>
                 </div>

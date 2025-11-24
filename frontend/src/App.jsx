@@ -42,6 +42,7 @@ import PharmacyList from './modules/pharmacy/pharmacy-pages/PharmacyList'
 import PharmacyOrders from './modules/pharmacy/pharmacy-pages/PharmacyOrders'
 import PharmacyPrescriptions from './modules/pharmacy/pharmacy-pages/PharmacyPrescriptions'
 import PharmacyPatients from './modules/pharmacy/pharmacy-pages/PharmacyPatients'
+import PharmacyPatientStatistics from './modules/pharmacy/pharmacy-pages/PharmacyPatientStatistics'
 import PharmacyProfile from './modules/pharmacy/pharmacy-pages/PharmacyProfile'
 import PharmacyWallet from './modules/pharmacy/pharmacy-pages/PharmacyWallet'
 import PharmacyWalletBalance from './modules/pharmacy/pharmacy-pages/WalletBalance'
@@ -169,6 +170,7 @@ function App() {
                     <Route path="/orders" element={<PharmacyOrders />} />
                     <Route path="/prescriptions" element={<PharmacyPrescriptions />} />
                     <Route path="/patients" element={<PharmacyPatients />} />
+                    <Route path="/patient-statistics" element={<PharmacyPatientStatistics />} />
                     <Route path="/profile" element={<PharmacyProfile />} />
                     <Route path="/wallet" element={<PharmacyWallet />} />
                     <Route path="/wallet/balance" element={<PharmacyWalletBalance />} />
