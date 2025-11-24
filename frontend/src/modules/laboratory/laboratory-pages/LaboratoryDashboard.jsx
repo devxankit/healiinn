@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LaboratoryNavbar from '../laboratory-components/LaboratoryNavbar'
 import LaboratorySidebar from '../laboratory-components/LaboratorySidebar'
@@ -18,8 +18,6 @@ import {
   IoLocationOutline,
   IoArrowForwardOutline,
   IoFlaskOutline,
-  IoTrendingUpOutline,
-  IoTrendingDownOutline,
   IoChatbubbleOutline,
   IoCloudUploadOutline,
   IoPaperPlaneOutline,
@@ -92,53 +90,6 @@ const todayOrders = [
     testRequestId: 'test-3024',
     tests: ['Thyroid Function Test'],
     createdAt: new Date().toISOString(),
-  },
-]
-
-const recentOrders = [
-  {
-    id: 'order-1',
-    patientName: 'David Wilson',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true',
-    date: '2025-01-15',
-    time: '10:00 AM',
-    status: 'completed',
-    totalAmount: 850.0,
-    testRequestId: 'test-3025',
-    deliveryType: 'home',
-  },
-  {
-    id: 'order-2',
-    patientName: 'Lisa Anderson',
-    patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=8b5cf6&color=fff&size=128&bold=true',
-    date: '2025-01-14',
-    time: '02:30 PM',
-    status: 'completed',
-    totalAmount: 1200.0,
-    testRequestId: 'test-3026',
-    deliveryType: 'home',
-  },
-  {
-    id: 'order-3',
-    patientName: 'Robert Taylor',
-    patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=ef4444&color=fff&size=128&bold=true',
-    date: '2025-01-14',
-    time: '11:00 AM',
-    status: 'completed',
-    totalAmount: 950.0,
-    testRequestId: 'test-3027',
-    deliveryType: 'pickup',
-  },
-  {
-    id: 'order-4',
-    patientName: 'Jennifer Martinez',
-    patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=128&bold=true',
-    date: '2025-01-13',
-    time: '09:30 AM',
-    status: 'pending',
-    totalAmount: 650.0,
-    testRequestId: 'test-3028',
-    deliveryType: 'home',
   },
 ]
 
@@ -226,6 +177,231 @@ const LaboratoryDashboard = () => {
   const [showHistory, setShowHistory] = useState(false)
   const [uploadStatus, setUploadStatus] = useState(null) // 'uploading', 'success', 'error'
   const [uploadProgress, setUploadProgress] = useState(0)
+  // Mock data for Today's Orders
+  const mockTodayOrdersData = [
+    {
+      id: 'order-1',
+      _id: 'order-1',
+      patientName: 'John Doe',
+      patient: { firstName: 'John', lastName: 'Doe', profileImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true' },
+      patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
+      time: '09:00 AM',
+      status: 'pending',
+      totalAmount: 700.0,
+      amount: 700.0,
+      deliveryType: 'home',
+      testRequestId: 'test-3021',
+      tests: ['Complete Blood Count (CBC)', 'Blood Glucose (Fasting)'],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'order-2',
+      _id: 'order-2',
+      patientName: 'Sarah Smith',
+      patient: { firstName: 'Sarah', lastName: 'Smith', profileImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true' },
+      patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
+      time: '10:30 AM',
+      status: 'ready',
+      totalAmount: 600.0,
+      amount: 600.0,
+      deliveryType: 'pickup',
+      testRequestId: 'test-3022',
+      tests: ['Lipid Profile'],
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'order-3',
+      _id: 'order-3',
+      patientName: 'Mike Johnson',
+      patient: { firstName: 'Mike', lastName: 'Johnson', profileImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true' },
+      patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
+      time: '02:00 PM',
+      status: 'pending',
+      totalAmount: 1550.0,
+      amount: 1550.0,
+      deliveryType: 'home',
+      testRequestId: 'test-3023',
+      tests: ['Liver Function Test (LFT)', 'Kidney Function Test (KFT)'],
+      createdAt: new Date().toISOString(),
+    },
+  ]
+
+  // Mock data for Patients
+  const mockPatientsData = [
+    {
+      id: 'pat-1',
+      _id: 'pat-1',
+      firstName: 'John',
+      lastName: 'Doe',
+      name: 'John Doe',
+      image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
+      profileImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
+      lastTestDate: '2025-01-15',
+      totalTests: 8,
+      testCount: 8,
+      status: 'active',
+    },
+    {
+      id: 'pat-2',
+      _id: 'pat-2',
+      firstName: 'Sarah',
+      lastName: 'Smith',
+      name: 'Sarah Smith',
+      image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
+      profileImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
+      lastTestDate: '2025-01-14',
+      totalTests: 5,
+      testCount: 5,
+      status: 'active',
+    },
+    {
+      id: 'pat-3',
+      _id: 'pat-3',
+      firstName: 'Mike',
+      lastName: 'Johnson',
+      name: 'Mike Johnson',
+      image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
+      profileImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
+      lastTestDate: '2025-01-12',
+      totalTests: 12,
+      testCount: 12,
+      status: 'active',
+    },
+  ]
+
+  const [todayOrders, setTodayOrders] = useState(mockTodayOrdersData)
+  const [patients, setPatients] = useState(mockPatientsData)
+  const [loadingOrders, setLoadingOrders] = useState(true)
+  const [loadingPatients, setLoadingPatients] = useState(true)
+
+  // Fetch today's orders
+  useEffect(() => {
+    const fetchTodayOrders = async () => {
+      try {
+        const token = localStorage.getItem('laboratoryAuthToken') || sessionStorage.getItem('laboratoryAuthToken')
+        if (!token) {
+          // If no token, use mock data
+          setTodayOrders(mockTodayOrdersData)
+          setLoadingOrders(false)
+          return
+        }
+
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const todayStart = today.toISOString()
+        const todayEnd = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString()
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/labs/leads?startDate=${todayStart}&endDate=${todayEnd}&limit=10&status=new,accepted`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.leads && data.leads.length > 0) {
+            // Transform leads to orders format
+            const transformedOrders = data.leads.map(lead => ({
+              _id: lead._id,
+              id: lead._id,
+              patient: lead.patient,
+              patientName: lead.patient?.firstName && lead.patient?.lastName 
+                ? `${lead.patient.firstName} ${lead.patient.lastName}` 
+                : lead.patient?.name || 'Unknown',
+              patientImage: lead.patient?.profileImage,
+              status: lead.status === 'accepted' ? 'ready' : lead.status === 'new' ? 'pending' : lead.status,
+              totalAmount: lead.billingSummary?.totalAmount || lead.amount || 0,
+              deliveryType: lead.homeCollectionRequested ? 'home' : 'pickup',
+              testRequestId: lead._id,
+              tests: lead.tests || lead.investigations || [],
+              time: lead.createdAt ? new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+              createdAt: lead.createdAt,
+            }))
+            setTodayOrders(transformedOrders)
+          } else {
+            // If no data from API, use mock data
+            setTodayOrders(mockTodayOrdersData)
+          }
+        } else {
+          // If API fails, use mock data
+          setTodayOrders(mockTodayOrdersData)
+        }
+      } catch (error) {
+        console.error('Error fetching today orders:', error)
+        // Fallback to mock data on error
+        setTodayOrders(mockTodayOrdersData)
+      } finally {
+        setLoadingOrders(false)
+      }
+    }
+
+    fetchTodayOrders()
+  }, [])
+
+  // Fetch patients
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const token = localStorage.getItem('laboratoryAuthToken') || sessionStorage.getItem('laboratoryAuthToken')
+        if (!token) {
+          // If no token, use mock data
+          setPatients(mockPatientsData)
+          setLoadingPatients(false)
+          return
+        }
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/laboratories/patients?limit=5`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.patients && data.patients.length > 0) {
+            // Transform patients data
+            const transformedPatients = data.patients.map(patient => ({
+              _id: patient._id,
+              id: patient._id,
+              firstName: patient.firstName,
+              lastName: patient.lastName,
+              name: patient.firstName && patient.lastName 
+                ? `${patient.firstName} ${patient.lastName}` 
+                : patient.name || 'Unknown',
+              profileImage: patient.profileImage,
+              image: patient.profileImage,
+              lastTestDate: patient.lastTestDate || patient.updatedAt,
+              totalTests: patient.totalTests || patient.testCount || 0,
+              status: patient.status || 'active',
+            }))
+            setPatients(transformedPatients)
+          } else {
+            // If no data from API, use mock data
+            setPatients(mockPatientsData)
+          }
+        } else {
+          // If API fails, use mock data
+          setPatients(mockPatientsData)
+        }
+      } catch (error) {
+        console.error('Error fetching patients:', error)
+        // Fallback to mock data on error
+        setPatients(mockPatientsData)
+      } finally {
+        setLoadingPatients(false)
+      }
+    }
+
+    fetchPatients()
+  }, [])
 
   // Mock patients list
   const mockPatients = [
@@ -234,9 +410,6 @@ const LaboratoryDashboard = () => {
     { id: 'pat-3', name: 'Mike Johnson', email: 'mike.johnson@example.com' },
     { id: 'pat-4', name: 'Emily Brown', email: 'emily.brown@example.com' },
   ]
-
-  const earningsChange = ((mockStats.thisMonthEarnings - mockStats.lastMonthEarnings) / mockStats.lastMonthEarnings) * 100
-  const ordersChange = ((mockStats.thisMonthOrders - mockStats.lastMonthOrders) / mockStats.lastMonthOrders) * 100
 
   const sidebarNavItems = [
     { id: 'home', label: 'Home', to: '/laboratory/dashboard', Icon: IoHomeOutline },
@@ -489,7 +662,7 @@ const LaboratoryDashboard = () => {
                 Today's Orders
               </h2>
               <span className="flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)] px-2 text-xs font-medium text-[#11496c]">
-                {todayOrders.length}
+                {loadingOrders ? '...' : todayOrders.length}
               </span>
             </div>
             <button
@@ -502,22 +675,44 @@ const LaboratoryDashboard = () => {
           </header>
 
           <div className="space-y-3">
-            {todayOrders.map((order) => {
+            {loadingOrders ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-slate-500">Loading orders...</p>
+              </div>
+            ) : todayOrders.length === 0 ? (
+              <div className="text-center py-8">
+                <IoBagHandleOutline className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-sm font-medium text-slate-600">No orders today</p>
+                <p className="text-xs text-slate-500 mt-1">Your orders will appear here</p>
+              </div>
+            ) : (
+              todayOrders.map((order) => {
               const StatusIcon = getStatusIcon(order.status)
+              const patientName = order.patient?.firstName && order.patient?.lastName
+                ? `${order.patient.firstName} ${order.patient.lastName}`
+                : order.patientName || order.patient?.name || 'Unknown Patient'
+              const patientImage = order.patient?.profileImage || order.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+              const testRequestId = order.testRequestId || order.labLead?._id || order._id
+              const tests = order.tests || order.investigations || []
+              const orderTime = order.time || (order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '')
+              const deliveryType = order.deliveryType || order.deliveryOptions || 'pickup'
+              const totalAmount = order.totalAmount || order.amount || 0
+              
               return (
                 <article
-                  key={order.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                  key={order._id || order.id}
+                  onClick={() => navigate('/laboratory/orders')}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
                 >
                   <div className="flex items-start gap-4">
                     <div className="relative shrink-0">
                       <img
-                        src={order.patientImage}
-                        alt={order.patientName}
+                        src={patientImage}
+                        alt={patientName}
                         className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
                         onError={(e) => {
                           e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=128&bold=true`
                         }}
                       />
                       {order.status === 'ready' && (
@@ -529,19 +724,26 @@ const LaboratoryDashboard = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-slate-900">{order.patientName}</h3>
-                          <p className="mt-0.5 text-xs text-slate-600">Test Request: {order.testRequestId}</p>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {order.tests.slice(0, 2).map((test, idx) => (
-                              <span key={idx} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
-                                <IoFlaskOutline className="h-2.5 w-2.5" />
-                                {test}
-                              </span>
-                            ))}
-                            {order.tests.length > 2 && (
-                              <span className="text-[10px] text-slate-500">+{order.tests.length - 2} more</span>
-                            )}
-                          </div>
+                          <h3 className="text-sm font-semibold text-slate-900">{patientName}</h3>
+                          {testRequestId && (
+                            <p className="mt-0.5 text-xs text-slate-600">Test Request: {testRequestId}</p>
+                          )}
+                          {tests.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {tests.slice(0, 2).map((test, idx) => {
+                                const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
+                                return (
+                                  <span key={idx} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                                    <IoFlaskOutline className="h-2.5 w-2.5" />
+                                    {testName}
+                                  </span>
+                                )
+                              })}
+                              {tests.length > 2 && (
+                                <span className="text-[10px] text-slate-500">+{tests.length - 2} more</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(order.status)}`}>
@@ -551,223 +753,109 @@ const LaboratoryDashboard = () => {
                         </div>
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                        <div className="flex items-center gap-1">
-                          <IoTimeOutline className="h-3.5 w-3.5" />
-                          <span className="font-medium">{order.time}</span>
-                        </div>
+                        {orderTime && (
+                          <div className="flex items-center gap-1">
+                            <IoTimeOutline className="h-3.5 w-3.5" />
+                            <span className="font-medium">{orderTime}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-1">
                           <IoLocationOutline className="h-3.5 w-3.5" />
-                          <span>{order.deliveryType === 'home' ? 'Home Delivery' : 'Pickup'}</span>
+                          <span>{deliveryType === 'home' ? 'Home Delivery' : 'Pickup'}</span>
                         </div>
-                        <div className="flex items-center gap-1 font-semibold text-emerald-600">
-                          <IoWalletOutline className="h-3.5 w-3.5" />
-                          <span>{formatCurrency(order.totalAmount)}</span>
-                        </div>
+                        {totalAmount > 0 && (
+                          <div className="flex items-center gap-1 font-semibold text-emerald-600">
+                            <IoWalletOutline className="h-3.5 w-3.5" />
+                            <span>{formatCurrency(totalAmount)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 </article>
               )
-            })}
+            }))}
           </div>
         </section>
 
-        {/* Recent Orders & Recent Patients Grid */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Recent Orders */}
-          <section aria-labelledby="recent-orders-title" className="space-y-3">
-            <header className="flex items-center justify-between">
-              <h2 id="recent-orders-title" className="text-base font-semibold text-slate-900">
-                Recent Orders
-              </h2>
-              <button
-                type="button"
-                onClick={() => navigate('/laboratory/orders')}
-                className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
-              >
-                See all
-              </button>
-            </header>
+        {/* Patients Section */}
+        <section aria-labelledby="patients-title" className="space-y-3">
+          <header className="flex items-center justify-between">
+            <h2 id="patients-title" className="text-base font-semibold text-slate-900">
+              Patients
+            </h2>
+            <button
+              type="button"
+              onClick={() => navigate('/laboratory/patient-statistics')}
+              className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
+            >
+              See all
+            </button>
+          </header>
 
-            <div className="space-y-3">
-              {recentOrders.map((order) => {
-                const StatusIcon = getStatusIcon(order.status)
+          <div className="space-y-3">
+            {loadingPatients ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-slate-500">Loading patients...</p>
+              </div>
+            ) : patients.length === 0 ? (
+              <div className="text-center py-8">
+                <IoPeopleOutline className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-sm font-medium text-slate-600">No patients found</p>
+                <p className="text-xs text-slate-500 mt-1">Your patients will appear here</p>
+              </div>
+            ) : (
+              patients.map((patient) => {
+                const patientName = patient.firstName && patient.lastName 
+                  ? `${patient.firstName} ${patient.lastName}` 
+                  : patient.name || patient.patientName || 'Unknown Patient'
+                const patientImage = patient.profileImage || patient.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+                const lastTestDate = patient.lastTestDate || patient.lastTest || patient.updatedAt
+                const totalTests = patient.totalTests || patient.testCount || 0
+                
                 return (
                   <article
-                    key={order.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                    key={patient._id || patient.id}
+                    onClick={() => navigate(`/laboratory/patient-statistics`)}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-3">
                       <img
-                        src={order.patientImage}
-                        alt={order.patientName}
-                        className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
+                        src={patientImage}
+                        alt={patientName}
+                        className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
                         onError={(e) => {
                           e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=128&bold=true`
                         }}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-semibold text-slate-900">{order.patientName}</h3>
-                            <p className="mt-0.5 text-xs text-slate-600">Test Request: {order.testRequestId}</p>
+                            <h3 className="text-sm font-semibold text-slate-900">{patientName}</h3>
+                            {lastTestDate && (
+                              <p className="mt-0.5 text-xs text-slate-600">Last test: {formatDate(lastTestDate)}</p>
+                            )}
                           </div>
-                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(order.status)}`}>
-                            <StatusIcon className="h-3 w-3" />
-                            {order.status}
+                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                            {patient.status || 'active'}
                           </span>
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                          <div className="flex items-center gap-1">
-                            <IoCalendarOutline className="h-3.5 w-3.5" />
-                            <span>{formatDate(order.date)}</span>
+                        {totalTests > 0 && (
+                          <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
+                            <div className="flex items-center gap-1">
+                              <IoFlaskOutline className="h-3.5 w-3.5" />
+                              <span>{totalTests} tests</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <IoTimeOutline className="h-3.5 w-3.5" />
-                            <span>{order.time}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <IoLocationOutline className="h-3.5 w-3.5" />
-                            <span>{order.deliveryType === 'home' ? 'Home' : 'Pickup'}</span>
-                          </div>
-                          <div className="flex items-center gap-1 font-semibold text-emerald-600">
-                            <IoWalletOutline className="h-3.5 w-3.5" />
-                            <span>{formatCurrency(order.totalAmount)}</span>
-                          </div>
-                        </div>
+                        )}
                       </div>
+                      <IoArrowForwardOutline className="h-5 w-5 shrink-0 text-slate-400" />
                     </div>
                   </article>
                 )
-              })}
-            </div>
-          </section>
-
-          {/* Recent Patients */}
-          <section aria-labelledby="patients-title" className="space-y-3">
-            <header className="flex items-center justify-between">
-              <h2 id="patients-title" className="text-base font-semibold text-slate-900">
-                Recent Patients
-              </h2>
-              <button
-                type="button"
-                onClick={() => navigate('/laboratory/patients')}
-                className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
-              >
-                See all
-              </button>
-            </header>
-
-            <div className="space-y-3">
-              {recentPatients.map((patient) => (
-                <article
-                  key={patient.id}
-                  onClick={() => navigate(`/laboratory/patients`)}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={patient.image}
-                      alt={patient.name}
-                      className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-slate-900">{patient.name}</h3>
-                          <p className="mt-0.5 text-xs text-slate-600">Last test: {formatDate(patient.lastTestDate)}</p>
-                        </div>
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
-                          {patient.status}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
-                        <div className="flex items-center gap-1">
-                          <IoFlaskOutline className="h-3.5 w-3.5" />
-                          <span>{patient.totalTests} tests</span>
-                        </div>
-                      </div>
-                    </div>
-                    <IoArrowForwardOutline className="h-5 w-5 shrink-0 text-slate-400" />
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        {/* Earnings Overview */}
-        <section aria-labelledby="earnings-title">
-          <header className="mb-3 flex items-center justify-between">
-            <h2 id="earnings-title" className="text-base font-semibold text-slate-900">
-              Earnings Overview
-            </h2>
-            <button
-              type="button"
-              onClick={() => navigate('/laboratory/wallet')}
-              className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
-            >
-              View details
-            </button>
-          </header>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">This Month</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{formatCurrency(mockStats.thisMonthEarnings)}</p>
-                  <div className="mt-1 flex items-center gap-1 text-xs">
-                    {earningsChange >= 0 ? (
-                      <>
-                        <IoTrendingUpOutline className="h-3 w-3 text-emerald-600" />
-                        <span className="text-emerald-600">+{earningsChange.toFixed(1)}%</span>
-                      </>
-                    ) : (
-                      <>
-                        <IoTrendingDownOutline className="h-3 w-3 text-red-600" />
-                        <span className="text-red-600">{earningsChange.toFixed(1)}%</span>
-                      </>
-                    )}
-                    <span className="text-slate-500">vs last month</span>
-                  </div>
-                </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100">
-                  <IoWalletOutline className="h-6 w-6 text-emerald-600" />
-                </div>
-              </div>
-            </article>
-
-            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">This Month Orders</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{mockStats.thisMonthOrders}</p>
-                  <div className="mt-1 flex items-center gap-1 text-xs">
-                    {ordersChange >= 0 ? (
-                      <>
-                        <IoTrendingUpOutline className="h-3 w-3 text-emerald-600" />
-                        <span className="text-emerald-600">+{ordersChange.toFixed(1)}%</span>
-                      </>
-                    ) : (
-                      <>
-                        <IoTrendingDownOutline className="h-3 w-3 text-red-600" />
-                        <span className="text-red-600">{ordersChange.toFixed(1)}%</span>
-                      </>
-                    )}
-                    <span className="text-slate-500">vs last month</span>
-                  </div>
-                </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.15)]">
-                  <IoBagHandleOutline className="h-6 w-6 text-[#11496c]" />
-                </div>
-              </div>
-            </article>
+              })
+            )}
           </div>
         </section>
       </section>

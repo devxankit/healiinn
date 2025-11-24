@@ -172,39 +172,6 @@ const mockVerifications = [
     rejectionReason: 'Missing accreditation certificate',
     documents: ['License'],
   },
-  {
-    id: '12',
-    type: 'patient',
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '+1 234-567-8911',
-    status: 'pending',
-    submittedAt: '2024-01-04T14:00:00Z',
-    documents: ['ID', 'Address Proof'],
-  },
-  {
-    id: '13',
-    type: 'patient',
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    phone: '+1 234-567-8912',
-    status: 'approved',
-    submittedAt: '2024-01-03T09:00:00Z',
-    approvedAt: '2024-01-05T10:00:00Z',
-    documents: ['ID', 'Address Proof'],
-  },
-  {
-    id: '14',
-    type: 'patient',
-    name: 'Robert Johnson',
-    email: 'robert.johnson@example.com',
-    phone: '+1 234-567-8913',
-    status: 'rejected',
-    submittedAt: '2024-01-02T16:00:00Z',
-    rejectedAt: '2024-01-04T17:00:00Z',
-    rejectionReason: 'Invalid ID document',
-    documents: ['ID'],
-  },
 ]
 
 const formatDate = (dateString) => {
@@ -226,8 +193,6 @@ const getTypeIcon = (type) => {
       return IoBusinessOutline
     case 'laboratory':
       return IoFlaskOutline
-    case 'patient':
-      return IoPeopleOutline
     default:
       return IoPeopleOutline
   }
@@ -241,8 +206,6 @@ const getTypeColor = (type) => {
       return 'bg-purple-100 text-purple-600'
     case 'laboratory':
       return 'bg-amber-100 text-amber-600'
-    case 'patient':
-      return 'bg-blue-100 text-blue-600'
     default:
       return 'bg-slate-100 text-slate-600'
   }
@@ -344,12 +307,6 @@ const AdminVerification = () => {
       approved: verifications.filter((v) => v.type === 'laboratory' && v.status === 'approved').length,
       rejected: verifications.filter((v) => v.type === 'laboratory' && v.status === 'rejected').length,
     },
-    patient: {
-      total: verifications.filter((v) => v.type === 'patient').length,
-      pending: verifications.filter((v) => v.type === 'patient' && v.status === 'pending').length,
-      approved: verifications.filter((v) => v.type === 'patient' && v.status === 'approved').length,
-      rejected: verifications.filter((v) => v.type === 'patient' && v.status === 'rejected').length,
-    },
   }
 
   return (
@@ -358,12 +315,12 @@ const AdminVerification = () => {
       <header className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-2.5">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Verification Management</h1>
-          <p className="mt-0.5 text-sm text-slate-600">Verify doctors, pharmacies, laboratories, and patients</p>
+          <p className="mt-0.5 text-sm text-slate-600">Verify doctors, pharmacies, and laboratories</p>
         </div>
       </header>
 
       {/* Status Bars by Type */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {/* Doctors Status Bar */}
         <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
@@ -447,34 +404,6 @@ const AdminVerification = () => {
             </div>
           </div>
         </div>
-
-        {/* Patient Status Bar */}
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
-              <IoPeopleOutline className="h-5 w-5 text-blue-600" />
-            </div>
-            <h3 className="text-sm font-semibold text-slate-900">Patients</h3>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-600">Total</span>
-              <span className="text-sm font-bold text-slate-900">{statusByType.patient.total}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-amber-600">Pending</span>
-              <span className="text-sm font-semibold text-amber-600">{statusByType.patient.pending}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-emerald-600">Approved</span>
-              <span className="text-sm font-semibold text-emerald-600">{statusByType.patient.approved}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-red-600">Rejected</span>
-              <span className="text-sm font-semibold text-red-600">{statusByType.patient.rejected}</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Stats Summary */}
@@ -522,7 +451,6 @@ const AdminVerification = () => {
               <option value="doctor">Doctors</option>
               <option value="pharmacy">Pharmacies</option>
               <option value="laboratory">Laboratories</option>
-              <option value="patient">Patients</option>
             </select>
           </div>
           <div className="flex items-center gap-2">
