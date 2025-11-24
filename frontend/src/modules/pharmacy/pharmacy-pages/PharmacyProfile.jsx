@@ -18,15 +18,17 @@ import {
   IoHomeOutline,
   IoShieldCheckmarkOutline,
   IoHelpCircleOutline,
+  IoLogOutOutline,
+  IoPulseOutline,
 } from 'react-icons/io5'
 
 const mockPharmacyData = {
-  pharmacyName: 'Rx Care Pharmacy',
-  ownerName: 'John Smith',
-  email: 'support@rxcare.com',
+  pharmacyName: 'John Doe',
+  ownerName: 'John Doe',
+  email: 'john.doe@example.com',
   phone: '+1-555-214-0098',
   licenseNumber: 'RX-45287',
-  profileImage: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=400&q=80',
+  profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
   bio: 'Your trusted neighborhood pharmacy providing quality medications and personalized care.',
   address: {
     line1: '123 Market Street',
@@ -59,6 +61,8 @@ const mockPharmacyData = {
   },
   status: 'approved',
   rating: 4.8,
+  bloodGroup: 'O+',
+  gender: 'Male',
 }
 
 const PharmacyProfile = () => {
@@ -148,89 +152,106 @@ const PharmacyProfile = () => {
 
   return (
     <section className="flex flex-col gap-6 pb-4">
-      {/* Profile Header */}
-      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-indigo-50/85 to-[rgba(17,73,108,0.05)] backdrop-blur-md p-4 sm:p-6 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-white/50">
-        <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-[rgba(17,73,108,0.1)] blur-3xl pointer-events-none" />
-        <div className="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-indigo-300/15 blur-2xl pointer-events-none" />
+      {/* Profile Card - Matching Reference Image */}
+      <div 
+        className="relative overflow-hidden rounded-2xl p-6 sm:p-8 text-white"
+        style={{
+          background: 'linear-gradient(135deg, #11496c 0%, #1a5f7a 50%, #2a8ba8 100%)',
+        }}
+      >
+        {/* Subtle pattern overlay */}
+        <div className="absolute inset-0 opacity-5" style={{
+          backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+          backgroundSize: '24px 24px',
+        }} />
+        
+        <div className="relative flex flex-col items-center text-center">
+          {/* Profile Picture */}
+          <div className="relative mb-4">
+            <img
+              src={formData.profileImage}
+              alt={formData.pharmacyName}
+              className="h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover ring-4 ring-white/20 shadow-xl bg-slate-100"
+              onError={(e) => {
+                e.target.onerror = null
+                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.pharmacyName)}&background=3b82f6&color=fff&size=128&bold=true`
+              }}
+            />
+            {isEditing && (
+              <button
+                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white shadow-lg transition hover:bg-white/30"
+                aria-label="Change photo"
+              >
+                <IoCameraOutline className="h-4 w-4" />
+              </button>
+            )}
+          </div>
 
-        <div className="relative flex flex-col gap-4">
-            <div className="flex items-start gap-4">
-              <div className="relative shrink-0 flex flex-col items-center">
-                <div className="relative h-20 w-20 sm:h-24 sm:w-24">
-                  <img
-                    src={formData.profileImage}
-                    alt={formData.pharmacyName}
-                    className="h-full w-full rounded-full object-cover ring-4 ring-white shadow-lg bg-slate-100"
-                    onError={(e) => {
-                      e.target.onerror = null
-                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.pharmacyName)}&background=3b82f6&color=fff&size=128&bold=true`
-                    }}
-                  />
-                  {isEditing && (
-                    <button
-                      className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-[#11496c] text-white shadow-lg transition hover:bg-[#0d3a52]"
-                    >
-                      <IoCameraOutline className="h-3 w-3 sm:h-4 sm:w-4" />
-                    </button>
-                  )}
-                </div>
-                {!isEditing && (
-                  <div className="mt-3 flex w-full gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        localStorage.removeItem('pharmacyAuthToken')
-                        sessionStorage.removeItem('pharmacyAuthToken')
-                        navigate('/doctor/login', { replace: true })
-                      }}
-                      className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                    >
-                      Logout
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditing(true)}
-                      className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                )}
-              </div>
-            <div className="flex-1">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">{formData.pharmacyName}</h2>
-                  <p className="mt-1 text-sm text-slate-600">{formData.ownerName}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-700">
-                      <IoShieldCheckmarkOutline className="h-3 w-3" />
-                      {formData.status === 'approved' ? 'Verified' : 'Pending'}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-600">⭐ {formData.rating}</span>
-                  </div>
-                </div>
-                  {isEditing && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleSave}
-                        className="rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={handleCancel}
-                        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-              </div>
-            </div>
+          {/* Name */}
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+            {formData.pharmacyName}
+          </h1>
+
+          {/* Email */}
+          <p className="text-sm sm:text-base text-white/90 mb-4">
+            {formData.email}
+          </p>
+
+          {/* Badges */}
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs sm:text-sm font-medium text-white">
+              <IoPulseOutline className="h-4 w-4" />
+              {formData.bloodGroup || 'O+'}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs sm:text-sm font-medium text-white">
+              <IoPersonOutline className="h-4 w-4" />
+              {formData.gender || 'Male'}
+            </span>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="flex items-center justify-center gap-2 rounded-xl border-2 border-white/30 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-white/20 hover:border-white/40 active:scale-95"
+            >
+              <IoCreateOutline className="h-5 w-5" />
+              Edit Profile
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem('pharmacyAuthToken')
+                sessionStorage.removeItem('pharmacyAuthToken')
+                navigate('/pharmacy/login', { replace: true })
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl bg-white/15 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-white/25 active:scale-95"
+            >
+              <IoLogOutOutline className="h-5 w-5" />
+              Sign Out
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Edit Mode Save/Cancel Buttons */}
+      {isEditing && (
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={handleCancel}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
+          >
+            Save Changes
+          </button>
+        </div>
+      )}
 
       {/* Profile Sections */}
       <div className="space-y-4">

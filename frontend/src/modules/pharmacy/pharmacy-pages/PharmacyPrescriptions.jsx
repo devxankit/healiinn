@@ -1,26 +1,20 @@
 import { useState } from 'react'
+import jsPDF from 'jspdf'
 import {
   IoArrowBackOutline,
   IoDocumentTextOutline,
   IoDownloadOutline,
-  IoShareSocialOutline,
   IoCloseOutline,
   IoFlaskOutline,
   IoBagHandleOutline,
   IoCalendarOutline,
   IoSearchOutline,
-  IoPrintOutline,
   IoExpandOutline,
   IoCallOutline,
   IoMailOutline,
   IoLocationOutline,
   IoCheckmarkCircleOutline,
   IoPersonCircleOutline,
-  IoReceiptOutline,
-  IoAddOutline,
-  IoRemoveOutline,
-  IoTrashOutline,
-  IoPaperPlaneOutline,
 } from 'react-icons/io5'
 
 const mockPrescriptions = [
@@ -261,9 +255,6 @@ const formatDate = (dateString) => {
 const PharmacyPrescriptions = () => {
   const [selectedPrescription, setSelectedPrescription] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [showBillModal, setShowBillModal] = useState(false)
-  const [billItems, setBillItems] = useState([])
-  const [deliveryCharge, setDeliveryCharge] = useState(0)
 
   const filteredPrescriptions = mockPrescriptions.filter((presc) => {
     if (!searchTerm.trim()) return true
@@ -277,771 +268,321 @@ const PharmacyPrescriptions = () => {
     )
   })
 
-  const handleDownloadPDF = (prescription) => {
-    if (prescription.pdfUrl && prescription.pdfUrl !== '#') {
-      const link = document.createElement('a')
-      link.href = prescription.pdfUrl
-      link.download = `prescription-${prescription.doctor.name.replace(/\s+/g, '-')}-${prescription.issuedAt}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-    } else {
-      alert('PDF is being generated. Please try again in a moment.')
-    }
-  }
+  const generatePDF = (prescriptionData) => {
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 20
+    const tealColor = [17, 73, 108] // Teal color for header
+    const lightBlueColor = [230, 240, 255] // Light blue for diagnosis
+    const lightGrayColor = [245, 245, 245] // Light gray for medications
+    const lightPurpleColor = [240, 230, 250] // Light purple for tests
+    const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
+    let yPos = margin
 
-  const handlePrint = () => {
-    window.print()
-  }
+    // Header Section - Clinic Name in Teal (Large, Bold)
+    doc.setTextColor(...tealColor)
+    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Healiinn Prescription', pageWidth / 2, yPos, { align: 'center' })
+    yPos += 7
 
-  const handleGenerateBill = (prescription) => {
-    // Initialize with one empty row for manual entry
-    setBillItems([
-      {
-        id: Date.now(),
-        tabletName: '',
-        amount: 0,
-        days: 0,
-        total: 0,
-      },
-    ])
-    setDeliveryCharge(0) // Reset delivery charge
-    setShowBillModal(true)
-  }
+    // Clinic Name and Address (Centered)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text(prescriptionData.clinic.name, pageWidth / 2, yPos, { align: 'center' })
+    yPos += 5
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.text(prescriptionData.clinic.address, pageWidth / 2, yPos, { align: 'center' })
+    yPos += 5
 
-  const handleBillItemChange = (id, field, value) => {
-    setBillItems((prevItems) =>
-      prevItems.map((item) => {
-        if (item.id === id) {
-          const updatedItem = { ...item, [field]: value }
-          if (field === 'amount' || field === 'days') {
-            updatedItem.total = (updatedItem.amount || 0) * (updatedItem.days || 0)
-          }
-          return updatedItem
-        }
-        return item
-      })
-    )
-  }
+    // Teal horizontal line separator
+    doc.setDrawColor(...tealColor)
+    doc.setLineWidth(0.5)
+    doc.line(margin, yPos, pageWidth - margin, yPos)
+    yPos += 8
 
-  const handleAddBillRow = () => {
-    setBillItems((prevItems) => [
-      ...prevItems,
-      {
-        id: Date.now() + Math.random(),
-        tabletName: '',
-        amount: 0,
-        days: 0,
-        total: 0,
-      },
-    ])
-  }
-
-  const handleDeleteBillRow = (id) => {
-    setBillItems((prevItems) => prevItems.filter((item) => item.id !== id))
-  }
-
-  const calculateBillTotal = () => {
-    const subtotal = billItems.reduce((sum, item) => sum + (item.total || 0), 0)
-    return subtotal + (deliveryCharge || 0)
-  }
-
-  const calculateSubtotal = () => {
-    return billItems.reduce((sum, item) => sum + (item.total || 0), 0)
-  }
-
-  const handlePrintBill = () => {
-    window.print()
-  }
-
-  const handleSendBillToPatient = async () => {
-    if (!selectedPrescription || billItems.length === 0) {
-      alert('Please add at least one bill item before sending to patient.')
-      return
-    }
-
-    const totalAmount = calculateBillTotal()
-    const billNumber = `BILL-${Date.now().toString().slice(-6)}`
-    const patientName = selectedPrescription.patient.name
-    const patientEmail = selectedPrescription.patient.email
-    const patientPhone = selectedPrescription.patient.phone
-
-    // Confirm before sending
-    const confirmMessage = `Send bill PDF to patient?\n\nPatient: ${patientName}\nEmail: ${patientEmail || 'N/A'}\nPhone: ${patientPhone || 'N/A'}\nTotal Amount: ${formatCurrency(totalAmount)}\n\nThe bill will be sent in PDF format to the patient.`
+    // Doctor Information (Left) and Patient Information (Right)
+    const infoStartY = yPos
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Doctor Information', margin, infoStartY)
+    doc.text('Patient Information', pageWidth - margin, infoStartY, { align: 'right' })
     
-    if (!window.confirm(confirmMessage)) {
-      return
+    yPos = infoStartY + 6
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    
+    // Doctor Info (Left)
+    doc.text(`Name: ${prescriptionData.doctor.name}`, margin, yPos)
+    doc.text(`Specialty: ${prescriptionData.doctor.specialty}`, margin, yPos + 4)
+    if (prescriptionData.doctor.phone) {
+      doc.text(`Phone: ${prescriptionData.doctor.phone}`, margin, yPos + 8)
+    }
+    const issuedDate = formatDate(prescriptionData.issuedAt)
+    doc.text(`Date: ${issuedDate}`, margin, yPos + 12)
+
+    // Patient Info (Right)
+    doc.text(`Name: ${prescriptionData.patient.name}`, pageWidth - margin, yPos, { align: 'right' })
+    doc.text(`Age: ${prescriptionData.patient.age} years`, pageWidth - margin, yPos + 4, { align: 'right' })
+    doc.text(`Gender: ${prescriptionData.patient.gender}`, pageWidth - margin, yPos + 8, { align: 'right' })
+    if (prescriptionData.patient.phone) {
+      doc.text(`Phone: ${prescriptionData.patient.phone}`, pageWidth - margin, yPos + 12, { align: 'right' })
     }
 
-    try {
-      // Generate PDF content first
-      const currentDate = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
+    yPos += 18
+
+    // Diagnosis Section with Light Blue Background Box
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Diagnosis', margin, yPos)
+    yPos += 6
+    
+    // Light blue rounded box for diagnosis
+    const diagnosisHeight = 8
+    doc.setFillColor(...lightBlueColor)
+    doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, diagnosisHeight, 2, 2, 'F')
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    const diagnosisText = prescriptionData.diagnosis || 'N/A'
+    doc.text(diagnosisText, margin + 4, yPos + 2)
+    yPos += diagnosisHeight + 4
+
+    // Symptoms Section with Green Bullet Points
+    if (prescriptionData.symptoms && prescriptionData.symptoms.length > 0) {
+      // Check if we need a new page
+      if (yPos > pageHeight - 30) {
+        doc.addPage()
+        yPos = margin
+      }
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Symptoms', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      
+      prescriptionData.symptoms.forEach((symptom) => {
+        // Check if we need a new page for each line
+        if (yPos > pageHeight - 20) {
+          doc.addPage()
+          yPos = margin
+        }
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        const symptomText = typeof symptom === 'string' ? symptom.trim() : String(symptom)
+        doc.text(symptomText, margin + 5, yPos)
+        yPos += 4
       })
+      yPos += 2
+    }
 
-      const currentTime = new Date().toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
+    // Medications Section with Numbered Cards (Light Gray Background)
+    if (prescriptionData.medications && prescriptionData.medications.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medications', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.medications.forEach((med, idx) => {
+        // Check if we need a new page (with more space check)
+        if (yPos > pageHeight - 50) {
+          doc.addPage()
+          yPos = margin
+        }
+        
+        // Calculate card height based on instructions
+        const hasInstructions = med.instructions && med.instructions.trim()
+        let cardHeight = 22 // Base height
+        
+        // Calculate how many lines instructions will take
+        if (hasInstructions) {
+          doc.setFontSize(7)
+          const rightColMaxWidth = (pageWidth - 2 * margin) / 2 - 5
+          const instructionsLines = doc.splitTextToSize(med.instructions.trim(), rightColMaxWidth)
+          cardHeight += 4 + (instructionsLines.length * 4)
+        }
+        
+        // Medication card with light gray background
+        doc.setFillColor(...lightGrayColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
+        
+        // Numbered square in teal (top-right corner)
+        const numberSize = 8
+        const numberX = pageWidth - margin - numberSize - 3
+        const numberY = yPos - 1
+        doc.setFillColor(...tealColor)
+        doc.roundedRect(numberX, numberY, numberSize, numberSize, 1, 1, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 1, { align: 'center' })
+        
+        // Medication name with strength (bold, top)
+        doc.setTextColor(0, 0, 0)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        const medName = med.strength ? `${med.name} ${med.strength}` : med.name
+        doc.text(medName, margin + 4, yPos + 3)
+        
+        // Medication details in 2 columns (left and right)
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'normal')
+        const leftColX = margin + 4
+        const rightColX = margin + (pageWidth - 2 * margin) / 2 + 5
+        const startY = yPos + 7
+        
+        // Left column
+        doc.text(`Dosage: ${med.dosage || 'N/A'}`, leftColX, startY)
+        doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 4)
+        
+        // Right column
+        doc.text(`Frequency: ${med.frequency || 'N/A'}`, rightColX, startY)
+        
+        // Instructions - displayed right below frequency in right column
+        if (hasInstructions) {
+          const instructionsText = med.instructions.trim()
+          const rightColMaxWidth = (pageWidth - 2 * margin) / 2 - 5
+          const instructionsLines = doc.splitTextToSize(instructionsText, rightColMaxWidth)
+          
+          // Instructions label (bold)
+          doc.setFont('helvetica', 'bold')
+          doc.text('Instructions:', rightColX, startY + 4)
+          doc.setFont('helvetica', 'normal')
+          
+          // Instructions text (can wrap to multiple lines)
+          instructionsLines.forEach((line, lineIdx) => {
+            doc.text(line, rightColX, startY + 8 + (lineIdx * 4))
+          })
+        }
+        
+        yPos += cardHeight + 4
       })
+      yPos += 2
+    }
 
-      const subtotal = calculateSubtotal()
-      const tax = 0
-      const delivery = deliveryCharge || 0
-      const total = subtotal + tax + delivery
+    // Recommended Tests Section (Light Purple Boxes)
+    if (prescriptionData.recommendedTests && prescriptionData.recommendedTests.length > 0) {
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Recommended Tests', margin, yPos)
+      yPos += 6
+      
+      prescriptionData.recommendedTests.forEach((test) => {
+        // Check if we need a new page
+        if (yPos > pageHeight - 30) {
+          doc.addPage()
+          yPos = margin
+        }
+        
+        // Light purple box for each test
+        const testBoxHeight = test.instructions ? 14 : 9
+        doc.setFillColor(...lightPurpleColor)
+        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
+        
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text(test.name, margin + 4, yPos + 2)
+        
+        if (test.instructions) {
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'normal')
+          doc.setTextColor(80, 80, 80)
+          doc.text(test.instructions, margin + 4, yPos + 8)
+        }
+        
+        yPos += testBoxHeight + 3
+      })
+      yPos += 2
+    }
 
-      // Generate HTML content for PDF (same as handleDownloadBillPDF)
-      const pdfContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Bill - ${patientName}</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      font-family: 'Arial', sans-serif;
-      padding: 40px;
-      max-width: 800px;
-      margin: 0 auto;
-      color: #1e293b;
-      background: white;
-    }
-    .header {
-      border-bottom: 3px solid #3b82f6;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
-    }
-    .header h1 {
-      color: #1e40af;
-      margin: 0;
-      font-size: 28px;
-      font-weight: bold;
-    }
-    .header .subtitle {
-      color: #64748b;
-      margin-top: 5px;
-      font-size: 14px;
-    }
-    .bill-info {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 30px;
-      flex-wrap: wrap;
-    }
-    .info-section {
-      flex: 1;
-      min-width: 250px;
-      margin-bottom: 20px;
-    }
-    .info-section h3 {
-      color: #1e40af;
-      font-size: 16px;
-      margin-bottom: 10px;
-      border-left: 4px solid #3b82f6;
-      padding-left: 10px;
-    }
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid #e2e8f0;
-      font-size: 14px;
-    }
-    .info-label {
-      font-weight: 600;
-      color: #475569;
-    }
-    .info-value {
-      color: #1e293b;
-      text-align: right;
-    }
-    .table-container {
-      margin: 30px 0;
-      overflow-x: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-    }
-    thead {
-      background: linear-gradient(to right, #f1f5f9, #e2e8f0);
-    }
-    th {
-      padding: 12px;
-      text-align: left;
-      font-weight: bold;
-      color: #1e293b;
-      border-bottom: 2px solid #cbd5e1;
-      font-size: 14px;
-    }
-    td {
-      padding: 12px;
-      border-bottom: 1px solid #e2e8f0;
-      font-size: 14px;
-    }
-    tbody tr:hover {
-      background-color: #f8fafc;
-    }
-    .text-right {
-      text-align: right;
-    }
-    .text-center {
-      text-align: center;
-    }
-    .summary {
-      margin-top: 30px;
-      padding: 20px;
-      background: linear-gradient(to right, #dbeafe, #e0f2fe);
-      border: 2px solid #3b82f6;
-      border-radius: 8px;
-    }
-    .summary-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px 0;
-      font-size: 16px;
-    }
-    .summary-label {
-      font-weight: 600;
-      color: #1e293b;
-    }
-    .summary-value {
-      font-weight: bold;
-      color: #1e40af;
-    }
-    .total-row {
-      border-top: 2px solid #3b82f6;
-      margin-top: 10px;
-      padding-top: 15px;
-      font-size: 20px;
-    }
-    .total-label {
-      font-size: 20px;
-      font-weight: bold;
-      color: #1e293b;
-    }
-    .total-value {
-      font-size: 24px;
-      font-weight: bold;
-      color: #1e40af;
-    }
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 2px solid #e2e8f0;
-      text-align: center;
-      color: #64748b;
-      font-size: 12px;
-    }
-    @media print {
-      body {
-        padding: 20px;
+    // Medical Advice Section with Green Bullet Points
+    if (prescriptionData.medicalAdvice && prescriptionData.medicalAdvice.length > 0) {
+      // Check if we need a new page
+      if (yPos > pageHeight - 30) {
+        doc.addPage()
+        yPos = margin
       }
-      .no-print {
-        display: none;
-      }
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Medical Advice', margin, yPos)
+      yPos += 6
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      
+      prescriptionData.medicalAdvice.forEach((advice) => {
+        // Check if we need a new page for each line
+        if (yPos > pageHeight - 20) {
+          doc.addPage()
+          yPos = margin
+        }
+        // Green bullet point
+        doc.setFillColor(34, 197, 94) // Green color
+        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.setTextColor(0, 0, 0)
+        doc.text(advice.trim(), margin + 5, yPos)
+        yPos += 4
+      })
+      yPos += 2
     }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Pharmacy Bill</h1>
-    <div class="subtitle">Healiinn - Your Health Partner</div>
-  </div>
 
-  <div class="bill-info">
-    <div class="info-section">
-      <h3>Pharmacy Information</h3>
-      <div class="info-row">
-        <span class="info-label">Pharmacy:</span>
-        <span class="info-value">${selectedPrescription.clinic.name || 'N/A'}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Address:</span>
-        <span class="info-value">${selectedPrescription.clinic.address || 'N/A'}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Phone:</span>
-        <span class="info-value">${selectedPrescription.clinic.phone || 'N/A'}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Email:</span>
-        <span class="info-value">${selectedPrescription.clinic.email || 'N/A'}</span>
-      </div>
-    </div>
-
-    <div class="info-section">
-      <h3>Bill Details</h3>
-      <div class="info-row">
-        <span class="info-label">Bill Number:</span>
-        <span class="info-value">${billNumber}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Date:</span>
-        <span class="info-value">${currentDate}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Time:</span>
-        <span class="info-value">${currentTime}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Prescription ID:</span>
-        <span class="info-value">${selectedPrescription.id}</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="info-section">
-    <h3>Patient Information</h3>
-    <div class="info-row">
-      <span class="info-label">Name:</span>
-      <span class="info-value">${selectedPrescription.patient.name}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Age:</span>
-      <span class="info-value">${selectedPrescription.patient.age} years</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Gender:</span>
-      <span class="info-value">${selectedPrescription.patient.gender}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Phone:</span>
-      <span class="info-value">${selectedPrescription.patient.phone || 'N/A'}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Email:</span>
-      <span class="info-value">${selectedPrescription.patient.email || 'N/A'}</span>
-    </div>
-  </div>
-
-  <div class="table-container">
-    <table>
-      <thead>
-        <tr>
-          <th class="text-center">S.No</th>
-          <th>Medicine Name</th>
-          <th class="text-right">Amount/Day</th>
-          <th class="text-center">Days</th>
-          <th class="text-right">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${billItems.map((item, index) => `
-          <tr>
-            <td class="text-center">${index + 1}</td>
-            <td>${item.tabletName || 'N/A'}</td>
-            <td class="text-right">${formatCurrency(item.amount || 0)}</td>
-            <td class="text-center">${item.days || 0}</td>
-            <td class="text-right"><strong>${formatCurrency(item.total || 0)}</strong></td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="summary">
-    <div class="summary-row">
-      <span class="summary-label">Subtotal:</span>
-      <span class="summary-value">${formatCurrency(subtotal)}</span>
-    </div>
-    <div class="summary-row">
-      <span class="summary-label">Tax (GST):</span>
-      <span class="summary-value">${formatCurrency(tax)}</span>
-    </div>
-    <div class="summary-row">
-      <span class="summary-label">Delivery Charge:</span>
-      <span class="summary-value">${formatCurrency(delivery)}</span>
-    </div>
-    <div class="summary-row total-row">
-      <span class="total-label">Total Amount:</span>
-      <span class="total-value">${formatCurrency(total)}</span>
-    </div>
-  </div>
-
-  <div class="footer">
-    <p>Thank you for your business!</p>
-    <p>This is a computer-generated bill. No signature required.</p>
-    <p style="margin-top: 10px;">Generated on ${currentDate} at ${currentTime}</p>
-  </div>
-</body>
-</html>
-      `
-
-      // Simulate API call to send bill PDF to patient
-      // In real app, this would be an API call to backend that sends PDF via email/SMS
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      const billData = {
-        billNumber,
-        prescriptionId: selectedPrescription.id,
-        patientId: selectedPrescription.patient.id || 'pat-1',
-        patientName,
-        patientEmail,
-        patientPhone,
-        billItems: billItems.map(item => ({
-          tabletName: item.tabletName,
-          amount: item.amount,
-          days: item.days,
-          total: item.total,
-        })),
-        subtotal: calculateSubtotal(),
-        tax: 0,
-        deliveryCharge: deliveryCharge || 0,
-        totalAmount,
-        pdfContent, // Include PDF content
-        generatedAt: new Date().toISOString(),
+    // Follow-up Appointment (Light Yellow Box)
+    if (prescriptionData.followUpAt) {
+      // Check if we need a new page
+      if (yPos > pageHeight - 20) {
+        doc.addPage()
+        yPos = margin
       }
-
-      // Log the bill request (in real app, this would be an API call)
-      console.log('Bill PDF sent to patient:', billData)
-
-      // Show success message
-      alert(`Bill PDF sent successfully to ${patientName}!\n\nBill Number: ${billNumber}\nTotal Amount: ${formatCurrency(totalAmount)}\n\nThe patient will receive the bill in PDF format via email/notification.`)
-
-    } catch (error) {
-      console.error('Error sending bill to patient:', error)
-      alert('Failed to send bill to patient. Please try again.')
+      
+      const followUpHeight = 12
+      doc.setFillColor(...lightYellowColor)
+      doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, followUpHeight, 2, 2, 'F')
+      
+      // Calendar icon (small square)
+      doc.setFillColor(255, 200, 0)
+      doc.roundedRect(margin + 2, yPos + 1, 3, 3, 0.5, 0.5, 'F')
+      
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0)
+      doc.text('Follow-up Appointment', margin + 7, yPos + 3)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      const followUpDate = formatDate(prescriptionData.followUpAt)
+      doc.text(followUpDate, margin + 7, yPos + 8)
+      yPos += followUpHeight + 5
     }
+
+    // Footer with Doctor Signature (Right side)
+    if (yPos > pageHeight - 20) {
+      doc.addPage()
+      yPos = margin
+    }
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(100, 100, 100)
+    doc.text('Digitally signed by Healiinn', pageWidth - margin, pageHeight - 10, { align: 'right' })
+
+    return doc
   }
 
-  const handleDownloadBillPDF = () => {
-    if (!selectedPrescription || billItems.length === 0) {
-      alert('Please add at least one bill item before generating PDF.')
-      return
+  const handleDownloadPDF = (prescription) => {
+    try {
+      const doc = generatePDF(prescription)
+      const fileName = `Prescription_${prescription.patient.name.replace(/\s+/g, '_')}_${prescription.issuedAt}.pdf`
+      doc.save(fileName)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Error generating PDF. Please try again.')
     }
-
-    const currentDate = new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-
-    const currentTime = new Date().toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-
-    const billNumber = `BILL-${Date.now().toString().slice(-6)}`
-    const subtotal = calculateSubtotal()
-    const tax = 0 // GST can be calculated if needed
-    const delivery = deliveryCharge || 0
-    const total = subtotal + tax + delivery
-
-    // Generate HTML content for PDF
-    const pdfContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Bill - ${selectedPrescription.patient.name}</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      font-family: 'Arial', sans-serif;
-      padding: 40px;
-      max-width: 800px;
-      margin: 0 auto;
-      color: #1e293b;
-      background: white;
-    }
-    .header {
-      border-bottom: 3px solid #3b82f6;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
-    }
-    .header h1 {
-      color: #1e40af;
-      margin: 0;
-      font-size: 28px;
-      font-weight: bold;
-    }
-    .header .subtitle {
-      color: #64748b;
-      margin-top: 5px;
-      font-size: 14px;
-    }
-    .bill-info {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 30px;
-      flex-wrap: wrap;
-    }
-    .info-section {
-      flex: 1;
-      min-width: 250px;
-      margin-bottom: 20px;
-    }
-    .info-section h3 {
-      color: #1e40af;
-      font-size: 16px;
-      margin-bottom: 10px;
-      border-left: 4px solid #3b82f6;
-      padding-left: 10px;
-    }
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid #e2e8f0;
-      font-size: 14px;
-    }
-    .info-label {
-      font-weight: 600;
-      color: #475569;
-    }
-    .info-value {
-      color: #1e293b;
-      text-align: right;
-    }
-    .table-container {
-      margin: 30px 0;
-      overflow-x: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 20px;
-    }
-    thead {
-      background: linear-gradient(to right, #f1f5f9, #e2e8f0);
-    }
-    th {
-      padding: 12px;
-      text-align: left;
-      font-weight: bold;
-      color: #1e293b;
-      border-bottom: 2px solid #cbd5e1;
-      font-size: 14px;
-    }
-    td {
-      padding: 12px;
-      border-bottom: 1px solid #e2e8f0;
-      font-size: 14px;
-    }
-    tbody tr:hover {
-      background-color: #f8fafc;
-    }
-    .text-right {
-      text-align: right;
-    }
-    .text-center {
-      text-align: center;
-    }
-    .summary {
-      margin-top: 30px;
-      padding: 20px;
-      background: linear-gradient(to right, #dbeafe, #e0f2fe);
-      border: 2px solid #3b82f6;
-      border-radius: 8px;
-    }
-    .summary-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px 0;
-      font-size: 16px;
-    }
-    .summary-label {
-      font-weight: 600;
-      color: #1e293b;
-    }
-    .summary-value {
-      font-weight: bold;
-      color: #1e40af;
-    }
-    .total-row {
-      border-top: 2px solid #3b82f6;
-      margin-top: 10px;
-      padding-top: 15px;
-      font-size: 20px;
-    }
-    .total-label {
-      font-size: 20px;
-      font-weight: bold;
-      color: #1e293b;
-    }
-    .total-value {
-      font-size: 24px;
-      font-weight: bold;
-      color: #1e40af;
-    }
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 2px solid #e2e8f0;
-      text-align: center;
-      color: #64748b;
-      font-size: 12px;
-    }
-    @media print {
-      body {
-        padding: 20px;
-      }
-      .no-print {
-        display: none;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Pharmacy Bill</h1>
-    <div class="subtitle">Healiinn - Your Health Partner</div>
-  </div>
-
-  <div class="bill-info">
-    <div class="info-section">
-      <h3>Pharmacy Information</h3>
-      <div class="info-row">
-        <span class="info-label">Pharmacy:</span>
-        <span class="info-value">${selectedPrescription.clinic.name || 'N/A'}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Address:</span>
-        <span class="info-value">${selectedPrescription.clinic.address || 'N/A'}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Phone:</span>
-        <span class="info-value">${selectedPrescription.clinic.phone || 'N/A'}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Email:</span>
-        <span class="info-value">${selectedPrescription.clinic.email || 'N/A'}</span>
-      </div>
-    </div>
-
-    <div class="info-section">
-      <h3>Bill Details</h3>
-      <div class="info-row">
-        <span class="info-label">Bill Number:</span>
-        <span class="info-value">${billNumber}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Date:</span>
-        <span class="info-value">${currentDate}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Time:</span>
-        <span class="info-value">${currentTime}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Prescription ID:</span>
-        <span class="info-value">${selectedPrescription.id}</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="info-section">
-    <h3>Patient Information</h3>
-    <div class="info-row">
-      <span class="info-label">Name:</span>
-      <span class="info-value">${selectedPrescription.patient.name}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Age:</span>
-      <span class="info-value">${selectedPrescription.patient.age} years</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Gender:</span>
-      <span class="info-value">${selectedPrescription.patient.gender}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Phone:</span>
-      <span class="info-value">${selectedPrescription.patient.phone || 'N/A'}</span>
-    </div>
-    <div class="info-row">
-      <span class="info-label">Email:</span>
-      <span class="info-value">${selectedPrescription.patient.email || 'N/A'}</span>
-    </div>
-  </div>
-
-  <div class="table-container">
-    <table>
-      <thead>
-        <tr>
-          <th class="text-center">S.No</th>
-          <th>Medicine Name</th>
-          <th class="text-right">Amount/Day</th>
-          <th class="text-center">Days</th>
-          <th class="text-right">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${billItems.map((item, index) => `
-          <tr>
-            <td class="text-center">${index + 1}</td>
-            <td>${item.tabletName || 'N/A'}</td>
-            <td class="text-right">${formatCurrency(item.amount || 0)}</td>
-            <td class="text-center">${item.days || 0}</td>
-            <td class="text-right"><strong>${formatCurrency(item.total || 0)}</strong></td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="summary">
-    <div class="summary-row">
-      <span class="summary-label">Subtotal:</span>
-      <span class="summary-value">${formatCurrency(subtotal)}</span>
-    </div>
-    <div class="summary-row">
-      <span class="summary-label">Tax (GST):</span>
-      <span class="summary-value">${formatCurrency(tax)}</span>
-    </div>
-    <div class="summary-row">
-      <span class="summary-label">Delivery Charge:</span>
-      <span class="summary-value">${formatCurrency(delivery)}</span>
-    </div>
-    <div class="summary-row total-row">
-      <span class="total-label">Total Amount:</span>
-      <span class="total-value">${formatCurrency(total)}</span>
-    </div>
-  </div>
-
-  <div class="footer">
-    <p>Thank you for your business!</p>
-    <p>This is a computer-generated bill. No signature required.</p>
-    <p style="margin-top: 10px;">Generated on ${currentDate} at ${currentTime}</p>
-  </div>
-</body>
-</html>
-    `
-
-    // Open in new window and trigger print
-    const printWindow = window.open('', '_blank')
-    printWindow.document.write(pdfContent)
-    printWindow.document.close()
-
-    // Wait for content to load, then trigger print
-    setTimeout(() => {
-      printWindow.focus()
-      printWindow.print()
-
-      // Also provide download option
-      setTimeout(() => {
-        const link = document.createElement('a')
-        const blob = new Blob([pdfContent], { type: 'text/html' })
-        const url = URL.createObjectURL(blob)
-        link.href = url
-        link.download = `Bill_${selectedPrescription.patient.name.replace(/\s+/g, '_')}_${billNumber}.html`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
-      }, 500)
-    }, 250)
   }
 
   const formatCurrency = (value) => {
@@ -1101,80 +642,74 @@ const PharmacyPrescriptions = () => {
               className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-[rgba(17,73,108,0.2)] hover:shadow-md"
             >
               {/* Header Section - Name and Action Buttons */}
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start justify-between mb-3">
                 {/* Patient Name - Heading */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold text-slate-900 leading-tight">{prescription.patient.name}</h3>
-                </div>
+                  <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">{prescription.patient.name}</h3>
+                  
+                  {/* Follow-up Section - Orange Background (Below Name) */}
+                  {prescription.followUpAt && (
+                    <div className="flex items-center gap-1.5 rounded-md bg-orange-50 px-2 py-1 mt-1.5 border border-orange-100 w-fit">
+                      <IoCalendarOutline className="h-3.5 w-3.5 text-orange-600 shrink-0" />
+                      <span className="text-[10px] font-semibold text-orange-600">Follow-up:</span>
+                      <span className="text-[10px] font-bold text-orange-700">{formatDate(prescription.followUpAt)}</span>
+                    </div>
+                  )}
+                    </div>
                 
-                {/* Download and Share Icons - Top Right */}
-                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                {/* Download Icon - Top Right */}
+                <div className="flex items-center shrink-0 ml-2">
                   <button
                     type="button"
                     onClick={() => handleDownloadPDF(prescription)}
-                    className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600 active:scale-95"
-                    aria-label="Download"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#11496c] bg-[#11496c] text-white shadow-sm transition-all hover:bg-[#0d3a52] hover:border-[#0d3a52] active:scale-95"
+                    aria-label="Download PDF"
+                    title="Download PDF"
                   >
-                    <IoDownloadOutline className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600 active:scale-95"
-                    aria-label="Share"
-                  >
-                    <IoShareSocialOutline className="h-4 w-4" />
+                    <IoDownloadOutline className="h-5 w-5" />
                   </button>
                 </div>
-              </div>
+                    </div>
 
               {/* Information - Line by Line */}
               <div className="space-y-2.5">
                 {/* Age and Gender */}
                 <p className="text-sm text-slate-600">Age: {prescription.patient.age} years • {prescription.patient.gender}</p>
                 
-                {/* Condition/Diagnosis */}
+                {/* Condition/Diagnosis - Bold Heading */}
                 <div>
-                  <p className="text-sm font-bold text-slate-900">{prescription.diagnosis}</p>
-                </div>
-                
+                  <p className="text-base sm:text-lg font-bold text-slate-900 leading-tight">{prescription.diagnosis}</p>
+                  </div>
+
                 {/* Clinic Name */}
-                <p className="text-xs text-slate-500">{prescription.clinic.name}</p>
+                <p className="text-sm text-slate-500">{prescription.clinic.name}</p>
                 
                 {/* Date */}
-                <p className="text-xs text-slate-600">{formatDate(prescription.issuedAt)}</p>
-              </div>
+                <p className="text-sm text-slate-600">{formatDate(prescription.issuedAt)}</p>
+                    </div>
 
               {/* Summary Pills - Light Blue Background */}
               <div className="flex flex-wrap items-center gap-2 mt-3 mb-3">
                 <div className="flex items-center gap-1.5 rounded-full bg-[rgba(59,130,246,0.1)] px-2.5 py-1 border border-[rgba(59,130,246,0.2)]">
                   <IoBagHandleOutline className="h-3.5 w-3.5 text-blue-700" />
                   <span className="text-xs font-semibold text-blue-700">{prescription.medications.length} meds</span>
-                </div>
+                    </div>
                 {prescription.recommendedTests.length > 0 && (
                   <div className="flex items-center gap-1.5 rounded-full bg-[rgba(59,130,246,0.1)] px-2.5 py-1 border border-[rgba(59,130,246,0.2)]">
                     <IoFlaskOutline className="h-3.5 w-3.5 text-blue-700" />
                     <span className="text-xs font-semibold text-blue-700">{prescription.recommendedTests.length} tests</span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-
-              {/* Follow-up Section - Orange Background */}
-              {prescription.followUpAt && (
-                <div className="flex items-center gap-2 rounded-lg bg-orange-50 px-2.5 py-1.5 mb-3 border border-orange-100">
-                  <IoCalendarOutline className="h-4 w-4 text-orange-600 shrink-0" />
-                  <span className="text-xs font-semibold text-orange-600">Follow-up:</span>
-                  <span className="text-xs font-bold text-orange-700">{formatDate(prescription.followUpAt)}</span>
-                </div>
-              )}
 
               {/* View Details Button - Dark Blue */}
-              <button
-                type="button"
-                onClick={() => setSelectedPrescription(prescription)}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPrescription(prescription)}
                 className="w-full rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
-              >
-                View Details
-              </button>
+                  >
+                    View Details
+                  </button>
             </article>
           ))}
         </div>
@@ -1208,13 +743,6 @@ const PharmacyPrescriptions = () => {
                   aria-label="Zoom"
                 >
                   <IoExpandOutline className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full p-2 text-slate-600 transition-all hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] active:scale-95"
-                  aria-label="Share"
-                >
-                  <IoShareSocialOutline className="h-5 w-5" />
                 </button>
                 <button
                   onClick={() => setSelectedPrescription(null)}
@@ -1405,228 +933,11 @@ const PharmacyPrescriptions = () => {
               <div className="flex flex-row gap-2 sm:gap-3 border-t border-slate-200 pt-4 sm:pt-5 mt-4 sm:mt-5">
                 <button
                   type="button"
-                  onClick={() => handleGenerateBill(selectedPrescription)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
-                >
-                  <IoReceiptOutline className="h-4 w-4" />
-                  Generate Bill
-                </button>
-                <button
-                  type="button"
                   onClick={() => handleDownloadPDF(selectedPrescription)}
                   className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
                 >
                   <IoDownloadOutline className="h-4 w-4" />
                   Download PDF
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bill Generation Modal */}
-      {showBillModal && selectedPrescription && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm px-3 pb-3 sm:items-center sm:px-4 sm:pb-6 animate-in fade-in duration-200"
-          onClick={() => setShowBillModal(false)}
-        >
-          <div
-            className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white shadow-2xl animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Bill Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50/50 backdrop-blur-sm px-4 sm:px-6 py-3 sm:py-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <IoReceiptOutline className="h-6 w-6 sm:h-7 sm:w-7 text-[#11496c]" />
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-slate-900">Generate Bill</h2>
-                  <p className="text-xs sm:text-sm text-slate-500">Patient: {selectedPrescription.patient.name}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowBillModal(false)}
-                className="rounded-full p-2 text-slate-400 transition-all hover:bg-red-50 hover:text-red-600 active:scale-95"
-              >
-                <IoCloseOutline className="h-5 w-5 sm:h-6 sm:w-6" />
-              </button>
-            </div>
-
-            {/* Bill Content */}
-            <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
-              {/* Bill Items Table */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-slate-900">Medicines Bill</h3>
-                  <button
-                    type="button"
-                    onClick={handleAddBillRow}
-                    className="flex items-center gap-1 rounded-lg bg-[#11496c] px-2.5 py-1 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
-                  >
-                    <IoAddOutline className="h-3.5 w-3.5" />
-                    Add
-                  </button>
-                </div>
-                
-                {/* Compact Table - No Scroll Required */}
-                <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                  {/* Header Row */}
-                  <div className="grid grid-cols-12 gap-1 bg-gradient-to-r from-slate-50 to-slate-100/50 px-2 py-1.5 border-b border-slate-200">
-                    <div className="col-span-1 text-[10px] font-bold text-slate-700 text-center">No</div>
-                    <div className="col-span-4 text-[10px] font-bold text-slate-700">Tablet Name</div>
-                    <div className="col-span-2 text-[10px] font-bold text-slate-700 text-right">Amount</div>
-                    <div className="col-span-1 text-[10px] font-bold text-slate-700 text-center">Days</div>
-                    <div className="col-span-2 text-[10px] font-bold text-slate-700 text-right">Total</div>
-                    <div className="col-span-2 text-[10px] font-bold text-slate-700 text-center">Action</div>
-                  </div>
-                  
-                  {/* Data Rows */}
-                  <div className="divide-y divide-slate-100">
-                    {billItems.map((item, index) => (
-                      <div key={item.id} className="grid grid-cols-12 gap-1 px-2 py-2 hover:bg-slate-50/50 transition-colors">
-                        {/* S.No */}
-                        <div className="col-span-1 flex items-center justify-center">
-                          <span className="text-xs font-semibold text-slate-600">{index + 1}</span>
-                        </div>
-                        
-                        {/* Tablet Name */}
-                        <div className="col-span-4">
-                          <input
-                            type="text"
-                            value={item.tabletName}
-                            onChange={(e) => handleBillItemChange(item.id, 'tabletName', e.target.value)}
-                            placeholder="Tablet name"
-                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[rgba(17,73,108,0.2)]"
-                          />
-                        </div>
-                        
-                        {/* Amount */}
-                        <div className="col-span-2">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.amount || ''}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0
-                              handleBillItemChange(item.id, 'amount', val)
-                            }}
-                            placeholder="0.00"
-                            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-900 text-right focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[rgba(17,73,108,0.2)]"
-                          />
-                        </div>
-                        
-                        {/* Days */}
-                        <div className="col-span-1">
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.days || ''}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value) || 0
-                              handleBillItemChange(item.id, 'days', val)
-                            }}
-                            placeholder="0"
-                            className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-xs font-semibold text-slate-900 text-center focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[rgba(17,73,108,0.2)]"
-                          />
-                        </div>
-                        
-                        {/* Total */}
-                        <div className="col-span-2 flex items-center justify-end">
-                          <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-bold text-slate-900 w-full text-right">
-                            {formatCurrency(item.total)}
-                          </div>
-                        </div>
-                        
-                        {/* Action */}
-                        <div className="col-span-2 flex items-center justify-center">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteBillRow(item.id)}
-                            className="flex items-center justify-center rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-all hover:bg-red-100 hover:border-red-300 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={billItems.length === 1}
-                            title="Delete row"
-                          >
-                            <IoTrashOutline className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Bill Summary */}
-              <div className="rounded-xl border-2 border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.1)] via-white to-[rgba(17,73,108,0.05)] p-4 sm:p-5 shadow-sm">
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-3">Bill Summary</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm text-slate-600">
-                    <span>Subtotal:</span>
-                    <span className="font-semibold">{formatCurrency(calculateSubtotal())}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm text-slate-600">
-                    <span>Tax (GST):</span>
-                    <span className="font-semibold">0.00</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm text-slate-600 pt-2 border-t border-[rgba(17,73,108,0.2)]">
-                    <label htmlFor="deliveryCharge" className="font-semibold text-slate-700">
-                      Delivery Charge:
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        id="deliveryCharge"
-                        min="0"
-                        step="0.01"
-                        value={deliveryCharge || ''}
-                        onChange={(e) => setDeliveryCharge(parseFloat(e.target.value) || 0)}
-                        placeholder="0.00"
-                        className="w-24 rounded-md border border-[rgba(17,73,108,0.3)] bg-white px-2 py-1.5 text-sm font-semibold text-slate-900 text-right focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-3 border-t-2 border-[rgba(17,73,108,0.3)] mt-2">
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900">Total Amount</h3>
-                    <p className="text-2xl sm:text-3xl font-bold text-[#11496c]">{formatCurrency(calculateBillTotal())}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Patient Information Display */}
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-semibold text-slate-600 mb-2">Bill will be sent to:</p>
-                <div className="space-y-1 text-xs text-slate-700">
-                  <p><span className="font-semibold">Patient:</span> {selectedPrescription.patient.name}</p>
-                  <p><span className="font-semibold">Email:</span> {selectedPrescription.patient.email || 'N/A'}</p>
-                  <p><span className="font-semibold">Phone:</span> {selectedPrescription.patient.phone || 'N/A'}</p>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-row gap-2 sm:gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleSendBillToPatient}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
-                >
-                  <IoPaperPlaneOutline className="h-4 w-4" />
-                  Send to Patient
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadBillPDF}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                >
-                  <IoDownloadOutline className="h-4 w-4" />
-                  Download PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePrintBill}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                >
-                  <IoPrintOutline className="h-4 w-4" />
-                  Print Bill
                 </button>
               </div>
             </div>

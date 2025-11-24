@@ -9,6 +9,7 @@ import {
   IoNotificationsOutline,
   IoDocumentTextOutline,
   IoHelpCircleOutline,
+  IoMedicalOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import PharmacySidebar from './PharmacySidebar'
@@ -19,13 +20,14 @@ const sidebarNavItems = [
   { id: 'home', label: 'Home', to: '/pharmacy/dashboard', Icon: IoHomeOutline },
   { id: 'orders', label: 'Orders', to: '/pharmacy/orders', Icon: IoBagHandleOutline },
   { id: 'prescriptions', label: 'Prescriptions', to: '/pharmacy/prescriptions', Icon: IoDocumentTextOutline },
+  { id: 'medicines', label: 'Medicines', to: '/pharmacy/medicines', Icon: IoMedicalOutline },
   { id: 'wallet', label: 'Wallet', to: '/pharmacy/wallet', Icon: IoWalletOutline },
   { id: 'support', label: 'Support', to: '/pharmacy/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/pharmacy/profile', Icon: IoPersonCircleOutline },
 ]
 
-// Bottom nav items (without Support)
-const navItems = sidebarNavItems.filter((item) => item.id !== 'support')
+// Bottom nav items (without Support and Wallet)
+const navItems = sidebarNavItems.filter((item) => item.id !== 'support' && item.id !== 'wallet')
 
 const PharmacyNavbar = () => {
   const { isSidebarOpen, toggleSidebar, closeSidebar } = usePharmacySidebar()

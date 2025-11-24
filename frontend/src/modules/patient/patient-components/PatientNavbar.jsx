@@ -2,14 +2,13 @@ import { useRef, useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   IoHomeOutline,
-  IoBagHandleOutline,
   IoPeopleOutline,
-  IoFlaskOutline,
   IoPersonCircleOutline,
   IoMenuOutline,
   IoNotificationsOutline,
   IoHelpCircleOutline,
   IoReceiptOutline,
+  IoArchiveOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import PatientSidebar from './PatientSidebar'
@@ -17,16 +16,15 @@ import PatientSidebar from './PatientSidebar'
 // All nav items for sidebar and desktop navbar (includes Support)
 const allNavItems = [
   { id: 'home', label: 'Home', to: '/patient/dashboard', Icon: IoHomeOutline },
-  { id: 'pharmacy', label: 'Pharmacy', to: '/patient/pharmacy', Icon: IoBagHandleOutline },
   { id: 'doctors', label: 'Doctors', to: '/patient/doctors', Icon: IoPeopleOutline },
-  { id: 'laboratory', label: 'Laboratory', to: '/patient/laboratory', Icon: IoFlaskOutline },
   { id: 'transactions', label: 'Transactions', to: '/patient/transactions', Icon: IoReceiptOutline },
+  { id: 'history', label: 'History', to: '/patient/history', Icon: IoArchiveOutline },
   { id: 'support', label: 'Support', to: '/patient/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
 ]
 
-// Nav items for mobile bottom nav (without Support and Transactions)
-const navItems = allNavItems.filter((item) => item.id !== 'support' && item.id !== 'transactions')
+// Nav items for mobile bottom nav (without Support)
+const navItems = allNavItems.filter((item) => item.id !== 'support')
 
 const PatientNavbar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)

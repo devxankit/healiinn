@@ -1,8 +1,8 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoBagHandleOutline,
   IoDocumentTextOutline,
-  IoPeopleOutline,
   IoCalendarOutline,
   IoNotificationsOutline,
   IoMenuOutline,
@@ -10,14 +10,13 @@ import {
   IoCheckmarkCircleOutline,
   IoCloseCircleOutline,
   IoLocationOutline,
-  IoArrowForwardOutline,
   IoWalletOutline,
+  IoMedicalOutline,
 } from 'react-icons/io5'
 import { usePharmacySidebar } from '../pharmacy-components/PharmacySidebarContext'
 
 const mockStats = {
   totalOrders: 24,
-  totalPatients: 180,
   activePatients: 156,
   inactivePatients: 24,
   pendingPrescriptions: 12,
@@ -187,6 +186,34 @@ const getStatusIcon = (status) => {
 const PharmacyDashboard = () => {
   const navigate = useNavigate()
   const { toggleSidebar } = usePharmacySidebar()
+  const [availableMedicinesCount, setAvailableMedicinesCount] = useState(0)
+
+  useEffect(() => {
+    // Load medicines count from localStorage
+    const medicines = JSON.parse(localStorage.getItem('pharmacyMedicines') || '[]')
+    setAvailableMedicinesCount(medicines.length)
+    
+    // Listen for storage changes to update count
+    const handleStorageChange = () => {
+      const updatedMedicines = JSON.parse(localStorage.getItem('pharmacyMedicines') || '[]')
+      setAvailableMedicinesCount(updatedMedicines.length)
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Also check periodically (for same-tab updates)
+    const interval = setInterval(() => {
+      const updatedMedicines = JSON.parse(localStorage.getItem('pharmacyMedicines') || '[]')
+      if (updatedMedicines.length !== availableMedicinesCount) {
+        setAvailableMedicinesCount(updatedMedicines.length)
+      }
+    }, 1000)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      clearInterval(interval)
+    }
+  }, [availableMedicinesCount])
 
   return (
     <section className="flex flex-col gap-4 pb-24 -mt-20">
@@ -249,23 +276,6 @@ const PharmacyDashboard = () => {
           <p className="text-[10px] text-slate-600 leading-tight">This month</p>
         </article>
 
-        {/* Total Patients */}
-        <article
-          onClick={() => navigate('/pharmacy/patient-statistics')}
-          className="relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1">Total Patients</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.totalPatients}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#11496c] text-white">
-              <IoPeopleOutline className="text-base" aria-hidden="true" />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-600 leading-tight">All patients</p>
-        </article>
-
         {/* Prescriptions */}
         <article
           onClick={() => navigate('/pharmacy/prescriptions')}
@@ -281,6 +291,23 @@ const PharmacyDashboard = () => {
             </div>
           </div>
           <p className="text-[10px] text-slate-600 leading-tight">Pending review</p>
+        </article>
+
+        {/* Available Medicines */}
+        <article
+          onClick={() => navigate('/pharmacy/medicines')}
+          className="relative overflow-hidden rounded-xl border border-purple-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Available Medicines</p>
+              <p className="text-xl font-bold text-slate-900 leading-none">{availableMedicinesCount}</p>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500 text-white">
+              <IoMedicalOutline className="text-base" aria-hidden="true" />
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-600 leading-tight">In stock</p>
         </article>
       </div>
 
@@ -442,13 +469,6 @@ const PharmacyDashboard = () => {
             <h2 id="patients-title" className="text-base font-semibold text-slate-900">
               Patients
             </h2>
-            <button
-              type="button"
-              onClick={() => navigate('/pharmacy/patient-statistics')}
-              className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
-            >
-              See all
-            </button>
           </header>
 
           <div className="space-y-3">
@@ -485,7 +505,6 @@ const PharmacyDashboard = () => {
                       </div>
                     </div>
                   </div>
-                  <IoArrowForwardOutline className="h-5 w-5 shrink-0 text-slate-400" />
                 </div>
               </article>
             ))}

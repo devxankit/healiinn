@@ -8,6 +8,7 @@ import {
   IoCalendarOutline,
   IoTimeOutline,
   IoCallOutline,
+  IoVideocamOutline,
   IoCheckmarkCircleOutline,
   IoCloseOutline,
   IoPersonOutline,
@@ -339,7 +340,7 @@ const PatientDoctorDetails = () => {
       age: 30, // In real app, get from patient profile
       gender: 'male', // In real app, get from patient profile
       appointmentDate: selectedDate,
-      appointmentType: appointmentType === 'in_person' ? 'New' : 'Follow-up',
+      appointmentType: appointmentType === 'in_person' ? 'In-Person' : appointmentType === 'video_call' ? 'Video Call' : 'Follow-up',
       status: 'waiting',
       queueNumber: sessionInfo.nextToken, // Assign token number
       reason: reason || 'Consultation',
@@ -476,13 +477,59 @@ const PatientDoctorDetails = () => {
                 type="button"
                 onClick={() => {
                   if (doctor.phone) {
+                    // Initiate phone call
                     window.location.href = `tel:${doctor.phone}`
+                  } else {
+                    alert('Doctor phone number is not available')
                   }
                 }}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 sm:text-sm"
+                className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2.5 text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                aria-label="Call doctor"
               >
-                <IoCallOutline className="h-4 w-4" aria-hidden="true" />
-                Call
+                <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    // Create video call request
+                    const videoCallRequest = {
+                      id: `video-call-${Date.now()}`,
+                      type: 'video_call',
+                      doctorId: doctor.id,
+                      doctorName: doctor.name,
+                      doctorSpecialty: doctor.specialty,
+                      doctorPhone: doctor.phone,
+                      patientId: 'pat-current', // In real app, get from auth
+                      patientName: 'Current Patient', // In real app, get from auth
+                      status: 'pending',
+                      requestedAt: new Date().toISOString(),
+                    }
+
+                    // Save to localStorage for doctor/admin to see
+                    const existingRequests = JSON.parse(localStorage.getItem('doctorVideoCallRequests') || '[]')
+                    existingRequests.push(videoCallRequest)
+                    localStorage.setItem('doctorVideoCallRequests', JSON.stringify(existingRequests))
+
+                    // Also save to admin requests
+                    const adminRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+                    adminRequests.push({
+                      ...videoCallRequest,
+                      id: `admin-video-call-${Date.now()}`,
+                    })
+                    localStorage.setItem('adminRequests', JSON.stringify(adminRequests))
+
+                    // Show success message
+                    alert(`Video call request sent to ${doctor.name}. The doctor will contact you shortly.`)
+                  } catch (error) {
+                    console.error('Error initiating video call:', error)
+                    alert('Error initiating video call. Please try again.')
+                  }
+                }}
+                className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2.5 text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                aria-label="Video call doctor"
+              >
+                <IoVideocamOutline className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -641,16 +688,38 @@ const PatientDoctorDetails = () => {
                     
                     <div className="mb-6">
                       <label className="mb-3 block text-sm font-semibold text-slate-700">Appointment Type</label>
-                      <div className="flex justify-center">
+                      <div className="flex gap-3">
                         <button
                           type="button"
                           onClick={() => setAppointmentType('in_person')}
-                          className="flex w-full max-w-xs items-center gap-3 rounded-xl border-2 border-[#11496c] bg-[rgba(17,73,108,0.1)] p-4 transition"
+                          className={`flex flex-1 items-center gap-3 rounded-xl border-2 p-4 transition ${
+                            appointmentType === 'in_person'
+                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
                         >
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#11496c] text-white">
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                            appointmentType === 'in_person' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
                             <IoPersonOutline className="h-5 w-5" />
                           </div>
                           <span className="text-sm font-semibold text-slate-900">In-Person</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAppointmentType('video_call')}
+                          className={`flex flex-1 items-center gap-3 rounded-xl border-2 p-4 transition ${
+                            appointmentType === 'video_call'
+                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                            appointmentType === 'video_call' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            <IoVideocamOutline className="h-5 w-5" />
+                          </div>
+                          <span className="text-sm font-semibold text-slate-900">Video Call</span>
                         </button>
                       </div>
                     </div>
@@ -805,7 +874,7 @@ const PatientDoctorDetails = () => {
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-600">Type</span>
                             <span className="text-sm font-semibold text-slate-900">
-                              In-Person
+                              {appointmentType === 'video_call' ? 'Video Call' : 'In-Person'}
                             </span>
                           </div>
                           {reason && (

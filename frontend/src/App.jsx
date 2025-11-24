@@ -1,10 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import PatientNavbar from './modules/patient/patient-components/PatientNavbar'
 import PatientDashboard from './modules/patient/patient-pages/PatientDashboard'
-import PatientPharmacy from './modules/patient/patient-pages/PatientPharmacy'
 import PatientDoctors from './modules/patient/patient-pages/PatientDoctors'
 import PatientDoctorDetails from './modules/patient/patient-pages/PatientDoctorDetails'
-import PatientLaboratory from './modules/patient/patient-pages/PatientLaboratory'
 import PatientProfile from './modules/patient/patient-pages/PatientProfile'
 import PatientLocations from './modules/patient/patient-pages/PatientLocations'
 import PatientPrescriptions from './modules/patient/patient-pages/PatientPrescriptions'
@@ -20,6 +18,7 @@ import PatientTransactions from './modules/patient/patient-pages/PatientTransact
 import PatientAppointments from './modules/patient/patient-pages/PatientAppointments'
 import PatientOrders from './modules/patient/patient-pages/PatientOrders'
 import PatientSupport from './modules/patient/patient-pages/PatientSupport'
+import PatientHistory from './modules/patient/patient-pages/PatientHistory'
 import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
 import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
 import DoctorDashboard from './modules/doctor/doctor-pages/DoctorDashboard'
@@ -42,6 +41,7 @@ import PharmacyList from './modules/pharmacy/pharmacy-pages/PharmacyList'
 import PharmacyOrders from './modules/pharmacy/pharmacy-pages/PharmacyOrders'
 import PharmacyPrescriptions from './modules/pharmacy/pharmacy-pages/PharmacyPrescriptions'
 import PharmacyPatients from './modules/pharmacy/pharmacy-pages/PharmacyPatients'
+import PharmacyMedicines from './modules/pharmacy/pharmacy-pages/PharmacyMedicines'
 import PharmacyPatientStatistics from './modules/pharmacy/pharmacy-pages/PharmacyPatientStatistics'
 import PharmacyProfile from './modules/pharmacy/pharmacy-pages/PharmacyProfile'
 import PharmacyWallet from './modules/pharmacy/pharmacy-pages/PharmacyWallet'
@@ -74,10 +74,14 @@ import AdminUsers from './modules/admin/admin-pages/AdminUsers'
 import AdminDoctors from './modules/admin/admin-pages/AdminDoctors'
 import AdminPharmacies from './modules/admin/admin-pages/AdminPharmacies'
 import AdminLaboratories from './modules/admin/admin-pages/AdminLaboratories'
+import AdminPharmacyMedicines from './modules/admin/admin-pages/AdminPharmacyMedicines'
+import AdminInventory from './modules/admin/admin-pages/AdminInventory'
 import AdminVerification from './modules/admin/admin-pages/AdminVerification'
 import AdminProfile from './modules/admin/admin-pages/AdminProfile'
 import AdminWallet from './modules/admin/admin-pages/AdminWallet'
 import AdminSupport from './modules/admin/admin-pages/AdminSupport'
+import AdminAppointments from './modules/admin/admin-pages/AdminAppointments'
+import AdminOrders from './modules/admin/admin-pages/AdminOrders'
 
 function PatientRoutes() {
   const location = useLocation()
@@ -91,10 +95,8 @@ function PatientRoutes() {
           <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
           <Route path="/login" element={<PatientLogin />} />
           <Route path="/dashboard" element={<PatientDashboard />} />
-                    <Route path="/pharmacy" element={<PatientPharmacy />} />
                     <Route path="/doctors" element={<PatientDoctors />} />
                     <Route path="/doctors/:id" element={<PatientDoctorDetails />} />
-                    <Route path="/laboratory" element={<PatientLaboratory />} />
                     <Route path="/profile" element={<PatientProfile />} />
                     <Route path="/locations" element={<PatientLocations />} />
                     <Route path="/prescriptions" element={<PatientPrescriptions />} />
@@ -108,6 +110,7 @@ function PatientRoutes() {
                     <Route path="/transactions" element={<PatientTransactions />} />
                     <Route path="/appointments" element={<PatientAppointments />} />
           <Route path="/orders" element={<PatientOrders />} />
+          <Route path="/history" element={<PatientHistory />} />
           <Route path="/support" element={<PatientSupport />} />
         </Routes>
       </main>
@@ -169,6 +172,7 @@ function App() {
                     <Route path="/list" element={<PharmacyList />} />
                     <Route path="/orders" element={<PharmacyOrders />} />
                     <Route path="/prescriptions" element={<PharmacyPrescriptions />} />
+                    <Route path="/medicines" element={<PharmacyMedicines />} />
                     <Route path="/patients" element={<PharmacyPatients />} />
                     <Route path="/patient-statistics" element={<PharmacyPatientStatistics />} />
                     <Route path="/profile" element={<PharmacyProfile />} />
@@ -222,7 +226,7 @@ function App() {
             element={
               <>
                 <AdminNavbar />
-                <main className="px-4 pb-24 pt-28 sm:px-6 lg:ml-64">
+                <main className="px-4 pb-24 pt-28 sm:px-6 lg:ml-64 transition-all duration-300">
                   <Routes>
                     <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
                     <Route path="/login" element={<AdminLogin />} />
@@ -230,9 +234,13 @@ function App() {
                     <Route path="/users" element={<AdminUsers />} />
                     <Route path="/doctors" element={<AdminDoctors />} />
                     <Route path="/pharmacies" element={<AdminPharmacies />} />
+                    <Route path="/pharmacy-medicines" element={<AdminPharmacyMedicines />} />
+                    <Route path="/inventory" element={<AdminInventory />} />
                     <Route path="/laboratories" element={<AdminLaboratories />} />
                     <Route path="/wallet" element={<AdminWallet />} />
                     <Route path="/verification" element={<AdminVerification />} />
+                    <Route path="/appointments" element={<AdminAppointments />} />
+                    <Route path="/orders" element={<AdminOrders />} />
                     <Route path="/profile" element={<AdminProfile />} />
                     <Route path="/support" element={<AdminSupport />} />
                   </Routes>

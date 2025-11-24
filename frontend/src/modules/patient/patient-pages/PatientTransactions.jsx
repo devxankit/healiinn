@@ -169,9 +169,12 @@ const PatientTransactions = () => {
     loadTransactions()
   }, [])
 
+  // Filter out pending transactions (they should show in requests page)
+  const completedTransactions = transactions.filter(txn => txn.status !== 'pending' && txn.status !== 'accepted')
+  
   const filteredTransactions = filter === 'all' 
-    ? transactions 
-    : transactions.filter(txn => txn.status === filter)
+    ? completedTransactions 
+    : completedTransactions.filter(txn => txn.status === filter)
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -256,7 +259,7 @@ const PatientTransactions = () => {
     <section className="flex flex-col gap-4 pb-4">
       {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {['all', 'completed', 'pending', 'failed'].map((status) => (
+        {['all', 'completed', 'failed'].map((status) => (
           <button
             key={status}
             onClick={() => setFilter(status)}

@@ -8,7 +8,6 @@ import {
   IoStarOutline,
   IoCalendarOutline,
   IoDocumentTextOutline,
-  IoFlaskOutline,
   IoMedicalOutline,
   IoNotificationsOutline,
   IoMenuOutline,
@@ -22,6 +21,7 @@ import {
   IoHelpCircleOutline,
   IoArrowForwardOutline,
   IoReceiptOutline,
+  IoArchiveOutline,
 } from 'react-icons/io5'
 import PatientSidebar from '../patient-components/PatientSidebar'
 
@@ -44,24 +44,6 @@ const categoryCards = [
     iconBgColor: '#14B8A6', // teal-green
     icon: IoDocumentTextOutline,
     route: '/patient/prescriptions',
-  },
-  {
-    id: 'lab-tests',
-    title: 'LAB TESTS',
-    value: '5',
-    description: 'Pending',
-    iconBgColor: '#F97316', // orange
-    icon: IoFlaskOutline,
-    route: '/patient/laboratory',
-  },
-  {
-    id: 'medicines',
-    title: 'MEDICINES',
-    value: '15',
-    description: 'Available',
-    iconBgColor: '#EC4899', // pink/magenta
-    icon: IoStarOutline,
-    route: '/patient/pharmacy',
   },
   {
     id: 'orders',
@@ -190,10 +172,9 @@ const renderStars = (rating) => {
 
 const navItems = [
   { id: 'home', label: 'Home', to: '/patient/dashboard', Icon: IoHomeOutline },
-  { id: 'pharmacy', label: 'Pharmacy', to: '/patient/pharmacy', Icon: IoBagHandleOutline },
   { id: 'doctors', label: 'Doctors', to: '/patient/doctors', Icon: IoPeopleOutline },
-  { id: 'laboratory', label: 'Laboratory', to: '/patient/laboratory', Icon: IoFlaskOutline },
   { id: 'transactions', label: 'Transactions', to: '/patient/transactions', Icon: IoReceiptOutline },
+  { id: 'history', label: 'History', to: '/patient/history', Icon: IoArchiveOutline },
   { id: 'support', label: 'Support', to: '/patient/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
 ]

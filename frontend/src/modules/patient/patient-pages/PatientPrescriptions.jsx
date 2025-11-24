@@ -685,6 +685,72 @@ const PatientPrescriptions = () => {
     }
   }
 
+  const handleBookTestVisit = async (prescription) => {
+    try {
+      // Create request data
+      const requestData = {
+        id: `test-request-${Date.now()}`,
+        type: 'book_test_visit',
+        prescriptionId: prescription.id,
+        prescription: {
+          doctorName: prescription.doctor.name,
+          doctorSpecialty: prescription.doctor.specialty,
+          diagnosis: prescription.diagnosis,
+          issuedAt: prescription.issuedAt,
+          investigations: prescription.investigations || [],
+        },
+        patientId: 'pat-current', // In real app, get from auth
+        patientName: 'Current Patient', // In real app, get from auth
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      }
+
+      // Save to localStorage for admin to see
+      const existingRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      existingRequests.push(requestData)
+      localStorage.setItem('adminRequests', JSON.stringify(existingRequests))
+
+      // Show success message
+      alert('Test visit request sent to admin successfully!')
+    } catch (error) {
+      console.error('Error sending test visit request:', error)
+      alert('Error sending request. Please try again.')
+    }
+  }
+
+  const handleOrderMedicine = async (prescription) => {
+    try {
+      // Create request data
+      const requestData = {
+        id: `medicine-request-${Date.now()}`,
+        type: 'order_medicine',
+        prescriptionId: prescription.id,
+        prescription: {
+          doctorName: prescription.doctor.name,
+          doctorSpecialty: prescription.doctor.specialty,
+          diagnosis: prescription.diagnosis,
+          issuedAt: prescription.issuedAt,
+          medications: prescription.medications || [],
+        },
+        patientId: 'pat-current', // In real app, get from auth
+        patientName: 'Current Patient', // In real app, get from auth
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      }
+
+      // Save to localStorage for admin to see
+      const existingRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      existingRequests.push(requestData)
+      localStorage.setItem('adminRequests', JSON.stringify(existingRequests))
+
+      // Show success message
+      alert('Medicine order request sent to admin successfully!')
+    } catch (error) {
+      console.error('Error sending medicine order request:', error)
+      alert('Error sending request. Please try again.')
+    }
+  }
+
   return (
     <section className="flex flex-col gap-4 pb-4">
       {/* Filter Tabs */}
@@ -760,31 +826,54 @@ const PatientPrescriptions = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="mt-4 flex gap-2 border-t border-slate-200 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadPDF(prescription)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"
-                  >
-                    <IoDownloadOutline className="h-4 w-4" />
-                    Download PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleViewPDF(prescription)}
-                    className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                    aria-label="View PDF"
-                  >
-                    <IoEyeOutline className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleShareClick(prescription.id)}
-                    className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                    aria-label="Share prescription"
-                  >
-                    <IoShareSocialOutline className="h-4 w-4" />
-                  </button>
+                <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
+                  {/* First Row: Download PDF, View, Share */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPDF(prescription)}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"
+                    >
+                      <IoDownloadOutline className="h-4 w-4" />
+                      Download PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleViewPDF(prescription)}
+                      className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                      aria-label="View PDF"
+                    >
+                      <IoEyeOutline className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShareClick(prescription.id)}
+                      className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                      aria-label="Share prescription"
+                    >
+                      <IoShareSocialOutline className="h-4 w-4" />
+                    </button>
+                  </div>
+                  
+                  {/* Second Row: Book Test Visit, Order Medicine */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleBookTestVisit(prescription)}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                    >
+                      <IoFlaskOutline className="h-4 w-4" />
+                      Book Test Visit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOrderMedicine(prescription)}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                    >
+                      <IoBagHandleOutline className="h-4 w-4" />
+                      Order Medicine
+                    </button>
+                  </div>
                 </div>
               </div>
             </article>

@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IoNotificationsOutline, IoPersonCircleOutline } from 'react-icons/io5'
+import { IoNotificationsOutline, IoPersonCircleOutline, IoMenuOutline, IoCloseOutline } from 'react-icons/io5'
 import { useState, useRef, useEffect } from 'react'
 import AdminSidebar from './AdminSidebar'
 
@@ -7,6 +7,7 @@ const AdminNavbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const profileRef = useRef(null)
   
   const isLoginPage = location.pathname === '/admin/login'
@@ -51,13 +52,29 @@ const AdminNavbar = () => {
         <div className="px-4 pt-5 pb-4 md:px-6">
           {/* Top Section - Admin Info */}
           <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 leading-tight mb-0.5">
-                Admin Dashboard
-              </h1>
-              <p className="text-sm font-normal text-slate-600 leading-tight">
-                Healthcare Platform Management • <span className="text-slate-900 font-medium">Active</span>
-              </p>
+            <div className="flex items-center gap-3 flex-1">
+              {/* Mobile Menu Button */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="lg:hidden flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                aria-label="Toggle menu"
+              >
+                {isSidebarOpen ? (
+                  <IoCloseOutline className="text-xl" aria-hidden="true" />
+                ) : (
+                  <IoMenuOutline className="text-xl" aria-hidden="true" />
+                )}
+              </button>
+              
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 leading-tight mb-0.5">
+                  Admin Dashboard
+                </h1>
+                <p className="text-sm font-normal text-slate-600 leading-tight">
+                  Healthcare Platform Management • <span className="text-slate-900 font-medium">Active</span>
+                </p>
+              </div>
             </div>
             
             {/* Right side - Notifications and Profile */}
@@ -110,8 +127,8 @@ const AdminNavbar = () => {
       </header>
 
       <AdminSidebar
-        isOpen={true}
-        onClose={() => {}}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
         onLogout={handleLogout}
       />
     </>
