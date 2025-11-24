@@ -426,75 +426,75 @@ const AdminVerification = () => {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col gap-2">
-        <div className="relative flex-1">
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <IoSearchOutline className="h-5 w-5 text-slate-400" aria-hidden="true" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search by name, email, or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 py-2.5 text-sm placeholder-slate-400 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-          />
+      {/* Search Bar */}
+      <div className="relative mb-3">
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+          <IoSearchOutline className="h-5 w-5 text-slate-400" aria-hidden="true" />
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2">
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-            >
-              <option value="all">All Types</option>
-              <option value="doctor">Doctors</option>
-              <option value="pharmacy">Pharmacies</option>
-              <option value="laboratory">Laboratories</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                statusFilter === 'all'
-                  ? 'bg-[#11496c] text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setStatusFilter('pending')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                statusFilter === 'pending'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Pending
-            </button>
-            <button
-              onClick={() => setStatusFilter('approved')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                statusFilter === 'approved'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Approved
-            </button>
-            <button
-              onClick={() => setStatusFilter('rejected')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                statusFilter === 'rejected'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Rejected
-            </button>
-          </div>
+        <input
+          type="text"
+          placeholder="Search by name, email, or phone..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="block w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 py-2.5 text-sm placeholder-slate-400 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+        />
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+          >
+            <option value="all">All Types</option>
+            <option value="doctor">Doctors</option>
+            <option value="pharmacy">Pharmacies</option>
+            <option value="laboratory">Laboratories</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              statusFilter === 'all'
+                ? 'bg-[#11496c] text-white'
+                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setStatusFilter('pending')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              statusFilter === 'pending'
+                ? 'bg-[#11496c] text-white'
+                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            Pending
+          </button>
+          <button
+            onClick={() => setStatusFilter('approved')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              statusFilter === 'approved'
+                ? 'bg-[#11496c] text-white'
+                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            Approved
+          </button>
+          <button
+            onClick={() => setStatusFilter('rejected')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              statusFilter === 'rejected'
+                ? 'bg-[#11496c] text-white'
+                : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            Rejected
+          </button>
         </div>
       </div>
 

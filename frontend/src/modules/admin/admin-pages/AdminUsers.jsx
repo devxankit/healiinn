@@ -83,13 +83,27 @@ const AdminUsers = () => {
   })
 
   const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.phone.includes(searchTerm)
-    
+    // Filter by status first
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter
+    
+    // If no search term, return status match
+    if (!searchTerm.trim()) {
+      return matchesStatus
+    }
+    
+    // Search in multiple fields
+    const searchLower = searchTerm.toLowerCase().trim()
+    const fullName = `${user.firstName} ${user.lastName}`.toLowerCase()
+    const phoneNormalized = user.phone.replace(/\s+/g, '').replace(/[-\+()]/g, '')
+    const searchNormalized = searchTerm.trim().replace(/\s+/g, '').replace(/[-\+()]/g, '')
+    
+    const matchesSearch =
+      fullName.includes(searchLower) ||
+      user.firstName.toLowerCase().includes(searchLower) ||
+      user.lastName.toLowerCase().includes(searchLower) ||
+      user.email.toLowerCase().includes(searchLower) ||
+      user.phone.toLowerCase().includes(searchLower) ||
+      phoneNormalized.includes(searchNormalized)
     
     return matchesSearch && matchesStatus
   })
@@ -203,90 +217,58 @@ const AdminUsers = () => {
       {/* Header */}
       <header className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-2.5">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Users Management</h1>
-          <p className="mt-0.5 text-sm text-slate-600">Manage all registered users</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 rounded-lg bg-[#11496c] px-4 py-2 text-sm font-medium text-white hover:bg-[#0e3a52] transition-colors"
-          >
-            <IoAddOutline className="h-4 w-4" />
-            Add User
-          </button>
-          <button className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            <IoFilterOutline className="h-4 w-4" />
-            Filter
-          </button>
+          <h1 className="text-2xl font-bold text-slate-900">Patients Management</h1>
+          <p className="mt-0.5 text-sm text-slate-600">Manage all registered patients</p>
         </div>
       </header>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <IoSearchOutline className="h-5 w-5 text-slate-400" aria-hidden="true" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search users by name, email, or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 py-2.5 text-sm placeholder-slate-400 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-          />
+      {/* Search */}
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+          <IoSearchOutline className="h-5 w-5 text-slate-400" aria-hidden="true" />
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              statusFilter === 'all'
-                ? 'bg-[#11496c] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setStatusFilter('active')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              statusFilter === 'active'
-                ? 'bg-[#11496c] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Active
-          </button>
-          <button
-            onClick={() => setStatusFilter('inactive')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              statusFilter === 'inactive'
-                ? 'bg-[#11496c] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Inactive
-          </button>
-        </div>
+        <input
+          type="text"
+          placeholder="Search patients by name, email, or phone..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="block w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 py-2.5 text-sm placeholder-slate-400 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+        />
       </div>
 
-      {/* Stats Summary */}
+      {/* Stats Summary - Clickable Cards */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Users</p>
+        <button
+          onClick={() => setStatusFilter('all')}
+          className={`rounded-xl border border-slate-200 bg-white p-3 text-left transition-all hover:shadow-md ${
+            statusFilter === 'all' ? 'border-[#11496c] bg-[rgba(17,73,108,0.05)]' : ''
+          }`}
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Patients</p>
           <p className="mt-0.5 text-2xl font-bold text-slate-900">{users.length}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        </button>
+        <button
+          onClick={() => setStatusFilter('active')}
+          className={`rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:shadow-md ${
+            statusFilter === 'active' ? 'border-emerald-500 bg-emerald-50' : ''
+          }`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Active</p>
           <p className="mt-1 text-2xl font-bold text-emerald-600">
             {users.filter((u) => u.status === 'active').length}
           </p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        </button>
+        <button
+          onClick={() => setStatusFilter('inactive')}
+          className={`rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:shadow-md ${
+            statusFilter === 'inactive' ? 'border-slate-500 bg-slate-50' : ''
+          }`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inactive</p>
           <p className="mt-1 text-2xl font-bold text-slate-600">
             {users.filter((u) => u.status === 'inactive').length}
           </p>
-        </div>
+        </button>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Suspended</p>
           <p className="mt-1 text-2xl font-bold text-red-600">

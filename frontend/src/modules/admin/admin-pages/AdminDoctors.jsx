@@ -236,87 +236,55 @@ const AdminDoctors = () => {
           <h1 className="text-2xl font-bold text-slate-900">Doctors Management</h1>
           <p className="mt-0.5 text-sm text-slate-600">Manage all registered doctors</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 rounded-lg bg-[#11496c] px-4 py-2 text-sm font-medium text-white hover:bg-[#0e3a52] transition-colors"
-          >
-            <IoAddOutline className="h-4 w-4" />
-            Add Doctor
-          </button>
-          <button className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            <IoFilterOutline className="h-4 w-4" />
-            Filter
-          </button>
-        </div>
       </header>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <IoSearchOutline className="h-5 w-5 text-slate-400" aria-hidden="true" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search doctors by name, specialty, or clinic..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 py-2.5 text-sm placeholder-slate-400 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-          />
+      {/* Search */}
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+          <IoSearchOutline className="h-5 w-5 text-slate-400" aria-hidden="true" />
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              statusFilter === 'all'
-                ? 'bg-[#11496c] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setStatusFilter('verified')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              statusFilter === 'verified'
-                ? 'bg-[#11496c] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Verified
-          </button>
-          <button
-            onClick={() => setStatusFilter('pending')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              statusFilter === 'pending'
-                ? 'bg-[#11496c] text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Pending
-          </button>
-        </div>
+        <input
+          type="text"
+          placeholder="Search doctors by name, specialty, or clinic..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="block w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 py-2.5 text-sm placeholder-slate-400 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+        />
       </div>
 
-      {/* Stats Summary */}
+      {/* Stats Summary - Clickable Cards */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-3">
+        <button
+          onClick={() => setStatusFilter('all')}
+          className={`rounded-xl border border-slate-200 bg-white p-3 text-left transition-all hover:shadow-md ${
+            statusFilter === 'all' ? 'border-[#11496c] bg-[rgba(17,73,108,0.05)]' : ''
+          }`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Doctors</p>
           <p className="mt-0.5 text-2xl font-bold text-slate-900">{doctors.length}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        </button>
+        <button
+          onClick={() => setStatusFilter('verified')}
+          className={`rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:shadow-md ${
+            statusFilter === 'verified' ? 'border-emerald-500 bg-emerald-50' : ''
+          }`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verified</p>
           <p className="mt-1 text-2xl font-bold text-emerald-600">
             {doctors.filter((d) => d.status === 'verified').length}
           </p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        </button>
+        <button
+          onClick={() => setStatusFilter('pending')}
+          className={`rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:shadow-md ${
+            statusFilter === 'pending' ? 'border-amber-500 bg-amber-50' : ''
+          }`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending</p>
           <p className="mt-1 text-2xl font-bold text-amber-600">
             {doctors.filter((d) => d.status === 'pending').length}
           </p>
-        </div>
+        </button>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Consultations</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">

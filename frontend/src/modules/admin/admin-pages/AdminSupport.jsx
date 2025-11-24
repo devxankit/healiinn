@@ -217,34 +217,6 @@ const AdminSupport = () => {
             />
           </div>
 
-          {/* Status Filter */}
-          <div className="flex items-center gap-2">
-            <IoFilterOutline className="h-5 w-5 text-slate-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="in_progress">In Progress</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-
-          {/* Role Filter */}
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-          >
-            <option value="all">All Roles</option>
-            <option value="doctor">Doctor</option>
-            <option value="patient">Patient</option>
-            <option value="pharmacy">Pharmacy</option>
-            <option value="laboratory">Laboratory</option>
-          </select>
         </div>
       </div>
 
