@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   IoBagHandleOutline,
   IoCheckmarkCircleOutline,
@@ -91,9 +91,11 @@ const formatDateTime = (value) => {
 
 const formatCurrency = (value) => {
   if (typeof value !== 'number') return '—'
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(value)
 }
 
@@ -101,29 +103,105 @@ const LaboratoryOrders = () => {
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [orders, setOrders] = useState(mockOrders)
+  const [loading, setLoading] = useState(true)
+
+  // Fetch orders from API
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const token = localStorage.getItem('laboratoryAuthToken') || sessionStorage.getItem('laboratoryAuthToken')
+        if (!token) {
+          // If no token, use mock data
+          setOrders(mockOrders)
+          setLoading(false)
+          return
+        }
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/labs/leads?limit=50`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.leads && data.leads.length > 0) {
+            // Transform leads to orders format
+            const transformedOrders = data.leads.map(lead => {
+              const patientName = lead.patient?.firstName && lead.patient?.lastName
+                ? `${lead.patient.firstName} ${lead.patient.lastName}`
+                : lead.patient?.name || 'Unknown Patient'
+              
+              return {
+                id: lead._id,
+                _id: lead._id,
+                type: 'laboratory',
+                patientId: lead.patient?._id || lead.patient,
+                patientName: patientName,
+                patientPhone: lead.patient?.phone || '+91-000-000-0000',
+                patientEmail: lead.patient?.email || 'patient@example.com',
+                status: lead.status === 'accepted' ? 'ready' : lead.status === 'new' ? 'pending' : lead.status === 'test_completed' ? 'completed' : lead.status,
+                createdAt: lead.createdAt || new Date().toISOString(),
+                testRequestId: lead._id,
+                tests: (lead.tests || lead.investigations || []).map(test => ({
+                  name: typeof test === 'string' ? test : test.name || test.testName || 'Test',
+                  price: typeof test === 'object' && test.price ? test.price : 0,
+                })),
+                totalAmount: lead.billingSummary?.totalAmount || lead.amount || 0,
+                deliveryType: lead.homeCollectionRequested ? 'home' : 'pickup',
+                address: lead.patient?.address ? 
+                  `${lead.patient.address.line1 || ''} ${lead.patient.address.city || ''} ${lead.patient.address.state || ''}`.trim() || 'Address not provided'
+                  : 'Address not provided',
+              }
+            })
+            setOrders(transformedOrders)
+          } else {
+            // If no data from API, use mock data
+            setOrders(mockOrders)
+          }
+        } else {
+          // If API fails, use mock data
+          setOrders(mockOrders)
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error)
+        // Fallback to mock data on error
+        setOrders(mockOrders)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchOrders()
+  }, [])
 
   const filteredOrders = useMemo(() => {
-    let orders = mockOrders
+    let filtered = orders
 
     if (filter !== 'all') {
-      orders = orders.filter((order) => order.status === filter)
+      filtered = filtered.filter((order) => order.status === filter)
     }
 
     if (searchTerm.trim()) {
       const normalizedSearch = searchTerm.trim().toLowerCase()
-      orders = orders.filter(
+      filtered = filtered.filter(
         (order) =>
           order.patientName.toLowerCase().includes(normalizedSearch) ||
-          order.id.toLowerCase().includes(normalizedSearch) ||
-          order.testRequestId.toLowerCase().includes(normalizedSearch)
+          String(order.id || order._id || '').toLowerCase().includes(normalizedSearch) ||
+          String(order.testRequestId || '').toLowerCase().includes(normalizedSearch)
       )
     }
 
-    return orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  }, [filter, searchTerm])
+    return filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  }, [filter, searchTerm, orders])
 
   const handleStatusUpdate = async (orderId, newStatus) => {
-    const order = mockOrders.find(o => o.id === orderId)
+    const order = orders.find(o => o.id === orderId || o._id === orderId)
     if (!order) {
       alert('Order not found')
       return
@@ -140,6 +218,26 @@ const LaboratoryOrders = () => {
     }
 
     try {
+      // Update order status in state
+      setOrders(prevOrders => 
+        prevOrders.map(o => 
+          (o.id === orderId || o._id === orderId) 
+            ? { ...o, status: newStatus }
+            : o
+        )
+      )
+      
+      // TODO: Call API to update status
+      // const token = localStorage.getItem('laboratoryAuthToken') || sessionStorage.getItem('laboratoryAuthToken')
+      // await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/labs/leads/${orderId}/status`, {
+      //   method: 'PATCH',
+      //   headers: {
+      //     'Authorization': `Bearer ${token}`,
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify({ status: newStatus }),
+      // })
+      
       await new Promise((resolve) => setTimeout(resolve, 1000))
       alert(`✅ Order status updated to "${statusLabel}"!\n\n📱 Notification sent to ${patientName}`)
     } catch (error) {
@@ -183,18 +281,30 @@ const LaboratoryOrders = () => {
 
       {/* Orders List */}
       <div className="space-y-3">
-        {filteredOrders.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 text-center">
-            No orders found matching your filters.
-          </p>
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#11496c] border-r-transparent"></div>
+            <p className="mt-4 text-sm text-slate-500">Loading orders...</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+            <IoBagHandleOutline className="mx-auto h-12 w-12 text-slate-300 mb-3" />
+            <p className="text-sm font-medium text-slate-600">No orders found</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {searchTerm.trim() || filter !== 'all' 
+                ? 'No orders match your search or filter criteria.' 
+                : 'Your orders will appear here'}
+            </p>
+          </div>
         ) : (
           filteredOrders.map((order) => {
             const statusInfo = statusConfig[order.status] || statusConfig.pending
             const StatusIcon = statusInfo.icon
+            const orderId = order.id || order._id || `order-${Math.random()}`
 
             return (
               <article
-                key={order.id}
+                key={orderId}
                 className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md sm:p-5"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -206,8 +316,10 @@ const LaboratoryOrders = () => {
                         {statusInfo.label}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-slate-500">Order ID: {order.id}</p>
-                    <p className="text-xs text-slate-500">Test Request: {order.testRequestId}</p>
+                    <p className="mt-1 text-xs text-slate-500">Order ID: {orderId}</p>
+                    {order.testRequestId && (
+                      <p className="text-xs text-slate-500">Test Request: {order.testRequestId}</p>
+                    )}
                     <p className="mt-1 text-xs text-slate-600">
                       <IoCalendarOutline className="mr-1 inline h-3 w-3" />
                       {formatDateTime(order.createdAt)}
@@ -222,20 +334,28 @@ const LaboratoryOrders = () => {
                 </div>
 
                 {/* Tests */}
-                <div className="rounded-lg bg-slate-50 p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tests</p>
-                  <ul className="space-y-1.5">
-                    {order.tests.map((test, idx) => (
-                      <li key={idx} className="flex items-center justify-between text-xs">
-                        <span className="text-slate-700 flex items-center gap-1">
-                          <IoFlaskOutline className="h-3 w-3" />
-                          {test.name}
-                        </span>
-                        <span className="font-semibold text-slate-900">{formatCurrency(test.price)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {order.tests && order.tests.length > 0 && (
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tests</p>
+                    <ul className="space-y-1.5">
+                      {order.tests.map((test, idx) => {
+                        const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
+                        const testPrice = typeof test === 'object' && test.price ? test.price : 0
+                        return (
+                          <li key={idx} className="flex items-center justify-between text-xs">
+                            <span className="text-slate-700 flex items-center gap-1">
+                              <IoFlaskOutline className="h-3 w-3" />
+                              {testName}
+                            </span>
+                            {testPrice > 0 && (
+                              <span className="font-semibold text-slate-900">{formatCurrency(testPrice)}</span>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Address */}
                 <div className="flex items-start gap-2 text-xs text-slate-600">
@@ -247,7 +367,7 @@ const LaboratoryOrders = () => {
                 <div className="flex gap-2">
                   {order.status === 'pending' && (
                     <button
-                      onClick={() => handleStatusUpdate(order.id, 'ready')}
+                      onClick={() => handleStatusUpdate(orderId, 'ready')}
                       className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                     >
                       Mark Ready
@@ -255,7 +375,7 @@ const LaboratoryOrders = () => {
                   )}
                   {order.status === 'ready' && (
                     <button
-                      onClick={() => handleStatusUpdate(order.id, 'completed')}
+                      onClick={() => handleStatusUpdate(orderId, 'completed')}
                       className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-emerald-400/40 transition-all hover:bg-emerald-600 active:scale-95"
                     >
                       Mark Completed
@@ -317,20 +437,28 @@ const LaboratoryOrders = () => {
                   <p><span className="font-medium">Email:</span> {selectedOrder.patientEmail}</p>
                 </div>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2">Tests</h3>
-                <ul className="space-y-2">
-                  {selectedOrder.tests.map((test, idx) => (
-                    <li key={idx} className="flex justify-between text-sm border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2">
-                        <IoFlaskOutline className="h-4 w-4 text-[#11496c]" />
-                        <span className="font-medium">{test.name}</span>
-                      </div>
-                      <p className="font-semibold">{formatCurrency(test.price)}</p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {selectedOrder.tests && selectedOrder.tests.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-2">Tests</h3>
+                  <ul className="space-y-2">
+                    {selectedOrder.tests.map((test, idx) => {
+                      const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
+                      const testPrice = typeof test === 'object' && test.price ? test.price : 0
+                      return (
+                        <li key={idx} className="flex justify-between text-sm border-b border-slate-100 pb-2">
+                          <div className="flex items-center gap-2">
+                            <IoFlaskOutline className="h-4 w-4 text-[#11496c]" />
+                            <span className="font-medium">{testName}</span>
+                          </div>
+                          {testPrice > 0 && (
+                            <p className="font-semibold">{formatCurrency(testPrice)}</p>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )}
               <div className="flex justify-between items-center pt-2 border-t border-slate-200">
                 <span className="font-bold text-slate-900">Total</span>
                 <span className="font-bold text-lg text-slate-900">{formatCurrency(selectedOrder.totalAmount)}</span>
