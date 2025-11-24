@@ -19,6 +19,7 @@ import {
   IoShieldCheckmarkOutline,
   IoMailOutline,
   IoCallOutline,
+  IoBagHandleOutline,
 } from 'react-icons/io5'
 
 const mockStats = {
@@ -27,6 +28,7 @@ const mockStats = {
   totalPharmacies: 42,
   totalLaboratories: 28,
   totalConsultations: 3420,
+  totalOrders: 1250,
   todayAppointments: 48,
   totalRevenue: 1250000,
   pendingVerifications: 12,
@@ -492,14 +494,14 @@ const AdminDashboard = () => {
       <section className="flex flex-col gap-2 pb-20 pt-0 bg-white">
         {/* Stats Cards Grid */}
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {/* Total Users */}
+          {/* Total Patients */}
           <article
             onClick={() => navigate('/admin/users')}
             className="relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
           >
             <div className="flex items-start justify-between mb-1.5">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-0.5">Total Users</p>
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-0.5">Total Patients</p>
                 <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.totalUsers.toLocaleString()}</p>
               </div>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#11496c] text-white">
@@ -573,25 +575,31 @@ const AdminDashboard = () => {
             <p className="text-[10px] text-slate-600 leading-tight">Active labs</p>
           </article>
 
-          {/* Total Consultations */}
-          <article className="relative overflow-hidden rounded-xl border border-blue-100 bg-white p-3 shadow-sm">
+          {/* Orders */}
+          <article
+            onClick={() => navigate('/admin/orders')}
+            className="relative overflow-hidden rounded-xl border border-blue-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+          >
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-blue-700 leading-tight mb-1">Consultations</p>
-                <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.totalConsultations.toLocaleString()}</p>
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-blue-700 leading-tight mb-1">Orders</p>
+                <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.totalOrders.toLocaleString()}</p>
               </div>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 text-white">
-                <IoDocumentTextOutline className="text-base" aria-hidden="true" />
+                <IoBagHandleOutline className="text-base" aria-hidden="true" />
               </div>
             </div>
             <p className="text-[10px] text-slate-600 leading-tight">All time</p>
           </article>
 
-          {/* Today's Appointments */}
-          <article className="relative overflow-hidden rounded-xl border border-indigo-100 bg-white p-3 shadow-sm">
+          {/* Appointments */}
+          <article
+            onClick={() => navigate('/admin/appointments')}
+            className="relative overflow-hidden rounded-xl border border-indigo-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+          >
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-indigo-700 leading-tight mb-1">Today's Appointments</p>
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-indigo-700 leading-tight mb-1">Appointments</p>
                 <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.todayAppointments}</p>
               </div>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500 text-white">
@@ -628,14 +636,14 @@ const AdminDashboard = () => {
             <p className="text-[10px] text-slate-600 leading-tight">vs last month</p>
           </article>
 
-          {/* Pending Verifications */}
+          {/* Verifications */}
           <article
             onClick={() => navigate('/admin/verification')}
             className="relative overflow-hidden rounded-xl border border-orange-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-orange-700 leading-tight mb-1">Pending Verifications</p>
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-orange-700 leading-tight mb-1">Verifications</p>
                 <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.pendingVerifications}</p>
               </div>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-white">
