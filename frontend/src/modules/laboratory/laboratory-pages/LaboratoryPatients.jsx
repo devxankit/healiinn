@@ -1103,32 +1103,32 @@ const LaboratoryPatients = () => {
           filteredRequests.map((request) => (
             <article
               key={request.id}
-              className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md sm:p-5"
+              className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md sm:p-4"
             >
               {/* Patient Information Section */}
-              <div className="flex items-start gap-4 mb-4">
+              <div className="flex items-start gap-3 mb-3">
                 <img
                   src={request.patient.image}
                   alt={request.patient.name}
-                  className="h-16 w-16 rounded-xl object-cover bg-slate-100 border-2 border-slate-200"
+                  className="h-12 w-12 rounded-lg object-cover bg-slate-100 border border-slate-200"
                   onError={(e) => {
                     e.target.onerror = null
                     e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(request.patient.name)}&background=11496c&color=fff&size=160&bold=true`
                   }}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
-                      <h3 className="text-xl font-bold text-slate-900 mb-1">{request.patient.name}</h3>
-                      <p className="text-sm text-slate-600">
+                      <h3 className="text-base font-bold text-slate-900 mb-0.5">{request.patient.name}</h3>
+                      <p className="text-xs text-slate-600">
                         {request.patient.age} years, {request.patient.gender}
                       </p>
-                      <p className="text-xs text-slate-500 mt-1">Request ID: {request.requestId}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">Request ID: {request.requestId}</p>
                     </div>
                     {/* Status and Collection Type Badges - Stacked */}
-                    <div className="flex flex-col items-end gap-2 shrink-0">
+                    <div className="flex flex-col items-end gap-1 shrink-0">
                       {/* Status Badge - Smaller */}
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
                         request.status === 'pending' 
                           ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' 
                           : request.status === 'accepted'
@@ -1137,25 +1137,25 @@ const LaboratoryPatients = () => {
                           ? 'bg-red-50 text-red-800 border border-red-200'
                           : 'bg-slate-50 text-slate-800 border border-slate-200'
                       }`}>
-                        {request.status === 'pending' && <IoTimeOutline className="h-3 w-3" />}
-                        {request.status === 'accepted' && <IoCheckmarkCircleOutline className="h-3 w-3" />}
-                        {request.status === 'cancelled' && <IoCloseCircleOutline className="h-3 w-3" />}
+                        {request.status === 'pending' && <IoTimeOutline className="h-2.5 w-2.5" />}
+                        {request.status === 'accepted' && <IoCheckmarkCircleOutline className="h-2.5 w-2.5" />}
+                        {request.status === 'cancelled' && <IoCloseCircleOutline className="h-2.5 w-2.5" />}
                         {getStatusLabel(request.status)}
                       </span>
                       {/* Collection Type Badge - Below Status */}
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
                         request.collectionType === 'home'
                           ? 'bg-orange-50 text-orange-700 border border-orange-300'
                           : 'bg-blue-50 text-blue-700 border border-blue-300'
                       }`}>
                         {request.collectionType === 'home' ? (
                           <>
-                            <IoHomeOutline className="h-3 w-3" />
+                            <IoHomeOutline className="h-2.5 w-2.5" />
                             Home Collection
                           </>
                         ) : (
                           <>
-                            <IoLocationOutline className="h-3 w-3" />
+                            <IoLocationOutline className="h-2.5 w-2.5" />
                             Lab Visit
                           </>
                         )}
@@ -1163,49 +1163,49 @@ const LaboratoryPatients = () => {
                     </div>
                   </div>
                   
-                  {/* Contact Information */}
-                  <div className="flex flex-col gap-2 mt-3">
+                  {/* Contact Information - Line by Line */}
+                  <div className="space-y-1 mt-2">
                     <a
                       href={`tel:${request.patient.phone}`}
-                      className="flex items-center gap-2 text-sm text-slate-700 hover:text-[#11496c] transition-colors"
+                      className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-[#11496c] transition-colors"
                     >
-                      <IoCallOutline className="h-4 w-4 text-slate-500 shrink-0" />
-                      <span className="font-medium">{request.patient.phone}</span>
+                      <IoCallOutline className="h-3 w-3 text-slate-500 shrink-0" />
+                      <span>{request.patient.phone}</span>
                     </a>
                     <a
                       href={`mailto:${request.patient.email}`}
-                      className="flex items-center gap-2 text-sm text-slate-700 hover:text-[#11496c] transition-colors"
+                      className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-[#11496c] transition-colors"
                     >
-                      <IoMailOutline className="h-4 w-4 text-slate-500 shrink-0" />
-                      <span className="font-medium">{request.patient.email}</span>
+                      <IoMailOutline className="h-3 w-3 text-slate-500 shrink-0" />
+                      <span>{request.patient.email}</span>
                     </a>
                     {request.patient.address && (
-                      <div className="flex items-start gap-2 text-sm text-slate-700">
-                        <IoLocationOutline className="h-4 w-4 text-slate-500 shrink-0 mt-0.5" />
-                        <span className="font-medium">{formatAddress(request.patient.address)}</span>
+                      <div className="flex items-start gap-1.5 text-xs text-slate-700">
+                        <IoLocationOutline className="h-3 w-3 text-slate-500 shrink-0 mt-0.5" />
+                        <span>{formatAddress(request.patient.address)}</span>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Prescription Details - Light Grey Box */}
-              <div className="rounded-lg bg-slate-100 p-4 border border-slate-200">
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm text-slate-800">
+              {/* Prescription Details - Light Grey Box - Smaller */}
+              <div className="rounded-lg bg-slate-100 p-3 border border-slate-200">
+                <div className="space-y-1.5">
+                  <p className="text-xs text-slate-800">
                     <span className="font-semibold">Prescribed by:</span> <span className="font-bold text-slate-900">{request.prescription.doctor.name}</span>
                   </p>
-                  <p className="text-sm text-slate-700">
+                  <p className="text-xs text-slate-700">
                     <span className="font-semibold">Diagnosis:</span> {request.prescription.diagnosis}
                   </p>
                   {/* Test Tags - Purple Badges with proper spacing */}
-                  <div className="flex flex-wrap gap-2 mt-1">
+                  <div className="flex flex-wrap gap-1.5 mt-1">
                     {request.prescription.investigations.map((inv, idx) => (
                       <span
                         key={idx}
-                        className="inline-flex items-center gap-2 rounded-full bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 border border-purple-200"
+                        className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-1 text-[10px] font-semibold text-purple-700 border border-purple-200"
                       >
-                        <IoFlaskOutline className="h-3.5 w-3.5 shrink-0" />
+                        <IoFlaskOutline className="h-3 w-3 shrink-0" />
                         <span>{inv.name}</span>
                       </span>
                     ))}
@@ -1248,24 +1248,24 @@ const LaboratoryPatients = () => {
                 </div>
               )}
 
-              {/* Action Buttons - PDF View/Download with Text */}
-              <div className="flex items-center gap-3 pt-4 border-t border-slate-200">
+              {/* Action Buttons - PDF View/Download with Text - Smaller */}
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
                 {/* Download Button */}
                 <button
                   onClick={() => handleDownloadPDF(request)}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#11496c] to-[#0d3a52] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.3)] transition-all duration-200 hover:shadow-lg hover:shadow-[rgba(17,73,108,0.4)] hover:scale-105 active:scale-95"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                 >
-                  <IoDownloadOutline className="h-5 w-5" />
-                  <span>Download Prescription</span>
+                  <IoDownloadOutline className="h-4 w-4" />
+                  <span>Download PDF</span>
                 </button>
                 
                 {/* View Button */}
                 <button
                   onClick={() => handleViewPDF(request)}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-200/50 transition-all duration-200 hover:border-[#11496c] hover:bg-[#11496c] hover:text-white hover:shadow-md hover:shadow-[rgba(17,73,108,0.2)] hover:scale-105 active:scale-95"
+                  className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                  aria-label="View PDF"
                 >
-                  <IoEyeOutline className="h-5 w-5" />
-                  <span>View Prescription</span>
+                  <IoEyeOutline className="h-4 w-4" />
                 </button>
               </div>
             </article>

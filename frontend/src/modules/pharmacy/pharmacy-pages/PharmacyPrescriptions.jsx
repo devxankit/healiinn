@@ -15,6 +15,9 @@ import {
   IoLocationOutline,
   IoCheckmarkCircleOutline,
   IoPersonCircleOutline,
+  IoTimeOutline,
+  IoHomeOutline,
+  IoEyeOutline,
 } from 'react-icons/io5'
 
 const mockPrescriptions = [

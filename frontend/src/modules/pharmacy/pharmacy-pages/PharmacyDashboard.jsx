@@ -12,6 +12,7 @@ import {
   IoLocationOutline,
   IoWalletOutline,
   IoMedicalOutline,
+  IoListOutline,
 } from 'react-icons/io5'
 import { usePharmacySidebar } from '../pharmacy-components/PharmacySidebarContext'
 
@@ -308,6 +309,30 @@ const PharmacyDashboard = () => {
             </div>
           </div>
           <p className="text-[10px] text-slate-600 leading-tight">In stock</p>
+        </article>
+
+        {/* Request Orders */}
+        <article
+          onClick={() => navigate('/pharmacy/request-orders')}
+          className="relative overflow-hidden rounded-xl border border-blue-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-blue-700 leading-tight mb-1">Request Orders</p>
+              <p className="text-xl font-bold text-slate-900 leading-none">{(() => {
+                try {
+                  const requests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+                  return requests.filter(r => r.type === 'order_medicine').length
+                } catch {
+                  return 0
+                }
+              })()}</p>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 text-white">
+              <IoListOutline className="text-base" aria-hidden="true" />
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-600 leading-tight">Patient requests</p>
         </article>
       </div>
 

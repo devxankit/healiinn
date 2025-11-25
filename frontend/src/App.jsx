@@ -50,6 +50,7 @@ import PharmacyWalletEarning from './modules/pharmacy/pharmacy-pages/WalletEarni
 import PharmacyWalletWithdraw from './modules/pharmacy/pharmacy-pages/WalletWithdraw'
 import PharmacyWalletTransaction from './modules/pharmacy/pharmacy-pages/WalletTransaction'
 import PharmacySupport from './modules/pharmacy/pharmacy-pages/PharmacySupport'
+import PharmacyRequestOrders from './modules/pharmacy/pharmacy-pages/PharmacyRequestOrders'
 import LaboratoryNavbar from './modules/laboratory/laboratory-components/LaboratoryNavbar'
 import LaboratoryDashboard from './modules/laboratory/laboratory-pages/LaboratoryDashboard'
 import LaboratoryOrders from './modules/laboratory/laboratory-pages/LaboratoryOrders'
@@ -62,6 +63,7 @@ import LaboratoryReports from './modules/laboratory/laboratory-pages/LaboratoryR
 import LaboratoryTestReports from './modules/laboratory/laboratory-pages/LaboratoryTestReports'
 import LaboratoryPatientStatistics from './modules/laboratory/laboratory-pages/LaboratoryPatientStatistics'
 import LaboratoryPatientDetails from './modules/laboratory/laboratory-pages/LaboratoryPatientDetails'
+import LaboratoryRequestOrders from './modules/laboratory/laboratory-pages/LaboratoryRequestOrders'
 import LaboratoryWalletBalance from './modules/laboratory/laboratory-pages/WalletBalance'
 import LaboratoryWalletEarning from './modules/laboratory/laboratory-pages/WalletEarning'
 import LaboratoryWalletWithdraw from './modules/laboratory/laboratory-pages/WalletWithdraw'
@@ -172,6 +174,7 @@ function App() {
                     <Route path="/dashboard" element={<PharmacyDashboard />} />
                     <Route path="/list" element={<PharmacyList />} />
                     <Route path="/orders" element={<PharmacyOrders />} />
+                    <Route path="/request-orders" element={<PharmacyRequestOrders />} />
                     <Route path="/prescriptions" element={<PharmacyPrescriptions />} />
                     <Route path="/medicines" element={<PharmacyMedicines />} />
                     <Route path="/patients" element={<PharmacyPatients />} />
@@ -201,6 +204,7 @@ function App() {
                     <Route path="/dashboard" element={<LaboratoryDashboard />} />
                     <Route path="/orders" element={<LaboratoryOrders />} />
                     <Route path="/requests" element={<LaboratoryRequests />} />
+                    <Route path="/request-orders" element={<LaboratoryRequestOrders />} />
                     <Route path="/reports" element={<LaboratoryReports />} />
                     <Route path="/test-reports" element={<LaboratoryTestReports />} />
                     <Route path="/patients" element={<LaboratoryPatients />} />
