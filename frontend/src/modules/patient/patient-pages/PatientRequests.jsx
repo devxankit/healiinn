@@ -144,9 +144,38 @@ const PatientRequests = () => {
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('card')
-  const [requests, setRequests] = useState(mockRequests)
+  const [requests, setRequests] = useState([])
   const [, setCancelledRequests] = useState([])
   const [receiptPdfUrl, setReceiptPdfUrl] = useState(null)
+
+  // Load requests from localStorage
+  useEffect(() => {
+    loadRequests()
+    // Refresh every 2 seconds to get new requests
+    const interval = setInterval(() => {
+      loadRequests()
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const loadRequests = () => {
+    try {
+      // Load from patientRequests localStorage (set by admin)
+      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+      // Also check mockRequests for backward compatibility
+      const allRequests = [...patientRequests, ...mockRequests]
+      // Remove duplicates by id
+      const uniqueRequests = allRequests.filter((req, idx, self) => 
+        idx === self.findIndex(r => r.id === req.id)
+      )
+      // Sort by date (newest first)
+      uniqueRequests.sort((a, b) => new Date(b.requestDate || b.createdAt || 0) - new Date(a.requestDate || a.createdAt || 0))
+      setRequests(uniqueRequests)
+    } catch (error) {
+      console.error('Error loading requests:', error)
+      setRequests(mockRequests)
+    }
+  }
 
   const handleViewReceipt = (request) => {
     setSelectedRequest(request)
@@ -380,14 +409,70 @@ const PatientRequests = () => {
 
     setIsProcessing(true)
     
-    // Simulate payment processing
-    setTimeout(() => {
+    try {
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Update request status to confirmed
+      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+      const updatedRequests = patientRequests.map(req => 
+        req.id === selectedRequest.id 
+          ? { ...req, status: 'confirmed', paidAt: new Date().toISOString() }
+          : req
+      )
+      localStorage.setItem('patientRequests', JSON.stringify(updatedRequests))
+
+      // Send confirmation to admin
+      const allAdminRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      const updatedAdminRequests = allAdminRequests.map(req => {
+        if (req.id === selectedRequest.id) {
+          return {
+            ...req,
+            status: 'confirmed',
+            paymentConfirmed: true,
+            paidAt: new Date().toISOString(),
+            confirmationMessage: `Payment confirmed! Order has been created for patient ${selectedRequest.patient?.name || 'Patient'}.`,
+          }
+        }
+        return req
+      })
+      localStorage.setItem('adminRequests', JSON.stringify(updatedAdminRequests))
+
+      // Create order
+      const order = {
+        id: `order-${Date.now()}`,
+        requestId: selectedRequest.id,
+        type: selectedRequest.type,
+        patientId: 'pat-current',
+        patientName: selectedRequest.patient?.name || 'Patient',
+        pharmacyId: selectedRequest.providerId,
+        pharmacyName: selectedRequest.providerName,
+        medicines: selectedRequest.adminMedicines || selectedRequest.medicines || [],
+        totalAmount: selectedRequest.totalAmount,
+        status: 'confirmed',
+        createdAt: new Date().toISOString(),
+        paidAt: new Date().toISOString(),
+      }
+
+      // Save order
+      const orders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+      orders.push(order)
+      localStorage.setItem('patientOrders', JSON.stringify(orders))
+
+      // Also save to admin orders
+      const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
+      adminOrders.push(order)
+      localStorage.setItem('adminOrders', JSON.stringify(adminOrders))
+
       setIsProcessing(false)
       handleClosePaymentModal()
-      // Update request status to confirmed
-      // In real app, this would be an API call
-      alert(`Payment successful! Your ${selectedRequest.type === 'lab' ? 'test' : 'medicine'} booking is confirmed.`)
-    }, 2000)
+      loadRequests()
+      alert(`Payment successful! Your ${selectedRequest.type === 'lab' ? 'test' : 'medicine'} order has been confirmed.`)
+    } catch (error) {
+      console.error('Error processing payment:', error)
+      setIsProcessing(false)
+      alert('Error processing payment. Please try again.')
+    }
   }
 
   const handleCancelRequest = async (request) => {
@@ -552,6 +637,28 @@ const PatientRequests = () => {
                   </div>
                 )}
 
+                {/* Admin Medicines List - If available */}
+                {request.adminMedicines && request.adminMedicines.length > 0 && (
+                  <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <IoBagHandleOutline className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                      <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Medicines Added by Admin</h4>
+                    </div>
+                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                      {request.adminMedicines.map((med, idx) => (
+                        <div key={med.id || idx} className="flex items-center justify-between text-[10px] bg-white rounded px-2 py-1 border border-blue-100">
+                          <div className="flex-1 min-w-0">
+                            <span className="font-semibold text-slate-900">{med.name}</span>
+                            {med.dosage && <span className="text-slate-600 ml-1">({med.dosage})</span>}
+                            {med.quantity > 1 && <span className="text-slate-500 ml-1">x{med.quantity}</span>}
+                          </div>
+                          <span className="font-semibold text-blue-700 shrink-0 ml-2">₹{((med.price || 0) * (med.quantity || 1)).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Provider Response Section - Full Width */}
                 {request.providerResponse ? (
                   <div className="mt-3 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-3">
@@ -589,7 +696,7 @@ const PatientRequests = () => {
                     <div className="flex items-center gap-1.5">
                       <IoTimeOutline className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                       <p className="text-[10px] font-medium text-amber-900 leading-tight">
-                        Waiting for response from {request.providerName}...
+                        Waiting for admin response...
                       </p>
                     </div>
                   </div>
