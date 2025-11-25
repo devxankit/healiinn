@@ -33,6 +33,13 @@ const mockPrescriptions = [
       gender: 'Male',
       phone: '+91 98765 12345',
       email: 'john.doe@example.com',
+      address: {
+        line1: '123 Main Street',
+        line2: 'Apt 4B',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10001',
+      },
     },
     clinic: {
       name: 'City Health Clinic',
@@ -103,6 +110,13 @@ const mockPrescriptions = [
       gender: 'Female',
       phone: '+91 98765 23456',
       email: 'sarah.smith@example.com',
+      address: {
+        line1: '456 Oak Avenue',
+        line2: '',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10002',
+      },
     },
     clinic: {
       name: 'Bone & Joint Care',
@@ -171,6 +185,13 @@ const mockPrescriptions = [
       gender: 'Male',
       phone: '+91 98765 34567',
       email: 'mike.johnson@example.com',
+      address: {
+        line1: '789 Pine Street',
+        line2: 'Suite 200',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10003',
+      },
     },
     clinic: {
       name: 'Heart Care Clinic',
@@ -331,8 +352,35 @@ const PharmacyPrescriptions = () => {
     if (prescriptionData.patient.phone) {
       doc.text(`Phone: ${prescriptionData.patient.phone}`, pageWidth - margin, yPos + 12, { align: 'right' })
     }
-
-    yPos += 18
+    // Patient Address
+    let addressYPos = prescriptionData.patient.phone ? yPos + 16 : yPos + 12
+    if (prescriptionData.patient.address) {
+      let addressText = ''
+      const address = prescriptionData.patient.address
+      
+      // Handle address as object (with line1, line2, city, state, postalCode)
+      if (typeof address === 'object' && address !== null) {
+        const addressParts = []
+        if (address.line1) addressParts.push(address.line1)
+        if (address.line2) addressParts.push(address.line2)
+        if (address.city) addressParts.push(address.city)
+        if (address.state) addressParts.push(address.state)
+        if (address.postalCode) addressParts.push(address.postalCode)
+        addressText = addressParts.join(', ')
+      } else if (typeof address === 'string') {
+        // Handle address as string
+        addressText = address
+      }
+      
+      if (addressText) {
+        const addressLines = doc.splitTextToSize(addressText, (pageWidth - 2 * margin) / 2)
+        addressLines.forEach((line, idx) => {
+          doc.text(`${idx === 0 ? 'Address: ' : ''}${line}`, pageWidth - margin, addressYPos + (idx * 4), { align: 'right' })
+        })
+        addressYPos += (addressLines.length - 1) * 4
+      }
+    }
+    yPos = addressYPos + 3
 
     // Diagnosis Section with Light Blue Background Box
     doc.setFontSize(10)

@@ -29,9 +29,6 @@ import {
 
 const mockStats = {
   totalOrders: 18,
-  activePatients: 124,
-  totalPatients: 180,
-  inactivePatients: 56,
   testReports: 45,
   notifications: 7,
   recentOrders: 3,
@@ -90,33 +87,6 @@ const todayOrders = [
     testRequestId: 'test-3024',
     tests: ['Thyroid Function Test'],
     createdAt: new Date().toISOString(),
-  },
-]
-
-const recentPatients = [
-  {
-    id: 'pat-1',
-    name: 'John Doe',
-    image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-15',
-    totalTests: 8,
-    status: 'active',
-  },
-  {
-    id: 'pat-2',
-    name: 'Sarah Smith',
-    image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-14',
-    totalTests: 5,
-    status: 'active',
-  },
-  {
-    id: 'pat-3',
-    name: 'Mike Johnson',
-    image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-12',
-    totalTests: 12,
-    status: 'active',
   },
 ]
 
@@ -226,53 +196,8 @@ const LaboratoryDashboard = () => {
     },
   ]
 
-  // Mock data for Patients
-  const mockPatientsData = [
-    {
-      id: 'pat-1',
-      _id: 'pat-1',
-      firstName: 'John',
-      lastName: 'Doe',
-      name: 'John Doe',
-      image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-      profileImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-      lastTestDate: '2025-01-15',
-      totalTests: 8,
-      testCount: 8,
-      status: 'active',
-    },
-    {
-      id: 'pat-2',
-      _id: 'pat-2',
-      firstName: 'Sarah',
-      lastName: 'Smith',
-      name: 'Sarah Smith',
-      image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
-      profileImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
-      lastTestDate: '2025-01-14',
-      totalTests: 5,
-      testCount: 5,
-      status: 'active',
-    },
-    {
-      id: 'pat-3',
-      _id: 'pat-3',
-      firstName: 'Mike',
-      lastName: 'Johnson',
-      name: 'Mike Johnson',
-      image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
-      profileImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
-      lastTestDate: '2025-01-12',
-      totalTests: 12,
-      testCount: 12,
-      status: 'active',
-    },
-  ]
-
   const [todayOrders, setTodayOrders] = useState(mockTodayOrdersData)
-  const [patients, setPatients] = useState(mockPatientsData)
   const [loadingOrders, setLoadingOrders] = useState(true)
-  const [loadingPatients, setLoadingPatients] = useState(true)
 
   // Fetch today's orders
   useEffect(() => {
@@ -342,66 +267,6 @@ const LaboratoryDashboard = () => {
     fetchTodayOrders()
   }, [])
 
-  // Fetch patients
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const token = localStorage.getItem('laboratoryAuthToken') || sessionStorage.getItem('laboratoryAuthToken')
-        if (!token) {
-          // If no token, use mock data
-          setPatients(mockPatientsData)
-          setLoadingPatients(false)
-          return
-        }
-
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/laboratories/patients?limit=5`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.patients && data.patients.length > 0) {
-            // Transform patients data
-            const transformedPatients = data.patients.map(patient => ({
-              _id: patient._id,
-              id: patient._id,
-              firstName: patient.firstName,
-              lastName: patient.lastName,
-              name: patient.firstName && patient.lastName 
-                ? `${patient.firstName} ${patient.lastName}` 
-                : patient.name || 'Unknown',
-              profileImage: patient.profileImage,
-              image: patient.profileImage,
-              lastTestDate: patient.lastTestDate || patient.updatedAt,
-              totalTests: patient.totalTests || patient.testCount || 0,
-              status: patient.status || 'active',
-            }))
-            setPatients(transformedPatients)
-          } else {
-            // If no data from API, use mock data
-            setPatients(mockPatientsData)
-          }
-        } else {
-          // If API fails, use mock data
-          setPatients(mockPatientsData)
-        }
-      } catch (error) {
-        console.error('Error fetching patients:', error)
-        // Fallback to mock data on error
-        setPatients(mockPatientsData)
-      } finally {
-        setLoadingPatients(false)
-      }
-    }
-
-    fetchPatients()
-  }, [])
 
   // Mock patients list
   const mockPatients = [
@@ -602,23 +467,6 @@ const LaboratoryDashboard = () => {
             <p className="text-[10px] text-slate-600 leading-tight">This month</p>
           </article>
 
-          {/* Total Patients */}
-          <article
-            onClick={() => navigate('/laboratory/patient-statistics')}
-            className="relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
-          >
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1">Total Patients</p>
-                <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.totalPatients}</p>
-              </div>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#11496c] text-white">
-                <IoPeopleOutline className="text-base" aria-hidden="true" />
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-600 leading-tight">All patients</p>
-          </article>
-
           {/* Test Reports */}
           <article
             onClick={handleTestReportsClick}
@@ -636,21 +484,21 @@ const LaboratoryDashboard = () => {
             <p className="text-[10px] text-slate-600 leading-tight">Pending review</p>
           </article>
 
-          {/* Requests */}
+          {/* Prescription */}
           <article
             onClick={() => navigate('/laboratory/patients')}
             className="relative overflow-hidden rounded-xl border border-purple-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Requests</p>
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Prescription</p>
                 <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.requestResponses}</p>
               </div>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500 text-white">
-                <IoChatbubbleOutline className="text-base" aria-hidden="true" />
+                <IoDocumentTextOutline className="text-base" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-[10px] text-slate-600 leading-tight">Responses</p>
+            <p className="text-[10px] text-slate-600 leading-tight">Received</p>
           </article>
         </div>
 
@@ -778,86 +626,6 @@ const LaboratoryDashboard = () => {
           </div>
         </section>
 
-        {/* Patients Section */}
-        <section aria-labelledby="patients-title" className="space-y-3">
-          <header className="flex items-center justify-between">
-            <h2 id="patients-title" className="text-base font-semibold text-slate-900">
-              Patients
-            </h2>
-            <button
-              type="button"
-              onClick={() => navigate('/laboratory/patient-statistics')}
-              className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
-            >
-              See all
-            </button>
-          </header>
-
-          <div className="space-y-3">
-            {loadingPatients ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-slate-500">Loading patients...</p>
-              </div>
-            ) : patients.length === 0 ? (
-              <div className="text-center py-8">
-                <IoPeopleOutline className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm font-medium text-slate-600">No patients found</p>
-                <p className="text-xs text-slate-500 mt-1">Your patients will appear here</p>
-              </div>
-            ) : (
-              patients.map((patient) => {
-                const patientName = patient.firstName && patient.lastName 
-                  ? `${patient.firstName} ${patient.lastName}` 
-                  : patient.name || patient.patientName || 'Unknown Patient'
-                const patientImage = patient.profileImage || patient.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=128&bold=true`
-                const lastTestDate = patient.lastTestDate || patient.lastTest || patient.updatedAt
-                const totalTests = patient.totalTests || patient.testCount || 0
-                
-                return (
-                  <article
-                    key={patient._id || patient.id}
-                    onClick={() => navigate(`/laboratory/patient-statistics`)}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={patientImage}
-                        alt={patientName}
-                        className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
-                        onError={(e) => {
-                          e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=128&bold=true`
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-semibold text-slate-900">{patientName}</h3>
-                            {lastTestDate && (
-                              <p className="mt-0.5 text-xs text-slate-600">Last test: {formatDate(lastTestDate)}</p>
-                            )}
-                          </div>
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
-                            {patient.status || 'active'}
-                          </span>
-                        </div>
-                        {totalTests > 0 && (
-                          <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
-                            <div className="flex items-center gap-1">
-                              <IoFlaskOutline className="h-3.5 w-3.5" />
-                              <span>{totalTests} tests</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <IoArrowForwardOutline className="h-5 w-5 shrink-0 text-slate-400" />
-                    </div>
-                  </article>
-                )
-              })
-            )}
-          </div>
-        </section>
       </section>
 
       {/* Upload PDF Modal */}

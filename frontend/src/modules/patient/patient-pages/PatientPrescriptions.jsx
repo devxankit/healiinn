@@ -720,6 +720,22 @@ const PatientPrescriptions = () => {
 
   const handleOrderMedicine = async (prescription) => {
     try {
+      // Get patient info from localStorage if available
+      let patientName = 'Patient'
+      let patientId = 'pat-current'
+      
+      try {
+        const patientData = JSON.parse(localStorage.getItem('patientData') || '{}')
+        if (patientData.firstName || patientData.lastName) {
+          patientName = `${patientData.firstName || ''} ${patientData.lastName || ''}`.trim() || 'Patient'
+        }
+        if (patientData.id) {
+          patientId = patientData.id
+        }
+      } catch (e) {
+        // Use default values if patient data not found
+      }
+
       // Create request data
       const requestData = {
         id: `medicine-request-${Date.now()}`,
@@ -732,8 +748,8 @@ const PatientPrescriptions = () => {
           issuedAt: prescription.issuedAt,
           medications: prescription.medications || [],
         },
-        patientId: 'pat-current', // In real app, get from auth
-        patientName: 'Current Patient', // In real app, get from auth
+        patientId: patientId,
+        patientName: patientName,
         status: 'pending',
         createdAt: new Date().toISOString(),
       }

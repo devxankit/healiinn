@@ -236,81 +236,6 @@ const LaboratoryPatients = () => {
     return filtered
   }, [searchTerm, testRequests, collectionFilter])
 
-  const handleAcceptRequest = async (request) => {
-    if (!window.confirm(`Accept test request from ${request.patient.name}?`)) {
-      return
-    }
-
-    setIsProcessing(true)
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      
-      setTestRequests((prev) =>
-        prev.map((req) =>
-          req.id === request.id
-            ? { ...req, status: 'accepted', acceptedDate: new Date().toISOString() }
-            : req
-        )
-      )
-      
-      alert(`Request accepted! You can now generate bill manually.`)
-    } catch (error) {
-      alert('Failed to accept request. Please try again.')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleCancelRequest = async (request) => {
-    if (!window.confirm(`Cancel test request from ${request.patient.name}?`)) {
-      return
-    }
-
-    setIsProcessing(true)
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      
-      setTestRequests((prev) =>
-        prev.map((req) =>
-          req.id === request.id
-            ? { ...req, status: 'cancelled' }
-            : req
-        )
-      )
-      
-      alert(`Request cancelled.`)
-    } catch (error) {
-      alert('Failed to cancel request. Please try again.')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleOpenBillGenerator = (request) => {
-    setBillRequest(request)
-    // Initialize bill items with test names and default prices
-    const testPrices = {
-      'Complete Blood Count (CBC)': 450.0,
-      'Blood Glucose (Fasting)': 250.0,
-      'Lipid Profile': 600.0,
-    }
-    
-    const items = request.prescription.investigations.map((inv) => ({
-      name: inv.name,
-      price: testPrices[inv.name] || 500.0,
-    }))
-    
-    setBillItems(items)
-    // Set delivery charge only for home collection
-    if (request.collectionType === 'home') {
-      setDeliveryCharge('50')
-    } else {
-      setDeliveryCharge('0')
-    }
-    setAdditionalCharges('0')
-    setShowBillGenerator(true)
-  }
 
   const handleCloseBillGenerator = () => {
     setShowBillGenerator(false)
@@ -623,8 +548,34 @@ const LaboratoryPatients = () => {
     doc.text(`Name: ${patientData.name}`, pageWidth - margin, yPos, { align: 'right' })
     doc.text(`Age: ${patientData.age} years`, pageWidth - margin, yPos + 4, { align: 'right' })
     doc.text(`Gender: ${patientData.gender}`, pageWidth - margin, yPos + 8, { align: 'right' })
+    if (patientData.phone) {
+      doc.text(`Phone: ${patientData.phone}`, pageWidth - margin, yPos + 12, { align: 'right' })
+    }
+    // Patient Address
+    if (patientData.address) {
+      const address = patientData.address
+      const addressParts = []
+      if (address.line1) addressParts.push(address.line1)
+      if (address.line2) addressParts.push(address.line2)
+      if (address.city) addressParts.push(address.city)
+      if (address.state) addressParts.push(address.state)
+      if (address.postalCode) addressParts.push(address.postalCode)
+      if (addressParts.length > 0) {
+        const addressText = addressParts.join(', ')
+        const addressLines = doc.splitTextToSize(addressText, (pageWidth - 2 * margin) / 2)
+        const startY = patientData.phone ? yPos + 16 : yPos + 12
+        addressLines.forEach((line, idx) => {
+          doc.text(`${idx === 0 ? 'Address: ' : ''}${line}`, pageWidth - margin, startY + (idx * 4), { align: 'right' })
+        })
+        yPos = startY + (addressLines.length - 1) * 4
+      } else {
+        yPos = patientData.phone ? yPos + 16 : yPos + 12
+      }
+    } else {
+      yPos = patientData.phone ? yPos + 16 : yPos + 12
+    }
 
-    yPos += 15
+    yPos += 3
 
     // Diagnosis Section with Light Blue Background Box
     doc.setFontSize(10)
@@ -885,8 +836,34 @@ const LaboratoryPatients = () => {
     doc.text(`Name: ${patientData.name}`, pageWidth - margin, yPos, { align: 'right' })
     doc.text(`Age: ${patientData.age} years`, pageWidth - margin, yPos + 4, { align: 'right' })
     doc.text(`Gender: ${patientData.gender}`, pageWidth - margin, yPos + 8, { align: 'right' })
+    if (patientData.phone) {
+      doc.text(`Phone: ${patientData.phone}`, pageWidth - margin, yPos + 12, { align: 'right' })
+    }
+    // Patient Address
+    if (patientData.address) {
+      const address = patientData.address
+      const addressParts = []
+      if (address.line1) addressParts.push(address.line1)
+      if (address.line2) addressParts.push(address.line2)
+      if (address.city) addressParts.push(address.city)
+      if (address.state) addressParts.push(address.state)
+      if (address.postalCode) addressParts.push(address.postalCode)
+      if (addressParts.length > 0) {
+        const addressText = addressParts.join(', ')
+        const addressLines = doc.splitTextToSize(addressText, (pageWidth - 2 * margin) / 2)
+        const startY = patientData.phone ? yPos + 16 : yPos + 12
+        addressLines.forEach((line, idx) => {
+          doc.text(`${idx === 0 ? 'Address: ' : ''}${line}`, pageWidth - margin, startY + (idx * 4), { align: 'right' })
+        })
+        yPos = startY + (addressLines.length - 1) * 4
+      } else {
+        yPos = patientData.phone ? yPos + 16 : yPos + 12
+      }
+    } else {
+      yPos = patientData.phone ? yPos + 16 : yPos + 12
+    }
 
-    yPos += 15
+    yPos += 3
 
     // Diagnosis Section with Light Blue Background Box
     doc.setFontSize(10)
@@ -1129,66 +1106,88 @@ const LaboratoryPatients = () => {
               key={request.id}
               className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md sm:p-5"
             >
-              {/* Header: Patient Name & Status Badge */}
-              <div className="flex items-start justify-between gap-3">
+              {/* Patient Information Section */}
+              <div className="flex items-start gap-4 mb-4">
+                <img
+                  src={request.patient.image}
+                  alt={request.patient.name}
+                  className="h-16 w-16 rounded-xl object-cover bg-slate-100 border-2 border-slate-200"
+                  onError={(e) => {
+                    e.target.onerror = null
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(request.patient.name)}&background=11496c&color=fff&size=160&bold=true`
+                  }}
+                />
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xl font-bold text-slate-900 mb-1">{request.patient.name}</h3>
-                  <p className="text-sm text-slate-600">Request ID: {request.requestId}</p>
-                </div>
-                {/* Status and Collection Type Badges - Stacked */}
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  {/* Status Badge - Smaller */}
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
-                    request.status === 'pending' 
-                      ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' 
-                      : request.status === 'accepted'
-                      ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                      : request.status === 'cancelled'
-                      ? 'bg-red-50 text-red-800 border border-red-200'
-                      : 'bg-slate-50 text-slate-800 border border-slate-200'
-                  }`}>
-                    {request.status === 'pending' && <IoTimeOutline className="h-3 w-3" />}
-                    {request.status === 'accepted' && <IoCheckmarkCircleOutline className="h-3 w-3" />}
-                    {request.status === 'cancelled' && <IoCloseCircleOutline className="h-3 w-3" />}
-                    {getStatusLabel(request.status)}
-                  </span>
-                  {/* Collection Type Badge - Below Status */}
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
-                    request.collectionType === 'home'
-                      ? 'bg-orange-50 text-orange-700 border border-orange-300'
-                      : 'bg-blue-50 text-blue-700 border border-blue-300'
-                  }`}>
-                    {request.collectionType === 'home' ? (
-                      <>
-                        <IoHomeOutline className="h-3 w-3" />
-                        Home Collection
-                      </>
-                    ) : (
-                      <>
-                        <IoLocationOutline className="h-3 w-3" />
-                        Lab Visit
-                      </>
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900 mb-1">{request.patient.name}</h3>
+                      <p className="text-sm text-slate-600">
+                        {request.patient.age} years, {request.patient.gender}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">Request ID: {request.requestId}</p>
+                    </div>
+                    {/* Status and Collection Type Badges - Stacked */}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      {/* Status Badge - Smaller */}
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                        request.status === 'pending' 
+                          ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' 
+                          : request.status === 'accepted'
+                          ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                          : request.status === 'cancelled'
+                          ? 'bg-red-50 text-red-800 border border-red-200'
+                          : 'bg-slate-50 text-slate-800 border border-slate-200'
+                      }`}>
+                        {request.status === 'pending' && <IoTimeOutline className="h-3 w-3" />}
+                        {request.status === 'accepted' && <IoCheckmarkCircleOutline className="h-3 w-3" />}
+                        {request.status === 'cancelled' && <IoCloseCircleOutline className="h-3 w-3" />}
+                        {getStatusLabel(request.status)}
+                      </span>
+                      {/* Collection Type Badge - Below Status */}
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                        request.collectionType === 'home'
+                          ? 'bg-orange-50 text-orange-700 border border-orange-300'
+                          : 'bg-blue-50 text-blue-700 border border-blue-300'
+                      }`}>
+                        {request.collectionType === 'home' ? (
+                          <>
+                            <IoHomeOutline className="h-3 w-3" />
+                            Home Collection
+                          </>
+                        ) : (
+                          <>
+                            <IoLocationOutline className="h-3 w-3" />
+                            Lab Visit
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Contact Information */}
+                  <div className="flex flex-col gap-2 mt-3">
+                    <a
+                      href={`tel:${request.patient.phone}`}
+                      className="flex items-center gap-2 text-sm text-slate-700 hover:text-[#11496c] transition-colors"
+                    >
+                      <IoCallOutline className="h-4 w-4 text-slate-500 shrink-0" />
+                      <span className="font-medium">{request.patient.phone}</span>
+                    </a>
+                    <a
+                      href={`mailto:${request.patient.email}`}
+                      className="flex items-center gap-2 text-sm text-slate-700 hover:text-[#11496c] transition-colors"
+                    >
+                      <IoMailOutline className="h-4 w-4 text-slate-500 shrink-0" />
+                      <span className="font-medium">{request.patient.email}</span>
+                    </a>
+                    {request.patient.address && (
+                      <div className="flex items-start gap-2 text-sm text-slate-700">
+                        <IoLocationOutline className="h-4 w-4 text-slate-500 shrink-0 mt-0.5" />
+                        <span className="font-medium">{formatAddress(request.patient.address)}</span>
+                      </div>
                     )}
-                  </span>
+                  </div>
                 </div>
-              </div>
-
-              {/* Contact Information - Line by line with proper spacing */}
-              <div className="flex flex-col gap-3">
-                <a
-                  href={`tel:${request.patient.phone}`}
-                  className="flex items-center gap-3 text-sm text-slate-700 hover:text-[#11496c] transition-colors"
-                >
-                  <IoCallOutline className="h-4 w-4 text-slate-500 shrink-0" />
-                  <span className="font-medium">{request.patient.phone}</span>
-                </a>
-                <a
-                  href={`mailto:${request.patient.email}`}
-                  className="flex items-center gap-3 text-sm text-slate-700 hover:text-[#11496c] transition-colors"
-                >
-                  <IoMailOutline className="h-4 w-4 text-slate-500 shrink-0" />
-                  <span className="font-medium">{request.patient.email}</span>
-                </a>
               </div>
 
               {/* Prescription Details - Light Grey Box */}
@@ -1250,84 +1249,24 @@ const LaboratoryPatients = () => {
                 </div>
               )}
 
-              {/* Action Buttons - Enhanced Square Design */}
-              <div className="flex items-center gap-3 pt-2 border-t border-slate-200">
-                {/* Accept Button (only for pending) */}
-                {request.status === 'pending' && (
-                <button
-                    onClick={() => handleAcceptRequest(request)}
-                    disabled={isProcessing}
-                    className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-emerald-500/40 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    aria-label="Accept"
-                  >
-                    <IoCheckmarkCircleOutline className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                  </button>
-                )}
-                
-                {/* Cancel Button (only for pending) */}
-                {request.status === 'pending' && (
-                  <button
-                    onClick={() => handleCancelRequest(request)}
-                    disabled={isProcessing}
-                    className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-red-500 bg-white text-red-600 shadow-sm shadow-red-500/10 transition-all duration-200 hover:bg-red-50 hover:border-red-600 hover:shadow-md hover:shadow-red-500/20 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    aria-label="Cancel"
-                  >
-                    <IoCloseCircleOutline className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                  </button>
-                )}
-                
-                {/* Generate Bill Button (for accepted status without bill) */}
-                {(request.status === 'accepted' || request.status === 'pending') && !request.bill && (
-                  <button
-                    onClick={() => handleOpenBillGenerator(request)}
-                    disabled={isProcessing}
-                    className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/40 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    aria-label="Generate Bill"
-                  >
-                    <IoReceiptOutline className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                  </button>
-                )}
-
-                {/* Mark as Paid (for bill_generated status) */}
-                {request.status === 'bill_generated' && (
-                  <button
-                    onClick={() => handleMarkAsPaid(request.id)}
-                    disabled={isProcessing}
-                    className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-blue-500/40 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    aria-label="Mark as Paid"
-                  >
-                    <IoCheckmarkCircleOutline className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                  </button>
-                )}
-
-                {/* Send Bill to Patient (for accepted/bill_generated status) */}
-                {request.bill && !request.billSent && (
-                  <button
-                    onClick={() => handleSendBillToPatient(request.id)}
-                    disabled={isProcessing}
-                    className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-md shadow-purple-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/40 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    aria-label="Send Bill"
-                  >
-                    <IoMailOutline className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                  </button>
-                )}
-
-                {/* Download Button (always visible) */}
+              {/* Action Buttons - PDF View/Download with Text */}
+              <div className="flex items-center gap-3 pt-4 border-t border-slate-200">
+                {/* Download Button */}
                 <button
                   onClick={() => handleDownloadPDF(request)}
-                  className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#11496c] to-[#0d3a52] text-white shadow-md shadow-[rgba(17,73,108,0.3)] transition-all duration-200 hover:shadow-lg hover:shadow-[rgba(17,73,108,0.4)] hover:scale-105 active:scale-95"
-                  aria-label="Download PDF"
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#11496c] to-[#0d3a52] px-4 py-3 text-sm font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.3)] transition-all duration-200 hover:shadow-lg hover:shadow-[rgba(17,73,108,0.4)] hover:scale-105 active:scale-95"
                 >
-                  <IoDownloadOutline className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                  <IoDownloadOutline className="h-5 w-5" />
+                  <span>Download Prescription</span>
                 </button>
                 
-                {/* View Button (always visible) */}
+                {/* View Button */}
                 <button
                   onClick={() => handleViewPDF(request)}
-                  className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-slate-700 shadow-sm shadow-slate-200/50 transition-all duration-200 hover:border-[#11496c] hover:bg-[#11496c] hover:text-white hover:shadow-md hover:shadow-[rgba(17,73,108,0.2)] hover:scale-105 active:scale-95"
-                  aria-label="View PDF"
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-200/50 transition-all duration-200 hover:border-[#11496c] hover:bg-[#11496c] hover:text-white hover:shadow-md hover:shadow-[rgba(17,73,108,0.2)] hover:scale-105 active:scale-95"
                 >
-                  <IoEyeOutline className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                  <IoEyeOutline className="h-5 w-5" />
+                  <span>View Prescription</span>
                 </button>
               </div>
             </article>

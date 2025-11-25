@@ -208,7 +208,7 @@ const LaboratoryTestReports = () => {
       return
     }
 
-    if (!window.confirm(`Share test report with ${order.patientName}?`)) {
+    if (!window.confirm(`Share test report with ${order.patientName} and Admin?`)) {
       return
     }
 
@@ -216,17 +216,56 @@ const LaboratoryTestReports = () => {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500))
       
+      // Prepare report data
+      const reportData = {
+        id: order.id,
+        orderId: order.orderId,
+        patientId: order.patientId,
+        patientName: order.patientName,
+        patientEmail: order.patientEmail,
+        patientPhone: order.patientPhone,
+        testName: order.testName,
+        orderDate: order.orderDate,
+        status: order.status,
+        sharedAt: new Date().toISOString(),
+        sharedBy: 'laboratory',
+        reportUrl: order.reportUrl || `https://example.com/reports/${order.orderId}.pdf`,
+        reportFileName: `${order.testName.replace(/\s+/g, '_')}_${order.orderId}.pdf`,
+      }
+
+      // Share with Patient - Save to patient's localStorage
+      const patientReportsKey = `sharedLabReports_${order.patientId}`
+      const existingPatientReports = JSON.parse(localStorage.getItem(patientReportsKey) || '[]')
+      const alreadySharedWithPatient = existingPatientReports.find(r => r.id === order.id)
+      if (!alreadySharedWithPatient) {
+        existingPatientReports.push(reportData)
+        localStorage.setItem(patientReportsKey, JSON.stringify(existingPatientReports))
+      }
+
+      // Share with Admin - Save to admin's localStorage
+      const adminReportsKey = 'adminSharedLabReports'
+      const existingAdminReports = JSON.parse(localStorage.getItem(adminReportsKey) || '[]')
+      const alreadySharedWithAdmin = existingAdminReports.find(r => r.id === order.id)
+      if (!alreadySharedWithAdmin) {
+        existingAdminReports.push({
+          ...reportData,
+          laboratoryName: 'MediLab Diagnostics', // Current laboratory name
+        })
+        localStorage.setItem(adminReportsKey, JSON.stringify(existingAdminReports))
+      }
+      
       // Update order to mark as shared
       setConfirmedOrders((prev) =>
         prev.map((o) =>
           o.id === order.id
-            ? { ...o, reportShared: true }
+            ? { ...o, reportShared: true, sharedWith: ['patient', 'admin'] }
             : o
         )
       )
       
-      alert(`Test report shared with ${order.patientName} successfully!`)
+      alert(`Test report shared with ${order.patientName} and Admin successfully!`)
     } catch (error) {
+      console.error('Error sharing report:', error)
       alert('Failed to share report. Please try again.')
     } finally {
       setIsSending(false)
@@ -273,11 +312,20 @@ const LaboratoryTestReports = () => {
       setUploadProgress(100)
       setUploadStatus('success')
       
+      // Create report URL (in real app, this would come from the upload response)
+      const reportUrl = URL.createObjectURL(selectedFile)
+      const reportFileName = selectedFile.name
+
       // Update order to have report
       setConfirmedOrders((prev) =>
         prev.map((order) =>
           order.id === selectedOrderForReport.id
-            ? { ...order, hasReport: true }
+            ? { 
+                ...order, 
+                hasReport: true,
+                reportUrl: reportUrl,
+                reportFileName: reportFileName,
+              }
             : order
         )
       )
@@ -478,14 +526,16 @@ const LaboratoryTestReports = () => {
 
                   {/* Report Status */}
                   {order.hasReport && (
-                    <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-                      <IoCheckmarkCircleOutline className="h-3 w-3" />
-                      Report Added
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                        <IoCheckmarkCircleOutline className="h-3 w-3" />
+                        Report Added
+                      </span>
                       {order.reportShared && (
-                        <>
-                          <span className="text-slate-300 mx-1">•</span>
-                          <span>Shared</span>
-                        </>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700 border border-blue-200">
+                          <IoCheckmarkCircleOutline className="h-3 w-3" />
+                          Shared with Patient & Admin
+                        </span>
                       )}
                     </div>
                   )}
@@ -513,7 +563,7 @@ const LaboratoryTestReports = () => {
                     }`}
                   >
                     <IoShareSocialOutline className="h-4 w-4" />
-                    {order.reportShared ? 'Already Shared' : 'Share with Patient'}
+                    {order.reportShared ? 'Already Shared' : 'Share with Admin and Patient'}
                   </button>
                 )}
               </div>

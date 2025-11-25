@@ -82,6 +82,7 @@ import AdminWallet from './modules/admin/admin-pages/AdminWallet'
 import AdminSupport from './modules/admin/admin-pages/AdminSupport'
 import AdminAppointments from './modules/admin/admin-pages/AdminAppointments'
 import AdminOrders from './modules/admin/admin-pages/AdminOrders'
+import AdminRequests from './modules/admin/admin-pages/AdminRequests'
 
 function PatientRoutes() {
   const location = useLocation()
@@ -241,6 +242,7 @@ function App() {
                     <Route path="/verification" element={<AdminVerification />} />
                     <Route path="/appointments" element={<AdminAppointments />} />
                     <Route path="/orders" element={<AdminOrders />} />
+                    <Route path="/request" element={<AdminRequests />} />
                     <Route path="/profile" element={<AdminProfile />} />
                     <Route path="/support" element={<AdminSupport />} />
                   </Routes>

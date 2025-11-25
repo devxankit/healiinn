@@ -10,6 +10,7 @@ import {
   IoShieldCheckmarkOutline,
   IoHelpCircleOutline,
   IoCubeOutline,
+  IoDocumentTextOutline,
 } from 'react-icons/io5'
 
 const sidebarNavItems = [
@@ -19,8 +20,8 @@ const sidebarNavItems = [
   { id: 'patients', label: 'Patients', to: '/admin/users', Icon: IoPeopleOutline },
   { id: 'laboratories', label: 'Laboratories', to: '/admin/laboratories', Icon: IoFlaskOutline },
   { id: 'pharmacies', label: 'Pharmacies', to: '/admin/pharmacies', Icon: IoBusinessOutline },
-  { id: 'pharmacy-medicines', label: 'Pharmacy Medicines', to: '/admin/pharmacy-medicines', Icon: IoMedicalOutline },
   { id: 'inventory', label: 'Inventory', to: '/admin/inventory', Icon: IoCubeOutline },
+  { id: 'request', label: 'Request', to: '/admin/request', Icon: IoDocumentTextOutline },
   { id: 'wallet', label: 'Wallet', to: '/admin/wallet', Icon: IoWalletOutline },
   { id: 'support', label: 'Support', to: '/admin/support', Icon: IoHelpCircleOutline },
 ]
