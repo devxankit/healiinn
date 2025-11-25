@@ -758,6 +758,9 @@ const PatientPrescriptions = () => {
           diagnosis: prescription.diagnosis,
           issuedAt: prescription.issuedAt,
           investigations: prescription.investigations || [],
+          medications: prescription.medications || [], // Include medications for complete prescription
+          advice: prescription.advice || '',
+          lifestyleAdvice: prescription.lifestyleAdvice || '',
           patientName: prescription.patientName || patientProfile.name || 'Current Patient',
           patientPhone: patientPhone,
           patientAddress: patientAddress,
@@ -766,6 +769,7 @@ const PatientPrescriptions = () => {
         patientName: prescription.patientName || patientProfile.name || 'Current Patient', // In real app, get from auth
         patientPhone: patientPhone,
         patientAddress: patientAddress,
+        patientEmail: patientProfile.email || 'patient@example.com',
         status: 'pending',
         createdAt: new Date().toISOString(),
       }
@@ -785,6 +789,13 @@ const PatientPrescriptions = () => {
 
   const handleOrderMedicine = async (prescription) => {
     try {
+      // Get patient info from localStorage or use defaults
+      const patientProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
+      const patientPhone = patientProfile.phone || prescription.patientPhone || '+1-555-000-0000'
+      const patientAddress = patientProfile.address 
+        ? `${patientProfile.address.line1 || ''} ${patientProfile.address.line2 || ''} ${patientProfile.address.city || ''} ${patientProfile.address.state || ''} ${patientProfile.address.postalCode || ''}`.trim()
+        : prescription.patientAddress || 'Address not provided'
+      
       // Create request data
       const requestData = {
         id: `medicine-request-${Date.now()}`,
@@ -796,12 +807,18 @@ const PatientPrescriptions = () => {
           diagnosis: prescription.diagnosis,
           issuedAt: prescription.issuedAt,
           medications: prescription.medications || [],
+          investigations: prescription.investigations || [], // Include investigations for complete prescription
+          advice: prescription.advice || '',
+          lifestyleAdvice: prescription.lifestyleAdvice || '',
           patientName: prescription.patientName || patientProfile.name || 'Current Patient',
           patientPhone: patientPhone,
           patientAddress: patientAddress,
         },
         patientId: 'pat-current', // In real app, get from auth
-        patientName: 'Current Patient', // In real app, get from auth
+        patientName: prescription.patientName || patientProfile.name || 'Current Patient', // In real app, get from auth
+        patientPhone: patientPhone,
+        patientAddress: patientAddress,
+        patientEmail: patientProfile.email || 'patient@example.com',
         status: 'pending',
         createdAt: new Date().toISOString(),
       }
