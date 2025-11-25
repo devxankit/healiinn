@@ -134,14 +134,48 @@ const renderStars = (rating) => {
   return stars
 }
 
+// Helper function to check if doctor is active
+const isDoctorActive = (doctorName) => {
+  try {
+    const saved = localStorage.getItem('doctorProfile')
+    if (saved) {
+      const profile = JSON.parse(saved)
+      const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+      // Check if this doctor matches the saved profile
+      if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
+        return profile.isActive !== false // Default to true if not set
+      }
+    }
+    // Check separate active status
+    const activeStatus = localStorage.getItem('doctorProfileActive')
+    if (activeStatus !== null && saved) {
+      const isActive = JSON.parse(activeStatus)
+      const profile = JSON.parse(saved)
+      const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+      if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
+        return isActive
+      }
+    }
+  } catch (error) {
+    console.error('Error checking doctor active status:', error)
+  }
+  // Default: show all doctors if no profile found (for mock data)
+  return true
+}
+
 const PatientSpecialtyDoctors = () => {
   const { specialtyId } = useParams()
   const navigate = useNavigate()
   
   const specialtyLabel = specialtyLabels[specialtyId] || 'All Specialties'
   
-  // Filter doctors by specialty
+  // Filter doctors by specialty and active status
   const filteredDoctors = mockDoctors.filter((doctor) => {
+    // Filter by active status first
+    if (!isDoctorActive(doctor.name)) {
+      return false
+    }
+    
     if (specialtyId === 'all') return true
     const specialtyMap = {
       'dentist': 'Dentist',
@@ -223,7 +257,6 @@ const PatientSpecialtyDoctors = () => {
                   <div className="flex items-center gap-2">
                     <IoLocationOutline className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                     <span className="truncate">{doctor.location}</span>
-                    <span className="shrink-0 font-semibold text-slate-700">{doctor.distance}</span>
                   </div>
 
                   <div className="flex items-center gap-2">

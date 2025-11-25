@@ -27,6 +27,7 @@ import {
   IoShieldCheckmarkOutline,
   IoHelpCircleOutline,
   IoImageOutline,
+  IoPowerOutline,
 } from 'react-icons/io5'
 
 const mockDoctorData = {
@@ -76,6 +77,7 @@ const mockDoctorData = {
   },
   status: 'approved',
   rating: 4.8,
+  isActive: true, // Profile visibility to patients
   letterhead: {
     logo: '',
     clinicName: '',
@@ -91,7 +93,21 @@ const DoctorProfile = () => {
   
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
-  const [formData, setFormData] = useState(mockDoctorData)
+  
+  // Load profile from localStorage or use mock data
+  const [formData, setFormData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('doctorProfile')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Ensure isActive is set (default true if not present)
+        return { ...mockDoctorData, ...parsed, isActive: parsed.isActive !== undefined ? parsed.isActive : true }
+      }
+    } catch (error) {
+      console.error('Error loading doctor profile:', error)
+    }
+    return { ...mockDoctorData, isActive: true }
+  })
 
   const formatDate = (dateString) => {
     if (!dateString) return '—'
@@ -214,9 +230,26 @@ const DoctorProfile = () => {
     console.log('Saving profile:', formData)
     // Save to localStorage so it can be used in PDF generation
     localStorage.setItem('doctorProfile', JSON.stringify(formData))
+    // Also save isActive status separately for easy access
+    localStorage.setItem('doctorProfileActive', JSON.stringify(formData.isActive))
     // TODO: Send digitalSignature.digitalSignature.imageUrl to backend
     setIsEditing(false)
     setActiveSection(null)
+  }
+
+  const handleToggleActive = () => {
+    const newActiveStatus = !formData.isActive
+    const updatedFormData = { ...formData, isActive: newActiveStatus }
+    setFormData(updatedFormData)
+    // Save immediately when toggled
+    localStorage.setItem('doctorProfile', JSON.stringify(updatedFormData))
+    localStorage.setItem('doctorProfileActive', JSON.stringify(newActiveStatus))
+    
+    if (newActiveStatus) {
+      alert('Your profile is now active and visible to patients.')
+    } else {
+      alert('Your profile is now inactive and will not be visible to patients.')
+    }
   }
 
   const handleCancel = () => {
@@ -259,25 +292,56 @@ const DoctorProfile = () => {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h1 className="text-lg sm:text-xl font-bold text-slate-900 sm:text-2xl">
-                      {formData.firstName} {formData.lastName}
-                    </h1>
-                    <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-slate-600 truncate">{formData.email}</p>
-                    <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.1)] px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-[#11496c]">
-                        <IoMedicalOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                        {formData.specialization}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-slate-700">
-                        <IoPersonOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                        {formData.gender ? formData.gender.charAt(0).toUpperCase() + formData.gender.slice(1) : 'Not set'}
-                      </span>
-                      {formData.rating > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-amber-700">
-                          <IoStarOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                          {formData.rating}
-                        </span>
-                      )}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h1 className="text-lg sm:text-xl font-bold text-slate-900 sm:text-2xl">
+                          {formData.firstName} {formData.lastName}
+                        </h1>
+                        <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-slate-600 truncate">{formData.email}</p>
+                        <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.1)] px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-[#11496c]">
+                            <IoMedicalOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                            {formData.specialization}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-slate-700">
+                            <IoPersonOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                            {formData.gender ? formData.gender.charAt(0).toUpperCase() + formData.gender.slice(1) : 'Not set'}
+                          </span>
+                          {formData.rating > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-amber-700">
+                              <IoStarOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                              {formData.rating}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Active/Inactive Toggle */}
+                      <div className="flex flex-col items-end gap-2">
+                        <button
+                          type="button"
+                          onClick={handleToggleActive}
+                          className={`flex items-center gap-2 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition-all active:scale-95 ${
+                            formData.isActive
+                              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                          }`}
+                        >
+                          {formData.isActive ? (
+                            <>
+                              <IoCheckmarkCircleOutline className="h-4 w-4 sm:h-5 sm:w-5" />
+                              <span>Active</span>
+                            </>
+                          ) : (
+                            <>
+                              <IoPowerOutline className="h-4 w-4 sm:h-5 sm:w-5" />
+                              <span>Inactive</span>
+                            </>
+                          )}
+                        </button>
+                        <p className="text-[9px] sm:text-[10px] text-slate-500 text-right max-w-[80px]">
+                          {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>

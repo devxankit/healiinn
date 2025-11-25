@@ -556,10 +556,140 @@ const DoctorConsultations = () => {
       })
       
       console.log('Loaded shared lab reports:', reportsForDoctor)
+      // Debug: Log each report's pdfFileUrl to help troubleshoot
+      reportsForDoctor.forEach((report, idx) => {
+        console.log(`Report ${idx} (${report.testName || report.reportName}):`, {
+          id: report.id,
+          pdfFileUrl: report.pdfFileUrl,
+          downloadUrl: report.downloadUrl,
+          hasPdfFileUrl: !!report.pdfFileUrl,
+          pdfFileUrlValue: report.pdfFileUrl
+        })
+      })
       setSharedLabReports(reportsForDoctor)
     } catch (error) {
       console.error('Error loading shared lab reports:', error)
       setSharedLabReports([])
+    }
+  }
+
+  // Download lab report PDF (same as patient implementation)
+  const handleDownloadLabReport = async (report) => {
+    const pdfUrl = report.pdfFileUrl || report.downloadUrl
+    if (!pdfUrl || pdfUrl === '#') {
+      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
+      return
+    }
+
+    try {
+      // Check if we have stored PDF in localStorage (from previous download)
+      const storedPdfs = JSON.parse(localStorage.getItem('doctorLabReportPdfs') || '{}')
+      const storedPdf = storedPdfs[report.id]
+      
+      if (storedPdf && storedPdf.base64Data) {
+        // Use stored PDF if available
+        const link = document.createElement('a')
+        link.href = storedPdf.base64Data
+        link.download = storedPdf.pdfFileName || report.pdfFileName || `${(report.testName || report.reportName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        return
+      }
+      
+      // Check if URL is from same origin or is a data URL
+      const isSameOrigin = pdfUrl.startsWith(window.location.origin) || pdfUrl.startsWith('/')
+      const isDataUrl = pdfUrl.startsWith('data:')
+      
+      if (isDataUrl) {
+        // Direct download for data URLs
+        const link = document.createElement('a')
+        link.href = pdfUrl
+        link.download = report.pdfFileName || `${(report.testName || report.reportName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        return
+      }
+      
+      // Only try fetch for same-origin URLs to avoid CORS errors
+      if (isSameOrigin) {
+        try {
+          const response = await fetch(pdfUrl, {
+            method: 'GET',
+          })
+          
+          if (response.ok) {
+            const blob = await response.blob()
+            
+            // Create a blob URL for download
+            const blobUrl = URL.createObjectURL(blob)
+            
+            // Create download link
+            const link = document.createElement('a')
+            link.href = blobUrl
+            link.download = report.pdfFileName || `${(report.testName || report.reportName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            
+            // Clean up blob URL
+            setTimeout(() => {
+              URL.revokeObjectURL(blobUrl)
+            }, 100)
+            
+            // Store PDF in localStorage for offline access
+            try {
+              const reader = new FileReader()
+              reader.onloadend = () => {
+                const base64Data = reader.result
+                const updatedStoredPdfs = JSON.parse(localStorage.getItem('doctorLabReportPdfs') || '{}')
+                updatedStoredPdfs[report.id] = {
+                  pdfFileUrl: pdfUrl,
+                  pdfFileName: report.pdfFileName || `${(report.testName || report.reportName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`,
+                  base64Data: base64Data,
+                  downloadedAt: new Date().toISOString(),
+                }
+                localStorage.setItem('doctorLabReportPdfs', JSON.stringify(updatedStoredPdfs))
+              }
+              reader.readAsDataURL(blob)
+            } catch (storageError) {
+              console.error('Error storing PDF:', storageError)
+            }
+            return
+          }
+        } catch (fetchError) {
+          // Silently handle fetch errors for same-origin (shouldn't happen but handle gracefully)
+          console.warn('Fetch failed for same-origin URL')
+        }
+      }
+      
+      // For external URLs (cross-origin), don't try fetch (will cause CORS error)
+      // Just open in new tab - browser will handle download if server allows
+      window.open(pdfUrl, '_blank')
+    } catch (error) {
+      console.error('Error downloading PDF:', error)
+      // Last resort: open in new tab
+      window.open(pdfUrl, '_blank')
+    }
+  }
+
+  // View lab report PDF (open in new tab like patient)
+  const handleViewLabReport = (report) => {
+    // Check for PDF URL (check multiple possible fields)
+    const pdfUrl = report.pdfFileUrl || report.downloadUrl || report.reportFileUrl
+    
+    // If PDF URL is available and not a placeholder
+    if (pdfUrl && pdfUrl !== '#' && pdfUrl.trim() !== '' && pdfUrl !== 'undefined' && pdfUrl !== 'null') {
+      // Open the lab-uploaded PDF in a new tab (same as patient implementation)
+      window.open(pdfUrl, '_blank')
+    } else {
+      // Fallback: show modal if PDF not available
+      console.log('PDF not available for report:', report)
+      console.log('pdfFileUrl:', report.pdfFileUrl)
+      console.log('downloadUrl:', report.downloadUrl)
+      setSelectedReport(report)
+      setShowReportViewer(true)
     }
   }
 
@@ -614,10 +744,191 @@ const DoctorConsultations = () => {
     duration: '',
     instructions: '',
   })
+  
+  // Medicine dropdown state
+  const [showMedicineDropdown, setShowMedicineDropdown] = useState(false)
+  const [medicineSearchTerm, setMedicineSearchTerm] = useState('')
+  const [availableMedicines, setAvailableMedicines] = useState([])
+  
+  // Load medicines from pharmacy or use mock data
+  useEffect(() => {
+    try {
+      // Try to load from pharmacy medicines
+      const pharmacyMedicines = JSON.parse(localStorage.getItem('pharmacyMedicines') || '[]')
+      
+      if (pharmacyMedicines.length > 0) {
+        // Use pharmacy medicines
+        const medicineList = pharmacyMedicines.map(med => ({
+          name: med.name,
+          dosage: med.dosage,
+          manufacturer: med.manufacturer || '',
+        }))
+        setAvailableMedicines(medicineList)
+      } else {
+        // Use mock medicine list
+        const mockMedicines = [
+          { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Generic' },
+          { name: 'Amlodipine', dosage: '5mg', manufacturer: 'Generic' },
+          { name: 'Metformin', dosage: '500mg', manufacturer: 'Generic' },
+          { name: 'Atorvastatin', dosage: '10mg', manufacturer: 'Generic' },
+          { name: 'Omeprazole', dosage: '20mg', manufacturer: 'Generic' },
+          { name: 'Amlodipine', dosage: '10mg', manufacturer: 'Generic' },
+          { name: 'Losartan', dosage: '50mg', manufacturer: 'Generic' },
+          { name: 'Levothyroxine', dosage: '50mcg', manufacturer: 'Generic' },
+          { name: 'Metoprolol', dosage: '25mg', manufacturer: 'Generic' },
+          { name: 'Atenolol', dosage: '50mg', manufacturer: 'Generic' },
+          { name: 'Furosemide', dosage: '40mg', manufacturer: 'Generic' },
+          { name: 'Hydrochlorothiazide', dosage: '25mg', manufacturer: 'Generic' },
+          { name: 'Warfarin', dosage: '5mg', manufacturer: 'Generic' },
+          { name: 'Aspirin', dosage: '75mg', manufacturer: 'Generic' },
+          { name: 'Clopidogrel', dosage: '75mg', manufacturer: 'Generic' },
+          { name: 'Ramipril', dosage: '5mg', manufacturer: 'Generic' },
+          { name: 'Amlodipine + Telmisartan', dosage: '5mg/40mg', manufacturer: 'Generic' },
+          { name: 'Gliclazide', dosage: '80mg', manufacturer: 'Generic' },
+          { name: 'Glibenclamide', dosage: '5mg', manufacturer: 'Generic' },
+          { name: 'Insulin Glargine', dosage: '100 IU/ml', manufacturer: 'Generic' },
+        ]
+        setAvailableMedicines(mockMedicines)
+      }
+    } catch (error) {
+      console.error('Error loading medicines:', error)
+      // Fallback to mock medicines
+      const mockMedicines = [
+        { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Generic' },
+        { name: 'Amlodipine', dosage: '5mg', manufacturer: 'Generic' },
+        { name: 'Metformin', dosage: '500mg', manufacturer: 'Generic' },
+      ]
+      setAvailableMedicines(mockMedicines)
+    }
+  }, [])
+  
+  // Filter medicines based on search term
+  const filteredMedicines = useMemo(() => {
+    if (!medicineSearchTerm.trim()) {
+      return availableMedicines
+    }
+    const search = medicineSearchTerm.toLowerCase()
+    return availableMedicines.filter(med => 
+      med.name.toLowerCase().includes(search) ||
+      med.dosage.toLowerCase().includes(search) ||
+      (med.manufacturer && med.manufacturer.toLowerCase().includes(search))
+    )
+  }, [availableMedicines, medicineSearchTerm])
+  
+  // Handle medicine selection
+  const handleMedicineSelect = (medicine) => {
+    setNewMedication({
+      ...newMedication,
+      name: medicine.name,
+      dosage: medicine.dosage, // Auto-fill dosage if available
+    })
+    setShowMedicineDropdown(false)
+    setMedicineSearchTerm('')
+  }
+  
+  // Handle manual medicine name input
+  const handleMedicineNameChange = (value) => {
+    setNewMedication({ ...newMedication, name: value })
+    setMedicineSearchTerm(value)
+    // Show dropdown if there's a search term or if medicines are available
+    if (value.trim() || availableMedicines.length > 0) {
+      setShowMedicineDropdown(true)
+    }
+  }
   const [newInvestigation, setNewInvestigation] = useState({
     name: '',
     notes: '',
   })
+  
+  // Test dropdown state
+  const [showTestDropdown, setShowTestDropdown] = useState(false)
+  const [testSearchTerm, setTestSearchTerm] = useState('')
+  const [availableTests, setAvailableTests] = useState([])
+  
+  // Load tests from laboratory or use mock data
+  useEffect(() => {
+    try {
+      // Try to load from laboratory tests
+      const allPharmacyAvailability = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
+      // For now, use mock test list
+      const mockTests = [
+        { name: 'Complete Blood Count (CBC)', category: 'Blood Test' },
+        { name: 'Blood Glucose Test', category: 'Blood Test' },
+        { name: 'Lipid Profile', category: 'Blood Test' },
+        { name: 'Liver Function Test (LFT)', category: 'Blood Test' },
+        { name: 'Kidney Function Test (KFT)', category: 'Blood Test' },
+        { name: 'Thyroid Function Test (TFT)', category: 'Blood Test' },
+        { name: 'Hemoglobin A1C', category: 'Blood Test' },
+        { name: 'Vitamin D Test', category: 'Blood Test' },
+        { name: 'Vitamin B12 Test', category: 'Blood Test' },
+        { name: 'ECG (Electrocardiogram)', category: 'Cardiac Test' },
+        { name: 'Echocardiography', category: 'Cardiac Test' },
+        { name: 'Stress Test', category: 'Cardiac Test' },
+        { name: 'Chest X-Ray', category: 'Imaging' },
+        { name: 'CT Scan', category: 'Imaging' },
+        { name: 'MRI Scan', category: 'Imaging' },
+        { name: 'Ultrasound', category: 'Imaging' },
+        { name: 'Urine Analysis', category: 'Urine Test' },
+        { name: 'Urine Culture', category: 'Urine Test' },
+        { name: 'Stool Test', category: 'Stool Test' },
+        { name: 'Sputum Test', category: 'Sputum Test' },
+        { name: 'Pap Smear', category: 'Gynecological Test' },
+        { name: 'Mammography', category: 'Imaging' },
+        { name: 'Bone Density Test', category: 'Imaging' },
+        { name: 'Pulmonary Function Test', category: 'Lung Test' },
+        { name: 'Allergy Test', category: 'Allergy Test' },
+        { name: 'HIV Test', category: 'Blood Test' },
+        { name: 'Hepatitis B Test', category: 'Blood Test' },
+        { name: 'Hepatitis C Test', category: 'Blood Test' },
+        { name: 'PSA Test', category: 'Blood Test' },
+        { name: 'Tumor Markers', category: 'Blood Test' },
+      ]
+      setAvailableTests(mockTests)
+    } catch (error) {
+      console.error('Error loading tests:', error)
+      // Fallback to mock tests
+      const mockTests = [
+        { name: 'Complete Blood Count (CBC)', category: 'Blood Test' },
+        { name: 'Blood Glucose Test', category: 'Blood Test' },
+        { name: 'ECG', category: 'Cardiac Test' },
+        { name: 'Chest X-Ray', category: 'Imaging' },
+      ]
+      setAvailableTests(mockTests)
+    }
+  }, [])
+  
+  // Filter tests based on search term
+  const filteredTests = useMemo(() => {
+    if (!testSearchTerm.trim()) {
+      return availableTests
+    }
+    const search = testSearchTerm.toLowerCase()
+    return availableTests.filter(test => 
+      test.name.toLowerCase().includes(search) ||
+      (test.category && test.category.toLowerCase().includes(search))
+    )
+  }, [availableTests, testSearchTerm])
+  
+  // Handle test selection
+  const handleTestSelect = (test) => {
+    setNewInvestigation({
+      ...newInvestigation,
+      name: test.name,
+    })
+    setShowTestDropdown(false)
+    setTestSearchTerm('')
+  }
+  
+  // Handle manual test name input
+  const handleTestNameChange = (value) => {
+    setNewInvestigation({ ...newInvestigation, name: value })
+    setTestSearchTerm(value)
+    // Show dropdown if there's a search term or if tests are available
+    if (value.trim() || availableTests.length > 0) {
+      setShowTestDropdown(true)
+    }
+  }
+  
   const [attachments, setAttachments] = useState([])
 
   const patientHistory = selectedConsultation
@@ -638,8 +949,34 @@ const DoctorConsultations = () => {
       setMedications([...medications, { ...newMedication, id: Date.now() }])
       setNewMedication({ name: '', dosage: '', frequency: '', duration: '', instructions: '' })
       setShowAddMedication(false)
+      setShowMedicineDropdown(false)
+      setMedicineSearchTerm('')
     }
   }
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showMedicineDropdown && !event.target.closest('.medicine-dropdown-container')) {
+        setShowMedicineDropdown(false)
+      }
+    }
+    
+    if (showMedicineDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [showMedicineDropdown])
+  
+  // Reset medicine dropdown when modal closes
+  useEffect(() => {
+    if (!showAddMedication) {
+      setShowMedicineDropdown(false)
+      setMedicineSearchTerm('')
+    }
+  }, [showAddMedication])
 
   const handleRemoveMedication = (id) => {
     setMedications(medications.filter((med) => med.id !== id))
@@ -650,8 +987,34 @@ const DoctorConsultations = () => {
       setInvestigations([...investigations, { ...newInvestigation, id: Date.now() }])
       setNewInvestigation({ name: '', notes: '' })
       setShowAddInvestigation(false)
+      setShowTestDropdown(false)
+      setTestSearchTerm('')
     }
   }
+  
+  // Close test dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showTestDropdown && !event.target.closest('.test-dropdown-container')) {
+        setShowTestDropdown(false)
+      }
+    }
+    
+    if (showTestDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [showTestDropdown])
+  
+  // Reset test dropdown when modal closes
+  useEffect(() => {
+    if (!showAddInvestigation) {
+      setShowTestDropdown(false)
+      setTestSearchTerm('')
+    }
+  }, [showAddInvestigation])
 
   const handleRemoveInvestigation = (id) => {
     setInvestigations(investigations.filter((inv) => inv.id !== id))
@@ -743,11 +1106,30 @@ const DoctorConsultations = () => {
     doc.text(`Date: ${currentDate}`, margin, yPos + 8)
 
     // Patient Info (Right)
-    doc.text(`Name: ${prescriptionData.patientName}`, pageWidth - margin, yPos, { align: 'right' })
-    doc.text(`Age: ${selectedConsultation?.age || 'N/A'} years`, pageWidth - margin, yPos + 4, { align: 'right' })
-    doc.text(`Gender: ${selectedConsultation?.gender || 'N/A'}`, pageWidth - margin, yPos + 8, { align: 'right' })
+    let patientYPos = yPos
+    doc.text(`Name: ${prescriptionData.patientName}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    doc.text(`Age: ${selectedConsultation?.age || 'N/A'} years`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    doc.text(`Gender: ${selectedConsultation?.gender || 'N/A'}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    
+    // Add patient phone and address if available
+    if (prescriptionData.patientPhone || selectedConsultation?.patientPhone) {
+      doc.text(`Phone: ${prescriptionData.patientPhone || selectedConsultation?.patientPhone || 'N/A'}`, pageWidth - margin, patientYPos, { align: 'right' })
+      patientYPos += 4
+    }
+    if (prescriptionData.patientAddress || selectedConsultation?.patientAddress) {
+      const addressText = prescriptionData.patientAddress || selectedConsultation?.patientAddress || 'N/A'
+      const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin)
+      addressLines.forEach((line, index) => {
+        doc.text(line, pageWidth - margin, patientYPos + (index * 4), { align: 'right' })
+      })
+      patientYPos += (addressLines.length - 1) * 4
+    }
 
-    yPos += 15
+    // Set yPos to the maximum of doctor info end or patient info end
+    yPos = Math.max(yPos + 12, patientYPos) + 3
 
     // Diagnosis Section with Light Blue Background Box
     doc.setFontSize(10)
@@ -1096,11 +1478,30 @@ const DoctorConsultations = () => {
     doc.text(`Date: ${currentDate}`, margin, yPos + 8)
 
     // Patient Info (Right)
-    doc.text(`Name: ${prescriptionData.patientName}`, pageWidth - margin, yPos, { align: 'right' })
-    doc.text(`Age: ${selectedConsultation?.age || 'N/A'} years`, pageWidth - margin, yPos + 4, { align: 'right' })
-    doc.text(`Gender: ${selectedConsultation?.gender || 'N/A'}`, pageWidth - margin, yPos + 8, { align: 'right' })
+    let patientYPos = yPos
+    doc.text(`Name: ${prescriptionData.patientName}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    doc.text(`Age: ${selectedConsultation?.age || 'N/A'} years`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    doc.text(`Gender: ${selectedConsultation?.gender || 'N/A'}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    
+    // Add patient phone and address if available
+    if (prescriptionData.patientPhone || selectedConsultation?.patientPhone) {
+      doc.text(`Phone: ${prescriptionData.patientPhone || selectedConsultation?.patientPhone || 'N/A'}`, pageWidth - margin, patientYPos, { align: 'right' })
+      patientYPos += 4
+    }
+    if (prescriptionData.patientAddress || selectedConsultation?.patientAddress) {
+      const addressText = prescriptionData.patientAddress || selectedConsultation?.patientAddress || 'N/A'
+      const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin)
+      addressLines.forEach((line, index) => {
+        doc.text(line, pageWidth - margin, patientYPos + (index * 4), { align: 'right' })
+      })
+      patientYPos += (addressLines.length - 1) * 4
+    }
 
-    yPos += 15
+    // Set yPos to the maximum of doctor info end or patient info end
+    yPos = Math.max(yPos + 12, patientYPos) + 3
 
     // Diagnosis Section with Light Blue Background Box
     doc.setFontSize(10)
@@ -1946,8 +2347,14 @@ const DoctorConsultations = () => {
                               key={idx}
                               className="rounded-lg border border-blue-300 bg-white p-3 sm:p-4 shadow-sm cursor-pointer hover:shadow-md transition"
                               onClick={() => {
-                                setSelectedReport(report)
-                                setShowReportViewer(true)
+                                // Try to view PDF first, if not available show modal
+                                const pdfUrl = report.pdfFileUrl || report.downloadUrl || report.reportFileUrl
+                                if (pdfUrl && pdfUrl !== '#' && pdfUrl.trim() !== '' && pdfUrl !== 'undefined' && pdfUrl !== 'null') {
+                                  window.open(pdfUrl, '_blank')
+                                } else {
+                                  setSelectedReport(report)
+                                  setShowReportViewer(true)
+                                }
                               }}
                             >
                               <div className="flex items-start justify-between gap-2">
@@ -1987,8 +2394,7 @@ const DoctorConsultations = () => {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      setSelectedReport(report)
-                                      setShowReportViewer(true)
+                                      handleViewLabReport(report)
                                     }}
                                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-blue-600 transition hover:bg-blue-100"
                                     title="View Report"
@@ -2000,19 +2406,7 @@ const DoctorConsultations = () => {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        const pdfUrl = report.pdfFileUrl || report.downloadUrl
-                                        if (pdfUrl) {
-                                          // Create download link
-                                          const link = document.createElement('a')
-                                          link.href = pdfUrl
-                                          link.download = report.pdfFileName || `${(report.testName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`
-                                          link.target = '_blank'
-                                          document.body.appendChild(link)
-                                          link.click()
-                                          document.body.removeChild(link)
-                                        } else {
-                                          alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
-                                        }
+                                        handleDownloadLabReport(report)
                                       }}
                                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#11496c] transition hover:bg-[rgba(17,73,108,0.1)]"
                                       title="Download Report"
@@ -2919,13 +3313,7 @@ const DoctorConsultations = () => {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    // Only show PDF viewer if PDF is available
-                                    if (pdfUrl && pdfUrl !== '#') {
-                                      setSelectedReport(report)
-                                      setShowReportViewer(true)
-                                    } else {
-                                      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
-                                    }
+                                    handleViewLabReport(report)
                                   }}
                                   className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                                 >
@@ -2936,18 +3324,7 @@ const DoctorConsultations = () => {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    if (pdfUrl && pdfUrl !== '#') {
-                                      // Create download link
-                                      const link = document.createElement('a')
-                                      link.href = pdfUrl
-                                      link.download = report.pdfFileName || `${(report.testName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`
-                                      link.target = '_blank'
-                                      document.body.appendChild(link)
-                                      link.click()
-                                      document.body.removeChild(link)
-                                    } else {
-                                      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
-                                    }
+                                    handleDownloadLabReport(report)
                                   }}
                                   className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52]"
                                 >
@@ -2995,13 +3372,7 @@ const DoctorConsultations = () => {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    // Only show PDF viewer if PDF is available
-                                    if (pdfUrl && pdfUrl !== '#') {
-                                      setSelectedReport(report)
-                                      setShowReportViewer(true)
-                                    } else {
-                                      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
-                                    }
+                                    handleViewLabReport(report)
                                   }}
                                   className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                                 >
@@ -3011,17 +3382,7 @@ const DoctorConsultations = () => {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    if (pdfUrl && pdfUrl !== '#') {
-                                      const link = document.createElement('a')
-                                      link.href = pdfUrl
-                                      link.download = report.pdfFileName || `${(report.testName || 'Report').replace(/\s+/g, '_')}_${report.date || 'Report'}.pdf`
-                                      link.target = '_blank'
-                                      document.body.appendChild(link)
-                                      link.click()
-                                      document.body.removeChild(link)
-                                    } else {
-                                      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
-                                    }
+                                    handleDownloadLabReport(report)
                                   }}
                                   className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52]"
                                 >
@@ -3087,15 +3448,56 @@ const DoctorConsultations = () => {
               </button>
             </div>
             <div className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4">
-              <div>
+              <div className="relative medicine-dropdown-container">
                 <label className="mb-1.5 sm:mb-2 block text-xs sm:text-sm font-semibold text-slate-900">Medication Name *</label>
-                <input
-                  type="text"
-                  value={newMedication.name}
-                  onChange={(e) => setNewMedication({ ...newMedication, name: e.target.value })}
-                  placeholder="e.g., Amlodipine"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={newMedication.name}
+                    onChange={(e) => handleMedicineNameChange(e.target.value)}
+                    onFocus={() => {
+                      if (availableMedicines.length > 0) {
+                        setShowMedicineDropdown(true)
+                      }
+                    }}
+                    placeholder="Search or type medicine name..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 pr-10 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:border-[#11496c]"
+                  />
+                  <IoSearchOutline className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-slate-400 pointer-events-none" />
+                  
+                  {/* Medicine Dropdown */}
+                  {showMedicineDropdown && (filteredMedicines.length > 0 || medicineSearchTerm.trim()) && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {filteredMedicines.length > 0 ? (
+                        filteredMedicines.map((medicine, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => handleMedicineSelect(medicine)}
+                            className="w-full text-left px-3 sm:px-4 py-2 sm:py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{medicine.name}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-600 mt-0.5">
+                                  {medicine.dosage}
+                                  {medicine.manufacturer && ` • ${medicine.manufacturer}`}
+                                </p>
+                              </div>
+                              <IoMedicalOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] ml-2 shrink-0" />
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 sm:px-4 py-3 sm:py-4">
+                          <p className="text-xs sm:text-sm text-slate-600">
+                            No medicine found. You can type manually to add "{medicineSearchTerm}".
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="mb-1.5 sm:mb-2 block text-xs sm:text-sm font-semibold text-slate-900">Dosage *</label>
@@ -3141,7 +3543,11 @@ const DoctorConsultations = () => {
             <div className="flex gap-2 sm:gap-3 border-t border-slate-200 p-3 sm:p-4 lg:p-6">
               <button
                 type="button"
-                onClick={() => setShowAddMedication(false)}
+                onClick={() => {
+                  setShowAddMedication(false)
+                  setShowMedicineDropdown(false)
+                  setMedicineSearchTerm('')
+                }}
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Cancel
@@ -3182,15 +3588,57 @@ const DoctorConsultations = () => {
               </button>
             </div>
             <div className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4">
-              <div>
+              <div className="relative test-dropdown-container">
                 <label className="mb-1.5 sm:mb-2 block text-xs sm:text-sm font-semibold text-slate-900">Test Name *</label>
-                <input
-                  type="text"
-                  value={newInvestigation.name}
-                  onChange={(e) => setNewInvestigation({ ...newInvestigation, name: e.target.value })}
-                  placeholder="e.g., Blood Test, ECG"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={newInvestigation.name}
+                    onChange={(e) => handleTestNameChange(e.target.value)}
+                    onFocus={() => {
+                      if (availableTests.length > 0) {
+                        setShowTestDropdown(true)
+                      }
+                    }}
+                    placeholder="Search or type test name..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 pr-10 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:border-[#11496c]"
+                  />
+                  <IoSearchOutline className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-slate-400 pointer-events-none" />
+                  
+                  {/* Test Dropdown */}
+                  {showTestDropdown && (filteredTests.length > 0 || testSearchTerm.trim()) && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {filteredTests.length > 0 ? (
+                        filteredTests.map((test, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => handleTestSelect(test)}
+                            className="w-full text-left px-3 sm:px-4 py-2 sm:py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{test.name}</p>
+                                {test.category && (
+                                  <p className="text-[10px] sm:text-xs text-slate-600 mt-0.5">
+                                    {test.category}
+                                  </p>
+                                )}
+                              </div>
+                              <IoFlaskOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] ml-2 shrink-0" />
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 sm:px-4 py-3 sm:py-4">
+                          <p className="text-xs sm:text-sm text-slate-600">
+                            No test found. You can type manually to add "{testSearchTerm}".
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="mb-1.5 sm:mb-2 block text-xs sm:text-sm font-semibold text-slate-900">Notes</label>
@@ -3206,7 +3654,11 @@ const DoctorConsultations = () => {
             <div className="flex gap-2 sm:gap-3 border-t border-slate-200 p-3 sm:p-4 lg:p-6">
               <button
                 type="button"
-                onClick={() => setShowAddInvestigation(false)}
+                onClick={() => {
+                  setShowAddInvestigation(false)
+                  setShowTestDropdown(false)
+                  setTestSearchTerm('')
+                }}
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Cancel
@@ -3249,28 +3701,26 @@ const DoctorConsultations = () => {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {(selectedReport.pdfFileUrl || (selectedReport.downloadUrl && selectedReport.downloadUrl !== '#')) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const pdfUrl = selectedReport.pdfFileUrl || selectedReport.downloadUrl
-                      if (pdfUrl) {
-                        // Create download link
-                        const link = document.createElement('a')
-                        link.href = pdfUrl
-                        link.download = selectedReport.pdfFileName || `${(selectedReport.testName || 'Report').replace(/\s+/g, '_')}_${selectedReport.date || 'Report'}.pdf`
-                        link.target = '_blank'
-                        document.body.appendChild(link)
-                        link.click()
-                        document.body.removeChild(link)
-                      }
-                    }}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
-                    title="Download PDF"
-                  >
-                    <IoDownloadOutline className="h-5 w-5" />
-                  </button>
-                )}
+                {(() => {
+                  // Check if PDF is available (either from report or stored)
+                  const storedPdfs = JSON.parse(localStorage.getItem('doctorLabReportPdfs') || '{}')
+                  const storedPdf = storedPdfs[selectedReport.id]
+                  const pdfUrl = selectedReport.pdfFileUrl || selectedReport.downloadUrl
+                  const hasPdf = (pdfUrl && pdfUrl !== '#') || (storedPdf && storedPdf.base64Data)
+                  
+                  return hasPdf ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleDownloadLabReport(selectedReport)
+                      }}
+                      className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
+                      title="Download PDF"
+                    >
+                      <IoDownloadOutline className="h-5 w-5" />
+                    </button>
+                  ) : null
+                })()}
                 <button
                   type="button"
                   onClick={() => {
@@ -3286,46 +3736,52 @@ const DoctorConsultations = () => {
 
             {/* Content - Always show PDF if available, otherwise show message */}
             <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-              {(selectedReport.pdfFileUrl || (selectedReport.downloadUrl && selectedReport.downloadUrl !== '#')) ? (
-                <div className="w-full h-full min-h-[500px] rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
-                  <object
-                    data={`${selectedReport.pdfFileUrl || selectedReport.downloadUrl}#toolbar=1&navpanes=1&scrollbar=1`}
-                    type="application/pdf"
-                    className="w-full h-full min-h-[500px]"
-                    style={{ border: 'none' }}
-                  >
-                    <iframe
-                      src={`${selectedReport.pdfFileUrl || selectedReport.downloadUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+              {(() => {
+                // Check if PDF is available (either from report or stored)
+                const storedPdfs = JSON.parse(localStorage.getItem('doctorLabReportPdfs') || '{}')
+                const storedPdf = storedPdfs[selectedReport.id]
+                const pdfUrl = selectedReport.pdfFileUrl || selectedReport.downloadUrl
+                const hasPdf = (pdfUrl && pdfUrl !== '#' && pdfUrl.trim() !== '') || (storedPdf && storedPdf.base64Data)
+                const displayUrl = storedPdf?.base64Data || pdfUrl
+                
+                return hasPdf ? (
+                  <div className="w-full h-full min-h-[500px] rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+                    <object
+                      data={`${displayUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                      type="application/pdf"
                       className="w-full h-full min-h-[500px]"
                       style={{ border: 'none' }}
-                      title="Lab Report PDF"
-                    />
-                    <div className="p-6 text-center">
-                      <p className="text-sm text-slate-600 mb-4">Unable to display PDF in browser.</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const pdfUrl = selectedReport.pdfFileUrl || selectedReport.downloadUrl
-                          if (pdfUrl) {
-                            window.open(pdfUrl, '_blank')
-                          }
-                        }}
-                        className="rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0d3a52]"
-                      >
-                        Open PDF in New Tab
-                      </button>
-                    </div>
-                  </object>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-center">
-                  <IoFlaskOutline className="mx-auto h-16 w-16 text-slate-300 mb-4" />
-                  <p className="text-sm font-medium text-slate-600 mb-2">PDF Report Not Available</p>
-                  <p className="text-xs text-slate-500">
-                    PDF report will be available once the lab uploads it.
-                  </p>
-                </div>
-              )}
+                    >
+                      <iframe
+                        src={`${displayUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                        className="w-full h-full min-h-[500px]"
+                        style={{ border: 'none' }}
+                        title="Lab Report PDF"
+                      />
+                      <div className="p-6 text-center">
+                        <p className="text-sm text-slate-600 mb-4">Unable to display PDF in browser.</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleViewLabReport(selectedReport)
+                          }}
+                          className="rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0d3a52]"
+                        >
+                          Open PDF in New Tab
+                        </button>
+                      </div>
+                    </object>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-center">
+                    <IoFlaskOutline className="mx-auto h-16 w-16 text-slate-300 mb-4" />
+                    <p className="text-sm font-medium text-slate-600 mb-2">PDF Report Not Available</p>
+                    <p className="text-xs text-slate-500">
+                      PDF report will be available once the lab uploads it.
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>

@@ -19,7 +19,6 @@ import {
   IoStopOutline,
   IoAddOutline,
   IoCloseCircleOutline,
-  IoPauseOutline,
 } from 'react-icons/io5'
 
 // Helper function to get today's date in YYYY-MM-DD format
@@ -377,17 +376,8 @@ const DoctorPatients = () => {
       return autoCreateSession()
     }
   })
-  const [showCreateSessionModal, setShowCreateSessionModal] = useState(false)
   const [showCancelSessionModal, setShowCancelSessionModal] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
-  
-  // Session form state
-  const [sessionForm, setSessionForm] = useState({
-    date: new Date().toISOString().split('T')[0], // Today
-    startTime: '09:00',
-    endTime: '17:00',
-    averageConsultationMinutes: getAverageConsultationMinutes(),
-  })
 
   // Auto-create session on component mount and when profile changes
   useEffect(() => {
@@ -544,10 +534,8 @@ const DoctorPatients = () => {
     }
   }, [currentSession])
 
-  // Calculate max tokens for current session form
-  const maxTokens = currentSession
-    ? currentSession.maxTokens
-    : calculateMaxTokens(sessionForm.startTime, sessionForm.endTime, sessionForm.averageConsultationMinutes)
+  // Calculate max tokens for current session
+  const maxTokens = currentSession ? currentSession.maxTokens : 0
 
   const filteredAppointments = appointments.filter((appt) => {
     // Filter by session date if session exists
@@ -577,36 +565,6 @@ const DoctorPatients = () => {
   })
 
   // Session management functions
-  const handleCreateSession = () => {
-    const session = {
-      id: `session-${Date.now()}`,
-      date: sessionForm.date,
-      startTime: sessionForm.startTime,
-      endTime: sessionForm.endTime,
-      averageConsultationMinutes: sessionForm.averageConsultationMinutes,
-      maxTokens: maxTokens,
-      status: 'scheduled',
-      createdAt: new Date().toISOString(),
-    }
-    
-    setCurrentSession(session)
-    localStorage.setItem('doctorCurrentSession', JSON.stringify(session))
-    
-    // Also save to doctorSessions for patient booking connection
-    try {
-      const doctorSessions = JSON.parse(localStorage.getItem('doctorSessions') || '[]')
-      // Remove old session for same date if exists
-      const filtered = doctorSessions.filter((s) => s.date !== session.date)
-      filtered.push(session)
-      localStorage.setItem('doctorSessions', JSON.stringify(filtered))
-    } catch (error) {
-      console.error('Error saving session to doctorSessions:', error)
-    }
-    
-    setShowCreateSessionModal(false)
-    alert('Session created successfully! Click "Start Session" to begin the queue.')
-  }
-
   const handleStartSession = () => {
     if (!currentSession) return
     
@@ -614,41 +572,11 @@ const DoctorPatients = () => {
       ...currentSession,
       status: 'active',
       startedAt: new Date().toISOString(),
-      pausedAt: null,
-      resumedAt: null,
     }
     
     setCurrentSession(updatedSession)
     localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
     alert('Session started! Queue is now active.')
-  }
-
-  const handlePauseSession = () => {
-    if (!currentSession || currentSession.status !== 'active') return
-    
-    const updatedSession = {
-      ...currentSession,
-      status: 'paused',
-      pausedAt: new Date().toISOString(),
-    }
-    
-    setCurrentSession(updatedSession)
-    localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
-    alert('Session paused. Patients will be notified.')
-  }
-
-  const handleResumeSession = () => {
-    if (!currentSession || currentSession.status !== 'paused') return
-    
-    const updatedSession = {
-      ...currentSession,
-      status: 'active',
-      resumedAt: new Date().toISOString(),
-    }
-    
-    setCurrentSession(updatedSession)
-    localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
-    alert('Session resumed! Queue is active again.')
   }
 
   const handleEndSession = () => {
@@ -711,8 +639,6 @@ const DoctorPatients = () => {
     switch (status) {
       case 'active':
         return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-      case 'paused':
-        return 'bg-amber-100 text-amber-700 border-amber-200'
       case 'scheduled':
         return 'bg-blue-100 text-blue-700 border-blue-200'
       case 'completed':
@@ -728,8 +654,6 @@ const DoctorPatients = () => {
     switch (status) {
       case 'active':
         return 'Active'
-      case 'paused':
-        return 'Paused'
       case 'scheduled':
         return 'Scheduled'
       case 'completed':
@@ -874,16 +798,6 @@ const DoctorPatients = () => {
     setShowHistoryModal(true)
   }
 
-  // Reset form to profile values when opening create session modal
-  const handleOpenCreateSessionModal = () => {
-    setSessionForm({
-      date: new Date().toISOString().split('T')[0], // Today
-      startTime: '09:00',
-      endTime: '17:00',
-      averageConsultationMinutes: getAverageConsultationMinutes(), // Reset to profile value
-    })
-    setShowCreateSessionModal(true)
-  }
 
   const medicalHistory = selectedPatient ? mockMedicalHistory[selectedPatient.patientId] : null
 
@@ -916,21 +830,12 @@ const DoctorPatients = () => {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">No session created for today</p>
+                  <p className="text-xs text-slate-500">Session will be created automatically based on your profile settings</p>
                 )}
               </div>
               
               <div className="flex items-center gap-2 flex-wrap">
-                {!currentSession ? (
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateSessionModal}
-                    className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                  >
-                    <IoAddOutline className="h-4 w-4" />
-                    Create Session
-                  </button>
-                ) : (
+                {currentSession && (
                   <>
                     {currentSession.status === 'scheduled' && (
                       <button
@@ -943,33 +848,13 @@ const DoctorPatients = () => {
                       </button>
                     )}
                     {currentSession.status === 'active' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={handlePauseSession}
-                          className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-amber-700 active:scale-95"
-                        >
-                          <IoPauseOutline className="h-4 w-4" />
-                          Pause Session
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleEndSession}
-                          className="flex items-center gap-1.5 rounded-lg bg-slate-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-700 active:scale-95"
-                        >
-                          <IoStopOutline className="h-4 w-4" />
-                          End Session
-                        </button>
-                      </>
-                    )}
-                    {currentSession.status === 'paused' && (
                       <button
                         type="button"
-                        onClick={handleResumeSession}
-                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                        onClick={handleEndSession}
+                        className="flex items-center gap-1.5 rounded-lg bg-slate-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-700 active:scale-95"
                       >
-                        <IoPlayOutline className="h-4 w-4" />
-                        Resume Session
+                        <IoStopOutline className="h-4 w-4" />
+                        End Session
                       </button>
                     )}
                     {(currentSession.status === 'scheduled' || currentSession.status === 'active') && (
@@ -1007,16 +892,14 @@ const DoctorPatients = () => {
             {!currentSession ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                 <IoCalendarOutline className="mx-auto h-12 w-12 text-slate-300" />
-                <p className="mt-4 text-sm font-medium text-slate-600">No session created</p>
-                <p className="mt-1 text-xs text-slate-500">Create a session to view patient queue</p>
-                <button
-                  type="button"
-                  onClick={handleOpenCreateSessionModal}
-                  className="mt-4 flex items-center gap-2 mx-auto rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                >
-                  <IoAddOutline className="h-4 w-4" />
-                  Create Session
-                </button>
+                <p className="mt-4 text-sm font-medium text-slate-600">No session available</p>
+                <p className="mt-1 text-xs text-slate-500">Session will be created automatically based on your profile availability settings</p>
+              </div>
+            ) : currentSession.status !== 'active' ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                <IoPeopleOutline className="mx-auto h-12 w-12 text-slate-300" />
+                <p className="mt-4 text-sm font-medium text-slate-600">Session not started</p>
+                <p className="mt-1 text-xs text-slate-500">Click "Start Session" to begin and view appointments</p>
               </div>
             ) : filteredAppointments.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -1100,17 +983,17 @@ const DoctorPatients = () => {
                       </span>
                     </div>
 
-                    {/* Action Buttons - Below patient info */}
+                      {/* Action Buttons - Below patient info */}
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {appointment.status === 'waiting' && (
+                      {appointment.status === 'waiting' && currentSession?.status === 'active' && (
                         <>
                           <button
                             type="button"
                             onClick={() => handleCallNext(appointment.id)}
                             className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
                           >
-                            <IoPlayOutline className="h-3.5 w-3.5" />
-                            Call Next
+                            <IoCallOutline className="h-3.5 w-3.5" />
+                            Call to Consultation Room
                           </button>
                           <button
                             type="button"
@@ -1507,150 +1390,6 @@ const DoctorPatients = () => {
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Session Modal */}
-      {showCreateSessionModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm"
-          onClick={() => setShowCreateSessionModal(false)}
-        >
-          <div
-            className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 p-4 sm:p-6">
-              <h2 className="text-lg font-bold text-slate-900">Create Session</h2>
-              <button
-                type="button"
-                onClick={() => setShowCreateSessionModal(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
-              >
-                <IoCloseOutline className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-4 sm:p-6 space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-900">Date</label>
-                <input
-                  type="date"
-                  value={sessionForm.date}
-                  onChange={(e) => setSessionForm({ ...sessionForm, date: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-900">Start Time</label>
-                  <input
-                    type="time"
-                    value={sessionForm.startTime}
-                    onChange={(e) => {
-                      setSessionForm({ ...sessionForm, startTime: e.target.value })
-                    }}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-900">End Time</label>
-                  <input
-                    type="time"
-                    value={sessionForm.endTime}
-                    onChange={(e) => {
-                      setSessionForm({ ...sessionForm, endTime: e.target.value })
-                    }}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-900">
-                  Average Consultation Time (minutes)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="60"
-                  value={sessionForm.averageConsultationMinutes ?? ''}
-                  onChange={(e) => {
-                    const inputValue = e.target.value
-                    
-                    // Allow empty input while typing
-                    if (inputValue === '') {
-                      setSessionForm({ ...sessionForm, averageConsultationMinutes: '' })
-                      return
-                    }
-                    
-                    // Parse the number (removes leading zeros automatically)
-                    const numValue = parseInt(inputValue, 10)
-                    
-                    // If it's a valid number and within range
-                    if (!isNaN(numValue) && numValue >= 0 && numValue <= 60) {
-                      setSessionForm({ ...sessionForm, averageConsultationMinutes: numValue })
-                    }
-                    // If invalid or out of range, don't update (keeps previous valid value)
-                  }}
-                  onBlur={(e) => {
-                    // On blur, ensure we have a valid value
-                    const inputValue = e.target.value.trim()
-                    if (inputValue === '') {
-                      // If empty, set to profile value
-                      const profileValue = getAverageConsultationMinutes()
-                      setSessionForm({ ...sessionForm, averageConsultationMinutes: profileValue })
-                    } else {
-                      const numValue = parseInt(inputValue, 10)
-                      if (isNaN(numValue) || numValue < 0 || numValue > 60) {
-                        // If invalid, set to profile value
-                        const profileValue = getAverageConsultationMinutes()
-                        setSessionForm({ ...sessionForm, averageConsultationMinutes: profileValue })
-                      } else {
-                        // Ensure the value is set correctly (removes any leading zeros)
-                        setSessionForm({ ...sessionForm, averageConsultationMinutes: numValue })
-                      }
-                    }
-                  }}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                />
-                <p className="mt-1 text-xs text-slate-500">Range: 0 - 60 minutes</p>
-              </div>
-
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-700">Max Capacity:</span>
-                  <span className="font-bold text-[#11496c]">{maxTokens} patients</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  Based on session duration and average consultation time
-                </p>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex gap-3 border-t border-slate-200 p-4 sm:p-6">
-              <button
-                type="button"
-                onClick={() => setShowCreateSessionModal(false)}
-                className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateSession}
-                disabled={!sessionForm.startTime || !sessionForm.endTime || sessionForm.startTime >= sessionForm.endTime}
-                className="flex-1 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] disabled:bg-slate-300 disabled:cursor-not-allowed"
-              >
-                Create Session
               </button>
             </div>
           </div>

@@ -26,6 +26,9 @@ const mockLabReports = [
     doctorName: 'Dr. Sarah Mitchell',
     doctorSpecialty: 'Cardiology',
     doctorImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
+    // PDF file uploaded by lab
+    pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
+    pdfFileName: 'CBC_Report_2025-01-10.pdf',
   },
   {
     id: 'report-2',
@@ -39,6 +42,9 @@ const mockLabReports = [
     doctorName: 'Dr. John Smith',
     doctorSpecialty: 'General Medicine',
     doctorImage: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
+    // PDF file uploaded by lab
+    pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
+    pdfFileName: 'Lipid_Profile_2025-01-08.pdf',
   },
   {
     id: 'report-3',
@@ -52,6 +58,9 @@ const mockLabReports = [
     doctorName: 'Dr. Sarah Mitchell',
     doctorSpecialty: 'Cardiology',
     doctorImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
+    // PDF file uploaded by lab
+    pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
+    pdfFileName: 'Thyroid_Function_Test_2025-01-12.pdf',
   },
   {
     id: 'report-4',
@@ -65,6 +74,9 @@ const mockLabReports = [
     doctorName: null,
     doctorSpecialty: null,
     doctorImage: null,
+    // PDF file uploaded by lab
+    pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
+    pdfFileName: 'Liver_Function_Test_2025-01-15.pdf',
   },
 ]
 
@@ -118,8 +130,14 @@ const PatientReports = () => {
   const [selectedDoctorId, setSelectedDoctorId] = useState(null)
 
   const handleViewClick = (report) => {
-    setSelectedReport(report)
-    setShowViewModal(true)
+    // Open the lab-uploaded PDF in a new tab
+    if (report.pdfFileUrl && report.pdfFileUrl !== '#') {
+      window.open(report.pdfFileUrl, '_blank')
+    } else {
+      // Fallback: show modal if PDF not available
+      setSelectedReport(report)
+      setShowViewModal(true)
+    }
   }
 
   const handleCloseViewModal = () => {
@@ -220,8 +238,98 @@ const PatientReports = () => {
     }
   }
 
-  const handleDownload = (report) => {
-    // Generate and download PDF report
+  const handleDownload = async (report) => {
+    // If PDF file URL is available, download the lab-uploaded PDF
+    if (report.pdfFileUrl && report.pdfFileUrl !== '#') {
+      try {
+        // Check if we have stored PDF in localStorage (from previous download)
+        const storedPdfs = JSON.parse(localStorage.getItem('patientLabReportPdfs') || '{}')
+        const storedPdf = storedPdfs[report.id]
+        
+        if (storedPdf && storedPdf.base64Data) {
+          // Use stored PDF if available
+          const link = document.createElement('a')
+          link.href = storedPdf.base64Data
+          link.download = storedPdf.pdfFileName || report.pdfFileName || `${report.testName?.replace(/\s+/g, '_') || 'Report'}_${report.date || 'Report'}.pdf`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          return
+        }
+        
+        // Try to fetch the PDF file (works for same-origin or CORS-enabled servers)
+        try {
+          const response = await fetch(report.pdfFileUrl, {
+            method: 'GET',
+            mode: 'cors',
+          })
+          
+          if (response.ok) {
+            const blob = await response.blob()
+            
+            // Create a blob URL for download
+            const blobUrl = URL.createObjectURL(blob)
+            
+            // Create download link
+            const link = document.createElement('a')
+            link.href = blobUrl
+            link.download = report.pdfFileName || `${report.testName?.replace(/\s+/g, '_') || 'Report'}_${report.date || 'Report'}.pdf`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            
+            // Clean up blob URL
+            setTimeout(() => {
+              URL.revokeObjectURL(blobUrl)
+            }, 100)
+            
+            // Store PDF in localStorage for offline access
+            try {
+              const reader = new FileReader()
+              reader.onloadend = () => {
+                const base64Data = reader.result
+                const updatedStoredPdfs = JSON.parse(localStorage.getItem('patientLabReportPdfs') || '{}')
+                updatedStoredPdfs[report.id] = {
+                  pdfFileUrl: report.pdfFileUrl,
+                  pdfFileName: report.pdfFileName || `${report.testName?.replace(/\s+/g, '_') || 'Report'}_${report.date || 'Report'}.pdf`,
+                  base64Data: base64Data,
+                  downloadedAt: new Date().toISOString(),
+                }
+                localStorage.setItem('patientLabReportPdfs', JSON.stringify(updatedStoredPdfs))
+              }
+              reader.readAsDataURL(blob)
+            } catch (storageError) {
+              console.error('Error storing PDF:', storageError)
+            }
+            return
+          }
+        } catch (fetchError) {
+          // If fetch fails due to CORS, use direct link approach
+          console.warn('Fetch failed, trying direct link:', fetchError)
+        }
+        
+        // Fallback: Use direct link (browser will handle download if server allows)
+        // This works for same-origin or servers that allow direct downloads
+        const link = document.createElement('a')
+        link.href = report.pdfFileUrl
+        link.download = report.pdfFileName || `${report.testName?.replace(/\s+/g, '_') || 'Report'}_${report.date || 'Report'}.pdf`
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        
+        // Note: For cross-origin PDFs that don't allow CORS, the browser will open in new tab
+        // In production, use a backend proxy endpoint to download the PDF
+      } catch (error) {
+        console.error('Error downloading PDF:', error)
+        // Last resort: open in new tab
+        window.open(report.pdfFileUrl, '_blank')
+      }
+      return
+    }
+    
+    // Fallback: Generate and download PDF report if no PDF file URL
     const pdfContent = `
 <!DOCTYPE html>
 <html>

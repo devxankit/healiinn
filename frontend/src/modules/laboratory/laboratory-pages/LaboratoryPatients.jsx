@@ -97,7 +97,6 @@ const mockTestRequests = [
     status: 'accepted',
     requestDate: '2025-01-14T09:00:00.000Z',
     acceptedDate: '2025-01-14T14:00:00.000Z',
-    collectionType: 'lab', // 'home' or 'lab'
     prescription: {
       doctor: {
         name: 'Dr. Priya Sharma',
