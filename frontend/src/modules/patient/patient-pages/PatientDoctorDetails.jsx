@@ -169,11 +169,50 @@ const getAvailableDates = () => {
   return dates
 }
 
+// Helper function to check if doctor is active
+const isDoctorActive = (doctorName) => {
+  try {
+    const saved = localStorage.getItem('doctorProfile')
+    if (saved) {
+      const profile = JSON.parse(saved)
+      const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+      // Check if this doctor matches the saved profile
+      if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
+        return profile.isActive !== false // Default to true if not set
+      }
+    }
+    // Check separate active status
+    const activeStatus = localStorage.getItem('doctorProfileActive')
+    if (activeStatus !== null && saved) {
+      const isActive = JSON.parse(activeStatus)
+      const profile = JSON.parse(saved)
+      const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+      if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
+        return isActive
+      }
+    }
+  } catch (error) {
+    console.error('Error checking doctor active status:', error)
+  }
+  // Default: show all doctors if no profile found (for mock data)
+  return true
+}
+
 const PatientDoctorDetails = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const doctor = mockDoctors[id]
+  
+  // Check if doctor is active
+  useEffect(() => {
+    if (doctor && !isDoctorActive(doctor.name)) {
+      // Redirect if doctor is inactive
+      alert('This doctor profile is currently not available.')
+      navigate('/patient/doctors')
+    }
+  }, [doctor, navigate])
+  
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
   const [appointmentType, setAppointmentType] = useState('in_person')
@@ -189,6 +228,86 @@ const PatientDoctorDetails = () => {
 
   const availableDates = getAvailableDates()
 
+  // Check if patient is a returning patient (within 7 days)
+  const checkIsReturningPatient = (doctorId) => {
+    try {
+      const patientId = 'pat-current' // In real app, get from auth
+      const allAppointments = [
+        ...JSON.parse(localStorage.getItem('patientAppointments') || '[]'),
+        ...JSON.parse(localStorage.getItem('doctorAppointments') || '[]'),
+      ]
+      
+      // Find last completed appointment with this doctor
+      const lastAppointment = allAppointments
+        .filter(
+          (apt) =>
+            apt.doctorId === doctorId &&
+            apt.patientId === patientId &&
+            (apt.status === 'completed' || apt.status === 'visited')
+        )
+        .sort((a, b) => {
+          const dateA = new Date(a.appointmentDate || a.createdAt || 0)
+          const dateB = new Date(b.appointmentDate || b.createdAt || 0)
+          return dateB - dateA
+        })[0]
+      
+      if (!lastAppointment) {
+        return { isReturning: false, daysSince: null, lastVisitDate: null }
+      }
+      
+      const lastVisitDate = new Date(lastAppointment.appointmentDate || lastAppointment.createdAt)
+      const today = new Date()
+      const diffTime = today - lastVisitDate
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      
+      return {
+        isReturning: diffDays <= 7,
+        daysSince: diffDays,
+        lastVisitDate: lastVisitDate.toISOString().split('T')[0],
+      }
+    } catch (error) {
+      console.error('Error checking returning patient:', error)
+      return { isReturning: false, daysSince: null, lastVisitDate: null }
+    }
+  }
+
+  // Get doctor profile data (session time and average consultation minutes)
+  const getDoctorProfileData = () => {
+    try {
+      const profile = JSON.parse(localStorage.getItem('doctorProfile') || '{}')
+      return {
+        averageConsultationMinutes: profile.averageConsultationMinutes || 20,
+        availability: profile.availability || [],
+        sessionStartTime: profile.sessionStartTime || '09:00',
+        sessionEndTime: profile.sessionEndTime || '17:00',
+      }
+    } catch (error) {
+      console.error('Error getting doctor profile:', error)
+      return {
+        averageConsultationMinutes: 20,
+        availability: [],
+        sessionStartTime: '09:00',
+        sessionEndTime: '17:00',
+      }
+    }
+  }
+
+  // Calculate max tokens based on session time and average consultation minutes
+  const calculateMaxTokens = (sessionStartTime, sessionEndTime, averageMinutes) => {
+    if (!sessionStartTime || !sessionEndTime || !averageMinutes) return 0
+    
+    const [startHour, startMin] = sessionStartTime.split(':').map(Number)
+    const [endHour, endMin] = sessionEndTime.split(':').map(Number)
+    
+    const startMinutes = startHour * 60 + startMin
+    const endMinutes = endHour * 60 + endMin
+    const durationMinutes = endMinutes - startMinutes
+    
+    if (durationMinutes <= 0) return 0
+    
+    return Math.floor(durationMinutes / averageMinutes)
+  }
+
   // Function to get session info and token availability for selected date
   const getSessionInfoForDate = (date) => {
     try {
@@ -197,7 +316,56 @@ const PatientDoctorDetails = () => {
         (s) => s.date === date && (s.status === 'scheduled' || s.status === 'active')
       )
       
-      if (!sessionForDate) {
+      // If session exists, use its maxTokens
+      if (sessionForDate && sessionForDate.maxTokens) {
+        // Count existing appointments for this date and doctor
+        const doctorAppointments = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
+        const patientAppointments = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
+        
+        // Combine both sources
+        const allAppointments = [...doctorAppointments, ...patientAppointments]
+        
+        // Filter appointments for this date and doctor
+        const appointmentsForDate = allAppointments.filter(
+          (apt) =>
+            apt.appointmentDate === date &&
+            apt.doctorId === doctor.id &&
+            apt.status !== 'cancelled' &&
+            apt.status !== 'no-show' &&
+            apt.status !== 'completed'
+        )
+        
+        const currentBookings = appointmentsForDate.length
+        const maxTokens = sessionForDate.maxTokens || 0
+        const nextToken = currentBookings < maxTokens ? currentBookings + 1 : null
+        const available = currentBookings < maxTokens
+        
+        return {
+          available,
+          maxTokens,
+          currentBookings,
+          nextToken,
+          session: sessionForDate,
+        }
+      }
+      
+      // If no session exists, calculate based on doctor profile
+      const profileData = getDoctorProfileData()
+      const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' })
+      const dayAvailability = profileData.availability.find((avail) => avail.day === dayName)
+      
+      if (!dayAvailability) {
+        return { available: false, maxTokens: 0, currentBookings: 0, nextToken: null }
+      }
+      
+      // Calculate max tokens based on session time and average consultation
+      const maxTokens = calculateMaxTokens(
+        dayAvailability.startTime,
+        dayAvailability.endTime,
+        profileData.averageConsultationMinutes
+      )
+      
+      if (maxTokens === 0) {
         return { available: false, maxTokens: 0, currentBookings: 0, nextToken: null }
       }
       
@@ -210,12 +378,15 @@ const PatientDoctorDetails = () => {
       
       // Filter appointments for this date and doctor
       const appointmentsForDate = allAppointments.filter(
-        (apt) => apt.appointmentDate === date && apt.doctorId === doctor.id && 
-        apt.status !== 'cancelled' && apt.status !== 'no-show' && apt.status !== 'completed'
+        (apt) =>
+          apt.appointmentDate === date &&
+          apt.doctorId === doctor.id &&
+          apt.status !== 'cancelled' &&
+          apt.status !== 'no-show' &&
+          apt.status !== 'completed'
       )
       
       const currentBookings = appointmentsForDate.length
-      const maxTokens = sessionForDate.maxTokens || 0
       const nextToken = currentBookings < maxTokens ? currentBookings + 1 : null
       const available = currentBookings < maxTokens
       
@@ -224,7 +395,7 @@ const PatientDoctorDetails = () => {
         maxTokens,
         currentBookings,
         nextToken,
-        session: sessionForDate,
+        session: null,
       }
     } catch (error) {
       console.error('Error getting session info:', error)
@@ -316,6 +487,10 @@ const PatientDoctorDetails = () => {
   const handleConfirmBooking = async () => {
     setIsSubmitting(true)
     
+    // Check if patient is returning (within 7 days)
+    const returningPatientInfo = checkIsReturningPatient(doctor.id)
+    const isFreeBooking = returningPatientInfo.isReturning
+    
     // Get shared prescription data
     const sharedPrescriptionsData = selectedPrescriptions.map((prescId) => {
       const patientPrescriptions = getPatientPrescriptions()
@@ -350,6 +525,9 @@ const PatientDoctorDetails = () => {
       patientAddress: '123 Patient Street', // In real app, get from patient profile
       sharedPrescriptions: sharedPrescriptionsData, // Prescriptions shared by patient
       sharedPrescriptionIds: selectedPrescriptions, // IDs of shared prescriptions
+      isFreeBooking: isFreeBooking, // Mark if this is a free booking
+      paymentRequired: !isFreeBooking, // Payment required if not returning patient
+      consultationFee: isFreeBooking ? 0 : doctor.consultationFee,
       createdAt: new Date().toISOString(),
     }
     
@@ -379,7 +557,13 @@ const PatientDoctorDetails = () => {
     console.log('Booking confirmed:', appointmentData)
     
     setIsSubmitting(false)
-    alert('Appointment booked successfully! You will receive a confirmation shortly.')
+    
+    // Show success message based on booking type
+    if (isFreeBooking) {
+      alert('Appointment booked successfully! This is a free consultation as you are a returning patient.')
+    } else {
+      alert('Appointment booked successfully! Please proceed with payment to confirm your booking.')
+    }
     
     // Show success and close after delay
     setTimeout(() => {
@@ -445,7 +629,6 @@ const PatientDoctorDetails = () => {
               <div className="flex items-center gap-2">
                 <IoLocationOutline className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
                 <span>{doctor.location}</span>
-                <span className="font-semibold text-slate-700">{doctor.distance}</span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -607,6 +790,11 @@ const PatientDoctorDetails = () => {
                           {availableDates.map((date) => {
                             const sessionInfo = getSessionInfoForDate(date.value)
                             const isFull = !sessionInfo.available
+                            const slotsRemaining = sessionInfo.maxTokens > 0 
+                              ? sessionInfo.maxTokens - sessionInfo.currentBookings 
+                              : 0
+                            const hasSlots = slotsRemaining > 0
+                            
                             return (
                               <button
                                 key={date.value}
@@ -623,9 +811,13 @@ const PatientDoctorDetails = () => {
                               >
                                 <div className="text-xs text-slate-500">{date.label.split(',')[0]}</div>
                                 <div className="mt-1 whitespace-nowrap">{date.label.split(',')[1]?.trim()}</div>
-                                {isFull && (
-                                  <div className="mt-1 text-[10px] text-red-500">Full</div>
-                                )}
+                                {isFull ? (
+                                  <div className="mt-1 text-[10px] text-red-500 font-semibold">Full</div>
+                                ) : hasSlots && sessionInfo.maxTokens > 0 ? (
+                                  <div className="mt-1 text-[10px] text-emerald-600 font-semibold">
+                                    {slotsRemaining} slot{slotsRemaining !== 1 ? 's' : ''}
+                                  </div>
+                                ) : null}
                               </button>
                             )
                           })}
@@ -636,6 +828,9 @@ const PatientDoctorDetails = () => {
                     {/* Token and Availability Info */}
                     {selectedDate && (() => {
                       const sessionInfo = getSessionInfoForDate(selectedDate)
+                      const returningPatientInfo = checkIsReturningPatient(doctor.id)
+                      const isFreeBooking = returningPatientInfo.isReturning
+                      
                       if (!sessionInfo.available && sessionInfo.maxTokens === 0) {
                         return (
                           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -658,21 +853,43 @@ const PatientDoctorDetails = () => {
                         )
                       }
                       return (
-                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-semibold text-emerald-900">
-                                Your Token Number: <span className="text-lg">{sessionInfo.nextToken}</span>
-                              </p>
-                              <p className="text-xs text-emerald-700 mt-1">
-                                {sessionInfo.currentBookings} of {sessionInfo.maxTokens} slots booked
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-2xl font-bold text-emerald-700">{sessionInfo.nextToken}</div>
-                              <div className="text-[10px] text-emerald-600">Token</div>
+                        <div className="space-y-3">
+                          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-emerald-900">
+                                  Your Token Number: <span className="text-lg">{sessionInfo.nextToken}</span>
+                                </p>
+                                <p className="text-xs text-emerald-700 mt-1">
+                                  {sessionInfo.currentBookings} of {sessionInfo.maxTokens} slots booked
+                                </p>
+                                <p className="text-xs text-emerald-600 mt-1">
+                                  {sessionInfo.maxTokens - sessionInfo.currentBookings} slot(s) remaining
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-2xl font-bold text-emerald-700">{sessionInfo.nextToken}</div>
+                                <div className="text-[10px] text-emerald-600">Token</div>
+                              </div>
                             </div>
                           </div>
+                          
+                          {/* Returning Patient Info */}
+                          {isFreeBooking && (
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                              <div className="flex items-start gap-2">
+                                <IoCheckmarkCircleOutline className="h-5 w-5 text-blue-600 mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-semibold text-blue-900">
+                                    Returning Patient Benefit
+                                  </p>
+                                  <p className="text-xs text-blue-700 mt-1">
+                                    You visited this doctor {returningPatientInfo.daysSince} day(s) ago. This appointment will be FREE!
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )
                     })()}
@@ -814,6 +1031,9 @@ const PatientDoctorDetails = () => {
               {/* Step 3: Confirmation */}
               {bookingStep === 3 && (() => {
                 const sessionInfo = getSessionInfoForDate(selectedDate)
+                const returningPatientInfo = checkIsReturningPatient(doctor.id)
+                const isFreeBooking = returningPatientInfo.isReturning
+                
                 return (
                   <div className="space-y-6">
                     <div className="text-center">
@@ -823,6 +1043,21 @@ const PatientDoctorDetails = () => {
                       <h3 className="mb-2 text-xl font-bold text-slate-900">Confirm Your Appointment</h3>
                       <p className="text-sm text-slate-600">Please review your appointment details</p>
                     </div>
+
+                    {/* Returning Patient Badge */}
+                    {isFreeBooking && (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                        <div className="flex items-center gap-2">
+                          <IoCheckmarkCircleOutline className="h-5 w-5 text-emerald-600" />
+                          <p className="text-sm font-semibold text-emerald-900">
+                            Returning Patient - Free Consultation!
+                          </p>
+                        </div>
+                        <p className="text-xs text-emerald-700 mt-1">
+                          You visited this doctor {returningPatientInfo.daysSince} day(s) ago. This appointment is free.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                       <div className="space-y-4">
@@ -893,7 +1128,14 @@ const PatientDoctorDetails = () => {
                           )}
                           <div className="flex items-center justify-between border-t border-slate-200 pt-3">
                             <span className="text-base font-semibold text-slate-900">Consultation Fee</span>
-                            <span className="text-lg font-bold text-slate-900">₹{doctor.consultationFee}</span>
+                            {isFreeBooking ? (
+                              <div className="text-right">
+                                <span className="text-lg font-bold text-emerald-600">FREE</span>
+                                <p className="text-xs text-slate-500 line-through">₹{doctor.consultationFee}</p>
+                              </div>
+                            ) : (
+                              <span className="text-lg font-bold text-slate-900">₹{doctor.consultationFee}</span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -925,24 +1167,40 @@ const PatientDoctorDetails = () => {
                     Next
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={handleConfirmBooking}
-                    disabled={isSubmitting}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-400/40 transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        Confirming...
-                      </>
-                    ) : (
-                      <>
-                        <IoCardOutline className="h-5 w-5" />
-                        Confirm & Pay
-                      </>
-                    )}
-                  </button>
+                  (() => {
+                    const returningPatientInfo = checkIsReturningPatient(doctor.id)
+                    const isFreeBooking = returningPatientInfo.isReturning
+                    
+                    return (
+                      <button
+                        type="button"
+                        onClick={handleConfirmBooking}
+                        disabled={isSubmitting}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                          isFreeBooking
+                            ? 'bg-emerald-500 shadow-emerald-400/40 hover:bg-emerald-600'
+                            : 'bg-emerald-500 shadow-emerald-400/40 hover:bg-emerald-600'
+                        }`}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            Confirming...
+                          </>
+                        ) : isFreeBooking ? (
+                          <>
+                            <IoCheckmarkCircleOutline className="h-5 w-5" />
+                            Confirm Appointment (Free)
+                          </>
+                        ) : (
+                          <>
+                            <IoCardOutline className="h-5 w-5" />
+                            Confirm & Pay
+                          </>
+                        )}
+                      </button>
+                    )
+                  })()
                 )}
               </div>
             </div>

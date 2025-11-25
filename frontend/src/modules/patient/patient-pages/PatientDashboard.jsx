@@ -38,7 +38,7 @@ const categoryCards = [
   },
   {
     id: 'prescriptions',
-    title: 'PRESCRIPTIONS',
+    title: 'PRESCRIPTION AND LAB REPORT',
     value: '8',
     description: 'Active',
     iconBgColor: '#14B8A6', // teal-green
@@ -179,15 +179,49 @@ const navItems = [
   { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
 ]
 
+// Helper function to check if doctor is active
+const isDoctorActive = (doctorName) => {
+  try {
+    const saved = localStorage.getItem('doctorProfile')
+    if (saved) {
+      const profile = JSON.parse(saved)
+      const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+      // Check if this doctor matches the saved profile
+      if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
+        return profile.isActive !== false // Default to true if not set
+      }
+    }
+    // Check separate active status
+    const activeStatus = localStorage.getItem('doctorProfileActive')
+    if (activeStatus !== null) {
+      const isActive = JSON.parse(activeStatus)
+      // If doctor name matches, return the status
+      if (saved) {
+        const profile = JSON.parse(saved)
+        const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+        if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
+          return isActive
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking doctor active status:', error)
+  }
+  // Default: show all doctors if no profile found (for mock data)
+  return true
+}
+
 const PatientDashboard = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeFilter, setActiveFilter] = useState('All')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const toggleButtonRef = useRef(null)
 
   const filteredDoctors = useMemo(() => {
     let doctors = [...mockDoctors]
+
+    // Filter by active status
+    doctors = doctors.filter((doctor) => isDoctorActive(doctor.name))
 
     if (searchTerm.trim()) {
       const normalizedSearch = searchTerm.trim().toLowerCase()
@@ -199,17 +233,8 @@ const PatientDashboard = () => {
       )
     }
 
-    // Apply filters
-    if (activeFilter === 'Nearest') {
-      doctors.sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance))
-    } else if (activeFilter === 'Shortest Wait') {
-      doctors.sort((a, b) => a.currentToken - b.currentToken)
-    } else if (activeFilter === 'Highest') {
-      doctors.sort((a, b) => b.rating - a.rating)
-    }
-
     return doctors
-  }, [searchTerm, activeFilter])
+  }, [searchTerm])
 
   const handleTakeToken = (doctorId, fee) => {
     navigate(`/patient/doctors/${doctorId}?book=true`)
@@ -381,25 +406,7 @@ const PatientDashboard = () => {
 
       {/* Doctors Section */}
       <div>
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Nearby Doctors</h2>
-        
-        {/* Filter Buttons */}
-        <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide pb-2">
-          {['All', 'Nearest', 'Shortest Wait', 'Highest'].map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                activeFilter === filter
-                  ? 'text-white'
-                  : 'bg-slate-100 text-slate-600'
-              }`}
-              style={activeFilter === filter ? { backgroundColor: '#11496c' } : {}}
-            >
-              {filter}
-            </button>
-          ))}
-        </div>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Doctors</h2>
 
         {/* Doctor Cards */}
         <div className="space-y-4">
@@ -448,11 +455,7 @@ const PatientDashboard = () => {
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <div className="text-base font-bold text-slate-900 mb-1">₹{doctor.fee}</div>
-                    <div className="flex items-center justify-end gap-1 text-xs text-slate-600">
-                      <IoLocationOutline className="h-3.5 w-3.5" />
-                      <span>{doctor.distance}</span>
-                    </div>
+                    <div className="text-base font-bold text-slate-900">₹{doctor.fee}</div>
                   </div>
                 </div>
 

@@ -105,7 +105,7 @@ function PatientRoutes() {
                     <Route path="/specialties" element={<PatientSpecialties />} />
                     <Route path="/specialties/:specialtyId/doctors" element={<PatientSpecialtyDoctors />} />
                     <Route path="/upcoming-schedules" element={<PatientUpcomingSchedules />} />
-                    <Route path="/reports" element={<PatientReports />} />
+                    <Route path="/reports" element={<Navigate to="/patient/prescriptions?tab=lab-reports" replace />} />
                     <Route path="/requests" element={<PatientRequests />} />
                     <Route path="/transactions" element={<PatientTransactions />} />
                     <Route path="/appointments" element={<PatientAppointments />} />

@@ -157,6 +157,35 @@ const renderStars = (rating) => {
   return stars
 }
 
+// Helper function to check if doctor is active
+const isDoctorActive = (doctorName) => {
+  try {
+    const saved = localStorage.getItem('doctorProfile')
+    if (saved) {
+      const profile = JSON.parse(saved)
+      const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+      // Check if this doctor matches the saved profile
+      if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
+        return profile.isActive !== false // Default to true if not set
+      }
+    }
+    // Check separate active status
+    const activeStatus = localStorage.getItem('doctorProfileActive')
+    if (activeStatus !== null && saved) {
+      const isActive = JSON.parse(activeStatus)
+      const profile = JSON.parse(saved)
+      const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+      if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
+        return isActive
+      }
+    }
+  } catch (error) {
+    console.error('Error checking doctor active status:', error)
+  }
+  // Default: show all doctors if no profile found (for mock data)
+  return true
+}
+
 const PatientDoctors = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -176,6 +205,10 @@ const PatientDoctors = () => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
 
     let filtered = mockDoctors.filter((doctor) => {
+      // Filter by active status first
+      if (!isDoctorActive(doctor.name)) {
+        return false
+      }
       // Filter by specialty
       if (selectedSpecialty !== 'all') {
         const doctorSpecialty = doctor.specialty.toLowerCase()
@@ -348,11 +381,7 @@ const PatientDoctors = () => {
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <div className="text-base font-bold text-slate-900 mb-1">₹{doctor.consultationFee}</div>
-                    <div className="flex items-center justify-end gap-1 text-xs text-slate-600">
-                      <IoLocationOutline className="h-3.5 w-3.5" />
-                      <span>{doctor.distance}</span>
-                    </div>
+                    <div className="text-base font-bold text-slate-900">₹{doctor.consultationFee}</div>
                   </div>
                 </div>
 
