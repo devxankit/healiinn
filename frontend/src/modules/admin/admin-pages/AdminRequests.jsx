@@ -5,7 +5,6 @@ import {
   IoCalendarOutline,
   IoDownloadOutline,
   IoEyeOutline,
-  IoShareSocialOutline,
   IoBagHandleOutline,
   IoMedicalOutline,
   IoPersonOutline,
@@ -48,7 +47,7 @@ const AdminRequests = () => {
   const [labs, setLabs] = useState([])
   const [showPharmacyDropdown, setShowPharmacyDropdown] = useState(false)
   const [showLabDropdown, setShowLabDropdown] = useState(false)
-  const [selectedPharmacy, setSelectedPharmacy] = useState(null)
+  const [selectedPharmacies, setSelectedPharmacies] = useState([])
   const [selectedLab, setSelectedLab] = useState(null)
   const pharmacyDropdownRef = useRef(null)
   const labDropdownRef = useRef(null)
@@ -58,10 +57,14 @@ const AdminRequests = () => {
   const [isSendingResponse, setIsSendingResponse] = useState(false)
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
   const [pharmacyMedicineSearch, setPharmacyMedicineSearch] = useState('') // Search term for pharmacy medicines
+  const [expandedPharmacyId, setExpandedPharmacyId] = useState(null) // Track which pharmacy's medicines are expanded
+  const [expandedPharmacySearch, setExpandedPharmacySearch] = useState('') // Search term for expanded pharmacy medicines
   const [labTestSearch, setLabTestSearch] = useState('') // Search term for lab tests
   const [showCancelModal, setShowCancelModal] = useState(false) // Show cancel reason modal
   const [cancelReason, setCancelReason] = useState('') // Cancel reason text
   const [requestToCancel, setRequestToCancel] = useState(null) // Request to cancel
+  const [selectedMedicinesFromPharmacy, setSelectedMedicinesFromPharmacy] = useState([]) // {pharmacyId, pharmacyName, medicine, quantity, price}
+  const [selectedTestsFromLab, setSelectedTestsFromLab] = useState([]) // {labId, labName, test, price}
 
   useEffect(() => {
     loadRequests()
@@ -84,7 +87,7 @@ const AdminRequests = () => {
       }
       if (showLabDropdown && labDropdownRef.current && !labDropdownRef.current.contains(event.target)) {
         setShowLabDropdown(false)
-      }
+    }
     }
     if (showPharmacyDropdown || showLabDropdown) {
       document.addEventListener('mousedown', handleClickOutside)
@@ -318,9 +321,10 @@ const AdminRequests = () => {
       const patientRequestData = {
         id: requestId,
         type: activeSection === 'pharmacy' ? 'pharmacy' : 'lab',
-        providerName: 'Admin',
+        providerName: 'Healiinn',
         providerId: 'admin',
         medicineName: activeSection === 'pharmacy' ? 'Prescription Medicines' : 'Lab Tests',
+        testName: activeSection === 'lab' ? 'Lab Test Request' : undefined,
         status: 'accepted',
         requestDate: request.createdAt,
         responseDate: new Date().toISOString(),
@@ -332,15 +336,18 @@ const AdminRequests = () => {
           phone: request.patientPhone,
           email: request.patientEmail || 'patient@example.com',
           address: request.patientAddress,
+          age: 32,
+          gender: 'Male',
         },
         providerResponse: {
           message: `Your request has been accepted. Admin will add ${activeSection === 'pharmacy' ? 'medicines' : 'test details'} shortly.`,
-          responseBy: 'Admin',
+          responseBy: 'Healiinn Team',
           responseTime: new Date().toISOString(),
         },
         doctor: {
           name: request.prescription?.doctorName || 'Doctor',
           specialty: request.prescription?.doctorSpecialty || 'Specialty',
+          phone: '+91 98765 43210',
         },
         prescription: request.prescription,
       }
@@ -352,14 +359,10 @@ const AdminRequests = () => {
       }
       localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
 
-      // Set selected request to show Add Medicine button
-      setSelectedRequest({ ...request, status: 'accepted' })
-      
-      alert('Request accepted! Patient has been notified. You can now add medicines/select lab.')
+      // Don't open modal - just update status. Admin can click "Add Medicine"/"Add Lab" button to open modal
       loadRequests()
     } catch (error) {
       console.error('Error accepting request:', error)
-      alert('Error accepting request. Please try again.')
     }
   }
 
@@ -442,38 +445,50 @@ const AdminRequests = () => {
       setRequestToCancel(null)
       setSelectedRequest(null)
       
-      alert('Request cancelled successfully! Patient has been notified.')
       loadRequests()
     } catch (error) {
       console.error('Error cancelling request:', error)
-      alert('Error cancelling request. Please try again.')
     }
   }
 
   // Initialize medicines when request is selected
   useEffect(() => {
-    if (selectedRequest && selectedRequest.prescription?.medications) {
-      // Initialize with prescription medications, add price and quantity fields
+    if (selectedRequest) {
+      // For pharmacy requests: Initialize with prescription medications
+      if (activeSection === 'pharmacy' && selectedRequest.prescription?.medications && selectedRequest.prescription.medications.length > 0) {
       const initialMedicines = selectedRequest.prescription.medications.map((med, idx) => ({
         ...med,
-        id: `med-${idx}`,
-        price: 0,
-        quantity: 1,
+          id: `med-${Date.now()}-${idx}`,
+          price: '',
+          quantity: '',
         available: true,
       }))
       setAdminMedicines(initialMedicines)
       setTotalAmount(0)
       setAdminResponse('')
+      } 
+      // For lab requests: Initialize with prescription investigations (tests will be shown in lab selection)
+      else if (activeSection === 'lab' && selectedRequest.prescription?.investigations && selectedRequest.prescription.investigations.length > 0) {
+        // Lab tests are handled in the lab selection section, but we clear medicines
+        setAdminMedicines([])
+        setTotalAmount(0)
+        setAdminResponse('')
+      } 
+      else {
+        setAdminMedicines([])
+        setTotalAmount(0)
+        setAdminResponse('')
+      }
     } else {
       setAdminMedicines([])
       setTotalAmount(0)
       setAdminResponse('')
     }
-  }, [selectedRequest])
+  }, [selectedRequest, activeSection])
 
   // Calculate total amount when medicines change
   useEffect(() => {
-    const total = adminMedicines.reduce((sum, med) => sum + (med.price * med.quantity), 0)
+    const total = adminMedicines.reduce((sum, med) => sum + ((med.price || 0) * (med.quantity || 0)), 0)
     setTotalAmount(total)
   }, [adminMedicines])
 
@@ -486,50 +501,80 @@ const AdminRequests = () => {
       frequency: '',
       duration: '',
       instructions: '',
-      price: 0,
-      quantity: 1,
+      price: '',
+      quantity: '',
       available: true,
     }
     setAdminMedicines([...adminMedicines, newMedicine])
   }
 
   // Add medicine from pharmacy
-  const handleAddMedicineFromPharmacy = (pharmacyMed) => {
-    // Check if medicine already added
-    const alreadyAdded = adminMedicines.some(med => 
-      med.name.toLowerCase() === pharmacyMed.name.toLowerCase() && 
-      med.dosage === pharmacyMed.dosage
+  const handleAddMedicineFromPharmacy = (pharmacyMed, pharmacyId, pharmacyName) => {
+    // Check if medicine already added from this pharmacy
+    const existingIndex = selectedMedicinesFromPharmacy.findIndex(
+      med => med.medicine.name.toLowerCase() === pharmacyMed.name.toLowerCase() && 
+             med.medicine.dosage === pharmacyMed.dosage &&
+             med.pharmacyId === pharmacyId
     )
     
-    if (alreadyAdded) {
+    if (existingIndex >= 0) {
       // Remove if already added
-      setAdminMedicines(adminMedicines.filter(med => 
-        !(med.name.toLowerCase() === pharmacyMed.name.toLowerCase() && med.dosage === pharmacyMed.dosage)
-      ))
+      setSelectedMedicinesFromPharmacy(selectedMedicinesFromPharmacy.filter((_, i) => i !== existingIndex))
       return
     }
 
+    // Add new medicine with default quantity 1
     const newMedicine = {
-      id: `med-${Date.now()}`,
-      name: pharmacyMed.name,
-      dosage: pharmacyMed.dosage || '',
-      frequency: '',
-      duration: '',
-      instructions: '',
-      price: pharmacyMed.price || 0,
+      pharmacyId,
+      pharmacyName,
+      medicine: pharmacyMed,
       quantity: 1,
-      available: true,
+      price: parseFloat(pharmacyMed.price) || 0,
     }
-    setAdminMedicines([...adminMedicines, newMedicine])
-    setPharmacyMedicineSearch('') // Clear search after adding
+    setSelectedMedicinesFromPharmacy([...selectedMedicinesFromPharmacy, newMedicine])
+  }
+
+  // Update medicine quantity
+  const handleUpdateMedicineQuantity = (index, quantity) => {
+    const updated = [...selectedMedicinesFromPharmacy]
+    updated[index].quantity = Math.max(1, parseInt(quantity) || 1)
+    setSelectedMedicinesFromPharmacy(updated)
   }
 
   // Add test from lab
-  const handleAddTestFromLab = (labTest) => {
-    // For lab, we don't add to medicines, but we'll handle it in the response
-    // This is just for UI consistency
-    setLabTestSearch('')
+  const handleAddTestFromLab = (labTest, labId, labName) => {
+    // Check if test already added
+    const existingIndex = selectedTestsFromLab.findIndex(
+      test => test.test.name === labTest.name && test.labId === labId
+    )
+    
+    if (existingIndex >= 0) {
+      // Remove if already added
+      setSelectedTestsFromLab(selectedTestsFromLab.filter((_, i) => i !== existingIndex))
+      return
+    }
+
+    // Add new test
+    const newTest = {
+      labId,
+      labName,
+      test: labTest,
+      price: parseFloat(labTest.price) || 0,
+    }
+    setSelectedTestsFromLab([...selectedTestsFromLab, newTest])
   }
+
+  // Calculate total amount from selected medicines and tests
+  useEffect(() => {
+    const medicinesTotal = selectedMedicinesFromPharmacy.reduce((sum, item) => {
+      return sum + (item.quantity * item.price)
+    }, 0)
+    const testsTotal = selectedTestsFromLab.reduce((sum, item) => {
+      return sum + item.price
+    }, 0)
+    setTotalAmount(medicinesTotal + testsTotal)
+  }, [selectedMedicinesFromPharmacy, selectedTestsFromLab])
+
 
   // Update medicine
   const handleUpdateMedicine = (medId, field, value) => {
@@ -573,6 +618,8 @@ const AdminRequests = () => {
           ...patientRequests[patientReqIndex],
           status: 'accepted',
           paymentPending: true,
+          adminMedicines: request.adminResponse?.medicines || patientRequests[patientReqIndex].adminMedicines,
+          totalAmount: request.adminResponse?.totalAmount || patientRequests[patientReqIndex].totalAmount,
         }
         localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
       }
@@ -610,27 +657,25 @@ const AdminRequests = () => {
 
   // Send response to patient
   const handleSendResponse = async () => {
-    if (activeSection === 'pharmacy') {
-      if (!selectedRequest || !selectedPharmacy) {
-        alert('Please select a pharmacy first')
-        return
-      }
-
-      if (adminMedicines.length === 0) {
-        alert('Please add at least one medicine')
-        return
-      }
-
-      if (totalAmount <= 0) {
-        alert('Please set prices for medicines')
-        return
-      }
-    } else if (activeSection === 'lab') {
-      if (!selectedRequest || !selectedLab) {
-        alert('Please select a lab first')
-        return
-      }
+      if (activeSection === 'pharmacy') {
+        if (!selectedRequest || selectedPharmacies.length === 0) {
+      alert('Please select a pharmacy first')
+      return
     }
+        if (selectedMedicinesFromPharmacy.length === 0) {
+          alert('Please select at least one medicine')
+      return
+    }
+      } else if (activeSection === 'lab') {
+        if (!selectedRequest || !selectedLab) {
+          alert('Please select a lab first')
+          return
+        }
+        if (selectedTestsFromLab.length === 0) {
+          alert('Please select at least one test')
+          return
+        }
+      }
 
     setIsSendingResponse(true)
 
@@ -640,20 +685,32 @@ const AdminRequests = () => {
       let providerOrder = {}
 
       if (activeSection === 'pharmacy') {
-        // Calculate total amount for pharmacy
-        const calculatedTotal = adminMedicines.reduce((sum, med) => sum + (med.price * med.quantity), 0)
+        // For multiple pharmacies, use first pharmacy for response data
+        const primaryPharmacy = selectedPharmacies[0]
+        const pharmacyNames = selectedPharmacies.map(p => p.pharmacyName).join(', ')
+        
+        // Prepare medicines list for patient request
+        const adminMedicinesList = selectedMedicinesFromPharmacy.map(item => ({
+          name: item.medicine.name,
+          dosage: item.medicine.dosage || '',
+          manufacturer: item.medicine.manufacturer || '',
+          quantity: item.quantity,
+          price: item.price,
+          pharmacyId: item.pharmacyId,
+          pharmacyName: item.pharmacyName,
+        }))
         
         adminResponseData = {
-          message: adminResponse || `Medicines are available. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
-          medicines: adminMedicines,
-          pharmacy: {
-            id: selectedPharmacy.pharmacyId,
-            name: selectedPharmacy.pharmacyName,
-            address: selectedPharmacy.address,
-            phone: selectedPharmacy.phone,
-            email: selectedPharmacy.email,
-          },
-          totalAmount: calculatedTotal,
+          message: adminResponse || `Pharmacy request accepted. Selected pharmacies: ${pharmacyNames}.`,
+          pharmacies: selectedPharmacies.map(p => ({
+            id: p.pharmacyId,
+            name: p.pharmacyName,
+            address: p.address,
+            phone: p.phone,
+            email: p.email,
+          })),
+          medicines: adminMedicinesList,
+          totalAmount: totalAmount,
           respondedAt: new Date().toISOString(),
           respondedBy: 'Admin',
         }
@@ -661,14 +718,15 @@ const AdminRequests = () => {
         patientRequest = {
           id: selectedRequest.id,
           type: 'pharmacy',
-          providerName: selectedPharmacy.pharmacyName,
-          providerId: selectedPharmacy.pharmacyId,
+          providerName: pharmacyNames, // All pharmacy names
+          providerId: selectedPharmacies.map(p => p.pharmacyId).join(','), // All pharmacy IDs
           medicineName: 'Prescription Medicines',
-          status: 'accepted', // Payment pending
+          status: 'accepted',
           requestDate: selectedRequest.createdAt,
           responseDate: new Date().toISOString(),
-          totalAmount: calculatedTotal,
-          message: adminResponse || `Medicines are available. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
+          totalAmount: totalAmount,
+          adminMedicines: adminMedicinesList,
+          message: adminResponse || `Pharmacy request accepted. Selected pharmacies: ${pharmacyNames}.`,
           prescriptionId: selectedRequest.prescriptionId,
           patient: {
             name: selectedRequest.patientName,
@@ -679,8 +737,8 @@ const AdminRequests = () => {
             gender: 'Male',
           },
           providerResponse: {
-            message: adminResponse || `All prescribed medicines are available in stock. We can deliver to your address. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
-            responseBy: selectedPharmacy.pharmacyName + ' Team',
+            message: adminResponse || `Pharmacy request accepted. Selected pharmacies: ${pharmacyNames}.`,
+            responseBy: 'Admin',
             responseTime: new Date().toISOString(),
           },
           doctor: {
@@ -688,41 +746,55 @@ const AdminRequests = () => {
             specialty: selectedRequest.prescription?.doctorSpecialty || 'Specialty',
             phone: '+91 98765 43210',
           },
-          adminMedicines: adminMedicines,
         }
 
-        // Send order to pharmacy
-        providerOrder = {
-          id: `order-${Date.now()}`,
-          requestId: selectedRequest.id,
-          type: 'pharmacy',
-          pharmacyId: selectedPharmacy.pharmacyId,
-          pharmacyName: selectedPharmacy.pharmacyName,
-          patient: {
-            name: selectedRequest.patientName,
-            phone: selectedRequest.patientPhone,
-            email: selectedRequest.patientEmail || 'patient@example.com',
-            address: selectedRequest.patientAddress,
-          },
-          medicines: adminMedicines,
-          totalAmount: calculatedTotal,
-          status: 'pending', // Pharmacy needs to confirm
-          createdAt: new Date().toISOString(),
-          prescription: selectedRequest.prescription,
-        }
+        // Send order to each selected pharmacy with their medicines
+        selectedPharmacies.forEach((pharmacy) => {
+          // Get medicines for this pharmacy
+          const pharmacyMedicines = selectedMedicinesFromPharmacy
+            .filter(item => item.pharmacyId === pharmacy.pharmacyId)
+            .map(item => ({
+              name: item.medicine.name,
+              dosage: item.medicine.dosage || '',
+              manufacturer: item.medicine.manufacturer || '',
+              quantity: item.quantity,
+              price: item.price,
+            }))
+          
+          const pharmacyTotal = pharmacyMedicines.reduce((sum, med) => sum + (med.quantity * med.price), 0)
+          
+          providerOrder = {
+            id: `order-${Date.now()}-${pharmacy.pharmacyId}`,
+            requestId: selectedRequest.id,
+            type: 'pharmacy',
+            pharmacyId: pharmacy.pharmacyId,
+            pharmacyName: pharmacy.pharmacyName,
+            patient: {
+              name: selectedRequest.patientName,
+              phone: selectedRequest.patientPhone,
+              email: selectedRequest.patientEmail || 'patient@example.com',
+              address: selectedRequest.patientAddress,
+            },
+            medicines: pharmacyMedicines,
+            totalAmount: pharmacyTotal,
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+            prescription: selectedRequest.prescription,
+          }
 
-        // Save to pharmacy orders
-        const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${selectedPharmacy.pharmacyId}`) || '[]')
-        pharmacyOrders.push(providerOrder)
-        localStorage.setItem(`pharmacyOrders_${selectedPharmacy.pharmacyId}`, JSON.stringify(pharmacyOrders))
+          // Save to pharmacy orders
+          const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacy.pharmacyId}`) || '[]')
+          pharmacyOrders.push(providerOrder)
+          localStorage.setItem(`pharmacyOrders_${pharmacy.pharmacyId}`, JSON.stringify(pharmacyOrders))
+        })
 
       } else if (activeSection === 'lab') {
-        // Calculate total for lab tests
-        const investigations = selectedRequest.prescription?.investigations || []
-        const calculatedTotal = investigations.reduce((sum, inv) => {
-          const test = selectedLab.tests?.find(t => t.name === inv.name)
-          return sum + (test?.price || 0)
-        }, 0)
+        // Use selected tests instead of prescription investigations
+        const investigations = selectedTestsFromLab.map(item => ({
+          name: item.test.name,
+          price: item.price,
+        }))
+        const calculatedTotal = selectedTestsFromLab.reduce((sum, item) => sum + item.price, 0)
 
         adminResponseData = {
           message: adminResponse || `Lab tests are available. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
@@ -740,35 +812,35 @@ const AdminRequests = () => {
         }
 
         patientRequest = {
-          id: selectedRequest.id,
+        id: selectedRequest.id,
           type: 'lab',
-          providerName: selectedLab.labName,
-          providerId: selectedLab.labId,
-          testName: 'Prescription Tests',
-          status: 'accepted', // Payment pending
-          requestDate: selectedRequest.createdAt,
-          responseDate: new Date().toISOString(),
+          providerName: 'Healiinn',
+          providerId: 'admin',
+          testName: 'Lab Test Request',
+        status: 'accepted', // Payment pending
+        requestDate: selectedRequest.createdAt,
+        responseDate: new Date().toISOString(),
           totalAmount: calculatedTotal,
           message: adminResponse || `Lab tests are available. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
-          prescriptionId: selectedRequest.prescriptionId,
-          patient: {
-            name: selectedRequest.patientName,
-            phone: selectedRequest.patientPhone,
-            email: selectedRequest.patientEmail || 'patient@example.com',
-            address: selectedRequest.patientAddress,
+        prescriptionId: selectedRequest.prescriptionId,
+        patient: {
+          name: selectedRequest.patientName,
+          phone: selectedRequest.patientPhone,
+          email: selectedRequest.patientEmail || 'patient@example.com',
+          address: selectedRequest.patientAddress,
             age: 32,
             gender: 'Male',
-          },
-          providerResponse: {
+        },
+        providerResponse: {
             message: adminResponse || `All prescribed tests are available. We can schedule your visit. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
-            responseBy: selectedLab.labName + ' Team',
-            responseTime: new Date().toISOString(),
-          },
-          doctor: {
-            name: selectedRequest.prescription?.doctorName || 'Doctor',
-            specialty: selectedRequest.prescription?.doctorSpecialty || 'Specialty',
-            phone: '+91 98765 43210',
-          },
+            responseBy: 'Healiinn Team',
+          responseTime: new Date().toISOString(),
+        },
+        doctor: {
+          name: selectedRequest.prescription?.doctorName || 'Doctor',
+          specialty: selectedRequest.prescription?.doctorSpecialty || 'Specialty',
+          phone: '+91 98765 43210',
+        },
           investigations: investigations,
         }
 
@@ -798,13 +870,14 @@ const AdminRequests = () => {
         localStorage.setItem(`labOrders_${selectedLab.labId}`, JSON.stringify(labOrders))
       }
 
-      // Update request with admin response
+      // Update request with admin response - directly enable payment
       const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
       const updatedRequests = allRequests.map((req) => {
         if (req.id === selectedRequest.id) {
           return {
             ...req,
-            status: 'admin_responded',
+            status: 'confirmed',
+            paymentPending: true,
             adminResponse: adminResponseData,
           }
         }
@@ -812,18 +885,53 @@ const AdminRequests = () => {
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
 
-      // Save to patient requests
+      // Update patient requests - find existing or create new - enable payment
       const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
       const existingIndex = patientRequests.findIndex(req => req.id === selectedRequest.id)
       if (existingIndex >= 0) {
-        patientRequests[existingIndex] = patientRequest
+        // Update existing request
+        patientRequests[existingIndex] = {
+          ...patientRequests[existingIndex],
+          ...patientRequest,
+          status: 'accepted',
+          paymentPending: true, // Enable payment directly
+        }
       } else {
-        patientRequests.push(patientRequest)
+        // Create new entry if doesn't exist
+        patientRequests.push({
+          ...patientRequest,
+          paymentPending: true, // Enable payment directly
+        })
       }
       localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
 
+      // Update pharmacy/lab orders to payment_pending status
+      if (activeSection === 'pharmacy') {
+        selectedPharmacies.forEach((pharmacy) => {
+          const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacy.pharmacyId}`) || '[]')
+          const orderIndex = pharmacyOrders.findIndex(order => order.requestId === selectedRequest.id)
+          if (orderIndex >= 0) {
+            pharmacyOrders[orderIndex] = {
+              ...pharmacyOrders[orderIndex],
+              status: 'payment_pending',
+            }
+            localStorage.setItem(`pharmacyOrders_${pharmacy.pharmacyId}`, JSON.stringify(pharmacyOrders))
+          }
+        })
+      } else if (activeSection === 'lab' && selectedLab) {
+        const labOrders = JSON.parse(localStorage.getItem(`labOrders_${selectedLab.labId}`) || '[]')
+        const orderIndex = labOrders.findIndex(order => order.requestId === selectedRequest.id)
+        if (orderIndex >= 0) {
+          labOrders[orderIndex] = {
+            ...labOrders[orderIndex],
+            status: 'payment_pending',
+          }
+          localStorage.setItem(`labOrders_${selectedLab.labId}`, JSON.stringify(labOrders))
+        }
+      }
+
       // Show success message
-      alert(`Response sent to patient and ${activeSection === 'pharmacy' ? 'pharmacy' : 'lab'} successfully!`)
+      // Response sent to patient and provider successfully
       
       // Close modal and reload
       setSelectedRequest(null)
@@ -831,13 +939,19 @@ const AdminRequests = () => {
       setShowLabDropdown(false)
       setSelectedPharmacy(null)
       setSelectedLab(null)
+      setSelectedPharmacies([])
       setAdminMedicines([])
       setAdminResponse('')
       setTotalAmount(0)
+      setSelectedMedicinesFromPharmacy([])
+      setSelectedTestsFromLab([])
+      setExpandedPharmacyId(null)
+      setExpandedPharmacySearch('')
+      setLabTestSearch('')
       loadRequests()
     } catch (error) {
       console.error('Error sending response:', error)
-      alert('Error sending response. Please try again.')
+      // Error sending response
     } finally {
       setIsSendingResponse(false)
     }
@@ -1224,9 +1338,9 @@ const AdminRequests = () => {
                           ? 'bg-amber-100 text-amber-700'
                           : request.status === 'cancelled'
                           ? 'bg-red-100 text-red-700'
-                          : request.status === 'accepted'
+                          : request.status === 'accepted' || request.status === 'admin_responded'
                           ? 'bg-blue-100 text-blue-700'
-                          : request.status === 'completed' || request.status === 'confirmed'
+                          : request.status === 'completed' || request.status === 'confirmed' || request.paymentConfirmed
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-slate-100 text-slate-700'
                       }`}
@@ -1234,13 +1348,23 @@ const AdminRequests = () => {
                       {request.status === 'pending' 
                         ? 'Pending' 
                         : request.status === 'cancelled'
-                        ? 'Cancelled'
-                        : request.status === 'accepted'
+                        ? request.cancelledBy === 'patient' ? 'Cancelled by Patient' : 'Cancelled'
+                        : request.status === 'accepted' || request.status === 'admin_responded'
                         ? 'Accepted'
-                        : request.status === 'completed' || request.status === 'confirmed' 
-                        ? 'Completed' 
+                        : request.status === 'completed' || request.status === 'confirmed' || request.paymentConfirmed
+                        ? 'Payment Confirmed' 
                         : 'Active'}
                     </span>
+                    {request.paymentConfirmed && request.paidAt && (
+                      <span className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-green-100 text-green-700">
+                        Paid: {formatDate(request.paidAt)}
+                      </span>
+                    )}
+                    {request.cancelledBy === 'patient' && (
+                      <span className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-red-100 text-red-700">
+                        Patient Cancelled
+                      </span>
+                    )}
                     <div className="flex items-center gap-1 text-[9px] text-slate-500">
                       <IoCalendarOutline className="h-2.5 w-2.5" />
                       <span>{formatDate(request.prescription?.issuedAt)}</span>
@@ -1278,25 +1402,25 @@ const AdminRequests = () => {
                   {/* Prescription Actions - Icons Only */}
                   <div className="mt-3 pt-3 border-t border-slate-200">
                     <div className="flex items-center justify-center gap-2 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedRequest(request)
-                          setShowPrescriptionModal(true)
-                        }}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRequest(request)
+                        setShowPrescriptionModal(true)
+                      }}
                         className="flex items-center justify-center rounded-lg bg-[#11496c] p-2 text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
                         title="View"
-                      >
-                        <IoEyeOutline className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadPDF(request)}
+                    >
+                      <IoEyeOutline className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPDF(request)}
                         className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
                         title="Download"
-                      >
-                        <IoDownloadOutline className="h-4 w-4" />
-                      </button>
+                    >
+                      <IoDownloadOutline className="h-4 w-4" />
+                    </button>
                       {request.status === 'pending' && (
                         <>
                           <button
@@ -1318,9 +1442,9 @@ const AdminRequests = () => {
                         </>
                       )}
                       {request.status === 'accepted' && request.status !== 'cancelled' && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedRequest(request)}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRequest(request)}
                           className="flex items-center justify-center rounded-lg border border-[#11496c] bg-white p-2 text-[#11496c] transition hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
                           title={activeSection === 'pharmacy' ? 'Add Medicines' : 'Select Lab'}
                         >
@@ -1329,41 +1453,12 @@ const AdminRequests = () => {
                           ) : (
                             <IoFlaskOutline className="h-4 w-4" />
                           )}
-                        </button>
+                    </button>
                       )}
                       {request.status === 'cancelled' && (
                         <span className="text-[9px] font-semibold text-red-600 px-2 py-1 rounded bg-red-50">
                           Cancelled
                         </span>
-                      )}
-                      {/* Share Button - Only show if status is admin_responded */}
-                      {request.status === 'admin_responded' && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            // Set the request and trigger share
-                            setSelectedRequest(request)
-                            // Load the medicines/pharmacy/lab from the response
-                            if (request.adminResponse) {
-                              if (activeSection === 'pharmacy' && request.adminResponse.medicines) {
-                                setAdminMedicines(request.adminResponse.medicines)
-                                // Find and set selected pharmacy
-                                const pharm = pharmacies.find(p => p.pharmacyId === request.adminResponse.pharmacy?.id)
-                                if (pharm) setSelectedPharmacy(pharm)
-                              } else if (activeSection === 'lab') {
-                                // Find and set selected lab
-                                const lab = labs.find(l => l.labId === request.adminResponse.lab?.id)
-                                if (lab) setSelectedLab(lab)
-                              }
-                            }
-                            // Trigger share (send to patient)
-                            await handleShareToPatient(request)
-                          }}
-                          className="flex items-center justify-center rounded-lg bg-blue-600 p-2 text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
-                          title="Share to Patient"
-                        >
-                          <IoShareSocialOutline className="h-4 w-4" />
-                        </button>
                       )}
                     </div>
                   </div>
@@ -1608,102 +1703,27 @@ const AdminRequests = () => {
                 </div>
               )}
 
-              {/* Admin Medicines Section - Only show if status is accepted or pending and pharmacy request (not cancelled) */}
-              {(selectedRequest.status === 'accepted' || selectedRequest.status === 'pending') && selectedRequest.status !== 'cancelled' && activeSection === 'pharmacy' && (
-                <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                      <IoBagHandleOutline className="h-3.5 w-3.5" />
-                      Add Medicines & Prices
+              {/* Prescribed Lab Tests - Show for lab requests */}
+              {activeSection === 'lab' && selectedRequest.prescription?.investigations && selectedRequest.prescription.investigations.length > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
+                    <IoFlaskOutline className="h-3.5 w-3.5" />
+                    Prescribed Lab Tests
                     </h3>
-                    <button
-                      type="button"
-                      onClick={handleAddMedicine}
-                      className="flex items-center gap-1 rounded-lg bg-[#11496c] px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-[#0d3a52]"
-                    >
-                      <IoAddOutline className="h-3 w-3" />
-                      Add
-                    </button>
+                  <div className="space-y-1.5">
+                    {selectedRequest.prescription.investigations.map((test, idx) => {
+                      const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
+                      const testNotes = typeof test === 'object' ? test.notes : null
+                      return (
+                        <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                          <p className="text-xs font-semibold text-slate-900">{testName}</p>
+                          {testNotes && (
+                            <p className="mt-1 text-[10px] text-slate-500 line-clamp-1">Notes: {testNotes}</p>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
-
-                  {/* Medicines List */}
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {adminMedicines.map((med, idx) => (
-                      <div key={med.id} className="rounded-lg border border-blue-300 bg-white p-2">
-                        <div className="flex items-start justify-between gap-1.5 mb-1.5">
-                          <div className="flex-1">
-                            <input
-                              type="text"
-                              value={med.name}
-                              onChange={(e) => handleUpdateMedicine(med.id, 'name', e.target.value)}
-                              placeholder="Medicine name"
-                              className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveMedicine(med.id)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
-                          >
-                            <IoTrashOutline className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                          <input
-                            type="text"
-                            value={med.dosage}
-                            onChange={(e) => handleUpdateMedicine(med.id, 'dosage', e.target.value)}
-                            placeholder="Dosage"
-                            className="rounded border border-slate-300 px-1.5 py-1 text-[10px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                          />
-                          <input
-                            type="text"
-                            value={med.frequency}
-                            onChange={(e) => handleUpdateMedicine(med.id, 'frequency', e.target.value)}
-                            placeholder="Frequency"
-                            className="rounded border border-slate-300 px-1.5 py-1 text-[10px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                          />
-                        </div>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          <input
-                            type="number"
-                            value={med.quantity}
-                            onChange={(e) => handleUpdateMedicine(med.id, 'quantity', parseInt(e.target.value) || 1)}
-                            placeholder="Qty"
-                            min="1"
-                            className="rounded border border-slate-300 px-1.5 py-1 text-[10px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                          />
-                          <input
-                            type="number"
-                            value={med.price}
-                            onChange={(e) => handleUpdateMedicine(med.id, 'price', parseFloat(e.target.value) || 0)}
-                            placeholder="Price (₹)"
-                            min="0"
-                            step="0.01"
-                            className="rounded border border-slate-300 px-1.5 py-1 text-[10px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                          />
-                          <div className="flex items-center justify-center rounded border border-slate-300 bg-slate-50 px-1.5 py-1 text-[10px] font-semibold text-slate-700">
-                            ₹{((med.price || 0) * (med.quantity || 1)).toFixed(2)}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {adminMedicines.length === 0 && (
-                      <div className="text-center py-3 text-xs text-slate-500">
-                        Click "Add" to add medicines
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Total Amount */}
-                  {adminMedicines.length > 0 && (
-                    <div className="mt-3 rounded-lg border-2 border-[#11496c] bg-white p-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-900">Total Amount:</span>
-                        <span className="text-base font-bold text-[#11496c]">₹{totalAmount.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1717,19 +1737,25 @@ const AdminRequests = () => {
                 
                 {/* Dropdown Button */}
                 <div className="relative" ref={pharmacyDropdownRef}>
-                  <button
-                    type="button"
+                    <button
+                      type="button"
                     onClick={() => setShowPharmacyDropdown(!showPharmacyDropdown)}
                     className="w-full flex items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 hover:border-[#11496c] hover:bg-slate-50 transition"
                   >
                     <span className="flex items-center gap-1.5">
                       <IoBusinessOutline className="h-3.5 w-3.5 text-[#11496c]" />
-                      <span className="truncate">{selectedPharmacy ? selectedPharmacy.pharmacyName : 'Select a pharmacy'}</span>
+                      <span className="truncate">
+                        {selectedPharmacies.length === 0 
+                          ? 'Select pharmacy(s)' 
+                          : selectedPharmacies.length === 1
+                          ? selectedPharmacies[0].pharmacyName
+                          : `${selectedPharmacies.length} pharmacies selected`}
+                      </span>
                     </span>
                     <IoChevronDownOutline 
                       className={`h-3.5 w-3.5 text-slate-500 transition-transform shrink-0 ${showPharmacyDropdown ? 'rotate-180' : ''}`} 
                     />
-                  </button>
+                    </button>
 
                   {/* Dropdown Menu */}
                   {showPharmacyDropdown && (
@@ -1740,176 +1766,294 @@ const AdminRequests = () => {
                         </div>
                       ) : (
                         <div className="p-1.5">
-                          {pharmacies.map((pharmacy) => (
-                            <div
-                              key={pharmacy.pharmacyId}
-                              onClick={() => {
-                                setSelectedPharmacy(pharmacy)
-                                setShowPharmacyDropdown(false)
-                              }}
-                              className={`rounded-lg border p-2.5 mb-1.5 cursor-pointer transition ${
-                                selectedPharmacy?.pharmacyId === pharmacy.pharmacyId
-                                  ? 'border-[#11496c] bg-blue-50'
-                                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                              }`}
-                            >
-                              {/* Pharmacy Header */}
-                              <div className="flex items-start justify-between mb-1.5">
-                                <div className="flex-1 min-w-0">
-                                  <h4 className="text-xs font-semibold text-slate-900 mb-0.5 truncate">
-                                    {pharmacy.pharmacyName}
-                                  </h4>
-                                  {pharmacy.rating && (
-                                    <div className="flex items-center gap-1 mb-0.5">
-                                      <div className="flex items-center gap-0.5">
-                                        {renderStars(pharmacy.rating)}
+                          {pharmacies.map((pharmacy) => {
+                            const isSelected = selectedPharmacies.some(p => p.pharmacyId === pharmacy.pharmacyId)
+                            const isExpanded = expandedPharmacyId === pharmacy.pharmacyId
+                            return (
+                              <div
+                                key={pharmacy.pharmacyId}
+                                className={`rounded-lg border mb-1.5 transition ${
+                                  isSelected
+                                    ? 'border-[#11496c] bg-blue-50'
+                                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                }`}
+                              >
+                                {/* Pharmacy Header - Clickable for selection */}
+                                <div 
+                                  className="flex items-start justify-between p-2.5 cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (isSelected) {
+                                      setSelectedPharmacies(selectedPharmacies.filter(p => p.pharmacyId !== pharmacy.pharmacyId))
+                                    } else {
+                                      setSelectedPharmacies([...selectedPharmacies, pharmacy])
+                                    }
+                                  }}
+                                >
+                                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => {}} // Handled by parent onClick
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] cursor-pointer"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="text-xs font-semibold text-slate-900 mb-0.5 truncate">
+                                        {pharmacy.pharmacyName}
+                                      </h4>
+                                      {pharmacy.rating && (
+                                        <div className="flex items-center gap-1 mb-0.5">
+                                          <div className="flex items-center gap-0.5">
+                                            {renderStars(pharmacy.rating)}
+                                          </div>
+                                          <span className="text-[10px] font-semibold text-slate-700">
+                                            {pharmacy.rating.toFixed(1)}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                  </div>
+
+                                {/* Pharmacy Details */}
+                                <div className="px-2.5 pb-2.5 space-y-1 text-[10px] text-slate-600">
+                                  {pharmacy.address && (
+                                    <div className="flex items-start gap-1">
+                                      <IoLocationOutline className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
+                                      <span className="flex-1 line-clamp-1">{pharmacy.address}</span>
+                                    </div>
+                                  )}
+                                  {pharmacy.phone && (
+                                    <div className="flex items-center gap-1">
+                                      <IoCallOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                                      <span>{pharmacy.phone}</span>
+                                    </div>
+                                  )}
+                                  {pharmacy.medicines && pharmacy.medicines.length > 0 && (
+                                    <div 
+                                      className="flex items-center justify-between pt-1.5 border-t border-slate-200 cursor-pointer hover:bg-slate-50 -mx-2.5 px-2.5 py-1 rounded"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        const newExpandedId = isExpanded ? null : pharmacy.pharmacyId
+                                        setExpandedPharmacyId(newExpandedId)
+                                        if (!newExpandedId) {
+                                          setExpandedPharmacySearch('') // Clear search when collapsing
+                                        }
+                                      }}
+                                    >
+                                      <div className="flex items-center gap-1">
+                                        <IoBagHandleOutline className="h-3 w-3 text-blue-600 shrink-0" />
+                                        <span className="font-semibold text-blue-700">
+                                          {pharmacy.medicines.length} {pharmacy.medicines.length === 1 ? 'medicine' : 'medicines'}
+                                        </span>
                                       </div>
-                                      <span className="text-[10px] font-semibold text-slate-700">
-                                        {pharmacy.rating.toFixed(1)}
-                                      </span>
+                                      <IoChevronDownOutline 
+                                        className={`h-3 w-3 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                      />
                                     </div>
                                   )}
                                 </div>
-                                {selectedPharmacy?.pharmacyId === pharmacy.pharmacyId && (
-                                  <IoCheckmarkCircleOutline className="h-4 w-4 text-[#11496c] shrink-0" />
-                                )}
-                              </div>
 
-                              {/* Pharmacy Details */}
-                              <div className="space-y-1 text-[10px] text-slate-600">
-                                {pharmacy.address && (
-                                  <div className="flex items-start gap-1">
-                                    <IoLocationOutline className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
-                                    <span className="flex-1 line-clamp-1">{pharmacy.address}</span>
-                                  </div>
-                                )}
-                                {pharmacy.phone && (
-                                  <div className="flex items-center gap-1">
-                                    <IoCallOutline className="h-3 w-3 text-slate-400 shrink-0" />
-                                    <span>{pharmacy.phone}</span>
-                                  </div>
-                                )}
-                                {pharmacy.medicines && pharmacy.medicines.length > 0 && (
-                                  <div className="flex items-center gap-1 pt-0.5 border-t border-slate-200">
-                                    <IoBagHandleOutline className="h-3 w-3 text-blue-600 shrink-0" />
-                                    <span className="font-semibold text-blue-700">
-                                      {pharmacy.medicines.length} {pharmacy.medicines.length === 1 ? 'medicine' : 'medicines'}
-                                    </span>
+                                {/* Expanded Medicines List */}
+                                {isExpanded && pharmacy.medicines && pharmacy.medicines.length > 0 && (
+                                  <div className="px-2.5 pb-2.5 border-t border-slate-200 bg-slate-50">
+                                    {/* Search Input for Medicines */}
+                                    <div className="mt-2 mb-2">
+                                      <div className="relative">
+                                        <IoSearchOutline className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-slate-400" />
+                            <input
+                              type="text"
+                                          value={expandedPharmacyId === pharmacy.pharmacyId ? expandedPharmacySearch : ''}
+                                          onChange={(e) => {
+                                            if (expandedPharmacyId === pharmacy.pharmacyId) {
+                                              setExpandedPharmacySearch(e.target.value)
+                                            }
+                                          }}
+                                          placeholder="Search medicine name, dosage..."
+                                          className="w-full rounded border border-slate-300 bg-white pl-7 pr-2 py-1.5 text-[10px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+                                          onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                                    </div>
+                                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                      {pharmacy.medicines
+                                        .filter((med) => {
+                                          if (expandedPharmacyId !== pharmacy.pharmacyId || !expandedPharmacySearch) return true
+                                          const searchTerm = expandedPharmacySearch.toLowerCase()
+                                          return (
+                                            med.name?.toLowerCase().includes(searchTerm) ||
+                                            med.dosage?.toLowerCase().includes(searchTerm) ||
+                                            med.name?.toLowerCase().includes(searchTerm)
+                                          )
+                                        })
+                                        .map((med, idx) => {
+                                          const isSelected = selectedMedicinesFromPharmacy.some(
+                                            item => item.medicine.name.toLowerCase() === med.name.toLowerCase() &&
+                                                     item.medicine.dosage === med.dosage &&
+                                                     item.pharmacyId === pharmacy.pharmacyId
+                                          )
+                                          const selectedItem = selectedMedicinesFromPharmacy.find(
+                                            item => item.medicine.name.toLowerCase() === med.name.toLowerCase() &&
+                                                     item.medicine.dosage === med.dosage &&
+                                                     item.pharmacyId === pharmacy.pharmacyId
+                                          )
+                                          
+                                          return (
+                                            <div 
+                                              key={idx}
+                                              className={`rounded border p-2 text-[10px] transition ${
+                                                isSelected 
+                                                  ? 'border-[#11496c] bg-blue-50' 
+                                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                                              }`}
+                                            >
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                  <div className="flex items-center gap-1.5 mb-1">
+                          <button
+                            type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleAddMedicineFromPharmacy(med, pharmacy.pharmacyId, pharmacy.pharmacyName)
+                                                      }}
+                                                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${
+                                                        isSelected
+                                                          ? 'border-[#11496c] bg-[#11496c] text-white'
+                                                          : 'border-slate-300 bg-white text-slate-600 hover:border-[#11496c] hover:text-[#11496c]'
+                                                      }`}
+                                                    >
+                                                      {isSelected ? (
+                                                        <IoCheckmarkCircleOutline className="h-3 w-3" />
+                                                      ) : (
+                                                        <IoAddOutline className="h-3 w-3" />
+                                                      )}
+                          </button>
+                                                    <div className="flex-1 min-w-0">
+                                                      <p className="font-semibold text-slate-900">
+                                                        {med.name}
+                                                      </p>
+                                                      {med.dosage && (
+                                                        <p className="text-slate-600 text-[9px]">
+                                                          Dosage: {med.dosage}
+                                                        </p>
+                                                      )}
+                        </div>
+                        </div>
+                                                  <div className="flex items-center gap-3 text-slate-600 ml-6">
+                                                    {med.quantity && (
+                                                      <span>Available: {med.quantity} tablets</span>
+                                                    )}
+                                                    {med.price && (
+                                                      <span className="font-semibold text-[#11496c]">
+                                                        ₹{med.price} per tablet
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  {isSelected && selectedItem && (
+                                                    <div className="mt-1.5 ml-6 flex items-center gap-2">
+                                                      <label className="text-[9px] font-medium text-slate-700">
+                                                        Quantity (Tablets):
+                                                      </label>
+                          <input
+                            type="number"
+                            min="1"
+                                                        max={med.quantity || 999}
+                                                        value={selectedItem.quantity}
+                                                        onChange={(e) => {
+                                                          const index = selectedMedicinesFromPharmacy.findIndex(
+                                                            item => item.medicine.name.toLowerCase() === med.name.toLowerCase() &&
+                                                                     item.medicine.dosage === med.dosage &&
+                                                                     item.pharmacyId === pharmacy.pharmacyId
+                                                          )
+                                                          if (index >= 0) {
+                                                            handleUpdateMedicineQuantity(index, e.target.value)
+                                                          }
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#11496c]"
+                                                      />
+                                                      <span className="text-[9px] font-semibold text-[#11496c]">
+                                                        = ₹{(selectedItem.quantity * selectedItem.price).toFixed(2)}
+                                                      </span>
+                          </div>
+                                                  )}
+                        </div>
+                      </div>
+                                            </div>
+                                          )
+                                        })}
+                                      {pharmacy.medicines.filter((med) => {
+                                        if (expandedPharmacyId !== pharmacy.pharmacyId || !expandedPharmacySearch) return true
+                                        const searchTerm = expandedPharmacySearch.toLowerCase()
+                                        return (
+                                          med.name?.toLowerCase().includes(searchTerm) ||
+                                          med.dosage?.toLowerCase().includes(searchTerm)
+                                        )
+                                      }).length === 0 && expandedPharmacySearch && (
+                                        <div className="text-center py-3 text-[10px] text-slate-500">
+                                          No medicines found matching "{expandedPharmacySearch}"
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                               </div>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
+                      </div>
+                    )}
+                  </div>
+
+                {/* Selected Medicines Summary */}
+                {selectedMedicinesFromPharmacy.length > 0 && (
+                  <div className="mt-3 rounded-lg border-2 border-[#11496c] bg-blue-50 p-2.5">
+                    <h4 className="text-xs font-semibold text-slate-900 mb-2 flex items-center gap-1.5">
+                      <IoBagHandleOutline className="h-3.5 w-3.5" />
+                      Selected Medicines
+                    </h4>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {selectedMedicinesFromPharmacy.map((item, idx) => (
+                        <div key={idx} className="rounded border border-blue-200 bg-white p-1.5 text-[10px]">
+                      <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-slate-900">
+                                {item.medicine.name} ({item.medicine.dosage})
+                              </p>
+                              <p className="text-slate-600">
+                                {item.pharmacyName} • Qty: {item.quantity} tablets
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-[#11496c]">
+                                ₹{(item.quantity * item.price).toFixed(2)}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedMedicinesFromPharmacy(selectedMedicinesFromPharmacy.filter((_, i) => i !== idx))
+                                }}
+                                className="mt-0.5 text-red-600 hover:text-red-700"
+                                title="Remove"
+                              >
+                                <IoTrashOutline className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-900">Total Amount:</span>
+                      <span className="text-sm font-bold text-[#11496c]">₹{totalAmount.toFixed(2)}</span>
+                      </div>
                     </div>
                   )}
                 </div>
-
-                {/* Selected Pharmacy Details */}
-                {selectedPharmacy && (
-                  <div className="mt-3 rounded-lg border border-[#11496c] bg-blue-50 p-2.5">
-                    <h4 className="text-xs font-semibold text-slate-900 mb-2">
-                      Selected: {selectedPharmacy.pharmacyName}
-                    </h4>
-                    <div className="space-y-1.5 text-[10px]">
-                      {selectedPharmacy.address && (
-                        <p className="flex items-start gap-1.5">
-                          <IoLocationOutline className="h-3 w-3 text-slate-500 mt-0.5 shrink-0" />
-                          <span className="text-slate-700 line-clamp-1">{selectedPharmacy.address}</span>
-                        </p>
-                      )}
-                      {selectedPharmacy.phone && (
-                        <p className="flex items-center gap-1.5">
-                          <IoCallOutline className="h-3 w-3 text-slate-500 shrink-0" />
-                          <span className="text-slate-700">{selectedPharmacy.phone}</span>
-                        </p>
-                      )}
-                      {selectedPharmacy.medicines && selectedPharmacy.medicines.length > 0 && (
-                        <div className="pt-1.5 border-t border-blue-200">
-                          <p className="font-semibold text-blue-900 mb-1.5 text-[10px]">
-                            Search Medicines ({selectedPharmacy.medicines.length})
-                          </p>
-                          {/* Search Input */}
-                          <div className="mb-1.5">
-                            <div className="relative">
-                              <IoSearchOutline className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-slate-400" />
-                              <input
-                                type="text"
-                                value={pharmacyMedicineSearch}
-                                onChange={(e) => setPharmacyMedicineSearch(e.target.value)}
-                                placeholder="Search medicine name..."
-                                className="w-full rounded border border-slate-300 bg-white pl-7 pr-2 py-1 text-[10px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                              />
-                            </div>
-                          </div>
-                          {/* Filtered Medicines List */}
-                          <div className="space-y-1 max-h-32 overflow-y-auto">
-                            {selectedPharmacy.medicines
-                              .filter(med => 
-                                !pharmacyMedicineSearch || 
-                                med.name.toLowerCase().includes(pharmacyMedicineSearch.toLowerCase()) ||
-                                (med.dosage && med.dosage.toLowerCase().includes(pharmacyMedicineSearch.toLowerCase()))
-                              )
-                              .map((med, idx) => {
-                                const isAlreadyAdded = adminMedicines.some(adminMed => 
-                                  adminMed.name.toLowerCase() === med.name.toLowerCase() && 
-                                  adminMed.dosage === med.dosage
-                                )
-                                return (
-                                  <div key={idx} className={`flex items-center justify-between gap-1.5 text-[10px] bg-white rounded px-1.5 py-1 ${
-                                    isAlreadyAdded ? 'border border-emerald-500 bg-emerald-50' : ''
-                                  }`}>
-                                    <div className="flex-1 min-w-0">
-                                      <span className="font-medium text-slate-900 truncate block">
-                                        {med.name} {med.dosage && `(${med.dosage})`}
-                                      </span>
-                                      <span className="text-slate-600 text-[9px]">
-                                        Qty: {med.quantity} | ₹{med.price}
-                                      </span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAddMedicineFromPharmacy(med)}
-                                      className={`flex items-center justify-center rounded px-1.5 py-0.5 text-[9px] font-semibold transition shrink-0 ${
-                                        isAlreadyAdded
-                                          ? 'bg-red-600 text-white hover:bg-red-700'
-                                          : 'bg-[#11496c] text-white hover:bg-[#0d3a52]'
-                                      }`}
-                                      title={isAlreadyAdded ? 'Remove medicine' : 'Add medicine'}
-                                    >
-                                      {isAlreadyAdded ? (
-                                        <>
-                                          <IoCloseCircleOutline className="h-2.5 w-2.5 mr-0.5" />
-                                          Remove
-                                        </>
-                                      ) : (
-                                        <>
-                                          <IoAddOutline className="h-2.5 w-2.5 mr-0.5" />
-                                          Add
-                                        </>
-                                      )}
-                                    </button>
-                                  </div>
-                                )
-                              })}
-                            {selectedPharmacy.medicines.filter(med => 
-                              !pharmacyMedicineSearch || 
-                              med.name.toLowerCase().includes(pharmacyMedicineSearch.toLowerCase()) ||
-                              (med.dosage && med.dosage.toLowerCase().includes(pharmacyMedicineSearch.toLowerCase()))
-                            ).length === 0 && (
-                              <div className="text-center py-2 text-[9px] text-slate-500">
-                                {pharmacyMedicineSearch ? 'No medicines found' : 'No medicines available'}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
               )}
+
 
               {/* Lab Selection Dropdown - Only for lab requests (not cancelled) */}
               {activeSection === 'lab' && selectedRequest.status !== 'cancelled' && (
@@ -2054,29 +2198,104 @@ const AdminRequests = () => {
                                 !labTestSearch || 
                                 test.name.toLowerCase().includes(labTestSearch.toLowerCase())
                               )
-                              .map((test, idx) => (
-                                <div key={idx} className="flex items-center justify-between gap-1.5 text-[10px] bg-white rounded px-1.5 py-1">
-                                  <div className="flex-1 min-w-0">
-                                    <span className="font-medium text-slate-900 truncate block">
-                                      {test.name}
-                                    </span>
-                                    <span className="text-slate-600 text-[9px]">
-                                      ₹{test.price}
-                                    </span>
+                              .map((test, idx) => {
+                                const isSelected = selectedTestsFromLab.some(
+                                  item => item.test.name === test.name && item.labId === selectedLab.labId
+                                )
+                                
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    className={`flex items-center justify-between gap-1.5 text-[10px] rounded px-1.5 py-1 transition ${
+                                      isSelected 
+                                        ? 'bg-blue-50 border border-[#11496c]' 
+                                        : 'bg-white border border-slate-200 hover:border-slate-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAddTestFromLab(test, selectedLab.labId, selectedLab.labName)}
+                                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                                          isSelected
+                                            ? 'border-[#11496c] bg-[#11496c] text-white'
+                                            : 'border-slate-300 bg-white text-slate-600 hover:border-[#11496c] hover:text-[#11496c]'
+                                        }`}
+                                      >
+                                        {isSelected ? (
+                                          <IoCheckmarkCircleOutline className="h-2.5 w-2.5" />
+                                        ) : (
+                                          <IoAddOutline className="h-2.5 w-2.5" />
+                                        )}
+                                      </button>
+                                      <div className="flex-1 min-w-0">
+                                        <span className="font-medium text-slate-900 truncate block">
+                                          {test.name}
+                                </span>
+                                        <span className="text-slate-600 text-[9px]">
+                                          ₹{test.price}
+                                </span>
+                              </div>
+                          </div>
                                   </div>
-                                </div>
-                              ))}
+                                )
+                              })}
                             {selectedLab.tests.filter(test => 
                               !labTestSearch || 
                               test.name.toLowerCase().includes(labTestSearch.toLowerCase())
                             ).length === 0 && (
                               <div className="text-center py-2 text-[9px] text-slate-500">
                                 {labTestSearch ? 'No tests found' : 'No tests available'}
-                              </div>
-                            )}
-                          </div>
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+              </div>
+                  </div>
+                )}
+
+                {/* Selected Tests Summary */}
+                {selectedTestsFromLab.length > 0 && (
+                  <div className="mt-3 rounded-lg border-2 border-[#11496c] bg-blue-50 p-2.5">
+                    <h4 className="text-xs font-semibold text-slate-900 mb-2 flex items-center gap-1.5">
+                      <IoFlaskOutline className="h-3.5 w-3.5" />
+                      Selected Tests
+                    </h4>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {selectedTestsFromLab.map((item, idx) => (
+                        <div key={idx} className="rounded border border-blue-200 bg-white p-1.5 text-[10px]">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-slate-900">
+                                {item.test.name}
+                              </p>
+                              <p className="text-slate-600">
+                                {item.labName}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-[#11496c]">
+                                ₹{item.price.toFixed(2)}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTestsFromLab(selectedTestsFromLab.filter((_, i) => i !== idx))
+                                }}
+                                className="mt-0.5 text-red-600 hover:text-red-700"
+                                title="Remove"
+                              >
+                                <IoTrashOutline className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-900">Total Amount:</span>
+                      <span className="text-sm font-bold text-[#11496c]">₹{totalAmount.toFixed(2)}</span>
                     </div>
                   </div>
                 )}
@@ -2109,7 +2328,10 @@ const AdminRequests = () => {
                   </h3>
                   <p className="text-xs text-slate-700 mb-1.5">{selectedRequest.adminResponse.message}</p>
                   <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-600">
-                    <p>Total Amount: ₹{selectedRequest.adminResponse.totalAmount}</p>
+                    <p>Total Amount: ₹{selectedRequest.adminResponse.totalAmount || 0}</p>
+                    {selectedRequest.adminResponse.pharmacies && selectedRequest.adminResponse.pharmacies.length > 0 && (
+                      <p>Pharmacies: {selectedRequest.adminResponse.pharmacies.map(p => p.name).join(', ')}</p>
+                    )}
                     {selectedRequest.adminResponse.pharmacy?.name && (
                       <p>Pharmacy: {selectedRequest.adminResponse.pharmacy.name}</p>
                     )}
@@ -2117,6 +2339,46 @@ const AdminRequests = () => {
                       <p>Lab: {selectedRequest.adminResponse.lab.name}</p>
                     )}
                     <p>Sent: {formatDate(selectedRequest.adminResponse.respondedAt)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Confirmation Display */}
+              {selectedRequest.paymentConfirmed && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
+                    <IoCheckmarkCircleOutline className="h-3.5 w-3.5 text-emerald-600" />
+                    Payment Confirmed
+                  </h3>
+                  <p className="text-xs text-slate-700 mb-1.5">
+                    {selectedRequest.confirmationMessage || `Payment confirmed! Order has been created for patient ${selectedRequest.patientName || 'Patient'}.`}
+                  </p>
+                  <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-600">
+                    {selectedRequest.paidAt && (
+                      <p>Paid At: {formatDate(selectedRequest.paidAt)}</p>
+                    )}
+                    <p>Total Amount: ₹{selectedRequest.adminResponse?.totalAmount || selectedRequest.totalAmount || 0}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Cancellation Display */}
+              {selectedRequest.status === 'cancelled' && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
+                    <IoCloseCircleOutline className="h-3.5 w-3.5 text-red-600" />
+                    {selectedRequest.cancelledBy === 'patient' ? 'Cancelled by Patient' : 'Cancelled'}
+                  </h3>
+                  {selectedRequest.cancelReason && (
+                    <p className="text-xs text-slate-700 mb-1.5">{selectedRequest.cancelReason}</p>
+                  )}
+                  {selectedRequest.cancellationMessage && (
+                    <p className="text-xs text-slate-700 mb-1.5">{selectedRequest.cancellationMessage}</p>
+                  )}
+                  <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-600">
+                    {selectedRequest.cancelledAt && (
+                      <p>Cancelled At: {formatDate(selectedRequest.cancelledAt)}</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -2150,22 +2412,28 @@ const AdminRequests = () => {
                     setShowLabDropdown(false)
                     setSelectedPharmacy(null)
                     setSelectedLab(null)
+                    setSelectedPharmacies([])
                     setAdminMedicines([])
                     setAdminResponse('')
                     setTotalAmount(0)
+                    setSelectedMedicinesFromPharmacy([])
+                    setSelectedTestsFromLab([])
+                    setExpandedPharmacyId(null)
+                    setExpandedPharmacySearch('')
+                    setLabTestSearch('')
                   }}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   Close
                 </button>
-                {selectedRequest.status === 'pending' && selectedRequest.status !== 'cancelled' && (
+                {selectedRequest.status !== 'cancelled' && selectedRequest.status !== 'confirmed' && !selectedRequest.paymentConfirmed && (
                   <button
                     type="button"
                     onClick={handleSendResponse}
                     disabled={
                       isSendingResponse || 
-                      (activeSection === 'pharmacy' && (!selectedPharmacy || adminMedicines.length === 0 || totalAmount <= 0)) ||
-                      (activeSection === 'lab' && !selectedLab)
+                      (activeSection === 'pharmacy' && (selectedPharmacies.length === 0 || selectedMedicinesFromPharmacy.length === 0)) ||
+                      (activeSection === 'lab' && (!selectedLab || selectedTestsFromLab.length === 0))
                     }
                     className="flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -2177,7 +2445,7 @@ const AdminRequests = () => {
                     ) : (
                       <>
                         <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                        Send Response
+                        Send
                       </>
                     )}
                   </button>

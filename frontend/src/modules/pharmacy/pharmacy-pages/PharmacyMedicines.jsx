@@ -280,13 +280,21 @@ const PharmacyMedicines = () => {
                         {/* Quantity - Line by Line */}
                         <div className="flex items-center gap-2 text-xs text-slate-700 mb-1">
                           <span className="font-semibold">Quantity:</span>
-                          <span className="text-slate-900">{medicine.quantity}</span>
+                          <span className="text-slate-900">{medicine.quantity} tablets</span>
                         </div>
 
-                        {/* Price - Line by Line */}
+                        {/* Price per Tablet - Line by Line */}
+                        <div className="flex items-center gap-2 text-xs text-slate-700 mb-1">
+                          <span className="font-semibold">Price per Tablet:</span>
+                          <span className="text-slate-600">{formatCurrency(parseFloat(medicine.price))}</span>
+                        </div>
+
+                        {/* Total Price - Line by Line */}
                         <div className="flex items-center gap-2 text-xs text-slate-700">
-                          <span className="font-semibold">Price:</span>
-                          <span className="text-[#11496c] font-bold">{formatCurrency(parseFloat(medicine.price))}</span>
+                          <span className="font-semibold">Total Price:</span>
+                          <span className="text-[#11496c] font-bold">
+                            {formatCurrency((parseFloat(medicine.quantity) || 0) * (parseFloat(medicine.price) || 0))}
+                          </span>
                         </div>
                       </div>
                       
@@ -376,21 +384,23 @@ const PharmacyMedicines = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="quantity" className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Quantity <span className="text-red-500">*</span>
+                    Quantity (Tablets) <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="text"
+                    type="number"
                     id="quantity"
                     required
+                    min="1"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    placeholder="e.g., 100 strips"
+                    placeholder="e.g., 100"
                     value={formData.quantity}
                     onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                   />
+                  <p className="mt-1 text-xs text-slate-500">Enter number of tablets/pills</p>
                 </div>
                 <div>
                   <label htmlFor="price" className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Price (₹) <span className="text-red-500">*</span>
+                    Price per Tablet (₹) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -399,12 +409,28 @@ const PharmacyMedicines = () => {
                     min="0"
                     step="0.01"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    placeholder="e.g., 50.00"
+                    placeholder="e.g., 2.50"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   />
+                  <p className="mt-1 text-xs text-slate-500">Price for one tablet/pill</p>
                 </div>
               </div>
+              
+              {/* Total Price Display */}
+              {(formData.quantity && formData.price) && (
+                <div className="rounded-lg border-2 border-[#11496c] bg-blue-50 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-slate-900">Total Price:</span>
+                    <span className="text-lg font-bold text-[#11496c]">
+                      {formatCurrency((parseFloat(formData.quantity) || 0) * (parseFloat(formData.price) || 0))}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formData.quantity} tablets × {formatCurrency(parseFloat(formData.price) || 0)} per tablet
+                  </p>
+                </div>
+              )}
               <div>
                 <label htmlFor="manufacturer" className="block text-sm font-medium text-slate-700 mb-1.5">
                   Manufacturer (Optional)
@@ -442,4 +468,5 @@ const PharmacyMedicines = () => {
 }
 
 export default PharmacyMedicines
+
 

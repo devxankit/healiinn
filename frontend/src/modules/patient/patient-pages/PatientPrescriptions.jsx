@@ -779,6 +779,40 @@ const PatientPrescriptions = () => {
       existingRequests.push(requestData)
       localStorage.setItem('adminRequests', JSON.stringify(existingRequests))
 
+      // Also create entry in patientRequests so patient can see it immediately
+      const patientRequestData = {
+        id: requestData.id,
+        type: 'lab',
+        providerName: 'Healiinn',
+        providerId: 'admin',
+        testName: 'Lab Test Request',
+        status: 'pending',
+        requestDate: requestData.createdAt,
+        responseDate: null,
+        totalAmount: null,
+        message: 'Your lab test request has been sent to admin. Waiting for response...',
+        prescriptionId: prescription.id,
+        patient: {
+          name: requestData.patientName,
+          phone: requestData.patientPhone,
+          email: requestData.patientEmail,
+          address: requestData.patientAddress,
+          age: patientProfile.age || 32,
+          gender: patientProfile.gender || 'Male',
+        },
+        providerResponse: null,
+        doctor: {
+          name: prescription.doctor.name,
+          specialty: prescription.doctor.specialty,
+          phone: '+91 98765 43210',
+        },
+        prescription: requestData.prescription,
+      }
+
+      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+      patientRequests.push(patientRequestData)
+      localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
+
       // Show success message
       alert('Test visit request sent to admin successfully!')
     } catch (error) {

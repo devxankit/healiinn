@@ -11,6 +11,7 @@ import {
   IoHelpCircleOutline,
   IoCubeOutline,
   IoDocumentTextOutline,
+  IoBagHandleOutline,
 } from 'react-icons/io5'
 
 const sidebarNavItems = [
@@ -22,6 +23,7 @@ const sidebarNavItems = [
   { id: 'pharmacies', label: 'Pharmacies', to: '/admin/pharmacies', Icon: IoBusinessOutline },
   { id: 'inventory', label: 'Inventory', to: '/admin/inventory', Icon: IoCubeOutline },
   { id: 'request', label: 'Request', to: '/admin/request', Icon: IoDocumentTextOutline },
+  { id: 'orders', label: 'Orders', to: '/admin/orders', Icon: IoBagHandleOutline },
   { id: 'wallet', label: 'Wallet', to: '/admin/wallet', Icon: IoWalletOutline },
   { id: 'support', label: 'Support', to: '/admin/support', Icon: IoHelpCircleOutline },
 ]
