@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
@@ -261,12 +261,79 @@ const getStatusColor = (status) => {
 
 const DoctorAppointments = () => {
   const navigate = useNavigate()
-  const [appointments, setAppointments] = useState(mockAllAppointments)
+  const [appointments, setAppointments] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPeriod, setFilterPeriod] = useState('all') // 'today', 'monthly', 'yearly', 'all'
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [appointmentToCancel, setAppointmentToCancel] = useState(null)
   const [cancelReason, setCancelReason] = useState('')
+
+  // Load appointments from localStorage
+  useEffect(() => {
+    const loadAppointments = () => {
+      try {
+        // Get current doctor ID from profile
+        const doctorProfile = JSON.parse(localStorage.getItem('doctorProfile') || '{}')
+        const doctorId = doctorProfile.id || 'doc-current'
+        const doctorName = `${doctorProfile.firstName || ''} ${doctorProfile.lastName || ''}`.trim() || doctorProfile.name || ''
+        
+        // Load from allAppointments (shared by patient bookings)
+        const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
+        // Also check doctorAppointments for backward compatibility
+        const doctorAppts = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
+        
+        // Filter appointments for this doctor
+        const doctorFilteredAppts = [
+          ...allAppts.filter(apt => apt.doctorId === doctorId || apt.doctorName === doctorName),
+          ...doctorAppts.filter(apt => apt.doctorId === doctorId),
+        ]
+        
+        // Remove duplicates
+        const unique = doctorFilteredAppts.filter((apt, idx, self) => 
+          idx === self.findIndex(a => a.id === apt.id)
+        )
+        
+        // Merge with mock data for backward compatibility, but prioritize localStorage data
+        const merged = [...unique, ...mockAllAppointments]
+        const finalUnique = merged.filter((apt, idx, self) => 
+          idx === self.findIndex(a => a.id === apt.id)
+        )
+        
+        // Transform to match expected format, preserving all data
+        const transformed = finalUnique.map(apt => ({
+          id: apt.id,
+          patientId: apt.patientId || apt.patient?.id || 'pat-unknown',
+          patientName: apt.patientName || apt.patient?.name || 'Unknown Patient',
+          patientImage: apt.patientImage || apt.patient?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+          date: apt.appointmentDate || apt.date,
+          time: apt.time || '10:00 AM',
+          type: apt.appointmentType || apt.type || 'In-person',
+          status: apt.status || 'scheduled',
+          duration: apt.duration || '30 min',
+          reason: apt.reason || 'Consultation',
+          appointmentType: apt.appointmentType || 'New',
+          // Preserve additional patient data
+          patientPhone: apt.patientPhone || apt.patient?.phone || '+1-555-000-0000',
+          patientEmail: apt.patientEmail || apt.patient?.email || `${(apt.patientName || 'patient').toLowerCase().replace(/\s+/g, '.')}@example.com`,
+          patientAddress: apt.patientAddress || apt.patient?.address || 'Address not provided',
+          age: apt.age || apt.patient?.age || 30,
+          gender: apt.gender || apt.patient?.gender || 'male',
+          // Preserve original appointment data for reference
+          originalData: apt,
+        }))
+        
+        setAppointments(transformed)
+      } catch (error) {
+        console.error('Error loading appointments:', error)
+        setAppointments(mockAllAppointments)
+      }
+    }
+    
+    loadAppointments()
+    // Refresh every 2 seconds to get new appointments
+    const interval = setInterval(loadAppointments, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Get today's date for filtering
   const today = new Date()
@@ -349,29 +416,31 @@ const DoctorAppointments = () => {
   }, [appointments, today, tomorrow, currentMonthStart, currentMonthEnd, currentYearStart, currentYearEnd])
 
   const handleViewAppointment = (appointment) => {
-    // Navigate to consultations page with this appointment
+    // Navigate to consultations page with this appointment data
     navigate('/doctor/consultations', {
       state: {
         selectedConsultation: {
           id: `cons-${appointment.id}`,
           patientId: appointment.patientId,
           patientName: appointment.patientName,
-          age: 45, // Default, should come from appointment data
-          gender: 'male', // Default
+          age: appointment.age || 30,
+          gender: appointment.gender || 'male',
           appointmentTime: `${appointment.date}T${appointment.time}`,
           appointmentType: appointment.appointmentType || 'New',
-          status: 'in-progress',
-          reason: appointment.reason,
+          status: appointment.status === 'scheduled' ? 'in-progress' : appointment.status,
+          reason: appointment.reason || 'Consultation',
           patientImage: appointment.patientImage,
-          patientPhone: '+1-555-987-6543',
-          patientEmail: `${appointment.patientName.toLowerCase().replace(' ', '.')}@example.com`,
-          patientAddress: '123 Patient Street, New York, NY 10001',
+          patientPhone: appointment.patientPhone || '+1-555-000-0000',
+          patientEmail: appointment.patientEmail || `${appointment.patientName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+          patientAddress: appointment.patientAddress || 'Address not provided',
           diagnosis: '',
           vitals: {},
           medications: [],
           investigations: [],
           advice: '',
           attachments: [],
+          // Include original appointment data if available
+          originalAppointment: appointment.originalData || appointment,
         },
       },
     })
@@ -389,7 +458,38 @@ const DoctorAppointments = () => {
       return
     }
 
-    // Update appointment status to cancelled
+    // Update appointment status to cancelled in localStorage
+    try {
+      const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
+      const updatedAllAppts = allAppts.map(apt =>
+        apt.id === appointmentToCancel.id
+          ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
+          : apt
+      )
+      localStorage.setItem('allAppointments', JSON.stringify(updatedAllAppts))
+      
+      // Also update in doctorAppointments
+      const doctorAppts = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
+      const updatedDoctorAppts = doctorAppts.map(apt =>
+        apt.id === appointmentToCancel.id
+          ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
+          : apt
+      )
+      localStorage.setItem('doctorAppointments', JSON.stringify(updatedDoctorAppts))
+      
+      // Also update in patientAppointments
+      const patientAppts = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
+      const updatedPatientAppts = patientAppts.map(apt =>
+        apt.id === appointmentToCancel.id
+          ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
+          : apt
+      )
+      localStorage.setItem('patientAppointments', JSON.stringify(updatedPatientAppts))
+    } catch (error) {
+      console.error('Error updating appointment status:', error)
+    }
+
+    // Update appointment status to cancelled in state
     setAppointments((prev) =>
       prev.map((apt) =>
         apt.id === appointmentToCancel.id
@@ -497,15 +597,15 @@ const DoctorAppointments = () => {
               return (
                 <div
                   key={appointment.id}
-                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md hover:border-[#11496c]/30"
+                  onClick={() => handleViewAppointment(appointment)}
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md hover:border-[#11496c]/30 cursor-pointer active:scale-[0.98]"
                 >
                   <div className="flex items-start gap-4">
                     {/* Patient Image */}
                     <img
                       src={appointment.patientImage}
                       alt={appointment.patientName}
-                      className="h-12 w-12 rounded-lg object-cover ring-2 ring-slate-100 shrink-0 cursor-pointer"
-                      onClick={() => handleViewAppointment(appointment)}
+                      className="h-12 w-12 rounded-lg object-cover ring-2 ring-slate-100 shrink-0"
                       onError={(e) => {
                         e.target.onerror = null
                         e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=3b82f6&color=fff&size=160`
@@ -515,7 +615,7 @@ const DoctorAppointments = () => {
                     {/* Appointment Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleViewAppointment(appointment)}>
+                        <div className="flex-1 min-w-0">
                           <h3 className="text-base font-bold text-slate-900 truncate">{appointment.patientName}</h3>
                           <p className="text-sm text-slate-600 mt-0.5">{appointment.reason}</p>
                         </div>
@@ -554,7 +654,7 @@ const DoctorAppointments = () => {
                       </div>
 
                       {/* Appointment Details */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 cursor-pointer" onClick={() => handleViewAppointment(appointment)}>
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
                         <div className="flex items-center gap-1">
                           <IoCalendarOutline className="h-3.5 w-3.5 text-slate-500" />
                           <span>{formatDate(appointment.date)}</span>

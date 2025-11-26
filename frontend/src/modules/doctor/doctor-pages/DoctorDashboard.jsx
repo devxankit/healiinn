@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import DoctorSidebar from '../doctor-components/DoctorSidebar'
 import {
@@ -179,6 +179,7 @@ const getTypeIcon = (type) => {
 const DoctorDashboard = () => {
   const navigate = useNavigate()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [appointments, setAppointments] = useState([])
 
   const todayLabel = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
@@ -189,11 +190,182 @@ const DoctorDashboard = () => {
   const earningsChange = ((mockStats.thisMonthEarnings - mockStats.lastMonthEarnings) / mockStats.lastMonthEarnings) * 100
   const consultationsChange = ((mockStats.thisMonthConsultations - mockStats.lastMonthConsultations) / mockStats.lastMonthConsultations) * 100
 
+  // Load appointments from localStorage
+  useEffect(() => {
+    const loadAppointments = () => {
+      try {
+        // Get current doctor ID from profile
+        const doctorProfile = JSON.parse(localStorage.getItem('doctorProfile') || '{}')
+        const doctorId = doctorProfile.id || 'doc-current'
+        const doctorName = `${doctorProfile.firstName || ''} ${doctorProfile.lastName || ''}`.trim() || doctorProfile.name || 'Dr. Rajesh Kumar'
+        
+        // Load from allAppointments (shared by patient bookings)
+        const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
+        // Also check doctorAppointments for backward compatibility
+        const doctorAppts = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
+        
+        // Filter appointments for this doctor
+        const doctorFilteredAppts = [
+          ...allAppts.filter(apt => 
+            apt.doctorId === doctorId || 
+            apt.doctorName === doctorName ||
+            apt.doctorName?.includes(doctorName.split(' ')[0]) ||
+            doctorName.includes(apt.doctorName?.split(' ')[0] || '')
+          ),
+          ...doctorAppts.filter(apt => apt.doctorId === doctorId),
+        ]
+        
+        // Remove duplicates
+        const unique = doctorFilteredAppts.filter((apt, idx, self) => 
+          idx === self.findIndex(a => a.id === apt.id)
+        )
+        
+        // Merge with mock data for backward compatibility, but prioritize localStorage data
+        const merged = [...unique, ...allAppointments]
+        const finalUnique = merged.filter((apt, idx, self) => 
+          idx === self.findIndex(a => a.id === apt.id)
+        )
+        
+        // Transform to match expected format, preserving all data
+        const transformed = finalUnique.map(apt => ({
+          id: apt.id,
+          patientId: apt.patientId || apt.patient?.id || 'pat-unknown',
+          patientName: apt.patientName || apt.patient?.name || 'Unknown Patient',
+          patientImage: apt.patientImage || apt.patient?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+          date: apt.appointmentDate || apt.date || getTodayDateString(),
+          time: apt.time || '10:00 AM',
+          type: apt.appointmentType || apt.type || 'In-person',
+          status: apt.status || 'scheduled',
+          duration: apt.duration || '30 min',
+          reason: apt.reason || 'Consultation',
+          appointmentType: apt.appointmentType || 'New',
+          // Preserve additional patient data
+          patientPhone: apt.patientPhone || apt.patient?.phone || '+1-555-000-0000',
+          patientEmail: apt.patientEmail || apt.patient?.email || `${(apt.patientName || 'patient').toLowerCase().replace(/\s+/g, '.')}@example.com`,
+          patientAddress: apt.patientAddress || apt.patient?.address || 'Address not provided',
+          age: apt.age || apt.patient?.age || 30,
+          gender: apt.gender || apt.patient?.gender || 'male',
+          // Preserve original appointment data for reference
+          originalData: apt,
+        }))
+        
+        setAppointments(transformed)
+      } catch (error) {
+        console.error('Error loading appointments:', error)
+        // Fallback to mock data
+        const transformed = allAppointments.map(apt => ({
+          ...apt,
+          date: apt.date || getTodayDateString(),
+        }))
+        setAppointments(transformed)
+      }
+    }
+    
+    loadAppointments()
+    // Refresh every 2 seconds to get new appointments
+    const interval = setInterval(loadAppointments, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Helper function to normalize date to YYYY-MM-DD format
+  const normalizeDate = (dateValue) => {
+    if (!dateValue) return null
+    if (typeof dateValue === 'string') {
+      // If already in YYYY-MM-DD format, return as is
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+        return dateValue
+      }
+      // Otherwise parse it
+      const date = new Date(dateValue)
+      if (isNaN(date.getTime())) return null
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+    if (dateValue instanceof Date) {
+      if (isNaN(dateValue.getTime())) return null
+      const year = dateValue.getFullYear()
+      const month = String(dateValue.getMonth() + 1).padStart(2, '0')
+      const day = String(dateValue.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+    return null
+  }
+
+  // Calculate appointment counts
+  const appointmentStats = useMemo(() => {
+    const today = getTodayDateString()
+    const todayDate = new Date()
+    todayDate.setHours(0, 0, 0, 0)
+    
+    // Current month start and end
+    const currentMonthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)
+    const currentMonthEnd = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0)
+    currentMonthEnd.setHours(23, 59, 59, 999)
+    
+    // Current year start and end
+    const currentYearStart = new Date(todayDate.getFullYear(), 0, 1)
+    const currentYearEnd = new Date(todayDate.getFullYear(), 11, 31)
+    currentYearEnd.setHours(23, 59, 59, 999)
+    
+    let todayCount = 0
+    let monthCount = 0
+    let yearCount = 0
+    
+    appointments.forEach(apt => {
+      // Try both date and appointmentDate fields
+      const dateStr = normalizeDate(apt.date || apt.appointmentDate)
+      if (!dateStr) return
+      
+      const aptDate = new Date(dateStr)
+      if (isNaN(aptDate.getTime())) return
+      
+      aptDate.setHours(0, 0, 0, 0)
+      
+      // Today count - compare normalized date strings
+      if (dateStr === today || aptDate.getTime() === todayDate.getTime()) {
+        todayCount++
+      }
+      
+      // Month count
+      if (aptDate >= currentMonthStart && aptDate <= currentMonthEnd) {
+        monthCount++
+      }
+      
+      // Year count
+      if (aptDate >= currentYearStart && aptDate <= currentYearEnd) {
+        yearCount++
+      }
+    })
+    
+    return { todayCount, monthCount, yearCount }
+  }, [appointments])
+
   // Filter today's appointments dynamically
   const todayAppointments = useMemo(() => {
     const today = getTodayDateString()
-    return allAppointments.filter((apt) => apt.date === today)
-  }, [])
+    return appointments.filter((apt) => {
+      // Try both date and appointmentDate fields
+      const dateStr = normalizeDate(apt.date || apt.appointmentDate)
+      if (!dateStr) return false
+      
+      // Compare normalized date strings
+      if (dateStr === today) return true
+      
+      // Also compare as Date objects for safety
+      const aptDate = new Date(dateStr)
+      const todayDate = new Date()
+      todayDate.setHours(0, 0, 0, 0)
+      aptDate.setHours(0, 0, 0, 0)
+      return aptDate.getTime() === todayDate.getTime()
+    }).sort((a, b) => {
+      // Sort by time
+      const timeA = a.time || '00:00'
+      const timeB = b.time || '00:00'
+      return timeA.localeCompare(timeB)
+    })
+  }, [appointments])
 
   // Sidebar navigation items
   const sidebarNavItems = [
@@ -218,6 +390,37 @@ const DoctorDashboard = () => {
     localStorage.removeItem('doctorAuthToken')
     sessionStorage.removeItem('doctorAuthToken')
     navigate('/', { replace: true })
+  }
+
+  const handleViewAppointment = (appointment) => {
+    // Navigate to consultations page with this appointment data
+    navigate('/doctor/consultations', {
+      state: {
+        selectedConsultation: {
+          id: `cons-${appointment.id}`,
+          patientId: appointment.patientId,
+          patientName: appointment.patientName,
+          age: appointment.age || 30,
+          gender: appointment.gender || 'male',
+          appointmentTime: `${appointment.date}T${appointment.time}`,
+          appointmentType: appointment.appointmentType || 'New',
+          status: appointment.status === 'scheduled' ? 'in-progress' : appointment.status,
+          reason: appointment.reason || 'Consultation',
+          patientImage: appointment.patientImage,
+          patientPhone: appointment.patientPhone || '+1-555-000-0000',
+          patientEmail: appointment.patientEmail || `${appointment.patientName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+          patientAddress: appointment.patientAddress || 'Address not provided',
+          diagnosis: '',
+          vitals: {},
+          medications: [],
+          investigations: [],
+          advice: '',
+          attachments: [],
+          // Include original appointment data if available
+          originalAppointment: appointment.originalData || appointment,
+        },
+      },
+    })
   }
 
   return (
@@ -322,13 +525,20 @@ const DoctorDashboard = () => {
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Appointment</p>
-                  <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.todayAppointments}</p>
+                  <p className="text-xl font-bold text-slate-900 leading-none">{appointmentStats.todayCount}</p>
                 </div>
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500 text-white">
                   <IoCalendarOutline className="text-base" aria-hidden="true" />
                 </div>
               </div>
-              <p className="text-[10px] text-slate-600 leading-tight line-clamp-1">{todayLabel}</p>
+              <div className="space-y-0.5">
+                <p className="text-[10px] text-slate-600 leading-tight font-medium">Today</p>
+                <div className="flex items-center gap-2 text-[9px] text-slate-500">
+                  <span>Month: {appointmentStats.monthCount}</span>
+                  <span>•</span>
+                  <span>Year: {appointmentStats.yearCount}</span>
+                </div>
+              </div>
             </article>
 
             {/* Total Earnings */}
@@ -395,7 +605,8 @@ const DoctorDashboard = () => {
                 return (
                   <article
                     key={appointment.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                    onClick={() => handleViewAppointment(appointment)}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
                   >
                     <div className="flex items-start gap-4">
                       <div className="relative shrink-0">

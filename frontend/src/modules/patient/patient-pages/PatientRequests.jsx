@@ -464,6 +464,68 @@ const PatientRequests = () => {
       adminOrders.push(order)
       localStorage.setItem('adminOrders', JSON.stringify(adminOrders))
 
+      // Update admin wallet with payment
+      try {
+        const adminWallet = JSON.parse(localStorage.getItem('adminWallet') || '{"balance": 0, "transactions": []}')
+        adminWallet.balance = (adminWallet.balance || 0) + selectedRequest.totalAmount
+        const transaction = {
+          id: `txn-${Date.now()}`,
+          type: 'credit',
+          amount: selectedRequest.totalAmount,
+          description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for ${selectedRequest.type === 'lab' ? 'lab test' : 'medicine'} order`,
+          orderId: order.id,
+          requestId: selectedRequest.id,
+          providerId: selectedRequest.providerId,
+          providerName: selectedRequest.providerName,
+          patientName: selectedRequest.patient?.name || 'Patient',
+          createdAt: new Date().toISOString(),
+        }
+        adminWallet.transactions = adminWallet.transactions || []
+        adminWallet.transactions.unshift(transaction) // Add to beginning
+        localStorage.setItem('adminWallet', JSON.stringify(adminWallet))
+      } catch (error) {
+        console.error('Error updating admin wallet:', error)
+      }
+
+      // Update pharmacy/lab order status to confirmed
+      if (selectedRequest.type === 'pharmacy') {
+        try {
+          const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${selectedRequest.providerId}`) || '[]')
+          const updatedPharmacyOrders = pharmacyOrders.map(pharmOrder => {
+            if (pharmOrder.requestId === selectedRequest.id) {
+              return {
+                ...pharmOrder,
+                status: 'confirmed',
+                paidAt: new Date().toISOString(),
+                paymentConfirmed: true,
+              }
+            }
+            return pharmOrder
+          })
+          localStorage.setItem(`pharmacyOrders_${selectedRequest.providerId}`, JSON.stringify(updatedPharmacyOrders))
+        } catch (error) {
+          console.error('Error updating pharmacy order:', error)
+        }
+      } else if (selectedRequest.type === 'lab') {
+        try {
+          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${selectedRequest.providerId}`) || '[]')
+          const updatedLabOrders = labOrders.map(labOrder => {
+            if (labOrder.requestId === selectedRequest.id) {
+              return {
+                ...labOrder,
+                status: 'confirmed',
+                paidAt: new Date().toISOString(),
+                paymentConfirmed: true,
+              }
+            }
+            return labOrder
+          })
+          localStorage.setItem(`labOrders_${selectedRequest.providerId}`, JSON.stringify(updatedLabOrders))
+        } catch (error) {
+          console.error('Error updating lab order:', error)
+        }
+      }
+
       setIsProcessing(false)
       handleClosePaymentModal()
       loadRequests()

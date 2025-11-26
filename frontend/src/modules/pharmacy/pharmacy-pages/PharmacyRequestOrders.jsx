@@ -56,13 +56,65 @@ const PharmacyRequestOrders = () => {
 
   const loadRequests = () => {
     try {
+      // Get pharmacy ID (in real app, get from auth)
+      const pharmacyId = 'pharm-1' // Mock pharmacy ID - in real app, get from auth
+      
+      // Load orders from pharmacy-specific localStorage key
+      const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
+      
+      // Also load from adminRequests for backward compatibility
       const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      // Filter only medicine order requests
-      const medicineRequests = allRequests.filter(r => r.type === 'order_medicine')
-      setRequests(medicineRequests)
+      const medicineRequests = allRequests.filter(r => r.type === 'order_medicine' && r.adminResponse?.pharmacy?.id === pharmacyId)
+      
+      // Combine and deduplicate
+      const combined = [...pharmacyOrders, ...medicineRequests]
+      const unique = combined.filter((req, idx, self) => 
+        idx === self.findIndex(r => r.id === req.id || r.requestId === req.requestId)
+      )
+      
+      setRequests(unique)
     } catch (error) {
       console.error('Error loading requests:', error)
       setRequests([])
+    }
+  }
+
+  const handleConfirmOrder = async (orderId) => {
+    try {
+      const pharmacyId = 'pharm-1' // Mock pharmacy ID
+      const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
+      const updatedOrders = pharmacyOrders.map(order => {
+        if (order.id === orderId || order.requestId === orderId) {
+          return {
+            ...order,
+            status: 'confirmed',
+            confirmedAt: new Date().toISOString(),
+            confirmedBy: 'Pharmacy',
+          }
+        }
+        return order
+      })
+      localStorage.setItem(`pharmacyOrders_${pharmacyId}`, JSON.stringify(updatedOrders))
+      
+      // Also update admin requests
+      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      const updatedRequests = allRequests.map(req => {
+        if (req.id === orderId || req.id === pharmacyOrders.find(o => o.id === orderId || o.requestId === orderId)?.requestId) {
+          return {
+            ...req,
+            pharmacyConfirmed: true,
+            pharmacyConfirmedAt: new Date().toISOString(),
+          }
+        }
+        return req
+      })
+      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      
+      loadRequests()
+      alert('Order confirmed successfully!')
+    } catch (error) {
+      console.error('Error confirming order:', error)
+      alert('Error confirming order. Please try again.')
     }
   }
 
@@ -338,11 +390,25 @@ const PharmacyRequestOrders = () => {
                         {request.status === 'pending' ? 'Pending' : request.status === 'completed' ? 'Completed' : request.status}
                       </span>
                     </div>
-                    <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
-                      <div className="flex items-center gap-1">
-                        <IoCalendarOutline className="h-3.5 w-3.5" />
-                        <span>{formatDateTime(request.createdAt)}</span>
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <div className="flex items-center gap-1">
+                          <IoCalendarOutline className="h-3.5 w-3.5" />
+                          <span>{formatDateTime(request.createdAt)}</span>
+                        </div>
                       </div>
+                      {(request.status === 'pending' || request.status === 'confirmed') && !request.pharmacyConfirmed && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleConfirmOrder(request.id || request.requestId)
+                          }}
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                        >
+                          <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                          Confirm Order
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

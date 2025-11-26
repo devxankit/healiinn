@@ -506,36 +506,81 @@ const PatientDoctorDetails = () => {
       return
     }
 
+    // Get patient profile data if available
+    let patientProfile = null
+    try {
+      const profileData = localStorage.getItem('patientProfile')
+      if (profileData) {
+        patientProfile = JSON.parse(profileData)
+      }
+    } catch (error) {
+      console.error('Error loading patient profile:', error)
+    }
+
     // Create appointment data
     const appointmentData = {
       id: `appt-${Date.now()}`,
       doctorId: doctor.id,
+      doctorName: doctor.name,
+      doctorSpecialty: doctor.specialty,
       patientId: 'pat-current', // In real app, get from auth
-      patientName: 'Current Patient', // In real app, get from auth
-      age: 30, // In real app, get from patient profile
-      gender: 'male', // In real app, get from patient profile
+      patientName: patientProfile?.firstName && patientProfile?.lastName 
+        ? `${patientProfile.firstName} ${patientProfile.lastName}`.trim()
+        : patientProfile?.name || 'Current Patient',
+      age: patientProfile?.age || 30,
+      gender: patientProfile?.gender || 'male',
       appointmentDate: selectedDate,
+      date: selectedDate, // Also add date field for compatibility
       appointmentType: appointmentType === 'in_person' ? 'In-Person' : appointmentType === 'video_call' ? 'Video Call' : 'Follow-up',
-      status: 'waiting',
+      status: 'scheduled', // Changed from 'waiting' to 'scheduled' for consistency
       queueNumber: sessionInfo.nextToken, // Assign token number
       reason: reason || 'Consultation',
-      patientImage: `https://ui-avatars.com/api/?name=Patient&background=11496c&color=fff&size=160`,
-      patientPhone: '+1-555-000-0000', // In real app, get from patient profile
-      patientEmail: 'patient@example.com', // In real app, get from patient profile
-      patientAddress: '123 Patient Street', // In real app, get from patient profile
+      patientImage: patientProfile?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patientProfile?.firstName || 'Patient')}&background=11496c&color=fff&size=160`,
+      patientPhone: patientProfile?.phone || '+1-555-000-0000',
+      patientEmail: patientProfile?.email || 'patient@example.com',
+      patientAddress: patientProfile?.address || '123 Patient Street',
       sharedPrescriptions: sharedPrescriptionsData, // Prescriptions shared by patient
       sharedPrescriptionIds: selectedPrescriptions, // IDs of shared prescriptions
       isFreeBooking: isFreeBooking, // Mark if this is a free booking
       paymentRequired: !isFreeBooking, // Payment required if not returning patient
       consultationFee: isFreeBooking ? 0 : doctor.consultationFee,
       createdAt: new Date().toISOString(),
+      // Calculate time based on session start and token number
+      time: (() => {
+        try {
+          const doctorSessions = JSON.parse(localStorage.getItem('doctorSessions') || '[]')
+          const sessionForDate = doctorSessions.find(
+            (s) => s.date === selectedDate && (s.status === 'scheduled' || s.status === 'active')
+          )
+          if (sessionForDate && sessionForDate.sessionStartTime && sessionInfo.nextToken) {
+            const [startHour, startMin] = sessionForDate.sessionStartTime.split(':').map(Number)
+            const profileData = getDoctorProfileData()
+            const avgMinutes = profileData.averageConsultationMinutes || 20
+            const totalMinutes = startHour * 60 + startMin + ((sessionInfo.nextToken - 1) * avgMinutes)
+            const hours = Math.floor(totalMinutes / 60)
+            const minutes = totalMinutes % 60
+            const period = hours >= 12 ? 'PM' : 'AM'
+            const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours
+            return `${displayHour}:${String(minutes).padStart(2, '0')} ${period}`
+          }
+          return '10:00 AM'
+        } catch (error) {
+          return '10:00 AM'
+        }
+      })(),
     }
     
-    // Save appointment to localStorage (this will be picked up by doctor's session)
+    // Save appointment to localStorage (this will be picked up by doctor's session and admin)
     try {
+      // Save to patient appointments
       const existingAppointments = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
       existingAppointments.push(appointmentData)
       localStorage.setItem('patientAppointments', JSON.stringify(existingAppointments))
+      
+      // Save to shared allAppointments for admin and doctor
+      const allAppointments = JSON.parse(localStorage.getItem('allAppointments') || '[]')
+      allAppointments.push(appointmentData)
+      localStorage.setItem('allAppointments', JSON.stringify(allAppointments))
       
       // Also add to doctor's appointments if session exists for that date
       const doctorSessions = JSON.parse(localStorage.getItem('doctorSessions') || '[]')

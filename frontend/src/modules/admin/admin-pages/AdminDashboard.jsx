@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import {
   IoPeopleOutline,
   IoMedicalOutline,
@@ -463,6 +464,82 @@ const getActivityIcon = (type) => {
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
+  const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(mockStats.todayAppointments)
+  const [doctorAppointmentsOverview, setDoctorAppointmentsOverview] = useState([])
+
+  // Load real appointment count and doctor overview from localStorage
+  useEffect(() => {
+    const loadAppointments = () => {
+      try {
+        const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const tomorrow = new Date(today)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        
+        // Filter today's appointments
+        const todayApts = allAppts.filter((apt) => {
+          const aptDate = new Date(apt.appointmentDate || apt.date)
+          aptDate.setHours(0, 0, 0, 0)
+          return aptDate >= today && aptDate < tomorrow
+        })
+        
+        setTodayAppointmentsCount(todayApts.length || mockStats.todayAppointments)
+        
+        // Create doctor aggregation for overview
+        const doctorMap = new Map()
+        allAppts.forEach((apt) => {
+          const doctorName = apt.doctorName || apt.doctor?.name || 'Unknown Doctor'
+          const specialty = apt.specialty || apt.doctorSpecialty || 'Unknown Specialty'
+          const key = `${doctorName}_${specialty}`
+          
+          if (!doctorMap.has(key)) {
+            doctorMap.set(key, {
+              doctorName,
+              specialty,
+              doctorId: apt.doctorId || apt.doctor?.id,
+              total: 0,
+              scheduled: 0,
+              confirmed: 0,
+              completed: 0,
+              cancelled: 0,
+              rescheduled: 0,
+            })
+          }
+          
+          const doctor = doctorMap.get(key)
+          doctor.total++
+          
+          if (apt.status === 'scheduled' || apt.status === 'waiting') {
+            doctor.scheduled++
+          } else if (apt.status === 'confirmed') {
+            doctor.confirmed++
+          } else if (apt.status === 'completed') {
+            doctor.completed++
+          } else if (apt.status === 'cancelled') {
+            doctor.cancelled++
+          } else if (apt.status === 'rescheduled') {
+            doctor.rescheduled++
+          }
+        })
+        
+        const doctors = Array.from(doctorMap.values())
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 5) // Show top 5 doctors
+        
+        setDoctorAppointmentsOverview(doctors)
+      } catch (error) {
+        console.error('Error loading appointments:', error)
+        setTodayAppointmentsCount(mockStats.todayAppointments)
+        setDoctorAppointmentsOverview([])
+      }
+    }
+    
+    loadAppointments()
+    // Refresh every 2 seconds
+    const interval = setInterval(loadAppointments, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   const usersChange = ((mockStats.thisMonthUsers - mockStats.lastMonthUsers) / mockStats.lastMonthUsers) * 100
   const revenueChange = ((mockStats.thisMonthRevenue - mockStats.lastMonthRevenue) / mockStats.lastMonthRevenue) * 100
@@ -600,7 +677,7 @@ const AdminDashboard = () => {
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-indigo-700 leading-tight mb-1">Appointments</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">{mockStats.todayAppointments}</p>
+                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">{todayAppointmentsCount}</p>
               </div>
               <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-indigo-500 text-white shrink-0">
                 <IoCalendarOutline className="text-base sm:text-lg" aria-hidden="true" />
@@ -653,6 +730,74 @@ const AdminDashboard = () => {
             <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Requires attention</p>
           </article>
         </div>
+
+        {/* Appointments Overview - Doctor Cards */}
+        {doctorAppointmentsOverview.length > 0 && (
+          <section aria-labelledby="appointments-overview-title" className="space-y-3 sm:space-y-4">
+            <header className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 id="appointments-overview-title" className="text-base sm:text-lg font-semibold text-slate-900">
+                  Appointments Overview
+                </h2>
+                <span className="flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)] px-2 text-xs font-medium text-[#11496c]">
+                  {doctorAppointmentsOverview.length}
+                </span>
+              </div>
+              <button
+                onClick={() => navigate('/admin/appointments')}
+                className="text-xs font-semibold text-[#11496c] hover:text-[#0d3a52] transition-colors"
+              >
+                View All
+              </button>
+            </header>
+
+            <div className="space-y-3">
+              {doctorAppointmentsOverview.map((doctor) => (
+                <article
+                  key={`${doctor.doctorName}_${doctor.specialty}`}
+                  onClick={() => navigate(`/admin/appointments?doctor=${encodeURIComponent(doctor.doctorName)}&specialty=${encodeURIComponent(doctor.specialty)}`)}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#11496c]/10">
+                      <IoMedicalOutline className="h-6 w-6 text-[#11496c]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-semibold text-slate-900">{doctor.doctorName}</h3>
+                          <p className="mt-0.5 text-sm text-slate-600">{doctor.specialty}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        <div className="rounded-lg bg-slate-50 p-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total</p>
+                          <p className="mt-0.5 text-lg font-bold text-slate-900">{doctor.total}</p>
+                        </div>
+                        <div className="rounded-lg bg-blue-50 p-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-600">Scheduled</p>
+                          <p className="mt-0.5 text-lg font-bold text-blue-700">{doctor.scheduled}</p>
+                        </div>
+                        <div className="rounded-lg bg-emerald-50 p-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Confirmed</p>
+                          <p className="mt-0.5 text-lg font-bold text-emerald-700">{doctor.confirmed}</p>
+                        </div>
+                        <div className="rounded-lg bg-emerald-50 p-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Completed</p>
+                          <p className="mt-0.5 text-lg font-bold text-emerald-700">{doctor.completed}</p>
+                        </div>
+                        <div className="rounded-lg bg-red-50 p-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-red-600">Cancelled</p>
+                          <p className="mt-0.5 text-lg font-bold text-red-700">{doctor.cancelled}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Today's Verifications */}
         <section aria-labelledby="verifications-today-title" className="space-y-3 sm:space-y-4">

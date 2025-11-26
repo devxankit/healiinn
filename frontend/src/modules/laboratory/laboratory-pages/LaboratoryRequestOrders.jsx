@@ -56,13 +56,65 @@ const LaboratoryRequestOrders = () => {
 
   const loadRequests = () => {
     try {
+      // Get lab ID (in real app, get from auth)
+      const labId = 'lab-1' // Mock lab ID - in real app, get from auth
+      
+      // Load orders from lab-specific localStorage key
+      const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
+      
+      // Also load from adminRequests for backward compatibility
       const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      // Filter only lab test requests
-      const labTestRequests = allRequests.filter(r => r.type === 'book_test_visit')
-      setRequests(labTestRequests)
+      const labTestRequests = allRequests.filter(r => r.type === 'book_test_visit' && r.adminResponse?.lab?.id === labId)
+      
+      // Combine and deduplicate
+      const combined = [...labOrders, ...labTestRequests]
+      const unique = combined.filter((req, idx, self) => 
+        idx === self.findIndex(r => r.id === req.id || r.requestId === req.requestId)
+      )
+      
+      setRequests(unique)
     } catch (error) {
       console.error('Error loading requests:', error)
       setRequests([])
+    }
+  }
+
+  const handleConfirmOrder = async (orderId) => {
+    try {
+      const labId = 'lab-1' // Mock lab ID
+      const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
+      const updatedOrders = labOrders.map(order => {
+        if (order.id === orderId || order.requestId === orderId) {
+          return {
+            ...order,
+            status: 'confirmed',
+            confirmedAt: new Date().toISOString(),
+            confirmedBy: 'Laboratory',
+          }
+        }
+        return order
+      })
+      localStorage.setItem(`labOrders_${labId}`, JSON.stringify(updatedOrders))
+      
+      // Also update admin requests
+      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      const updatedRequests = allRequests.map(req => {
+        if (req.id === orderId || req.id === labOrders.find(o => o.id === orderId || o.requestId === orderId)?.requestId) {
+          return {
+            ...req,
+            labConfirmed: true,
+            labConfirmedAt: new Date().toISOString(),
+          }
+        }
+        return req
+      })
+      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      
+      loadRequests()
+      alert('Order confirmed successfully!')
+    } catch (error) {
+      console.error('Error confirming order:', error)
+      alert('Error confirming order. Please try again.')
     }
   }
 
@@ -328,11 +380,25 @@ const LaboratoryRequestOrders = () => {
                         {request.status === 'pending' ? 'Pending' : request.status === 'completed' ? 'Completed' : request.status}
                       </span>
                     </div>
-                    <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
-                      <div className="flex items-center gap-1">
-                        <IoCalendarOutline className="h-3.5 w-3.5" />
-                        <span>{formatDateTime(request.createdAt)}</span>
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <div className="flex items-center gap-1">
+                          <IoCalendarOutline className="h-3.5 w-3.5" />
+                          <span>{formatDateTime(request.createdAt)}</span>
+                        </div>
                       </div>
+                      {(request.status === 'pending' || request.status === 'confirmed') && !request.labConfirmed && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleConfirmOrder(request.id || request.requestId)
+                          }}
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                        >
+                          <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                          Confirm Order
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
