@@ -263,106 +263,107 @@ const DoctorProfile = () => {
       <DoctorNavbar />
       <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
             {/* Profile Header */}
-            <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-indigo-50/85 to-[rgba(17,73,108,0.05)] backdrop-blur-md p-4 sm:p-6 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-white/50">
-              <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-[rgba(17,73,108,0.1)] blur-3xl pointer-events-none" />
-              <div className="absolute -left-16 bottom-0 h-32 w-32 rounded-full bg-indigo-300/15 blur-2xl pointer-events-none" />
+            <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#11496c] via-[#0d3a52] to-[#11496c] p-6 sm:p-8 shadow-lg">
+              {/* Background Pattern */}
+              <div className="absolute inset-0 opacity-10" style={{
+                backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)',
+                backgroundSize: '20px 20px'
+              }} />
 
-              <div className="relative flex flex-col gap-3 sm:gap-4">
-                <div className="flex items-start gap-3 sm:gap-4">
-                  <div className="relative shrink-0">
-                    <div className="relative h-16 w-16 sm:h-24 sm:w-24">
-                      <img
-                        src={formData.profileImage}
-                        alt={`${formData.firstName} ${formData.lastName}`}
-                        className="h-full w-full rounded-full object-cover ring-2 sm:ring-4 ring-white shadow-lg bg-slate-100"
-                        onError={(e) => {
-                          e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=11496c&color=fff&size=128&bold=true`
-                        }}
-                      />
-                      {isEditing && (
-                        <button
-                          type="button"
-                          className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-[#11496c] text-white shadow-lg transition hover:bg-[#0d3a52]"
-                        >
-                          <IoCameraOutline className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+              {/* Active Status - Top Right (Positioned before content to avoid overlap) */}
+              <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex flex-col items-end gap-1 z-20">
+                <button
+                  type="button"
+                  onClick={handleToggleActive}
+                  className={`flex items-center gap-1.5 rounded-full px-2.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
+                    formData.isActive
+                      ? 'bg-emerald-500/90 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
+                      : 'bg-slate-500/90 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
+                  }`}
+                >
+                  {formData.isActive ? (
+                    <>
+                      <IoCheckmarkCircleOutline className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                      <span>Active</span>
+                    </>
+                  ) : (
+                    <>
+                      <IoPowerOutline className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                      <span>Inactive</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-[9px] sm:text-[10px] text-white/70 text-right max-w-[90px] sm:max-w-[100px] leading-tight">
+                  {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
+                </p>
+              </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h1 className="text-lg sm:text-xl font-bold text-slate-900 sm:text-2xl">
-                          {formData.firstName} {formData.lastName}
-                        </h1>
-                        <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-slate-600 truncate">{formData.email}</p>
-                        <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.1)] px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-[#11496c]">
-                            <IoMedicalOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                            {formData.specialization}
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-slate-700">
-                            <IoPersonOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                            {formData.gender ? formData.gender.charAt(0).toUpperCase() + formData.gender.slice(1) : 'Not set'}
-                          </span>
-                          {formData.rating > 0 && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-amber-700">
-                              <IoStarOutline className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                              {formData.rating}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {/* Active/Inactive Toggle */}
-                      <div className="flex flex-col items-end gap-2">
-                        <button
-                          type="button"
-                          onClick={handleToggleActive}
-                          className={`flex items-center gap-2 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold transition-all active:scale-95 ${
-                            formData.isActive
-                              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200'
-                              : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
-                          }`}
-                        >
-                          {formData.isActive ? (
-                            <>
-                              <IoCheckmarkCircleOutline className="h-4 w-4 sm:h-5 sm:w-5" />
-                              <span>Active</span>
-                            </>
-                          ) : (
-                            <>
-                              <IoPowerOutline className="h-4 w-4 sm:h-5 sm:w-5" />
-                              <span>Inactive</span>
-                            </>
-                          )}
-                        </button>
-                        <p className="text-[9px] sm:text-[10px] text-slate-500 text-right max-w-[80px]">
-                          {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
-                        </p>
-                      </div>
-                    </div>
+              <div className="relative flex flex-col items-center gap-4 sm:gap-5 pt-8 sm:pt-10">
+                {/* Profile Picture - Centered */}
+                <div className="relative">
+                  <div className="relative h-24 w-24 sm:h-28 sm:w-28">
+                    <img
+                      src={formData.profileImage}
+                      alt={`${formData.firstName} ${formData.lastName}`}
+                      className="h-full w-full rounded-full object-cover ring-2 ring-white/50 shadow-lg bg-slate-100"
+                      onError={(e) => {
+                        e.target.onerror = null
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=ffffff&color=11496c&size=128&bold=true`
+                      }}
+                    />
+                    {isEditing && (
+                      <button
+                        type="button"
+                        className="absolute -bottom-1 -right-1 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white text-[#11496c] shadow-lg transition hover:bg-slate-50"
+                      >
+                        <IoCameraOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                {/* Name - Centered */}
+                <h1 className="text-xl sm:text-2xl font-bold text-white text-center">
+                  {formData.firstName} {formData.lastName}
+                </h1>
+
+                {/* Email - Centered */}
+                <p className="text-sm sm:text-base text-white/90 text-center truncate max-w-full px-4">
+                  {formData.email}
+                </p>
+
+                {/* Demographic/Status Info - Small Rounded Buttons */}
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs sm:text-sm font-semibold text-white border border-white/30">
+                    <IoPersonOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    {formData.gender ? formData.gender.charAt(0).toUpperCase() + formData.gender.slice(1) : 'Not set'}
+                  </span>
+                  {formData.rating > 0 && (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs sm:text-sm font-semibold text-white border border-white/30">
+                      <IoStarOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      {formData.rating}
+                    </span>
+                  )}
+                </div>
+
+                {/* Action Buttons - Full Width, Stacked */}
+                <div className="w-full flex flex-col gap-2.5 sm:gap-3 mt-2">
                   {isEditing ? (
                     <>
                       <button
                         type="button"
                         onClick={handleSave}
-                        className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-[#11496c] px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/20 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95"
                       >
-                        <IoCheckmarkCircleOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <IoCheckmarkCircleOutline className="h-4 w-4" />
                         Save
                       </button>
                       <button
                         type="button"
                         onClick={handleCancel}
-                        className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 active:scale-95"
                       >
-                        <IoCloseOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <IoCloseOutline className="h-4 w-4" />
                         Cancel
                       </button>
                     </>
@@ -374,9 +375,9 @@ const DoctorProfile = () => {
                           setIsEditing(true)
                           setActiveSection('personal')
                         }}
-                        className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-[#11496c] px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/20 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95"
                       >
-                        <IoCreateOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <IoCreateOutline className="h-4 w-4" />
                         Edit Profile
                       </button>
                       <button
@@ -388,9 +389,9 @@ const DoctorProfile = () => {
                             window.location.href = '/doctor/login'
                           }
                         }}
-                        className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-red-200 bg-white px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-red-600 transition hover:border-red-300 hover:bg-red-50 active:scale-95"
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 active:scale-95"
                       >
-                        <IoLogOutOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <IoLogOutOutline className="h-4 w-4" />
                         Sign Out
                       </button>
                     </>

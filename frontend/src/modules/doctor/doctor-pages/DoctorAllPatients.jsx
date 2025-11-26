@@ -313,78 +313,86 @@ const DoctorAllPatients = () => {
             filteredPatients.map((patient) => (
               <div
                 key={patient.id}
-                className="relative rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md hover:border-[#11496c]/30"
+                className="relative rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md hover:border-[#11496c]/30"
               >
-                {/* Profile Image - Top Right Corner */}
-                <img
-                  src={patient.patientImage}
-                  alt={patient.patientName}
-                  className="absolute top-2 right-2 h-10 w-10 rounded-lg object-cover ring-2 ring-slate-100"
-                  onError={(e) => {
-                    e.target.onerror = null
-                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.patientName)}&background=3b82f6&color=fff&size=160`
-                  }}
-                />
+                {/* Top Row: Profile Image + Name (Left) and Active Status (Right) */}
+                <div className="flex items-start justify-between mb-3">
+                  {/* Left Side: Profile Image + Name */}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* Profile Image - Left Top */}
+                    <img
+                      src={patient.patientImage}
+                      alt={patient.patientName}
+                      className="h-12 w-12 rounded-lg object-cover ring-2 ring-slate-100 shrink-0"
+                      onError={(e) => {
+                        e.target.onerror = null
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.patientName)}&background=3b82f6&color=fff&size=160`
+                      }}
+                    />
+                    
+                    {/* Name - Heading next to Profile */}
+                    <h3 className="text-lg font-bold text-slate-900">{patient.patientName}</h3>
+                  </div>
 
-                {/* Status Badge - Top Left Corner */}
-                <span
-                  className={`absolute top-2 left-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    patient.status === 'active'
-                      ? 'bg-green-500 text-white'
-                      : 'bg-slate-400 text-white'
-                  }`}
-                >
-                  {patient.status === 'active' ? 'Active' : 'Inactive'}
-                </span>
+                  {/* Right Side: Active Status */}
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold shrink-0 ${
+                      patient.status === 'active'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-slate-400 text-white'
+                    }`}
+                  >
+                    {patient.status === 'active' ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
 
-                {/* Patient Info - Left Aligned */}
-                <div className="flex flex-col pr-12 pt-8">
-                  <h3 className="text-sm font-bold text-slate-900 mb-0.5">{patient.patientName}</h3>
-                  <p className="text-[11px] text-slate-600 mb-2">
+                {/* Patient Info - Below Top Row */}
+                <div className="flex flex-col">
+                  <p className="text-sm text-slate-600 mb-3">
                     {patient.age} years • {patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)}
                   </p>
 
-                  {/* Contact Info - Compact */}
-                  <div className="space-y-1 text-[10px] text-slate-600 mb-2">
+                  {/* Contact Info */}
+                  <div className="space-y-1.5 text-xs text-slate-600 mb-3">
                     {patient.patientPhone && (
-                      <div className="flex items-center gap-1">
-                        <IoCallOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                      <div className="flex items-center gap-2">
+                        <IoCallOutline className="h-4 w-4 text-slate-400 shrink-0" />
                         <span className="truncate">{patient.patientPhone}</span>
                       </div>
                     )}
                     {patient.patientEmail && (
-                      <div className="flex items-center gap-1">
-                        <IoMailOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                      <div className="flex items-center gap-2">
+                        <IoMailOutline className="h-4 w-4 text-slate-400 shrink-0" />
                         <span className="truncate">{patient.patientEmail}</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Visit History - Compact */}
-                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-600 mb-2">
-                    <div className="flex items-center gap-1">
-                      <IoTimeOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                  {/* Visit History */}
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-4">
+                    <div className="flex items-center gap-1.5">
+                      <IoTimeOutline className="h-4 w-4 text-slate-400 shrink-0" />
                       <span>Last: {formatDate(patient.lastVisit)}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <IoDocumentTextOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                    <div className="flex items-center gap-1.5">
+                      <IoDocumentTextOutline className="h-4 w-4 text-slate-400 shrink-0" />
                       <span>Visits: {patient.totalVisits}</span>
                     </div>
                     {patient.lastDiagnosis && (
-                      <div className="flex items-center gap-1">
-                        <IoMedicalOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                      <div className="flex items-center gap-1.5">
+                        <IoMedicalOutline className="h-4 w-4 text-slate-400 shrink-0" />
                         <span className="truncate">{patient.lastDiagnosis}</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Action Button */}
+                  {/* Action Button - Full Width */}
                   <button
                     type="button"
                     onClick={() => handleViewPatient(patient)}
-                    className="flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95 mt-1"
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
                   >
-                    <IoDocumentTextOutline className="h-3.5 w-3.5" />
+                    <IoDocumentTextOutline className="h-4 w-4" />
                     View Records
                   </button>
                 </div>

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   IoDocumentTextOutline,
   IoCheckmarkCircleOutline,
@@ -29,6 +30,7 @@ const formatDate = (dateString) => {
 }
 
 const LaboratoryTestReports = () => {
+  const navigate = useNavigate()
   // Mock confirmed orders (orders that are confirmed/ready/completed)
   const [confirmedOrders, setConfirmedOrders] = useState([
     {
@@ -197,9 +199,21 @@ const LaboratoryTestReports = () => {
   }
 
   const handleAddReport = (order) => {
-    setSelectedOrderForReport(order)
-    setShowAddReportModal(true)
-    setSelectedFile(null)
+    // Store order in localStorage for the new page to access
+    try {
+      const storedOrders = JSON.parse(localStorage.getItem('laboratoryConfirmedOrders') || '[]')
+      const existingIndex = storedOrders.findIndex(o => o.id === order.id || o.orderId === order.orderId)
+      if (existingIndex >= 0) {
+        storedOrders[existingIndex] = order
+      } else {
+        storedOrders.push(order)
+      }
+      localStorage.setItem('laboratoryConfirmedOrders', JSON.stringify(storedOrders))
+    } catch (error) {
+      console.error('Error storing order:', error)
+    }
+    // Navigate to add report page
+    navigate(`/laboratory/test-reports/add/${order.id || order.orderId}`)
   }
 
   const handleShareReport = async (order) => {

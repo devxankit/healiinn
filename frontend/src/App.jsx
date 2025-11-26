@@ -61,9 +61,12 @@ import LaboratoryWallet from './modules/laboratory/laboratory-pages/LaboratoryWa
 import LaboratoryRequests from './modules/laboratory/laboratory-pages/LaboratoryRequests'
 import LaboratoryReports from './modules/laboratory/laboratory-pages/LaboratoryReports'
 import LaboratoryTestReports from './modules/laboratory/laboratory-pages/LaboratoryTestReports'
+import LaboratoryAddReport from './modules/laboratory/laboratory-pages/LaboratoryAddReport'
 import LaboratoryPatientStatistics from './modules/laboratory/laboratory-pages/LaboratoryPatientStatistics'
 import LaboratoryPatientDetails from './modules/laboratory/laboratory-pages/LaboratoryPatientDetails'
 import LaboratoryRequestOrders from './modules/laboratory/laboratory-pages/LaboratoryRequestOrders'
+import LaboratoryAvailableTests from './modules/laboratory/laboratory-pages/LaboratoryAvailableTests'
+import LaboratoryAddTest from './modules/laboratory/laboratory-pages/LaboratoryAddTest'
 import LaboratoryWalletBalance from './modules/laboratory/laboratory-pages/WalletBalance'
 import LaboratoryWalletEarning from './modules/laboratory/laboratory-pages/WalletEarning'
 import LaboratoryWalletWithdraw from './modules/laboratory/laboratory-pages/WalletWithdraw'
@@ -205,8 +208,12 @@ function App() {
                     <Route path="/orders" element={<LaboratoryOrders />} />
                     <Route path="/requests" element={<LaboratoryRequests />} />
                     <Route path="/request-orders" element={<LaboratoryRequestOrders />} />
+                    <Route path="/available-tests" element={<LaboratoryAvailableTests />} />
+                    <Route path="/available-tests/add" element={<LaboratoryAddTest />} />
+                    <Route path="/available-tests/edit/:testId" element={<LaboratoryAddTest />} />
                     <Route path="/reports" element={<LaboratoryReports />} />
                     <Route path="/test-reports" element={<LaboratoryTestReports />} />
+                    <Route path="/test-reports/add/:orderId" element={<LaboratoryAddReport />} />
                     <Route path="/patients" element={<LaboratoryPatients />} />
                     <Route path="/patients/orders" element={<LaboratoryPatientOrders />} />
                     <Route path="/patient-statistics" element={<LaboratoryPatientStatistics />} />

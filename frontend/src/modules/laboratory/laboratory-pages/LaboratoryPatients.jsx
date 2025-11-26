@@ -1055,7 +1055,7 @@ const LaboratoryPatients = () => {
   return (
     <section className="flex flex-col gap-4 pb-4">
       {/* Filter Tabs - Home Collection & Lab Visit */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="flex gap-2">
         {[
           { key: 'all', label: 'All Requests', icon: IoFlaskOutline },
           { key: 'home', label: 'Home Collection', icon: IoHomeOutline },
@@ -1066,14 +1066,14 @@ const LaboratoryPatients = () => {
             <button
               key={tab.key}
               onClick={() => setCollectionFilter(tab.key)}
-              className={`shrink-0 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition-all ${
                 collectionFilter === tab.key
                   ? 'bg-[#11496c] text-white shadow-md shadow-[rgba(17,73,108,0.3)]'
                   : 'bg-white text-slate-700 border border-slate-200 hover:border-[rgba(17,73,108,0.3)] hover:bg-[rgba(17,73,108,0.05)]'
               }`}
             >
-              <Icon className="h-4 w-4" />
-              {tab.label}
+              <Icon className="h-3.5 w-3.5" />
+              <span className="truncate">{tab.label}</span>
             </button>
           )
         })}

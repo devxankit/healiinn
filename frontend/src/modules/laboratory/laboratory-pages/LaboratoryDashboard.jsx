@@ -90,6 +90,80 @@ const todayOrders = [
   },
 ]
 
+const recentTestReports = [
+  {
+    id: 'report-1',
+    patientName: 'David Wilson',
+    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true',
+    testName: 'Complete Blood Count (CBC)',
+    reportDate: '2025-01-15',
+    status: 'completed',
+    orderId: 'ORD-2025-001',
+  },
+  {
+    id: 'report-2',
+    patientName: 'Lisa Anderson',
+    patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=8b5cf6&color=fff&size=128&bold=true',
+    testName: 'Lipid Profile',
+    reportDate: '2025-01-14',
+    status: 'completed',
+    orderId: 'ORD-2025-002',
+  },
+  {
+    id: 'report-3',
+    patientName: 'Robert Taylor',
+    patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=ef4444&color=fff&size=128&bold=true',
+    testName: 'Liver Function Test (LFT)',
+    reportDate: '2025-01-14',
+    status: 'completed',
+    orderId: 'ORD-2025-003',
+  },
+  {
+    id: 'report-4',
+    patientName: 'Jennifer Martinez',
+    patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=128&bold=true',
+    testName: 'Thyroid Function Test',
+    reportDate: '2025-01-13',
+    status: 'completed',
+    orderId: 'ORD-2025-004',
+  },
+]
+
+const recentPatients = [
+  {
+    id: 'pat-1',
+    name: 'John Doe',
+    image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
+    lastTestDate: '2025-01-15',
+    totalTests: 5,
+    status: 'active',
+  },
+  {
+    id: 'pat-2',
+    name: 'Sarah Smith',
+    image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
+    lastTestDate: '2025-01-14',
+    totalTests: 3,
+    status: 'active',
+  },
+  {
+    id: 'pat-3',
+    name: 'Mike Johnson',
+    image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
+    lastTestDate: '2025-01-12',
+    totalTests: 8,
+    status: 'active',
+  },
+  {
+    id: 'pat-4',
+    name: 'Emily Brown',
+    image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true',
+    lastTestDate: '2025-01-11',
+    totalTests: 2,
+    status: 'active',
+  },
+]
+
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -147,6 +221,7 @@ const LaboratoryDashboard = () => {
   const [showHistory, setShowHistory] = useState(false)
   const [uploadStatus, setUploadStatus] = useState(null) // 'uploading', 'success', 'error'
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [availableTestsCount, setAvailableTestsCount] = useState(0)
   // Mock data for Today's Orders
   const mockTodayOrdersData = [
     {
@@ -266,6 +341,33 @@ const LaboratoryDashboard = () => {
 
     fetchTodayOrders()
   }, [])
+
+  // Load available tests count
+  useEffect(() => {
+    const tests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
+    setAvailableTestsCount(tests.length)
+    
+    // Listen for storage changes to update count
+    const handleStorageChange = () => {
+      const updatedTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
+      setAvailableTestsCount(updatedTests.length)
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Also check periodically (for same-tab updates)
+    const interval = setInterval(() => {
+      const updatedTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
+      if (updatedTests.length !== availableTestsCount) {
+        setAvailableTestsCount(updatedTests.length)
+      }
+    }, 1000)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      clearInterval(interval)
+    }
+  }, [availableTestsCount])
 
 
   // Mock patients list
@@ -524,6 +626,23 @@ const LaboratoryDashboard = () => {
             </div>
             <p className="text-[10px] text-slate-600 leading-tight">Patient requests</p>
           </article>
+
+          {/* Available Tests */}
+          <article
+            onClick={() => navigate('/laboratory/available-tests')}
+            className="relative overflow-hidden rounded-xl border border-purple-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Available Tests</p>
+                <p className="text-xl font-bold text-slate-900 leading-none">{availableTestsCount}</p>
+              </div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500 text-white">
+                <IoFlaskOutline className="text-base" aria-hidden="true" />
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-600 leading-tight">In catalog</p>
+          </article>
         </div>
 
         {/* Today's Orders */}
@@ -649,6 +768,127 @@ const LaboratoryDashboard = () => {
             }))}
           </div>
         </section>
+
+        {/* Recent Test Reports & Recent Patients Grid */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Recent Test Reports */}
+          <section aria-labelledby="recent-reports-title" className="space-y-3">
+            <header className="flex items-center justify-between">
+              <h2 id="recent-reports-title" className="text-base font-semibold text-slate-900">
+                Recent Test Reports
+              </h2>
+              <button
+                type="button"
+                onClick={() => navigate('/laboratory/test-reports')}
+                className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
+              >
+                See all
+              </button>
+            </header>
+
+            <div className="space-y-3">
+              {recentTestReports.map((report) => {
+                return (
+                  <article
+                    key={report.id}
+                    onClick={() => navigate('/laboratory/test-reports')}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                  >
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={report.patientImage}
+                        alt={report.patientName}
+                        className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(report.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-slate-900">{report.patientName}</h3>
+                            <p className="mt-0.5 text-xs text-slate-600">Test: {report.testName}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">Order: {report.orderId}</p>
+                          </div>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                            <IoCheckmarkCircleOutline className="h-3 w-3" />
+                            Completed
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-center gap-3 text-xs text-slate-600">
+                          <div className="flex items-center gap-1">
+                            <IoCalendarOutline className="h-3.5 w-3.5" />
+                            <span>{formatDate(report.reportDate)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <IoFlaskOutline className="h-3.5 w-3.5" />
+                            <span>{report.testName}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+
+          {/* Recent Patients */}
+          <section aria-labelledby="patients-title" className="space-y-3">
+            <header className="flex items-center justify-between">
+              <h2 id="patients-title" className="text-base font-semibold text-slate-900">
+                Recent Patients
+              </h2>
+              <button
+                type="button"
+                onClick={() => navigate('/laboratory/patients')}
+                className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
+              >
+                See all
+              </button>
+            </header>
+
+            <div className="space-y-3">
+              {recentPatients.map((patient) => (
+                <article
+                  key={patient.id}
+                  onClick={() => navigate(`/laboratory/patients/${patient.id}`)}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                >
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={patient.image}
+                      alt={patient.name}
+                      className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
+                      onError={(e) => {
+                        e.target.onerror = null
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name)}&background=3b82f6&color=fff&size=128&bold=true`
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-slate-900">{patient.name}</h3>
+                          <p className="mt-0.5 text-xs text-slate-600">Last test: {formatDate(patient.lastTestDate)}</p>
+                        </div>
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                          {patient.status}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
+                        <div className="flex items-center gap-1">
+                          <IoFlaskOutline className="h-3.5 w-3.5" />
+                          <span>{patient.totalTests} tests</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
 
       </section>
 
