@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   IoSearchOutline,
   IoCalendarOutline,
@@ -8,6 +9,8 @@ import {
   IoCheckmarkCircleOutline,
   IoCloseCircleOutline,
   IoArrowBackOutline,
+  IoChevronBackOutline,
+  IoChevronForwardOutline,
 } from 'react-icons/io5'
 
 // Helper function to format date as YYYY-MM-DD
@@ -341,19 +344,81 @@ const mockAppointments = [
 ]
 
 const AdminAppointments = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
   const [searchTerm, setSearchTerm] = useState('')
   const [periodFilter, setPeriodFilter] = useState('daily') // daily, monthly, yearly
-  const [appointments] = useState(mockAppointments)
+  const [appointments, setAppointments] = useState([])
+  const [filteredDoctor, setFilteredDoctor] = useState(null) // Doctor filter from query params
+  const [currentPage, setCurrentPage] = useState(1) // Pagination state
+  const itemsPerPage = 10 // Items per page
+
+  // Get query parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const doctorName = params.get('doctor')
+    const specialty = params.get('specialty')
+    if (doctorName && specialty) {
+      setFilteredDoctor({ doctorName, specialty })
+      setCurrentPage(1) // Reset to first page when doctor changes
+    } else {
+      setFilteredDoctor(null)
+      setSearchTerm('') // Clear search term when going back
+      setCurrentPage(1) // Reset to first page
+    }
+  }, [location.search])
+
+  // Reset page when period filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [periodFilter])
+
+  // Load appointments from localStorage
+  useEffect(() => {
+    const loadAppointments = () => {
+      try {
+        // Load from allAppointments localStorage (shared by patient bookings)
+        const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
+        // Merge with mock data for backward compatibility
+        const merged = [...allAppts, ...mockAppointments]
+        // Remove duplicates by id
+        const unique = merged.filter((apt, idx, self) => 
+          idx === self.findIndex(a => a.id === apt.id)
+        )
+        setAppointments(unique)
+      } catch (error) {
+        console.error('Error loading appointments:', error)
+        setAppointments(mockAppointments)
+      }
+    }
+    
+    loadAppointments()
+    // Refresh every 2 seconds to get new appointments
+    const interval = setInterval(loadAppointments, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   const filteredAppointments = useMemo(() => {
     let filtered = appointments
+
+    // Filter by doctor if filteredDoctor is set
+    if (filteredDoctor) {
+      filtered = filtered.filter((apt) => {
+        const aptDoctorName = apt.doctorName || apt.doctor?.name || ''
+        const aptSpecialty = apt.specialty || apt.doctorSpecialty || ''
+        return (
+          aptDoctorName === filteredDoctor.doctorName &&
+          aptSpecialty === filteredDoctor.specialty
+        )
+      })
+    }
 
     // Filter by period
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     
     filtered = filtered.filter((apt) => {
-      const aptDate = new Date(apt.date)
+      const aptDate = new Date(apt.appointmentDate || apt.date)
       aptDate.setHours(0, 0, 0, 0)
 
       if (periodFilter === 'daily') {
@@ -366,45 +431,66 @@ const AdminAppointments = () => {
       return true
     })
 
-    // Filter by search
-    if (searchTerm.trim()) {
+    // Filter by search (only if not filtering by doctor)
+    if (!filteredDoctor && searchTerm.trim()) {
       const normalizedSearch = searchTerm.trim().toLowerCase()
       filtered = filtered.filter(
         (apt) =>
-          apt.patientName.toLowerCase().includes(normalizedSearch) ||
-          apt.doctorName.toLowerCase().includes(normalizedSearch) ||
-          apt.specialty.toLowerCase().includes(normalizedSearch)
+          (apt.patientName || '').toLowerCase().includes(normalizedSearch) ||
+          (apt.doctorName || '').toLowerCase().includes(normalizedSearch) ||
+          (apt.specialty || '').toLowerCase().includes(normalizedSearch) ||
+          (apt.doctorSpecialty || '').toLowerCase().includes(normalizedSearch)
       )
     }
 
     return filtered.sort((a, b) => {
-      const dateA = new Date(`${a.date} ${a.time}`)
-      const dateB = new Date(`${b.date} ${b.time}`)
+      const dateA = new Date(`${a.appointmentDate || a.date} ${a.appointmentTime || a.time || '00:00'}`)
+      const dateB = new Date(`${b.appointmentDate || b.date} ${b.appointmentTime || b.time || '00:00'}`)
       return dateB - dateA
     })
-  }, [appointments, searchTerm, periodFilter])
+  }, [appointments, searchTerm, periodFilter, filteredDoctor])
 
-  // Doctor aggregation
+  // Doctor aggregation with patient list
   const doctorAggregation = useMemo(() => {
     const doctorMap = new Map()
     
     filteredAppointments.forEach((apt) => {
-      const key = `${apt.doctorName}_${apt.specialty}`
+      const key = `${apt.doctorName || apt.doctor?.name || 'Unknown'}_${apt.specialty || apt.doctorSpecialty || 'Unknown'}`
+      const doctorName = apt.doctorName || apt.doctor?.name || 'Unknown'
+      const specialty = apt.specialty || apt.doctorSpecialty || 'Unknown'
       
       if (!doctorMap.has(key)) {
         doctorMap.set(key, {
-          doctorName: apt.doctorName,
-          specialty: apt.specialty,
+          doctorName: doctorName,
+          specialty: specialty,
+          doctorId: apt.doctorId || apt.doctor?.id,
           confirmed: 0,
           rescheduled: 0,
           completed: 0,
           cancelled: 0,
+          scheduled: 0,
           totalAppointments: 0,
+          patients: [], // List of patient appointments
         })
       }
       
       const doctor = doctorMap.get(key)
       doctor.totalAppointments++
+      
+      // Add patient appointment to list
+      doctor.patients.push({
+        id: apt.id,
+        patientName: apt.patientName || apt.patient?.name || 'Unknown Patient',
+        patientId: apt.patientId || apt.patient?.id,
+        date: apt.appointmentDate || apt.date,
+        time: apt.appointmentTime || apt.time || 'N/A',
+        status: apt.status,
+        reason: apt.reason || 'Consultation',
+        type: apt.appointmentType || apt.type || 'consultation',
+        patientImage: apt.patientImage || apt.patient?.image,
+        patientPhone: apt.patientPhone || apt.patient?.phone,
+        patientEmail: apt.patientEmail || apt.patient?.email,
+      })
       
       if (apt.status === 'confirmed') {
         doctor.confirmed++
@@ -414,6 +500,8 @@ const AdminAppointments = () => {
         doctor.completed++
       } else if (apt.status === 'cancelled') {
         doctor.cancelled++
+      } else if (apt.status === 'scheduled' || apt.status === 'waiting') {
+        doctor.scheduled++
       }
     })
     
@@ -477,6 +565,221 @@ const AdminAppointments = () => {
 
     return { total, confirmed, completed, rescheduled, cancelled, doctorStats }
   }, [filteredAppointments, doctorAggregation])
+
+  // If filtering by doctor, show patient list view
+  if (filteredDoctor) {
+    const doctorStats = {
+      total: filteredAppointments.length,
+      scheduled: filteredAppointments.filter((apt) => apt.status === 'scheduled' || apt.status === 'waiting').length,
+      confirmed: filteredAppointments.filter((apt) => apt.status === 'confirmed').length,
+      completed: filteredAppointments.filter((apt) => apt.status === 'completed').length,
+      cancelled: filteredAppointments.filter((apt) => apt.status === 'cancelled').length,
+      rescheduled: filteredAppointments.filter((apt) => apt.status === 'rescheduled').length,
+    }
+
+    // Pagination calculations
+    const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage)
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    const paginatedAppointments = filteredAppointments.slice(startIndex, endIndex)
+
+    return (
+      <section className="flex flex-col gap-4 pb-4">
+        {/* Header with Back Button */}
+        <header className="flex items-center gap-4 border-b border-slate-200 pb-3">
+          <button
+            type="button"
+            onClick={() => navigate('/admin/appointments')}
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-slate-200 active:scale-95"
+            aria-label="Go back"
+          >
+            <IoArrowBackOutline className="h-5 w-5" />
+          </button>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold text-slate-900">{filteredDoctor.doctorName}</h1>
+            <p className="mt-0.5 text-sm text-slate-600">{filteredDoctor.specialty}</p>
+          </div>
+        </header>
+
+        {/* Period Filter */}
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {['daily', 'monthly', 'yearly'].map((period) => (
+            <button
+              key={period}
+              onClick={() => {
+                setPeriodFilter(period)
+                setCurrentPage(1) // Reset to first page when filter changes
+              }}
+              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
+                periodFilter === period
+                  ? 'bg-[#11496c] text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {period}
+            </button>
+          ))}
+        </div>
+
+        {/* Doctor Stats Cards */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{doctorStats.total}</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Scheduled</p>
+            <p className="mt-1 text-2xl font-bold text-blue-700">{doctorStats.scheduled}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Confirmed</p>
+            <p className="mt-1 text-2xl font-bold text-emerald-700">{doctorStats.confirmed}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Completed</p>
+            <p className="mt-1 text-2xl font-bold text-emerald-700">{doctorStats.completed}</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Rescheduled</p>
+            <p className="mt-1 text-2xl font-bold text-blue-700">{doctorStats.rescheduled}</p>
+          </div>
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-red-600">Cancelled</p>
+            <p className="mt-1 text-2xl font-bold text-red-700">{doctorStats.cancelled}</p>
+          </div>
+        </div>
+
+        {/* Patient Appointments List */}
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Patient Appointments ({filteredAppointments.length})
+          </h2>
+          {filteredAppointments.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-12 text-center">
+              <IoPersonOutline className="mx-auto h-12 w-12 text-slate-300 mb-3" />
+              <p className="text-sm font-medium text-slate-600">No appointments found</p>
+              <p className="mt-1 text-xs text-slate-500">
+                No appointments for {filteredDoctor.doctorName} in {periodFilter} period.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {paginatedAppointments.map((apt) => {
+                  const StatusIcon = getStatusIcon(apt.status)
+                  return (
+                    <article
+                      key={apt.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                          <img
+                            src={apt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.patientName || 'Patient')}&background=11496c&color=fff&size=128`}
+                            alt={apt.patientName || 'Patient'}
+                            className="h-12 w-12 rounded-full object-cover"
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.patientName || 'Patient')}&background=11496c&color=fff&size=128`
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-base font-semibold text-slate-900">
+                                {apt.patientName || apt.patient?.name || 'Unknown Patient'}
+                              </h3>
+                              <p className="mt-0.5 text-sm text-slate-600">
+                                {apt.reason || 'Consultation'}
+                              </p>
+                            </div>
+                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${getStatusColor(apt.status)}`}>
+                              <StatusIcon className="h-3 w-3" />
+                              {apt.status === 'scheduled' ? 'Scheduled' : apt.status === 'waiting' ? 'Waiting' : apt.status.charAt(0).toUpperCase() + apt.status.slice(1)}
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                            <div className="flex items-center gap-1.5">
+                              <IoCalendarOutline className="h-4 w-4 text-slate-400" />
+                              <span>
+                                {apt.appointmentDate || apt.date
+                                  ? new Date(apt.appointmentDate || apt.date).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    })
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <IoTimeOutline className="h-4 w-4 text-slate-400" />
+                              <span>{apt.appointmentTime || apt.time || 'N/A'}</span>
+                            </div>
+                            {apt.appointmentType && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-slate-500">Type: {apt.appointmentType}</span>
+                              </div>
+                            )}
+                            {apt.patientPhone && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-slate-500">Phone: {apt.patientPhone}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-200 pt-4 mt-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">
+                      Showing {startIndex + 1} to {Math.min(endIndex, filteredAppointments.length)} of{' '}
+                      {filteredAppointments.length} appointments
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className={`flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold transition ${
+                        currentPage === 1
+                          ? 'text-slate-300 cursor-not-allowed'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <IoChevronBackOutline className="h-4 w-4" />
+                      Previous
+                    </button>
+                    <span className="text-sm font-semibold text-slate-700 px-3">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className={`flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold transition ${
+                        currentPage === totalPages
+                          ? 'text-slate-300 cursor-not-allowed'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Next
+                      <IoChevronForwardOutline className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="flex flex-col gap-4 pb-4">
@@ -560,7 +863,8 @@ const AdminAppointments = () => {
             return (
               <article
                 key={`${doctor.doctorName}_${doctor.specialty}`}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                onClick={() => navigate(`/admin/appointments?doctor=${encodeURIComponent(doctor.doctorName)}&specialty=${encodeURIComponent(doctor.specialty)}`)}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
               >
                 <div className="flex items-start gap-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#11496c]/10">
@@ -572,11 +876,19 @@ const AdminAppointments = () => {
                         <h3 className="text-base font-semibold text-slate-900">{doctor.doctorName}</h3>
                         <p className="mt-0.5 text-sm text-slate-600">{doctor.specialty}</p>
                       </div>
+                      <div className="flex items-center gap-1 text-xs font-semibold text-[#11496c]">
+                        <IoPersonOutline className="h-4 w-4" />
+                        {doctor.patients.length} Patients
+                      </div>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
                       <div className="rounded-lg bg-slate-50 p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total</p>
                         <p className="mt-1 text-xl font-bold text-slate-900">{doctor.totalAppointments}</p>
+                      </div>
+                      <div className="rounded-lg bg-blue-50 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Scheduled</p>
+                        <p className="mt-1 text-xl font-bold text-blue-700">{doctor.scheduled}</p>
                       </div>
                       <div className="rounded-lg bg-emerald-50 p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Confirmed</p>
@@ -585,10 +897,6 @@ const AdminAppointments = () => {
                       <div className="rounded-lg bg-emerald-50 p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Completed</p>
                         <p className="mt-1 text-xl font-bold text-emerald-700">{doctor.completed}</p>
-                      </div>
-                      <div className="rounded-lg bg-blue-50 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Rescheduled</p>
-                        <p className="mt-1 text-xl font-bold text-blue-700">{doctor.rescheduled}</p>
                       </div>
                       <div className="rounded-lg bg-red-50 p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-red-600">Cancelled</p>
