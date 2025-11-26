@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   IoSearchOutline,
   IoBagHandleOutline,
@@ -10,6 +10,8 @@ import {
   IoTimeOutline,
   IoCalendarOutline,
   IoLocationOutline,
+  IoArrowBackOutline,
+  IoChevronDownOutline,
 } from 'react-icons/io5'
 
 // Helper function to format date as YYYY-MM-DD
@@ -63,6 +65,7 @@ const mockOrders = [
     type: 'pharmacy',
     patientName: 'John Doe',
     providerName: 'City Pharmacy',
+    providerId: 'pharmacy-city',
     date: todayStr,
     time: '10:00 AM',
     status: 'completed',
@@ -75,6 +78,7 @@ const mockOrders = [
     orderId: 'LAB-2025-001',
     patientName: 'Sarah Smith',
     providerName: 'HealthLab Diagnostics',
+    providerId: 'lab-healthlab',
     date: todayStr,
     time: '11:30 AM',
     status: 'pending',
@@ -87,6 +91,7 @@ const mockOrders = [
     orderId: 'ORD-2025-002',
     patientName: 'Mike Johnson',
     providerName: 'MediCare Pharmacy',
+    providerId: 'pharmacy-medicare',
     date: todayStr,
     time: '02:00 PM',
     status: 'completed',
@@ -99,6 +104,7 @@ const mockOrders = [
     orderId: 'LAB-2025-002',
     patientName: 'Emily Brown',
     providerName: 'TestLab Services',
+    providerId: 'lab-testlab',
     date: todayStr,
     time: '09:00 AM',
     status: 'pending',
@@ -111,6 +117,7 @@ const mockOrders = [
     orderId: 'ORD-2025-003',
     patientName: 'David Wilson',
     providerName: 'QuickMed Pharmacy',
+    providerId: 'pharmacy-quickmed',
     date: todayStr,
     time: '03:30 PM',
     status: 'completed',
@@ -123,6 +130,7 @@ const mockOrders = [
     orderId: 'LAB-2025-003',
     patientName: 'Priya Sharma',
     providerName: 'Precision Labs',
+    providerId: 'lab-precision',
     date: todayStr,
     time: '01:00 PM',
     status: 'completed',
@@ -135,6 +143,7 @@ const mockOrders = [
     orderId: 'ORD-2025-004',
     patientName: 'Rajesh Kumar',
     providerName: 'Wellness Pharmacy',
+    providerId: 'pharmacy-wellness',
     date: todayStr,
     time: '04:00 PM',
     status: 'pending',
@@ -147,6 +156,7 @@ const mockOrders = [
     orderId: 'LAB-2025-004',
     patientName: 'Anjali Mehta',
     providerName: 'HealthLab Diagnostics',
+    providerId: 'lab-healthlab',
     date: todayStr,
     time: '05:00 PM',
     status: 'pending',
@@ -160,6 +170,7 @@ const mockOrders = [
     orderId: 'ORD-2025-005',
     patientName: 'Ravi Verma',
     providerName: 'City Pharmacy',
+    providerId: 'pharmacy-city',
     date: yesterdayStr,
     time: '10:30 AM',
     status: 'completed',
@@ -172,6 +183,7 @@ const mockOrders = [
     orderId: 'LAB-2025-005',
     patientName: 'Sneha Patel',
     providerName: 'TestLab Services',
+    providerId: 'lab-testlab',
     date: yesterdayStr,
     time: '02:30 PM',
     status: 'completed',
@@ -184,6 +196,7 @@ const mockOrders = [
     orderId: 'ORD-2025-006',
     patientName: 'Amit Singh',
     providerName: 'MediCare Pharmacy',
+    providerId: 'pharmacy-medicare',
     date: twoDaysAgoStr,
     time: '11:00 AM',
     status: 'completed',
@@ -196,6 +209,7 @@ const mockOrders = [
     orderId: 'LAB-2025-006',
     patientName: 'Kavita Reddy',
     providerName: 'Precision Labs',
+    providerId: 'lab-precision',
     date: twoDaysAgoStr,
     time: '03:00 PM',
     status: 'pending',
@@ -208,6 +222,7 @@ const mockOrders = [
     orderId: 'ORD-2025-007',
     patientName: 'Vikram Malhotra',
     providerName: 'QuickMed Pharmacy',
+    providerId: 'pharmacy-quickmed',
     date: threeDaysAgoStr,
     time: '09:30 AM',
     status: 'completed',
@@ -220,6 +235,7 @@ const mockOrders = [
     orderId: 'LAB-2025-007',
     patientName: 'Meera Iyer',
     providerName: 'HealthLab Diagnostics',
+    providerId: 'lab-healthlab',
     date: threeDaysAgoStr,
     time: '01:30 PM',
     status: 'completed',
@@ -232,6 +248,7 @@ const mockOrders = [
     orderId: 'ORD-2025-008',
     patientName: 'Arjun Nair',
     providerName: 'Wellness Pharmacy',
+    providerId: 'pharmacy-wellness',
     date: fourDaysAgoStr,
     time: '04:00 PM',
     status: 'pending',
@@ -244,6 +261,7 @@ const mockOrders = [
     orderId: 'LAB-2025-008',
     patientName: 'Divya Menon',
     providerName: 'TestLab Services',
+    providerId: 'lab-testlab',
     date: fourDaysAgoStr,
     time: '10:00 AM',
     status: 'completed',
@@ -256,6 +274,7 @@ const mockOrders = [
     orderId: 'ORD-2025-009',
     patientName: 'Nikhil Joshi',
     providerName: 'City Pharmacy',
+    providerId: 'pharmacy-city',
     date: fiveDaysAgoStr,
     time: '02:00 PM',
     status: 'completed',
@@ -268,6 +287,7 @@ const mockOrders = [
     orderId: 'LAB-2025-009',
     patientName: 'Pooja Desai',
     providerName: 'Precision Labs',
+    providerId: 'lab-precision',
     date: fiveDaysAgoStr,
     time: '11:30 AM',
     status: 'pending',
@@ -281,6 +301,7 @@ const mockOrders = [
     orderId: 'ORD-2025-010',
     patientName: 'Rahul Gupta',
     providerName: 'MediCare Pharmacy',
+    providerId: 'pharmacy-medicare',
     date: tenDaysAgoStr,
     time: '10:00 AM',
     status: 'completed',
@@ -293,6 +314,7 @@ const mockOrders = [
     orderId: 'LAB-2025-010',
     patientName: 'Sunita Rao',
     providerName: 'HealthLab Diagnostics',
+    providerId: 'lab-healthlab',
     date: tenDaysAgoStr,
     time: '02:00 PM',
     status: 'completed',
@@ -305,6 +327,7 @@ const mockOrders = [
     orderId: 'ORD-2025-011',
     patientName: 'Karan Mehta',
     providerName: 'QuickMed Pharmacy',
+    providerId: 'pharmacy-quickmed',
     date: fifteenDaysAgoStr,
     time: '11:00 AM',
     status: 'completed',
@@ -317,6 +340,7 @@ const mockOrders = [
     orderId: 'LAB-2025-011',
     patientName: 'Neha Shah',
     providerName: 'TestLab Services',
+    providerId: 'lab-testlab',
     date: fifteenDaysAgoStr,
     time: '03:30 PM',
     status: 'pending',
@@ -330,6 +354,7 @@ const mockOrders = [
     orderId: 'ORD-2025-012',
     patientName: 'Vishal Kumar',
     providerName: 'City Pharmacy',
+    providerId: 'pharmacy-city',
     date: lastMonthStr,
     time: '09:00 AM',
     status: 'completed',
@@ -342,6 +367,7 @@ const mockOrders = [
     orderId: 'LAB-2025-012',
     patientName: 'Deepika Nair',
     providerName: 'Precision Labs',
+    providerId: 'lab-precision',
     date: lastMonthStr,
     time: '01:00 PM',
     status: 'completed',
@@ -354,6 +380,7 @@ const mockOrders = [
     orderId: 'ORD-2025-013',
     patientName: 'Aditya Singh',
     providerName: 'Wellness Pharmacy',
+    providerId: 'pharmacy-wellness',
     date: twoMonthsAgoStr,
     time: '10:30 AM',
     status: 'completed',
@@ -366,6 +393,7 @@ const mockOrders = [
     orderId: 'LAB-2025-013',
     patientName: 'Shreya Patel',
     providerName: 'HealthLab Diagnostics',
+    providerId: 'lab-healthlab',
     date: twoMonthsAgoStr,
     time: '02:30 PM',
     status: 'pending',
@@ -378,6 +406,7 @@ const mockOrders = [
     orderId: 'ORD-2025-014',
     patientName: 'Manish Verma',
     providerName: 'MediCare Pharmacy',
+    providerId: 'pharmacy-medicare',
     date: threeMonthsAgoStr,
     time: '11:30 AM',
     status: 'completed',
@@ -390,6 +419,7 @@ const mockOrders = [
     orderId: 'LAB-2025-014',
     patientName: 'Anita Iyer',
     providerName: 'TestLab Services',
+    providerId: 'lab-testlab',
     date: threeMonthsAgoStr,
     time: '04:00 PM',
     status: 'completed',
@@ -402,7 +432,71 @@ const AdminOrders = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('all') // all, pharmacy, laboratory
   const [periodFilter, setPeriodFilter] = useState('daily') // daily, monthly, yearly
-  const [orders] = useState(mockOrders)
+  const [orders, setOrders] = useState([])
+  const [selectedProvider, setSelectedProvider] = useState(null) // Track selected provider to show orders
+
+  // Load orders from localStorage
+  useEffect(() => {
+    const loadOrders = () => {
+      try {
+        const allOrders = []
+        
+        // Load pharmacy orders from all pharmacies
+        const allPharmacyAvailability = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
+        allPharmacyAvailability.forEach((pharmacy) => {
+          const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacy.pharmacyId}`) || '[]')
+          pharmacyOrders.forEach((order) => {
+            allOrders.push({
+              ...order,
+              orderId: order.id || `ORD-${Date.now()}`,
+              date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+              time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
+              patientName: order.patient?.name || 'Unknown Patient',
+              providerName: order.pharmacyName || pharmacy.pharmacyName,
+              providerId: order.pharmacyId || pharmacy.pharmacyId,
+              amount: order.totalAmount || 0,
+              items: order.medicines?.map(m => m.name || `${m.dosage || ''}`).filter(Boolean) || [],
+            })
+          })
+        })
+        
+        // Load laboratory orders from all labs
+        const allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
+        allLabAvailability.forEach((lab) => {
+          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.labId}`) || '[]')
+          labOrders.forEach((order) => {
+            allOrders.push({
+              ...order,
+              orderId: order.id || `LAB-${Date.now()}`,
+              date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+              time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
+              patientName: order.patient?.name || 'Unknown Patient',
+              providerName: order.labName || lab.labName,
+              providerId: order.labId || lab.labId,
+              amount: order.totalAmount || 0,
+              items: order.investigations?.map(i => i.name).filter(Boolean) || [],
+            })
+          })
+        })
+        
+        // Merge with mock data for backward compatibility
+        const merged = [...allOrders, ...mockOrders]
+        const unique = merged.filter((order, idx, self) => 
+          idx === self.findIndex(o => o.id === order.id || o.orderId === order.orderId)
+        )
+        
+        setOrders(unique)
+      } catch (error) {
+        console.error('Error loading orders:', error)
+        setOrders(mockOrders)
+      }
+    }
+    
+    loadOrders()
+    // Refresh every 2 seconds to get new orders
+    const interval = setInterval(loadOrders, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   const filteredOrders = useMemo(() => {
     let filtered = orders
@@ -453,12 +547,13 @@ const AdminOrders = () => {
     const providerMap = new Map()
     
     filteredOrders.forEach((order) => {
-      // Use provider name + type as key to separate same name providers of different types
-      const key = `${order.providerName}_${order.type}`
+      // Use provider ID + type as key to separate same name providers of different types
+      const key = `${order.providerId || order.providerName}_${order.type}`
       
       if (!providerMap.has(key)) {
         providerMap.set(key, {
           providerName: order.providerName,
+          providerId: order.providerId || order.providerName,
           type: order.type,
           completed: 0,
           pending: 0,
@@ -497,6 +592,16 @@ const AdminOrders = () => {
     // Sort by revenue descending
     return providers.sort((a, b) => b.revenue - a.revenue)
   }, [filteredOrders, typeFilter, searchTerm])
+
+  // Get orders for selected provider
+  const selectedProviderOrders = useMemo(() => {
+    if (!selectedProvider) return []
+    return filteredOrders.filter(
+      order => 
+        (order.providerId || order.providerName) === selectedProvider.providerId &&
+        order.type === selectedProvider.type
+    )
+  }, [filteredOrders, selectedProvider])
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -644,68 +749,306 @@ const AdminOrders = () => {
         </div>
       </div>
 
-      {/* Provider List */}
-      <div className="space-y-3">
-        {providerAggregation.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-12 text-center">
-            <IoBagHandleOutline className="mx-auto h-12 w-12 text-slate-300 mb-3" />
-            <p className="text-sm font-medium text-slate-600">
-              {typeFilter === 'all' ? 'No providers found' : `No ${typeFilter} providers found`}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {searchTerm.trim()
-                ? 'No providers match your search criteria.'
-                : `No ${typeFilter === 'all' ? '' : typeFilter + ' '}orders for ${periodFilter} period.`}
-            </p>
-          </div>
-        ) : (
-          providerAggregation.map((provider) => {
-            const TypeIcon = getTypeIcon(provider.type)
-            return (
-              <article
-                key={`${provider.providerName}_${provider.type}`}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
-              >
-                <div className="flex items-start gap-4">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${getTypeColor(provider.type)}`}>
-                    <TypeIcon className="h-6 w-6" />
+      {/* Provider Cards or Orders List */}
+      {selectedProvider ? (
+        /* Show Orders for Selected Provider */
+        <div className="space-y-4">
+          {/* Back Button */}
+          <button
+            onClick={() => setSelectedProvider(null)}
+            className="flex items-center gap-2 text-sm font-medium text-[#11496c] hover:text-[#0d3a52] transition"
+          >
+            <IoArrowBackOutline className="h-4 w-4" />
+            <span>Back to Providers</span>
+          </button>
+
+          {/* Provider Header */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-start gap-4">
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${getTypeColor(selectedProvider.type)}`}>
+                {(() => {
+                  const TypeIcon = getTypeIcon(selectedProvider.type)
+                  return <TypeIcon className="h-6 w-6" />
+                })()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-lg font-semibold text-slate-900">{selectedProvider.providerName}</h2>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${getTypeColor(selectedProvider.type)}`}>
+                    {(() => {
+                      const TypeIcon = getTypeIcon(selectedProvider.type)
+                      return <TypeIcon className="h-3 w-3" />
+                    })()}
+                    {selectedProvider.type}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Orders</p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">{selectedProvider.totalOrders}</p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-base font-semibold text-slate-900">{provider.providerName}</h3>
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${getTypeColor(provider.type)}`}>
-                            <TypeIcon className="h-3 w-3" />
-                            {provider.type}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <p className="text-lg font-bold text-slate-900">{formatCurrency(provider.revenue)}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 grid grid-cols-3 gap-3">
-                      <div className="rounded-lg bg-slate-50 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Orders</p>
-                        <p className="mt-1 text-xl font-bold text-slate-900">{provider.totalOrders}</p>
-                      </div>
-                      <div className="rounded-lg bg-emerald-50 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Completed</p>
-                        <p className="mt-1 text-xl font-bold text-emerald-700">{provider.completed}</p>
-                      </div>
-                      <div className="rounded-lg bg-amber-50 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Pending</p>
-                        <p className="mt-1 text-xl font-bold text-amber-700">{provider.pending}</p>
-                      </div>
-                    </div>
+                  <div className="rounded-lg bg-emerald-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Completed</p>
+                    <p className="mt-1 text-xl font-bold text-emerald-700">{selectedProvider.completed}</p>
+                  </div>
+                  <div className="rounded-lg bg-amber-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Pending</p>
+                    <p className="mt-1 text-xl font-bold text-amber-700">{selectedProvider.pending}</p>
                   </div>
                 </div>
-              </article>
-            )
-          })
-        )}
-      </div>
+                <div className="mt-3 pt-3 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-slate-700">Total Revenue</span>
+                    <span className="text-lg font-bold text-[#11496c]">{formatCurrency(selectedProvider.revenue)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Orders List for Selected Provider */}
+          <div className="space-y-3">
+            <h3 className="text-base font-semibold text-slate-900">Orders ({selectedProviderOrders.length})</h3>
+            {selectedProviderOrders.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <IoBagHandleOutline className="mx-auto h-10 w-10 text-slate-300 mb-2" />
+                <p className="text-sm font-medium text-slate-600">No orders found for this provider</p>
+              </div>
+            ) : (
+              selectedProviderOrders.map((order) => {
+                const StatusIcon = getStatusIcon(order.status)
+                return (
+                  <article
+                    key={order.id || order.orderId}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${getTypeColor(order.type)}`}>
+                        {(() => {
+                          const TypeIcon = getTypeIcon(order.type)
+                          return <TypeIcon className="h-5 w-5" />
+                        })()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-sm font-semibold text-slate-900">{order.patientName}</h3>
+                            </div>
+                            <p className="text-xs text-slate-500">Order ID: {order.orderId}</p>
+                          </div>
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(order.status)}`}>
+                            <StatusIcon className="h-3 w-3" />
+                            {order.status}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mb-2">
+                          <div className="flex items-center gap-1">
+                            <IoCalendarOutline className="h-3.5 w-3.5" />
+                            <span>{order.date}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <IoTimeOutline className="h-3.5 w-3.5" />
+                            <span>{order.time}</span>
+                          </div>
+                          {order.items && order.items.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              {order.type === 'pharmacy' ? (
+                                <IoBagHandleOutline className="h-3.5 w-3.5" />
+                              ) : (
+                                <IoFlaskOutline className="h-3.5 w-3.5" />
+                              )}
+                              <span>{order.items.length} {order.type === 'pharmacy' ? (order.items.length === 1 ? 'item' : 'items') : (order.items.length === 1 ? 'test' : 'tests')}</span>
+                            </div>
+                          )}
+                        </div>
+                        {order.items && order.items.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {order.items.slice(0, 3).map((item, idx) => (
+                              <span
+                                key={idx}
+                                className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-medium ${
+                                  order.type === 'pharmacy' 
+                                    ? 'bg-slate-100 text-slate-700' 
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}
+                              >
+                                {item}
+                              </span>
+                            ))}
+                            {order.items.length > 3 && (
+                              <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-medium ${
+                                order.type === 'pharmacy' 
+                                  ? 'bg-slate-100 text-slate-500' 
+                                  : 'bg-amber-100 text-amber-600'
+                              }`}>
+                                +{order.items.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-xs text-slate-500">Total Amount</span>
+                          <span className="text-sm font-bold text-slate-900">{formatCurrency(order.amount)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Show Provider Cards */
+        <div className="space-y-6">
+          {/* Pharmacy Providers Section */}
+          {(typeFilter === 'all' || typeFilter === 'pharmacy') && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <IoBusinessOutline className="h-5 w-5 text-purple-600" />
+                  <h2 className="text-lg font-semibold text-slate-900">Pharmacy</h2>
+                  <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-purple-100 px-2 text-xs font-medium text-purple-700">
+                    {providerAggregation.filter(p => p.type === 'pharmacy').length}
+                  </span>
+                </div>
+              </div>
+              
+              {providerAggregation.filter(p => p.type === 'pharmacy').length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                  <IoBusinessOutline className="mx-auto h-10 w-10 text-slate-300 mb-2" />
+                  <p className="text-sm font-medium text-slate-600">No pharmacy providers found</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {searchTerm.trim() ? 'No providers match your search criteria.' : `No pharmacy orders for ${periodFilter} period.`}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {providerAggregation.filter(p => p.type === 'pharmacy').map((provider) => {
+                    const TypeIcon = getTypeIcon(provider.type)
+                    return (
+                      <article
+                        key={`${provider.providerId}_${provider.type}`}
+                        onClick={() => setSelectedProvider(provider)}
+                        className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${getTypeColor(provider.type)}`}>
+                            <TypeIcon className="h-6 w-6" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 mb-3">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-base font-semibold text-slate-900 mb-1">{provider.providerName}</h3>
+                                <p className="text-xs text-slate-500">{provider.totalOrders} {provider.totalOrders === 1 ? 'order' : 'orders'}</p>
+                              </div>
+                              <IoChevronDownOutline className="h-5 w-5 text-slate-400 shrink-0" />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="rounded-lg bg-slate-50 p-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total</p>
+                                <p className="mt-0.5 text-sm font-bold text-slate-900">{provider.totalOrders}</p>
+                              </div>
+                              <div className="rounded-lg bg-emerald-50 p-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Done</p>
+                                <p className="mt-0.5 text-sm font-bold text-emerald-700">{provider.completed}</p>
+                              </div>
+                              <div className="rounded-lg bg-amber-50 p-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">Pending</p>
+                                <p className="mt-0.5 text-sm font-bold text-amber-700">{provider.pending}</p>
+                              </div>
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-slate-200">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-slate-600">Revenue</span>
+                                <span className="text-sm font-bold text-[#11496c]">{formatCurrency(provider.revenue)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Laboratory Providers Section */}
+          {(typeFilter === 'all' || typeFilter === 'laboratory') && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <IoFlaskOutline className="h-5 w-5 text-amber-600" />
+                  <h2 className="text-lg font-semibold text-slate-900">Laboratory</h2>
+                  <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-amber-100 px-2 text-xs font-medium text-amber-700">
+                    {providerAggregation.filter(p => p.type === 'laboratory').length}
+                  </span>
+                </div>
+              </div>
+              
+              {providerAggregation.filter(p => p.type === 'laboratory').length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                  <IoFlaskOutline className="mx-auto h-10 w-10 text-slate-300 mb-2" />
+                  <p className="text-sm font-medium text-slate-600">No laboratory providers found</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {searchTerm.trim() ? 'No providers match your search criteria.' : `No laboratory orders for ${periodFilter} period.`}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {providerAggregation.filter(p => p.type === 'laboratory').map((provider) => {
+                    const TypeIcon = getTypeIcon(provider.type)
+                    return (
+                      <article
+                        key={`${provider.providerId}_${provider.type}`}
+                        onClick={() => setSelectedProvider(provider)}
+                        className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${getTypeColor(provider.type)}`}>
+                            <TypeIcon className="h-6 w-6" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 mb-3">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-base font-semibold text-slate-900 mb-1">{provider.providerName}</h3>
+                                <p className="text-xs text-slate-500">{provider.totalOrders} {provider.totalOrders === 1 ? 'order' : 'orders'}</p>
+                              </div>
+                              <IoChevronDownOutline className="h-5 w-5 text-slate-400 shrink-0" />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="rounded-lg bg-slate-50 p-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total</p>
+                                <p className="mt-0.5 text-sm font-bold text-slate-900">{provider.totalOrders}</p>
+                              </div>
+                              <div className="rounded-lg bg-emerald-50 p-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Done</p>
+                                <p className="mt-0.5 text-sm font-bold text-emerald-700">{provider.completed}</p>
+                              </div>
+                              <div className="rounded-lg bg-amber-50 p-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">Pending</p>
+                                <p className="mt-0.5 text-sm font-bold text-amber-700">{provider.pending}</p>
+                              </div>
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-slate-200">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-medium text-slate-600">Revenue</span>
+                                <span className="text-sm font-bold text-[#11496c]">{formatCurrency(provider.revenue)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+      )}
     </section>
   )
 }

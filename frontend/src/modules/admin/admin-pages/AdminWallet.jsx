@@ -17,6 +17,9 @@ import {
   IoFilterOutline,
   IoEyeOutline,
   IoCloseOutline,
+  IoArrowDownOutline,
+  IoArrowUpOutline,
+  IoCalendarOutline,
 } from 'react-icons/io5'
 
 // Mock data - replace with API calls
@@ -177,6 +180,140 @@ const mockWithdrawals = [
   },
 ]
 
+// Mock transactions data
+const mockTransactions = [
+  {
+    id: 'txn-1',
+    transactionId: 'TXN-2025-001-001',
+    type: 'commission',
+    category: 'doctor_commission',
+    providerName: 'Dr. Rajesh Kumar',
+    providerType: 'doctor',
+    amount: 500,
+    status: 'completed',
+    description: 'Commission from consultation fee',
+    createdAt: '2025-01-15T10:30:00',
+    orderId: 'ORD-2025-001',
+  },
+  {
+    id: 'txn-2',
+    transactionId: 'TXN-2025-001-002',
+    type: 'commission',
+    category: 'pharmacy_commission',
+    providerName: 'City Pharmacy',
+    providerType: 'pharmacy',
+    amount: 250,
+    status: 'completed',
+    description: 'Commission from medicine order',
+    createdAt: '2025-01-15T09:15:00',
+    orderId: 'ORD-2025-002',
+  },
+  {
+    id: 'txn-3',
+    transactionId: 'TXN-2025-001-003',
+    type: 'withdrawal',
+    category: 'withdrawal_approved',
+    providerName: 'Test Lab Services',
+    providerType: 'laboratory',
+    amount: -12000,
+    status: 'completed',
+    description: 'Withdrawal approved and processed',
+    createdAt: '2025-01-14T15:30:00',
+    orderId: null,
+  },
+  {
+    id: 'txn-4',
+    transactionId: 'TXN-2025-001-004',
+    type: 'commission',
+    category: 'laboratory_commission',
+    providerName: 'Health Diagnostics',
+    providerType: 'laboratory',
+    amount: 300,
+    status: 'completed',
+    description: 'Commission from lab test order',
+    createdAt: '2025-01-14T14:20:00',
+    orderId: 'LAB-2025-001',
+  },
+  {
+    id: 'txn-5',
+    transactionId: 'TXN-2025-001-005',
+    type: 'commission',
+    category: 'doctor_commission',
+    providerName: 'Dr. Priya Sharma',
+    providerType: 'doctor',
+    amount: 750,
+    status: 'completed',
+    description: 'Commission from consultation fee',
+    createdAt: '2025-01-14T11:00:00',
+    orderId: 'ORD-2025-003',
+  },
+  {
+    id: 'txn-6',
+    transactionId: 'TXN-2025-001-006',
+    type: 'commission',
+    category: 'pharmacy_commission',
+    providerName: 'MediCare Pharmacy',
+    providerType: 'pharmacy',
+    amount: 400,
+    status: 'completed',
+    description: 'Commission from medicine order',
+    createdAt: '2025-01-13T16:45:00',
+    orderId: 'ORD-2025-004',
+  },
+  {
+    id: 'txn-7',
+    transactionId: 'TXN-2025-001-007',
+    type: 'withdrawal',
+    category: 'withdrawal_pending',
+    providerName: 'Dr. Rajesh Kumar',
+    providerType: 'doctor',
+    amount: -25000,
+    status: 'pending',
+    description: 'Withdrawal request pending approval',
+    createdAt: '2025-01-15T10:30:00',
+    orderId: null,
+  },
+  {
+    id: 'txn-8',
+    transactionId: 'TXN-2025-001-008',
+    type: 'commission',
+    category: 'laboratory_commission',
+    providerName: 'Test Lab Services',
+    providerType: 'laboratory',
+    amount: 200,
+    status: 'completed',
+    description: 'Commission from lab test order',
+    createdAt: '2025-01-13T09:30:00',
+    orderId: 'LAB-2025-002',
+  },
+  {
+    id: 'txn-9',
+    transactionId: 'TXN-2025-001-009',
+    type: 'commission',
+    category: 'doctor_commission',
+    providerName: 'Dr. Amit Patel',
+    providerType: 'doctor',
+    amount: 600,
+    status: 'completed',
+    description: 'Commission from consultation fee',
+    createdAt: '2025-01-12T14:15:00',
+    orderId: 'ORD-2025-005',
+  },
+  {
+    id: 'txn-10',
+    transactionId: 'TXN-2025-001-010',
+    type: 'withdrawal',
+    category: 'withdrawal_pending',
+    providerName: 'City Pharmacy',
+    providerType: 'pharmacy',
+    amount: -15000,
+    status: 'pending',
+    description: 'Withdrawal request pending approval',
+    createdAt: '2025-01-15T09:15:00',
+    orderId: null,
+  },
+]
+
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -256,6 +393,9 @@ const AdminWallet = () => {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectingWithdrawalId, setRejectingWithdrawalId] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
+  const [transactionFilter, setTransactionFilter] = useState('all') // all, commission, withdrawal
+  const [transactionSearchTerm, setTransactionSearchTerm] = useState('')
+  const [transactions, setTransactions] = useState(mockTransactions)
 
   const allProviders = [
     ...mockProviders.doctors.map(p => ({ ...p, type: 'doctor' })),
@@ -562,10 +702,10 @@ const AdminWallet = () => {
       </section>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200">
+      <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
+          className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'overview'
               ? 'border-b-2 border-[#11496c] text-[#11496c]'
               : 'text-slate-600 hover:text-slate-900'
@@ -575,13 +715,23 @@ const AdminWallet = () => {
         </button>
         <button
           onClick={() => setActiveTab('withdrawals')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
+          className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors ${
             activeTab === 'withdrawals'
               ? 'border-b-2 border-[#11496c] text-[#11496c]'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
           Withdrawal Requests
+        </button>
+        <button
+          onClick={() => setActiveTab('transactions')}
+          className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === 'transactions'
+              ? 'border-b-2 border-[#11496c] text-[#11496c]'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Transactions
         </button>
       </div>
 
@@ -674,6 +824,155 @@ const AdminWallet = () => {
                 )
               })
             )}
+          </div>
+        </section>
+      )}
+
+      {/* Transactions Tab */}
+      {activeTab === 'transactions' && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">All Transactions</h2>
+              <p className="mt-1 text-xs text-slate-600">View all platform transactions and commissions</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 sm:flex-initial">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <IoSearchOutline className="h-5 w-5 text-slate-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search transactions..."
+                  value={transactionSearchTerm}
+                  onChange={(e) => setTransactionSearchTerm(e.target.value)}
+                  className="block w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 py-2 text-sm placeholder-slate-400 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+                />
+              </div>
+              <select
+                value={transactionFilter}
+                onChange={(e) => setTransactionFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+              >
+                <option value="all">All Types</option>
+                <option value="commission">Commissions</option>
+                <option value="withdrawal">Withdrawals</option>
+              </select>
+            </div>
+          </header>
+
+          <div className="space-y-3">
+            {(() => {
+              let filteredTransactions = transactions
+
+              // Filter by type
+              if (transactionFilter !== 'all') {
+                filteredTransactions = filteredTransactions.filter(
+                  txn => txn.type === transactionFilter
+                )
+              }
+
+              // Filter by search
+              if (transactionSearchTerm.trim()) {
+                const normalizedSearch = transactionSearchTerm.trim().toLowerCase()
+                filteredTransactions = filteredTransactions.filter(
+                  txn =>
+                    txn.providerName.toLowerCase().includes(normalizedSearch) ||
+                    txn.transactionId.toLowerCase().includes(normalizedSearch) ||
+                    txn.description.toLowerCase().includes(normalizedSearch) ||
+                    (txn.orderId && txn.orderId.toLowerCase().includes(normalizedSearch))
+                )
+              }
+
+              // Sort by date (newest first)
+              filteredTransactions = filteredTransactions.sort((a, b) => {
+                return new Date(b.createdAt) - new Date(a.createdAt)
+              })
+
+              if (filteredTransactions.length === 0) {
+                return (
+                  <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+                    <IoReceiptOutline className="mx-auto h-12 w-12 text-slate-300 mb-3" />
+                    <p className="text-sm font-medium text-slate-600">No transactions found</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {transactionSearchTerm.trim() || transactionFilter !== 'all'
+                        ? 'Try adjusting your filters'
+                        : 'Transactions will appear here'}
+                    </p>
+                  </div>
+                )
+              }
+
+              return filteredTransactions.map((transaction) => {
+                const ProviderIcon = getProviderIcon(transaction.providerType)
+                const isCredit = transaction.amount > 0
+                const isWithdrawal = transaction.type === 'withdrawal'
+
+                return (
+                  <article
+                    key={transaction.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                        isCredit ? 'bg-emerald-100' : 'bg-red-100'
+                      }`}>
+                        {isCredit ? (
+                          <IoArrowDownOutline className={`h-6 w-6 ${isCredit ? 'text-emerald-600' : 'text-red-600'}`} />
+                        ) : (
+                          <IoArrowUpOutline className="h-6 w-6 text-red-600" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <ProviderIcon className="h-4 w-4 text-slate-500" />
+                              <h3 className="text-sm font-semibold text-slate-900">{transaction.providerName}</h3>
+                              <span className="text-xs text-slate-500 capitalize">• {transaction.providerType}</span>
+                            </div>
+                            <p className="text-xs text-slate-600 mb-2">{transaction.description}</p>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                              <div className="flex items-center gap-1">
+                                <IoCalendarOutline className="h-3.5 w-3.5" />
+                                <span>{formatDate(transaction.createdAt)}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <IoReceiptOutline className="h-3.5 w-3.5" />
+                                <span>{transaction.transactionId}</span>
+                              </div>
+                              {transaction.orderId && (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-semibold">Order:</span>
+                                  <span>{transaction.orderId}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <div className={`text-lg font-bold ${
+                              isCredit ? 'text-emerald-600' : 'text-red-600'
+                            }`}>
+                              {isCredit ? '+' : ''}{formatCurrency(transaction.amount)}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(transaction.status)}
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                                transaction.type === 'commission'
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : 'bg-purple-50 text-purple-700'
+                              }`}>
+                                {transaction.type === 'commission' ? 'Commission' : 'Withdrawal'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })
+            })()}
           </div>
         </section>
       )}

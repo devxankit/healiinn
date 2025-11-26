@@ -131,6 +131,7 @@ const formatDate = (dateString) => {
 }
 
 const formatCurrency = (amount) => {
+  if (!amount || amount === 0) return ''
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
@@ -177,14 +178,8 @@ const PatientRequests = () => {
     }
   }
 
-  const handleViewReceipt = (request) => {
-    setSelectedRequest(request)
-    // Generate PDF and display in viewer
-    generateReceiptPDF(request)
-    setShowReceiptModal(true)
-  }
 
-  const generateReceiptPDF = (request) => {
+  const _generateReceiptPDF = (request) => {
     const receiptContent = `
 <!DOCTYPE html>
 <html>
@@ -438,75 +433,170 @@ const PatientRequests = () => {
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedAdminRequests))
 
-      // Create order
-      const order = {
-        id: `order-${Date.now()}`,
-        requestId: selectedRequest.id,
-        type: selectedRequest.type,
-        patientId: 'pat-current',
-        patientName: selectedRequest.patient?.name || 'Patient',
-        pharmacyId: selectedRequest.providerId,
-        pharmacyName: selectedRequest.providerName,
-        medicines: selectedRequest.adminMedicines || selectedRequest.medicines || [],
-        totalAmount: selectedRequest.totalAmount,
-        status: 'confirmed',
-        createdAt: new Date().toISOString(),
-        paidAt: new Date().toISOString(),
-      }
-
-      // Save order
-      const orders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-      orders.push(order)
-      localStorage.setItem('patientOrders', JSON.stringify(orders))
-
-      // Also save to admin orders
-      const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
-      adminOrders.push(order)
-      localStorage.setItem('adminOrders', JSON.stringify(adminOrders))
-
-      // Update admin wallet with payment
-      try {
-        const adminWallet = JSON.parse(localStorage.getItem('adminWallet') || '{"balance": 0, "transactions": []}')
-        adminWallet.balance = (adminWallet.balance || 0) + selectedRequest.totalAmount
-        const transaction = {
-          id: `txn-${Date.now()}`,
-          type: 'credit',
-          amount: selectedRequest.totalAmount,
-          description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for ${selectedRequest.type === 'lab' ? 'lab test' : 'medicine'} order`,
-          orderId: order.id,
-          requestId: selectedRequest.id,
-          providerId: selectedRequest.providerId,
-          providerName: selectedRequest.providerName,
-          patientName: selectedRequest.patient?.name || 'Patient',
-          createdAt: new Date().toISOString(),
-        }
-        adminWallet.transactions = adminWallet.transactions || []
-        adminWallet.transactions.unshift(transaction) // Add to beginning
-        localStorage.setItem('adminWallet', JSON.stringify(adminWallet))
-      } catch (error) {
-        console.error('Error updating admin wallet:', error)
-      }
-
-      // Update pharmacy/lab order status to confirmed
+      // Handle multiple pharmacies/labs
       if (selectedRequest.type === 'pharmacy') {
-        try {
-          const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${selectedRequest.providerId}`) || '[]')
-          const updatedPharmacyOrders = pharmacyOrders.map(pharmOrder => {
-            if (pharmOrder.requestId === selectedRequest.id) {
-              return {
-                ...pharmOrder,
-                status: 'confirmed',
-                paidAt: new Date().toISOString(),
-                paymentConfirmed: true,
-              }
+        // Get provider IDs (can be multiple, comma-separated)
+        const providerIds = selectedRequest.providerId ? selectedRequest.providerId.split(',') : []
+        const providerNames = selectedRequest.providerName ? selectedRequest.providerName.split(',').map(n => n.trim()) : []
+        
+        // Group medicines by pharmacy
+        const medicinesByPharmacy = {}
+        if (selectedRequest.adminMedicines && selectedRequest.adminMedicines.length > 0) {
+          selectedRequest.adminMedicines.forEach(med => {
+            const pharmId = med.pharmacyId || providerIds[0]
+            if (!medicinesByPharmacy[pharmId]) {
+              medicinesByPharmacy[pharmId] = []
             }
-            return pharmOrder
+            medicinesByPharmacy[pharmId].push(med)
           })
-          localStorage.setItem(`pharmacyOrders_${selectedRequest.providerId}`, JSON.stringify(updatedPharmacyOrders))
-        } catch (error) {
-          console.error('Error updating pharmacy order:', error)
         }
+
+        // Create orders for each pharmacy
+        const pharmacyOrders = []
+        let totalPharmacyAmount = 0
+
+        providerIds.forEach((pharmId, index) => {
+          const pharmName = providerNames[index] || selectedRequest.providerName || 'Pharmacy'
+          const pharmacyMedicines = medicinesByPharmacy[pharmId] || []
+          const pharmacyAmount = pharmacyMedicines.reduce((sum, med) => sum + ((med.quantity || 0) * (med.price || 0)), 0)
+          totalPharmacyAmount += pharmacyAmount
+
+          const order = {
+            id: `order-${Date.now()}-${pharmId}-${index}`,
+            requestId: selectedRequest.id,
+            type: 'pharmacy',
+            patientId: 'pat-current',
+            patientName: selectedRequest.patient?.name || 'Patient',
+            pharmacyId: pharmId,
+            pharmacyName: pharmName,
+            medicines: pharmacyMedicines,
+            totalAmount: pharmacyAmount,
+            status: 'confirmed',
+            createdAt: new Date().toISOString(),
+            paidAt: new Date().toISOString(),
+            paymentConfirmed: true,
+          }
+
+          pharmacyOrders.push(order)
+
+          // Save to pharmacy orders
+          const pharmOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmId}`) || '[]')
+          const existingIndex = pharmOrders.findIndex(o => o.requestId === selectedRequest.id)
+          if (existingIndex >= 0) {
+            pharmOrders[existingIndex] = {
+              ...pharmOrders[existingIndex],
+              ...order,
+            }
+          } else {
+            pharmOrders.push(order)
+          }
+          localStorage.setItem(`pharmacyOrders_${pharmId}`, JSON.stringify(pharmOrders))
+
+          // Update pharmacy wallet (if exists)
+          try {
+            const pharmacyWallet = JSON.parse(localStorage.getItem(`pharmacyWallet_${pharmId}`) || '{"balance": 0, "transactions": []}')
+            pharmacyWallet.balance = (pharmacyWallet.balance || 0) + pharmacyAmount
+            const transaction = {
+              id: `txn-${Date.now()}-${pharmId}`,
+              type: 'credit',
+              amount: pharmacyAmount,
+              description: `Payment received for order from ${selectedRequest.patient?.name || 'Patient'}`,
+              orderId: order.id,
+              requestId: selectedRequest.id,
+              patientName: selectedRequest.patient?.name || 'Patient',
+              createdAt: new Date().toISOString(),
+            }
+            pharmacyWallet.transactions = pharmacyWallet.transactions || []
+            pharmacyWallet.transactions.unshift(transaction)
+            localStorage.setItem(`pharmacyWallet_${pharmId}`, JSON.stringify(pharmacyWallet))
+          } catch (error) {
+            console.error('Error updating pharmacy wallet:', error)
+          }
+        })
+
+        // Save patient order (combined)
+        const patientOrder = {
+          id: `order-${Date.now()}`,
+          requestId: selectedRequest.id,
+          type: 'pharmacy',
+          patientId: 'pat-current',
+          patientName: selectedRequest.patient?.name || 'Patient',
+          providerIds: providerIds,
+          providerNames: providerNames,
+          medicines: selectedRequest.adminMedicines || [],
+          totalAmount: selectedRequest.totalAmount,
+          status: 'confirmed',
+          createdAt: new Date().toISOString(),
+          paidAt: new Date().toISOString(),
+        }
+        const orders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+        orders.push(patientOrder)
+        localStorage.setItem('patientOrders', JSON.stringify(orders))
+
+        // Save to admin orders (all pharmacy orders)
+        const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
+        pharmacyOrders.forEach(order => {
+          adminOrders.push(order)
+        })
+        localStorage.setItem('adminOrders', JSON.stringify(adminOrders))
+
+        // Update admin wallet with total payment
+        try {
+          const adminWallet = JSON.parse(localStorage.getItem('adminWallet') || '{"balance": 0, "transactions": []}')
+          adminWallet.balance = (adminWallet.balance || 0) + selectedRequest.totalAmount
+          const transaction = {
+            id: `txn-${Date.now()}`,
+            type: 'credit',
+            amount: selectedRequest.totalAmount,
+            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for medicine order (${providerNames.join(', ')})`,
+            orderId: patientOrder.id,
+            requestId: selectedRequest.id,
+            providerIds: providerIds,
+            providerNames: providerNames,
+            patientName: selectedRequest.patient?.name || 'Patient',
+            createdAt: new Date().toISOString(),
+            breakdown: pharmacyOrders.map(o => ({
+              pharmacyId: o.pharmacyId,
+              pharmacyName: o.pharmacyName,
+              amount: o.totalAmount,
+            })),
+          }
+          adminWallet.transactions = adminWallet.transactions || []
+          adminWallet.transactions.unshift(transaction)
+          localStorage.setItem('adminWallet', JSON.stringify(adminWallet))
+        } catch (error) {
+          console.error('Error updating admin wallet:', error)
+        }
+
       } else if (selectedRequest.type === 'lab') {
+        // Lab order
+        const order = {
+          id: `order-${Date.now()}`,
+          requestId: selectedRequest.id,
+          type: 'lab',
+          patientId: 'pat-current',
+          patientName: selectedRequest.patient?.name || 'Patient',
+          labId: selectedRequest.providerId,
+          labName: selectedRequest.providerName || 'Laboratory',
+          investigations: selectedRequest.investigations || [],
+          totalAmount: selectedRequest.totalAmount,
+          status: 'confirmed',
+          createdAt: new Date().toISOString(),
+          paidAt: new Date().toISOString(),
+          paymentConfirmed: true,
+        }
+
+        // Save patient order
+        const orders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+        orders.push(order)
+        localStorage.setItem('patientOrders', JSON.stringify(orders))
+
+        // Save to admin orders
+        const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
+        adminOrders.push(order)
+        localStorage.setItem('adminOrders', JSON.stringify(adminOrders))
+
+        // Update lab order status
         try {
           const labOrders = JSON.parse(localStorage.getItem(`labOrders_${selectedRequest.providerId}`) || '[]')
           const updatedLabOrders = labOrders.map(labOrder => {
@@ -523,6 +613,50 @@ const PatientRequests = () => {
           localStorage.setItem(`labOrders_${selectedRequest.providerId}`, JSON.stringify(updatedLabOrders))
         } catch (error) {
           console.error('Error updating lab order:', error)
+        }
+
+        // Update lab wallet (if exists)
+        try {
+          const labWallet = JSON.parse(localStorage.getItem(`labWallet_${selectedRequest.providerId}`) || '{"balance": 0, "transactions": []}')
+          labWallet.balance = (labWallet.balance || 0) + selectedRequest.totalAmount
+          const transaction = {
+            id: `txn-${Date.now()}-${selectedRequest.providerId}`,
+            type: 'credit',
+            amount: selectedRequest.totalAmount,
+            description: `Payment received for order from ${selectedRequest.patient?.name || 'Patient'}`,
+            orderId: order.id,
+            requestId: selectedRequest.id,
+            patientName: selectedRequest.patient?.name || 'Patient',
+            createdAt: new Date().toISOString(),
+          }
+          labWallet.transactions = labWallet.transactions || []
+          labWallet.transactions.unshift(transaction)
+          localStorage.setItem(`labWallet_${selectedRequest.providerId}`, JSON.stringify(labWallet))
+        } catch (error) {
+          console.error('Error updating lab wallet:', error)
+        }
+
+        // Update admin wallet with total payment
+        try {
+          const adminWallet = JSON.parse(localStorage.getItem('adminWallet') || '{"balance": 0, "transactions": []}')
+          adminWallet.balance = (adminWallet.balance || 0) + selectedRequest.totalAmount
+          const transaction = {
+            id: `txn-${Date.now()}`,
+            type: 'credit',
+            amount: selectedRequest.totalAmount,
+            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for lab test order (${selectedRequest.providerName || 'Laboratory'})`,
+            orderId: order.id,
+            requestId: selectedRequest.id,
+            providerId: selectedRequest.providerId,
+            providerName: selectedRequest.providerName,
+            patientName: selectedRequest.patient?.name || 'Patient',
+            createdAt: new Date().toISOString(),
+          }
+          adminWallet.transactions = adminWallet.transactions || []
+          adminWallet.transactions.unshift(transaction)
+          localStorage.setItem('adminWallet', JSON.stringify(adminWallet))
+        } catch (error) {
+          console.error('Error updating admin wallet:', error)
         }
       }
 
@@ -549,30 +683,82 @@ const PatientRequests = () => {
 
     setIsProcessing(true)
 
-    // Simulate sending cancel request to pharmacy/laboratory
-    setTimeout(() => {
-      setIsProcessing(false)
-      
-      // In real app, this would be an API call to send cancel message to provider
-      const cancelMessage = {
-        requestId: request.id,
-        type: request.type,
-        providerId: request.providerId,
-        providerName: request.providerName,
-        message: `Request has been cancelled by patient. Request ID: ${request.id}`,
-        cancelledAt: new Date().toISOString(),
+    try {
+      // Update patient request status to cancelled
+      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+      const updatedRequests = patientRequests.map(req => 
+        req.id === request.id 
+          ? { ...req, status: 'cancelled', cancelledAt: new Date().toISOString(), cancelledBy: 'patient' }
+          : req
+      )
+      localStorage.setItem('patientRequests', JSON.stringify(updatedRequests))
+
+      // Update admin request status to cancelled
+      const allAdminRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      const updatedAdminRequests = allAdminRequests.map(req => {
+        if (req.id === request.id) {
+          return {
+            ...req,
+            status: 'cancelled',
+            cancelledAt: new Date().toISOString(),
+            cancelledBy: 'patient',
+            cancellationMessage: `Request cancelled by patient ${request.patient?.name || 'Patient'}. Request ID: ${request.id}`,
+          }
+        }
+        return req
+      })
+      localStorage.setItem('adminRequests', JSON.stringify(updatedAdminRequests))
+
+      // Update pharmacy/lab orders to cancelled
+      if (request.type === 'pharmacy') {
+        const providerIds = request.providerId ? request.providerId.split(',') : []
+        providerIds.forEach(pharmId => {
+          try {
+            const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmId}`) || '[]')
+            const updatedPharmacyOrders = pharmacyOrders.map(pharmOrder => {
+              if (pharmOrder.requestId === request.id) {
+                return {
+                  ...pharmOrder,
+                  status: 'cancelled',
+                  cancelledAt: new Date().toISOString(),
+                  cancelledBy: 'patient',
+                }
+              }
+              return pharmOrder
+            })
+            localStorage.setItem(`pharmacyOrders_${pharmId}`, JSON.stringify(updatedPharmacyOrders))
+          } catch (error) {
+            console.error('Error updating pharmacy order:', error)
+          }
+        })
+      } else if (request.type === 'lab') {
+        try {
+          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${request.providerId}`) || '[]')
+          const updatedLabOrders = labOrders.map(labOrder => {
+            if (labOrder.requestId === request.id) {
+              return {
+                ...labOrder,
+                status: 'cancelled',
+                cancelledAt: new Date().toISOString(),
+                cancelledBy: 'patient',
+              }
+            }
+            return labOrder
+          })
+          localStorage.setItem(`labOrders_${request.providerId}`, JSON.stringify(updatedLabOrders))
+        } catch (error) {
+          console.error('Error updating lab order:', error)
+        }
       }
-      
-      // Log cancel request (in real app, this would be an API call)
-      console.log('Cancel request sent to provider:', cancelMessage)
-      
-      // Remove the request from the list (actually cancel it)
-      setRequests(prevRequests => prevRequests.filter(req => req.id !== request.id))
-      setCancelledRequests(prev => [...prev, { ...request, status: 'cancelled', cancelledAt: new Date().toISOString() }])
-      
-      // Show success message
-      alert(`Request cancelled successfully. Cancellation message sent to ${request.providerName}.`)
-    }, 1500)
+
+      setIsProcessing(false)
+      loadRequests()
+      alert(`Request cancelled successfully. Cancellation notification sent to ${request.providerName || 'provider'}.`)
+    } catch (error) {
+      console.error('Error cancelling request:', error)
+      setIsProcessing(false)
+      alert('Error cancelling request. Please try again.')
+    }
   }
 
   const getStatusColor = (status) => {
@@ -627,138 +813,122 @@ const PatientRequests = () => {
           {requests.map((request) => (
             <article
               key={request.id}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
+              className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
             >
               {/* Main Content */}
-              <div className="p-4 sm:p-5">
-                <div className="flex items-start gap-3 sm:gap-4">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+              <div className="p-3">
+                <div className="flex items-start gap-2.5">
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
                     request.type === 'lab' 
-                      ? 'text-white shadow-lg' 
-                      : 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-orange-300/50 text-white shadow-lg'
+                      ? 'text-white shadow-md' 
+                      : 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-orange-300/50 text-white shadow-md'
                   }`}
                   style={request.type === 'lab' ? { 
                     background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
-                    boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
+                    boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.2)'
                   } : {}}>
                     {request.type === 'lab' ? (
-                      <IoFlaskOutline className="h-6 w-6" />
+                      <IoFlaskOutline className="h-5 w-5" />
                     ) : (
-                      <IoBagHandleOutline className="h-6 w-6" />
+                      <IoBagHandleOutline className="h-5 w-5" />
                     )}
                   </div>
                   
                   <div className="flex-1 min-w-0">
-                    {/* Title and Status - Prevent Overlap */}
-                    <div className="mb-3">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <h3 className="flex-1 min-w-0 text-base font-bold text-slate-900 leading-tight pr-2 line-clamp-2">
-                          {request.type === 'lab' ? request.testName : request.medicineName}
+                    {/* Title and Status */}
+                    <div className="mb-2">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <h3 className="flex-1 min-w-0 text-sm font-bold text-slate-900 leading-tight pr-2 line-clamp-1">
+                          Healiinn
                         </h3>
                         <div className="shrink-0">
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${getStatusColor(request.status)}`}>
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${getStatusColor(request.status)}`}>
                             {getStatusIcon(request.status)}
                             <span>{getStatusLabel(request.status)}</span>
                           </span>
                         </div>
                       </div>
-                      <p className="text-xs text-slate-600 mb-1">{request.providerName}</p>
-                      <p className="text-[10px] text-slate-500">
-                        {formatDate(request.requestDate)} • {request.responseDate && formatDate(request.responseDate)}
+                      <p className="text-[9px] text-slate-500">
+                        {formatDate(request.requestDate)}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Patient Information Section - Full Width */}
-                {request.patient && (
-                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <IoPersonOutline className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                      <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Patient Information</h4>
+                {/* Admin Medicines List - Only show for pharmacy requests, not lab */}
+                {request.type !== 'lab' && request.type !== 'book_test_visit' && request.adminMedicines && request.adminMedicines.length > 0 && (
+                  <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <IoBagHandleOutline className="h-3 w-3 text-blue-600 shrink-0" />
+                      <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Medicines Added by Admin</h4>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10px] text-slate-700">
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium">{request.patient.name}</span>
-                        <span className="text-slate-400">•</span>
-                        <span className="text-slate-500 text-[9px]">{request.patient.age} yrs, {request.patient.gender}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <IoCallOutline className="h-3 w-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{request.patient.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <IoMailOutline className="h-3 w-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{request.patient.email}</span>
-                      </div>
-                      <div className="flex items-center gap-1 min-w-0 flex-1">
-                        <IoLocationOutline className="h-3 w-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{request.patient.address}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Admin Medicines List - If available */}
-                {request.adminMedicines && request.adminMedicines.length > 0 && (
-                  <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <IoBagHandleOutline className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                      <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Medicines Added by Admin</h4>
-                    </div>
-                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
                       {request.adminMedicines.map((med, idx) => (
-                        <div key={med.id || idx} className="flex items-center justify-between text-[10px] bg-white rounded px-2 py-1 border border-blue-100">
+                        <div key={med.id || idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-blue-100">
                           <div className="flex-1 min-w-0">
                             <span className="font-semibold text-slate-900">{med.name}</span>
                             {med.dosage && <span className="text-slate-600 ml-1">({med.dosage})</span>}
                             {med.quantity > 1 && <span className="text-slate-500 ml-1">x{med.quantity}</span>}
                           </div>
-                          <span className="font-semibold text-blue-700 shrink-0 ml-2">₹{((med.price || 0) * (med.quantity || 1)).toFixed(2)}</span>
+                          {((med.price || 0) * (med.quantity || 1)) > 0 && (
+                            <span className="font-semibold text-blue-700 shrink-0 ml-2">₹{((med.price || 0) * (med.quantity || 1)).toFixed(2)}</span>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Provider Response Section - Full Width */}
-                {request.providerResponse ? (
-                  <div className="mt-3 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      {request.type === 'lab' ? (
-                        <IoFlaskOutline className="h-3.5 w-3.5 text-[#11496c] shrink-0" />
-                      ) : (
-                        <IoBagHandleOutline className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                      )}
-                      <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">
-                        Response from {request.providerName}
-                      </h4>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-[10px] text-slate-700 leading-relaxed line-clamp-2">{request.providerResponse.message}</p>
-                      {request.totalAmount && (
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="font-semibold text-slate-600 uppercase tracking-wide">Total Amount:</span>
-                          <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between text-[9px] text-slate-500 pt-2 border-t border-slate-200/50">
-                        <span className="truncate flex-1 mr-2">{request.providerResponse.responseBy}</span>
-                        {request.providerResponse.responseTime && (
-                          <span className="flex items-center gap-0.5 shrink-0">
-                            <IoTimeOutline className="h-2.5 w-2.5" />
-                            {formatDate(request.providerResponse.responseTime)}
-                          </span>
-                        )}
+                {/* Total Amount - Only show for pharmacy requests with medicines and amount > 0 */}
+                {request.type !== 'lab' && request.type !== 'book_test_visit' && request.totalAmount && request.totalAmount > 0 && request.adminMedicines && request.adminMedicines.length > 0 && (
+                  <div className="mt-2 flex items-center justify-between rounded-lg border border-[#11496c] bg-[rgba(17,73,108,0.05)] px-2 py-1.5">
+                    <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wide">Total Amount:</span>
+                    <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
+                  </div>
+                )}
+
+                {/* Total Amount for Lab Requests - Show if amount > 0 */}
+                {(request.type === 'lab' || request.type === 'book_test_visit') && request.totalAmount && request.totalAmount > 0 && (
+                  <div className="mt-2 flex items-center justify-between rounded-lg border border-[#11496c] bg-[rgba(17,73,108,0.05)] px-2 py-1.5">
+                    <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wide">Total Amount:</span>
+                    <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
+                  </div>
+                )}
+
+                {/* Cancellation Reason - Show when cancelled */}
+                {request.status === 'cancelled' && request.cancelReason && (
+                  <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2">
+                    <div className="flex items-start gap-1.5">
+                      <IoCloseCircleOutline className="h-3 w-3 text-red-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-[9px] font-semibold text-red-900 mb-0.5">Cancellation Reason:</p>
+                        <p className="text-[9px] font-medium text-red-800 leading-tight">
+                          {request.cancelReason}
+                        </p>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                )}
+
+                {/* Waiting Message - Only for pharmacy requests, not lab */}
+                {request.type !== 'lab' && request.type !== 'book_test_visit' && (!request.adminMedicines || request.adminMedicines.length === 0) && request.status === 'accepted' && request.status !== 'cancelled' && (
+                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
                     <div className="flex items-center gap-1.5">
-                      <IoTimeOutline className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                      <p className="text-[10px] font-medium text-amber-900 leading-tight">
-                        Waiting for admin response...
+                      <IoTimeOutline className="h-3 w-3 text-amber-600 shrink-0" />
+                      <p className="text-[9px] font-medium text-amber-900 leading-tight">
+                        Waiting for medicine details...
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Waiting Message for Lab Requests */}
+                {(request.type === 'lab' || request.type === 'book_test_visit') && (!request.totalAmount || request.totalAmount === 0) && request.status === 'accepted' && request.status !== 'cancelled' && (
+                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                    <div className="flex items-center gap-1.5">
+                      <IoTimeOutline className="h-3 w-3 text-amber-600 shrink-0" />
+                      <p className="text-[9px] font-medium text-amber-900 leading-tight">
+                        Waiting for test details...
                       </p>
                     </div>
                   </div>
@@ -766,31 +936,34 @@ const PatientRequests = () => {
 
                 {/* Doctor Information */}
                 {request.doctor && (
-                  <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-500 px-1">
-                    <IoDocumentTextOutline className="h-3 w-3 shrink-0" />
+                  <div className="mt-2 flex items-center gap-1.5 text-[9px] text-slate-500 px-0.5">
+                    <IoDocumentTextOutline className="h-2.5 w-2.5 shrink-0" />
                     <span className="leading-tight">Prescribed by: <span className="font-medium text-slate-700">{request.doctor.name}</span> ({request.doctor.specialty})</span>
                   </div>
                 )}
 
                 {/* Confirmed Status - Compact */}
                 {request.status === 'confirmed' && (
-                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 p-3">
-                    <IoCheckmarkCircleOutline className="h-4 w-4 shrink-0 text-emerald-600" />
-                    <p className="text-xs font-semibold text-emerald-900 leading-relaxed">
+                  <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 p-2">
+                    <IoCheckmarkCircleOutline className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                    <p className="text-[10px] font-semibold text-emerald-900 leading-tight">
                       Booking confirmed! {request.type === 'lab' ? 'Test' : 'Medicine'} will be delivered as scheduled.
                     </p>
                   </div>
                 )}
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Buttons - Show for pharmacy when medicines available, or for lab when amount available */}
               {request.status === 'accepted' && (
-                <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-2.5 sm:p-3">
+                (request.type !== 'lab' && request.type !== 'book_test_visit' && request.adminMedicines && request.adminMedicines.length > 0 && request.totalAmount && request.totalAmount > 0) ||
+                ((request.type === 'lab' || request.type === 'book_test_visit') && request.totalAmount && request.totalAmount > 0)
+              ) && (
+                <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-2">
                   <button
                     type="button"
                     onClick={() => handlePayClick(request)}
                     disabled={isProcessing}
-                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-[#11496c] px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-[#11496c] px-2 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <IoCardOutline className="h-3 w-3 shrink-0" />
                     Pay & Confirm
@@ -799,18 +972,10 @@ const PatientRequests = () => {
                     type="button"
                     onClick={() => handleCancelRequest(request)}
                     disabled={isProcessing}
-                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-red-600 px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(220,38,38,0.3)] transition-all hover:bg-red-700 hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-red-600 px-2 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(220,38,38,0.3)] transition-all hover:bg-red-700 hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <IoCloseCircleOutline className="h-3 w-3 shrink-0" />
                     Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleViewReceipt(request)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-700 text-white shadow-sm shadow-[rgba(51,65,85,0.3)] transition-all hover:bg-slate-800 hover:shadow active:scale-95"
-                    aria-label="View receipt"
-                  >
-                    <IoReceiptOutline className="h-4 w-4" />
                   </button>
                 </div>
               )}
@@ -897,7 +1062,7 @@ const PatientRequests = () => {
                     <p className="text-sm font-semibold text-slate-900">
                       {selectedRequest.type === 'lab' ? selectedRequest.testName : selectedRequest.medicineName}
                     </p>
-                    <p className="text-xs text-slate-600">{selectedRequest.providerName}</p>
+                    <p className="text-xs text-slate-600">Healiinn</p>
                   </div>
                   <span className="text-lg font-bold text-[#11496c]">
                     {formatCurrency(selectedRequest.totalAmount)}

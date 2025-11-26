@@ -7,16 +7,21 @@ import {
   IoPricetagOutline,
   IoCubeOutline,
   IoCheckmarkCircleOutline,
+  IoFlaskOutline,
 } from 'react-icons/io5'
 
 const AdminInventory = () => {
   const [pharmacyList, setPharmacyList] = useState([])
+  const [labList, setLabList] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPharmacy, setSelectedPharmacy] = useState(null)
-  const [activeTab, setActiveTab] = useState('total') // 'total' or 'pharmacy'
+  const [selectedLab, setSelectedLab] = useState(null)
+  const [activeTab, setActiveTab] = useState('total') // 'total', 'pharmacy', or 'laboratory'
+  const [inventoryType, setInventoryType] = useState('pharmacy') // 'pharmacy' or 'laboratory'
 
   useEffect(() => {
     loadPharmacyInventory()
+    loadLaboratoryInventory()
   }, [])
 
   const loadPharmacyInventory = () => {
@@ -101,6 +106,88 @@ const AdminInventory = () => {
     setPharmacyList(availabilityList)
   }
 
+  const loadLaboratoryInventory = () => {
+    // Get data from localStorage
+    let availabilityList = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
+    
+    // If no data in localStorage, use dummy data for registered laboratories
+    if (availabilityList.length === 0) {
+      availabilityList = [
+        {
+          labId: 'lab-1',
+          labName: 'MediCare Diagnostics',
+          status: 'approved',
+          isActive: true,
+          phone: '+91 98765 11111',
+          email: 'medicare@lab.com',
+          address: '123 Health Street, Pune, Maharashtra 411001',
+          rating: 4.9,
+          tests: [
+            { name: 'Complete Blood Count (CBC)', price: 500 },
+            { name: 'Lipid Profile', price: 800 },
+            { name: 'ECG', price: 300 },
+            { name: 'Blood Sugar Test', price: 250 },
+          ],
+        },
+        {
+          labId: 'lab-2',
+          labName: 'HealthFirst Lab',
+          status: 'approved',
+          isActive: true,
+          phone: '+91 98765 22222',
+          email: 'healthfirst@lab.com',
+          address: '456 Test Avenue, Mumbai, Maharashtra 400001',
+          rating: 4.7,
+          tests: [
+            { name: 'Blood Pressure Monitoring', price: 200 },
+            { name: 'Blood Sugar Test', price: 250 },
+            { name: 'Thyroid Function Test', price: 600 },
+          ],
+        },
+        {
+          labId: 'lab-3',
+          labName: 'City Diagnostic Center',
+          status: 'approved',
+          isActive: true,
+          phone: '+91 98765 33333',
+          email: 'citylab@lab.com',
+          address: '789 Medical Road, Delhi, Delhi 110001',
+          rating: 4.8,
+          tests: [
+            { name: 'Complete Blood Count (CBC)', price: 480 },
+            { name: 'ECG', price: 280 },
+            { name: 'X-Ray Chest', price: 400 },
+          ],
+        },
+        {
+          labId: 'lab-4',
+          labName: 'Advanced Lab Services',
+          status: 'approved',
+          isActive: true,
+          phone: '+91 98765 44444',
+          email: 'advanced@lab.com',
+          address: '321 Science Park, Bangalore, Karnataka 560001',
+          rating: 4.6,
+          tests: [
+            { name: 'Lipid Profile', price: 750 },
+            { name: 'Liver Function Test', price: 900 },
+          ],
+        },
+        {
+          labId: 'lab-5',
+          labName: 'Quick Test Lab',
+          status: 'pending',
+          isActive: false,
+          tests: [],
+        },
+      ]
+      // Save dummy data to localStorage for future use
+      localStorage.setItem('allLabAvailability', JSON.stringify(availabilityList))
+    }
+    
+    setLabList(availabilityList)
+  }
+
   // Calculate total inventory statistics
   const totalInventory = useMemo(() => {
     const allMedicines = pharmacyList.flatMap(pharmacy => 
@@ -154,23 +241,39 @@ const AdminInventory = () => {
 
   const filteredPharmacies = pharmacyList.filter(pharmacy =>
     pharmacy.pharmacyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pharmacy.medicines.some(med =>
+    (pharmacy.medicines || []).some(med =>
       med.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       med.dosage.toLowerCase().includes(searchTerm.toLowerCase())
     )
   )
 
-  // Filter total inventory medicines by search term
-  const filteredTotalInventory = useMemo(() => {
-    if (!searchTerm.trim()) return totalInventory.medicineMap
-    
-    const searchLower = searchTerm.toLowerCase()
-    return totalInventory.medicineMap.filter(med =>
-      med.name.toLowerCase().includes(searchLower) ||
-      med.dosage.toLowerCase().includes(searchLower) ||
-      med.manufacturer.toLowerCase().includes(searchLower)
+  const filteredLabs = labList.filter(lab =>
+    lab.labName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (lab.tests || []).some(test =>
+      test.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
-  }, [totalInventory.medicineMap, searchTerm])
+  )
+
+  // Filter total inventory medicines/tests by search term
+  const filteredTotalInventory = useMemo(() => {
+    if (inventoryType === 'pharmacy') {
+      if (!searchTerm.trim()) return totalPharmacyInventory.medicineMap || []
+      
+      const searchLower = searchTerm.toLowerCase()
+      return (totalPharmacyInventory.medicineMap || []).filter(med =>
+        med.name.toLowerCase().includes(searchLower) ||
+        med.dosage.toLowerCase().includes(searchLower) ||
+        (med.manufacturer && med.manufacturer.toLowerCase().includes(searchLower))
+      )
+    } else {
+      if (!searchTerm.trim()) return totalLabInventory.testMap || []
+      
+      const searchLower = searchTerm.toLowerCase()
+      return (totalLabInventory.testMap || []).filter(test =>
+        test.name.toLowerCase().includes(searchLower)
+      )
+    }
+  }, [totalPharmacyInventory.medicineMap, totalLabInventory.testMap, searchTerm, inventoryType])
 
   // Filter pharmacies for Total Inventory tab
   const filteredPharmaciesForTotal = useMemo(() => {
@@ -204,6 +307,96 @@ const AdminInventory = () => {
     } catch {
       return dateString
     }
+  }
+
+  // Laboratory Detail View
+  if (selectedLab) {
+    const labTotalValue = (selectedLab.tests || []).reduce((sum, test) => {
+      const price = parseFloat(test.price) || 0
+      return sum + price
+    }, 0)
+
+    return (
+      <section className="flex flex-col gap-4 pb-4">
+        {/* Laboratory Summary Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="rounded-2xl border border-blue-200/60 bg-gradient-to-br from-blue-50 via-blue-50/80 to-blue-100/60 p-4 text-center shadow-sm">
+            <IoFlaskOutline className="mx-auto h-6 w-6 text-blue-600 mb-2" />
+            <p className="text-2xl font-bold text-blue-600">{selectedLab.tests.length}</p>
+            <p className="text-xs font-semibold text-blue-700">Tests</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-emerald-100/60 p-4 text-center shadow-sm">
+            <IoFlaskOutline className="mx-auto h-6 w-6 text-emerald-600 mb-2" />
+            <p className="text-2xl font-bold text-emerald-600">
+              {(selectedLab.tests || []).length}
+            </p>
+            <p className="text-xs font-semibold text-emerald-700">Available Tests</p>
+          </div>
+          <div className="rounded-2xl border border-purple-200/60 bg-gradient-to-br from-purple-50 via-purple-50/80 to-purple-100/60 p-4 text-center shadow-sm col-span-2 sm:col-span-1">
+            <IoPricetagOutline className="mx-auto h-6 w-6 text-purple-600 mb-2" />
+            <p className="text-2xl font-bold text-purple-600">{formatCurrency(labTotalValue)}</p>
+            <p className="text-xs font-semibold text-purple-700">Total Value</p>
+          </div>
+        </div>
+
+        {/* Tests List */}
+        <div className="space-y-2">
+          {selectedLab.tests.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+              <IoFlaskOutline className="mx-auto h-10 w-10 text-slate-400" />
+              <p className="mt-3 text-sm font-medium text-slate-600">No tests in inventory</p>
+            </div>
+          ) : (
+            selectedLab.tests.map((test, index) => {
+              const price = parseFloat(test.price) || 0
+
+              return (
+                <article
+                  key={index}
+                  className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm transition-all hover:shadow-md"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                      <IoFlaskOutline className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-slate-900 mb-0.5">{test.name}</h3>
+                          <div className="flex items-center gap-2.5 text-xs">
+                            <span className="text-slate-600">
+                              <span className="font-medium">Price:</span> <span className="font-semibold text-slate-900">{formatCurrency(price)}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-slate-900">{formatCurrency(price)}</p>
+                            <p className="text-xs text-slate-500">Test Price</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              )
+            })
+          )}
+        </div>
+
+        {/* Back Button */}
+        <div className="flex justify-start">
+          <button
+            type="button"
+            onClick={() => setSelectedLab(null)}
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            <IoSearchOutline className="h-4 w-4" />
+            Back to List
+          </button>
+        </div>
+      </section>
+    )
   }
 
   // Pharmacy Detail View
@@ -309,7 +502,15 @@ const AdminInventory = () => {
         </span>
         <input
           type="search"
-          placeholder={activeTab === 'total' ? 'Search by pharmacy name...' : 'Search by pharmacy name or medicine...'}
+          placeholder={
+            activeTab === 'total' 
+              ? inventoryType === 'pharmacy' 
+                ? 'Search by pharmacy name...' 
+                : 'Search by laboratory name...'
+              : activeTab === 'pharmacy'
+              ? 'Search by pharmacy name or medicine...'
+              : 'Search by laboratory name or test...'
+          }
           className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-slate-300 hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -320,7 +521,10 @@ const AdminInventory = () => {
       <div className="flex gap-2 border-b border-slate-200">
         <button
           type="button"
-          onClick={() => setActiveTab('total')}
+          onClick={() => {
+            setActiveTab('total')
+            setInventoryType('pharmacy')
+          }}
           className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
             activeTab === 'total'
               ? 'text-[#11496c] border-[#11496c]'
@@ -331,7 +535,11 @@ const AdminInventory = () => {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('pharmacy')}
+          onClick={() => {
+            setActiveTab('pharmacy')
+            setInventoryType('pharmacy')
+            setSelectedLab(null)
+          }}
           className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
             activeTab === 'pharmacy'
               ? 'text-[#11496c] border-[#11496c]'
@@ -340,6 +548,21 @@ const AdminInventory = () => {
         >
           Pharmacy Inventory
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('laboratory')
+            setInventoryType('laboratory')
+            setSelectedPharmacy(null)
+          }}
+          className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
+            activeTab === 'laboratory'
+              ? 'text-[#11496c] border-[#11496c]'
+              : 'text-slate-600 border-transparent hover:text-slate-900'
+          }`}
+        >
+          Laboratory Inventory
+        </button>
       </div>
 
       {/* Total Inventory Summary Cards */}
@@ -347,22 +570,40 @@ const AdminInventory = () => {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
-              <IoBusinessOutline className="h-6 w-6 text-[#11496c]" />
+              {inventoryType === 'pharmacy' ? (
+                <IoBusinessOutline className="h-6 w-6 text-[#11496c]" />
+              ) : (
+                <IoFlaskOutline className="h-6 w-6 text-[#11496c]" />
+              )}
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-600">Total Pharmacies</p>
-              <p className="text-2xl font-bold text-slate-900">{totalInventory.totalPharmacies}</p>
+              <p className="text-xs font-medium text-slate-600">
+                {inventoryType === 'pharmacy' ? 'Total Pharmacies' : 'Total Laboratories'}
+              </p>
+              <p className="text-2xl font-bold text-slate-900">
+                {inventoryType === 'pharmacy' ? totalInventory.totalPharmacies : totalInventory.totalLabs}
+              </p>
             </div>
           </div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
-              <IoCubeOutline className="h-6 w-6 text-blue-600" />
+              {inventoryType === 'pharmacy' ? (
+                <IoCubeOutline className="h-6 w-6 text-blue-600" />
+              ) : (
+                <IoFlaskOutline className="h-6 w-6 text-blue-600" />
+              )}
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-600">Total Stock</p>
-              <p className="text-2xl font-bold text-slate-900">{totalInventory.totalStock.toLocaleString()}</p>
+              <p className="text-xs font-medium text-slate-600">
+                {inventoryType === 'pharmacy' ? 'Total Stock' : 'Total Tests'}
+              </p>
+              <p className="text-2xl font-bold text-slate-900">
+                {inventoryType === 'pharmacy' 
+                  ? (totalInventory.totalStock || 0).toLocaleString() 
+                  : (totalInventory.totalTests || 0).toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
@@ -373,7 +614,7 @@ const AdminInventory = () => {
             </div>
             <div>
               <p className="text-xs font-medium text-slate-600">Total Value</p>
-              <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalInventory.totalValue)}</p>
+              <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalInventory.totalValue || 0)}</p>
             </div>
           </div>
         </div>
@@ -381,9 +622,36 @@ const AdminInventory = () => {
 
       {/* Tab Content */}
       {activeTab === 'total' ? (
-        /* Total Inventory Tab - Show All Registered Pharmacies */
+        /* Total Inventory Tab - Show All Registered Pharmacies or Laboratories */
         <div className="space-y-3">
-          {filteredPharmaciesForTotal.length === 0 ? (
+          {/* Type Selector for Total Inventory */}
+          <div className="flex gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setInventoryType('pharmacy')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                inventoryType === 'pharmacy'
+                  ? 'bg-[#11496c] text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Pharmacies
+            </button>
+            <button
+              type="button"
+              onClick={() => setInventoryType('laboratory')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                inventoryType === 'laboratory'
+                  ? 'bg-[#11496c] text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Laboratories
+            </button>
+          </div>
+
+          {inventoryType === 'pharmacy' ? (
+            (filteredPharmaciesForTotal || []).length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
               <IoBusinessOutline className="mx-auto h-12 w-12 text-slate-400" />
               <p className="mt-4 text-sm font-medium text-slate-600">
@@ -477,9 +745,21 @@ const AdminInventory = () => {
                 </article>
               )
             })
+          )
+          ) : (
+            // Laboratory section for total inventory
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+              <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-400" />
+              <p className="mt-4 text-sm font-medium text-slate-600">
+                {searchTerm ? 'No laboratories found' : 'No registered laboratories yet'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {searchTerm ? 'Try a different search term' : 'Laboratories will appear here once they register'}
+              </p>
+            </div>
           )}
         </div>
-      ) : (
+      ) : activeTab === 'pharmacy' ? (
         /* Pharmacy Inventory Tab */
         <div className="space-y-3">
           {filteredPharmacies.length === 0 ? (
@@ -557,6 +837,88 @@ const AdminInventory = () => {
                           {pharmacy.medicines.length > 3 && (
                             <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">
                               +{pharmacy.medicines.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              )
+            })
+          )}
+        </div>
+      ) : (
+        /* Laboratory Inventory Tab */
+        <div className="space-y-3">
+          {filteredLabs.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+              <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-400" />
+              <p className="mt-4 text-sm font-medium text-slate-600">
+                {searchTerm ? 'No laboratories found' : 'No laboratories have added tests yet'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {searchTerm ? 'Try a different search term' : 'Laboratories will appear here once they add their tests'}
+              </p>
+            </div>
+          ) : (
+            filteredLabs.map((lab) => {
+              const labTotalValue = (lab.tests || []).reduce((sum, test) => {
+                const price = parseFloat(test.price) || 0
+                return sum + price
+              }, 0)
+              const testCount = (lab.tests || []).length
+
+              return (
+                <article
+                  key={lab.labId}
+                  onClick={() => setSelectedLab(lab)}
+                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-[rgba(17,73,108,0.3)] hover:shadow-md cursor-pointer active:scale-[0.98]"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
+                      <IoFlaskOutline className="h-6 w-6 text-[#11496c]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-semibold text-slate-900 mb-1">{lab.labName}</h3>
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-2">
+                            <span className="flex items-center gap-1">
+                              <IoFlaskOutline className="h-3 w-3" />
+                              <span className="font-semibold text-slate-700">{testCount}</span>
+                              <span>{testCount === 1 ? 'test' : 'tests'}</span>
+                            </span>
+                            <span className="text-slate-400">•</span>
+                            <span className="flex items-center gap-1">
+                              <IoPricetagOutline className="h-3 w-3" />
+                              <span className="font-semibold text-[#11496c]">{formatCurrency(labTotalValue)}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="shrink-0">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                            <IoCheckmarkCircleOutline className="h-3 w-3" />
+                            Active
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Sample Tests Preview */}
+                      {testCount > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {lab.tests.slice(0, 3).map((test, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700"
+                            >
+                              <IoFlaskOutline className="h-3 w-3" />
+                              {test.name} - {formatCurrency(test.price)}
+                            </span>
+                          ))}
+                          {testCount > 3 && (
+                            <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">
+                              +{testCount - 3} more
                             </span>
                           )}
                         </div>
