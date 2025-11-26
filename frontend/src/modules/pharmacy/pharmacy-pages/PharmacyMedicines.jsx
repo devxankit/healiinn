@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   IoAddOutline,
   IoCloseOutline,
@@ -7,6 +7,8 @@ import {
   IoCheckmarkCircleOutline,
   IoTrashOutline,
   IoPencilOutline,
+  IoBagHandleOutline,
+  IoAlertCircleOutline,
 } from 'react-icons/io5'
 
 const PharmacyMedicines = () => {
@@ -166,38 +168,70 @@ const PharmacyMedicines = () => {
     }).format(amount)
   }
 
+  // Calculate statistics
+  const statistics = useMemo(() => {
+    const totalMedicines = medicines.length
+    const totalStock = medicines.reduce((sum, med) => {
+      const qty = parseInt(med.quantity) || 0
+      return sum + qty
+    }, 0)
+
+    return { totalMedicines, totalStock }
+  }, [medicines])
+
+  // Get stock status
+  const getStockStatus = (quantity) => {
+    const qty = parseInt(quantity) || 0
+    if (qty === 0) return { label: 'Out of Stock', color: 'bg-red-100 text-red-700 border-red-200', icon: IoAlertCircleOutline }
+    if (qty < 50) return { label: 'Low Stock', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: IoAlertCircleOutline }
+    return { label: 'In Stock', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: IoCheckmarkCircleOutline }
+  }
+
   return (
     <section className="flex flex-col gap-4 pb-4">
-      {/* Search Bar */}
-      <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-          <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <input
-          type="search"
-          placeholder="Search by medicine name, dosage, or manufacturer..."
-          className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-slate-300 hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
-
-      {/* Add Medicine Button */}
-      <div className="flex items-center justify-end">
+      {/* Search Bar and Add Button */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <input
+            type="search"
+            placeholder="Search by medicine name, dosage, or manufacturer..."
+            className="w-full h-[42px] rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-[#1a5f7a] hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
         <button
           type="button"
           onClick={handleAddMedicine}
-          className="flex items-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a54] active:scale-95"
+          className="flex items-center justify-center h-[42px] rounded-lg bg-[#11496c] px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a54] active:scale-95 shrink-0"
         >
-          <IoAddOutline className="h-5 w-5" />
-          Add Medicine
+          Add
         </button>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="group relative overflow-hidden rounded-lg border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-emerald-100/60 p-2.5 text-center shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-emerald-200/40 hover:scale-[1.01] hover:border-emerald-300/80">
+          <div className="absolute -right-3 -top-3 h-12 w-12 rounded-full bg-emerald-200/40 blur-lg transition-opacity group-hover:opacity-100 opacity-70" />
+          <IoMedicalOutline className="relative mx-auto h-5 w-5 text-emerald-600 mb-0.5" />
+          <p className="relative text-lg font-bold text-emerald-600">{statistics.totalMedicines}</p>
+          <p className="relative text-[10px] font-semibold text-emerald-700">Medicines</p>
+        </div>
+        <div className="group relative overflow-hidden rounded-lg border border-blue-200/60 bg-gradient-to-br from-blue-50 via-blue-50/80 to-blue-100/60 p-2.5 text-center shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-blue-200/40 hover:scale-[1.01] hover:border-blue-300/80">
+          <div className="absolute -right-3 -top-3 h-12 w-12 rounded-full bg-blue-200/40 blur-lg transition-opacity group-hover:opacity-100 opacity-70" />
+          <IoBagHandleOutline className="relative mx-auto h-5 w-5 text-blue-600 mb-0.5" />
+          <p className="relative text-lg font-bold text-blue-600">{statistics.totalStock}</p>
+          <p className="relative text-[10px] font-semibold text-blue-700">Total Stock</p>
+        </div>
+      </div>
+
       {/* Medicines List */}
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {filteredMedicines.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             <IoMedicalOutline className="mx-auto h-12 w-12 text-slate-400" />
             <p className="mt-4 text-sm font-medium text-slate-600">
               {searchTerm ? 'No medicines found' : 'No medicines added yet'}
@@ -207,79 +241,110 @@ const PharmacyMedicines = () => {
             </p>
           </div>
         ) : (
-          filteredMedicines.map((medicine) => (
-            <article
-              key={medicine.id}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
-            >
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
-                  <IoMedicalOutline className="h-6 w-6 text-[#11496c]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base font-semibold text-slate-900 mb-1">{medicine.name}</h3>
-                      <p className="text-sm text-slate-600 mb-1">Dosage: {medicine.dosage}</p>
-                      {medicine.manufacturer && (
-                        <p className="text-xs text-slate-500 mb-2">Manufacturer: {medicine.manufacturer}</p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <span className="font-semibold text-slate-700">Quantity:</span>
-                          <span>{medicine.quantity}</span>
-                        </span>
-                        <span className="text-slate-400">•</span>
-                        <span className="flex items-center gap-1">
-                          <span className="font-semibold text-slate-700">Price:</span>
+          filteredMedicines.map((medicine) => {
+            const stockStatus = getStockStatus(medicine.quantity)
+            const StatusIcon = stockStatus.icon
+            
+            return (
+              <article
+                key={medicine.id}
+                className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all hover:border-[rgba(17,73,108,0.2)] hover:shadow-md"
+              >
+                <div className="flex items-start gap-3">
+                  {/* Medicine Icon */}
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[rgba(17,73,108,0.1)]">
+                    <IoMedicalOutline className="h-6 w-6 text-[#11496c]" />
+                  </div>
+                  
+                  {/* Medicine Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        {/* Medicine Name */}
+                        <h3 className="text-base font-bold text-slate-900 mb-1.5 leading-tight">{medicine.name}</h3>
+                        
+                        {/* Dosage - Line by Line */}
+                        <div className="flex items-center gap-2 text-xs text-slate-600 mb-1">
+                          <span className="font-medium">Dosage:</span>
+                          <span>{medicine.dosage}</span>
+                        </div>
+
+                        {/* Manufacturer - Line by Line */}
+                        {medicine.manufacturer && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500 mb-1.5">
+                            <span className="font-medium">Manufacturer:</span>
+                            <span>{medicine.manufacturer}</span>
+                          </div>
+                        )}
+
+                        {/* Quantity - Line by Line */}
+                        <div className="flex items-center gap-2 text-xs text-slate-700 mb-1">
+                          <span className="font-semibold">Quantity:</span>
+                          <span className="text-slate-900">{medicine.quantity}</span>
+                        </div>
+
+                        {/* Price - Line by Line */}
+                        <div className="flex items-center gap-2 text-xs text-slate-700">
+                          <span className="font-semibold">Price:</span>
                           <span className="text-[#11496c] font-bold">{formatCurrency(parseFloat(medicine.price))}</span>
-                        </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleEditMedicine(medicine)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                        aria-label="Edit medicine"
-                      >
-                        <IoPencilOutline className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteMedicine(medicine.id)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:border-red-300 hover:bg-red-50"
-                        aria-label="Delete medicine"
-                      >
-                        <IoTrashOutline className="h-4 w-4" />
-                      </button>
+                      
+                      {/* Right Side - Status Badge and Action Buttons */}
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        {/* Stock Status Badge - Top Right */}
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${stockStatus.color}`}>
+                          <StatusIcon className="h-2.5 w-2.5" />
+                          {stockStatus.label}
+                        </span>
+                        
+                        {/* Action Buttons - Below Status */}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleEditMedicine(medicine)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] hover:text-[#11496c] active:scale-95"
+                            aria-label="Edit medicine"
+                          >
+                            <IoPencilOutline className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMedicine(medicine.id)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:border-red-300 hover:bg-red-50 active:scale-95"
+                            aria-label="Delete medicine"
+                          >
+                            <IoTrashOutline className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </article>
-          ))
+              </article>
+            )
+          })
         )}
       </div>
 
       {/* Add/Edit Medicine Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 p-4">
-              <h2 className="text-lg font-semibold text-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-[#11496c] to-[#0d3a52] p-4 rounded-t-2xl">
+              <h2 className="text-lg font-bold text-white">
                 {editingMedicine ? 'Edit Medicine' : 'Add New Medicine'}
               </h2>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 transition hover:bg-white/20 hover:text-white"
                 aria-label="Close modal"
               >
                 <IoCloseOutline className="h-5 w-5" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-4 space-y-4">
+            <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1.5">
                   Medicine Name <span className="text-red-500">*</span>
@@ -357,13 +422,13 @@ const PharmacyMedicines = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a54]"
+                  className="flex-1 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d3a54] active:scale-95"
                 >
                   {editingMedicine ? 'Update' : 'Add'} Medicine
                 </button>

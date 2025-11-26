@@ -233,22 +233,22 @@ const LaboratoryRequestOrders = () => {
   return (
     <div className="flex flex-col gap-4">
       {/* Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="flex gap-2">
         {[
-          { key: 'all', label: 'All', count: requests.length },
-          { key: 'pending', label: 'Pending', count: requests.filter(r => r.status === 'pending').length },
-          { key: 'completed', label: 'Completed', count: requests.filter(r => r.status === 'completed').length },
+          { key: 'all', label: 'All' },
+          { key: 'pending', label: 'Pending' },
+          { key: 'completed', label: 'Completed' },
         ].map((tab) => (
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key)}
-            className={`shrink-0 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
               filter === tab.key
                 ? 'bg-[#11496c] text-white shadow-md shadow-[rgba(17,73,108,0.3)]'
                 : 'bg-white text-slate-700 border border-slate-200 hover:border-[rgba(17,73,108,0.3)] hover:bg-[rgba(17,73,108,0.05)]'
             }`}
           >
-            {tab.label} ({tab.count})
+            {tab.label}
           </button>
         ))}
       </div>

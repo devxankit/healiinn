@@ -625,6 +625,18 @@ const PharmacyPrescriptions = () => {
     return doc
   }
 
+  const handleViewPDF = (prescription) => {
+    try {
+      const doc = generatePDF(prescription)
+      const pdfBlob = doc.output('blob')
+      const pdfUrl = URL.createObjectURL(pdfBlob)
+      window.open(pdfUrl, '_blank')
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('Error generating PDF. Please try again.')
+    }
+  }
+
   const handleDownloadPDF = (prescription) => {
     try {
       const doc = generatePDF(prescription)
@@ -661,20 +673,20 @@ const PharmacyPrescriptions = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <div className="group relative overflow-hidden rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-emerald-100/60 p-4 sm:p-5 text-center shadow-sm transition-all duration-300 hover:shadow-lg hover:shadow-emerald-200/40 hover:scale-[1.02] hover:border-emerald-300/80">
-          <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-200/40 blur-2xl transition-opacity group-hover:opacity-100 opacity-70" />
-          <div className="absolute -left-4 -bottom-4 h-16 w-16 rounded-full bg-emerald-100/30 blur-xl transition-opacity group-hover:opacity-100 opacity-50" />
-          <p className="relative text-3xl sm:text-4xl font-bold text-emerald-600 drop-shadow-sm">{mockPrescriptions.length}</p>
-          <p className="relative mt-2 text-xs sm:text-sm font-semibold text-emerald-700">Prescriptions</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="group relative overflow-hidden rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-emerald-100/60 p-3 text-center shadow-sm transition-all duration-300 hover:shadow-lg hover:shadow-emerald-200/40 hover:scale-[1.02] hover:border-emerald-300/80">
+          <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-emerald-200/40 blur-xl transition-opacity group-hover:opacity-100 opacity-70" />
+          <div className="absolute -left-3 -bottom-3 h-12 w-12 rounded-full bg-emerald-100/30 blur-lg transition-opacity group-hover:opacity-100 opacity-50" />
+          <p className="relative text-2xl font-bold text-emerald-600 drop-shadow-sm">{mockPrescriptions.length}</p>
+          <p className="relative mt-1 text-xs font-semibold text-emerald-700">Prescriptions</p>
         </div>
-        <div className="group relative overflow-hidden rounded-2xl border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.1)] via-[rgba(17,73,108,0.08)] to-[rgba(17,73,108,0.15)] p-4 sm:p-5 text-center shadow-sm transition-all duration-300 hover:shadow-lg hover:shadow-[rgba(17,73,108,0.1)] hover:scale-[1.02] hover:border-[rgba(17,73,108,0.3)]">
-          <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-[rgba(17,73,108,0.1)] blur-2xl transition-opacity group-hover:opacity-100 opacity-70" />
-          <div className="absolute -left-4 -bottom-4 h-16 w-16 rounded-full bg-[rgba(17,73,108,0.08)] blur-xl transition-opacity group-hover:opacity-100 opacity-50" />
-          <p className="relative text-3xl sm:text-4xl font-bold text-[#11496c] drop-shadow-sm">
+        <div className="group relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.1)] via-[rgba(17,73,108,0.08)] to-[rgba(17,73,108,0.15)] p-3 text-center shadow-sm transition-all duration-300 hover:shadow-lg hover:shadow-[rgba(17,73,108,0.1)] hover:scale-[1.02] hover:border-[rgba(17,73,108,0.3)]">
+          <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-[rgba(17,73,108,0.1)] blur-xl transition-opacity group-hover:opacity-100 opacity-70" />
+          <div className="absolute -left-3 -bottom-3 h-12 w-12 rounded-full bg-[rgba(17,73,108,0.08)] blur-lg transition-opacity group-hover:opacity-100 opacity-50" />
+          <p className="relative text-2xl font-bold text-[#11496c] drop-shadow-sm">
             {mockPrescriptions.reduce((sum, p) => sum + p.medications.length, 0)}
           </p>
-          <p className="relative mt-2 text-xs sm:text-sm font-semibold text-[#11496c]">Medications</p>
+          <p className="relative mt-1 text-xs font-semibold text-[#11496c]">Medications</p>
         </div>
       </div>
 
@@ -686,81 +698,76 @@ const PharmacyPrescriptions = () => {
           <p className="mt-1 text-xs text-slate-500">Prescriptions shared with your pharmacy will appear here</p>
         </div>
       ) : (
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-3">
           {filteredPrescriptions.map((prescription) => (
             <article
               key={prescription.id}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-[rgba(17,73,108,0.2)] hover:shadow-md"
+              className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:border-[rgba(17,73,108,0.2)] hover:shadow-md"
             >
-              {/* Header Section - Name and Action Buttons */}
-              <div className="flex items-start justify-between mb-3">
-                {/* Patient Name - Heading */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">{prescription.patient.name}</h3>
-                  
-                  {/* Follow-up Section - Orange Background (Below Name) */}
-                  {prescription.followUpAt && (
-                    <div className="flex items-center gap-1.5 rounded-md bg-orange-50 px-2 py-1 mt-1.5 border border-orange-100 w-fit">
-                      <IoCalendarOutline className="h-3.5 w-3.5 text-orange-600 shrink-0" />
-                      <span className="text-[10px] font-semibold text-orange-600">Follow-up:</span>
-                      <span className="text-[10px] font-bold text-orange-700">{formatDate(prescription.followUpAt)}</span>
+              {/* Patient Name with Meds and Tests Status - Parallel */}
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <h3 className="text-lg font-bold text-slate-900 leading-tight flex-1 min-w-0">{prescription.patient.name}</h3>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1 rounded-full bg-[rgba(59,130,246,0.1)] px-2 py-0.5 border border-[rgba(59,130,246,0.2)]">
+                    <IoBagHandleOutline className="h-3 w-3 text-blue-700" />
+                    <span className="text-[10px] font-semibold text-blue-700">{prescription.medications.length} meds</span>
+                  </div>
+                  {prescription.recommendedTests.length > 0 && (
+                    <div className="flex items-center gap-1 rounded-full bg-[rgba(59,130,246,0.1)] px-2 py-0.5 border border-[rgba(59,130,246,0.2)]">
+                      <IoFlaskOutline className="h-3 w-3 text-blue-700" />
+                      <span className="text-[10px] font-semibold text-blue-700">{prescription.recommendedTests.length} tests</span>
                     </div>
                   )}
-                    </div>
-                
-                {/* Download Icon - Top Right */}
-                <div className="flex items-center shrink-0 ml-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadPDF(prescription)}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#11496c] bg-[#11496c] text-white shadow-sm transition-all hover:bg-[#0d3a52] hover:border-[#0d3a52] active:scale-95"
-                    aria-label="Download PDF"
-                    title="Download PDF"
-                  >
-                    <IoDownloadOutline className="h-5 w-5" />
-                  </button>
                 </div>
-                    </div>
+              </div>
 
-              {/* Information - Line by Line */}
-              <div className="space-y-2.5">
+              {/* Information - Line by Line with Enhanced Display */}
+              <div className="space-y-1.5 mb-3">
                 {/* Age and Gender */}
-                <p className="text-sm text-slate-600">Age: {prescription.patient.age} years • {prescription.patient.gender}</p>
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <span className="font-medium">Age:</span>
+                  <span>{prescription.patient.age} years • {prescription.patient.gender}</span>
+                </div>
                 
-                {/* Condition/Diagnosis - Bold Heading */}
-                <div>
-                  <p className="text-base sm:text-lg font-bold text-slate-900 leading-tight">{prescription.diagnosis}</p>
-                  </div>
+                {/* Condition/Diagnosis */}
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-medium text-slate-600 shrink-0">Diagnosis:</span>
+                  <span className="text-sm font-semibold text-slate-900">{prescription.diagnosis}</span>
+                </div>
 
                 {/* Clinic Name */}
-                <p className="text-sm text-slate-500">{prescription.clinic.name}</p>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <span className="font-medium">Clinic:</span>
+                  <span>{prescription.clinic.name}</span>
+                </div>
                 
                 {/* Date */}
-                <p className="text-sm text-slate-600">{formatDate(prescription.issuedAt)}</p>
-                    </div>
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <span className="font-medium">Date:</span>
+                  <span>{formatDate(prescription.issuedAt)}</span>
+                </div>
+              </div>
 
-              {/* Summary Pills - Light Blue Background */}
-              <div className="flex flex-wrap items-center gap-2 mt-3 mb-3">
-                <div className="flex items-center gap-1.5 rounded-full bg-[rgba(59,130,246,0.1)] px-2.5 py-1 border border-[rgba(59,130,246,0.2)]">
-                  <IoBagHandleOutline className="h-3.5 w-3.5 text-blue-700" />
-                  <span className="text-xs font-semibold text-blue-700">{prescription.medications.length} meds</span>
-                    </div>
-                {prescription.recommendedTests.length > 0 && (
-                  <div className="flex items-center gap-1.5 rounded-full bg-[rgba(59,130,246,0.1)] px-2.5 py-1 border border-[rgba(59,130,246,0.2)]">
-                    <IoFlaskOutline className="h-3.5 w-3.5 text-blue-700" />
-                    <span className="text-xs font-semibold text-blue-700">{prescription.recommendedTests.length} tests</span>
-                      </div>
-                    )}
-                  </div>
-
-              {/* View Details Button - Dark Blue */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPrescription(prescription)}
-                className="w-full rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95"
-                  >
-                    View Details
-                  </button>
+              {/* Action Buttons - Download PDF and View Details */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPDF(prescription)}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
+                >
+                  <IoDownloadOutline className="h-4 w-4" />
+                  <span>Download PDF</span>
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => handleViewPDF(prescription)}
+                  className="flex items-center justify-center rounded-lg border border-slate-200 bg-white w-10 h-10 text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                  aria-label="View PDF"
+                >
+                  <IoEyeOutline className="h-5 w-5" />
+                </button>
+              </div>
             </article>
           ))}
         </div>
