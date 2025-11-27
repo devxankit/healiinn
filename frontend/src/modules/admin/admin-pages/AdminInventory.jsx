@@ -188,8 +188,8 @@ const AdminInventory = () => {
     setLabList(availabilityList)
   }
 
-  // Calculate total inventory statistics
-  const totalInventory = useMemo(() => {
+  // Calculate total pharmacy inventory statistics
+  const totalPharmacyInventory = useMemo(() => {
     const allMedicines = pharmacyList.flatMap(pharmacy => 
       (pharmacy.medicines || []).map(med => ({
         ...med,
@@ -239,6 +239,60 @@ const AdminInventory = () => {
     }
   }, [pharmacyList])
 
+  // Calculate total laboratory inventory statistics
+  const totalLabInventory = useMemo(() => {
+    const allTests = labList.flatMap(lab => 
+      (lab.tests || []).map(test => ({
+        ...test,
+        labId: lab.labId,
+        labName: lab.labName,
+      }))
+    )
+    
+    // Group by test name
+    const testMap = new Map()
+    allTests.forEach(test => {
+      const key = test.name
+      if (!testMap.has(key)) {
+        testMap.set(key, {
+          name: test.name,
+          totalPrice: 0,
+          laboratories: [],
+        })
+      }
+      const existing = testMap.get(key)
+      const price = parseFloat(test.price) || 0
+      existing.totalPrice += price
+      existing.laboratories.push({
+        labId: test.labId,
+        labName: test.labName,
+        price,
+      })
+    })
+
+    return {
+      totalLabs: labList.length,
+      totalTests: allTests.length,
+      uniqueTests: testMap.size,
+      totalValue: allTests.reduce((sum, test) => {
+        const price = parseFloat(test.price) || 0
+        return sum + price
+      }, 0),
+      testMap: Array.from(testMap.values()),
+    }
+  }, [labList])
+
+  // Calculate combined total inventory statistics
+  const totalInventory = useMemo(() => {
+    return {
+      totalPharmacies: totalPharmacyInventory.totalPharmacies,
+      totalLabs: totalLabInventory.totalLabs,
+      totalStock: totalPharmacyInventory.totalStock,
+      totalTests: totalLabInventory.totalTests,
+      totalValue: totalPharmacyInventory.totalValue + totalLabInventory.totalValue,
+    }
+  }, [totalPharmacyInventory, totalLabInventory])
+
   const filteredPharmacies = pharmacyList.filter(pharmacy =>
     pharmacy.pharmacyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (pharmacy.medicines || []).some(med =>
@@ -273,7 +327,7 @@ const AdminInventory = () => {
         test.name.toLowerCase().includes(searchLower)
       )
     }
-  }, [totalPharmacyInventory.medicineMap, totalLabInventory.testMap, searchTerm, inventoryType])
+  }, [totalPharmacyInventory, totalLabInventory, searchTerm, inventoryType])
 
   // Filter pharmacies for Total Inventory tab
   const filteredPharmaciesForTotal = useMemo(() => {

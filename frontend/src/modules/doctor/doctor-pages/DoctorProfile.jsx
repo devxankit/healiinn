@@ -270,35 +270,7 @@ const DoctorProfile = () => {
                 backgroundSize: '20px 20px'
               }} />
 
-              {/* Active Status - Top Right (Positioned before content to avoid overlap) */}
-              <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex flex-col items-end gap-1 z-20">
-                <button
-                  type="button"
-                  onClick={handleToggleActive}
-                  className={`flex items-center gap-1.5 rounded-full px-2.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold transition-all active:scale-95 whitespace-nowrap ${
-                    formData.isActive
-                      ? 'bg-emerald-500/90 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
-                      : 'bg-slate-500/90 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
-                  }`}
-                >
-                  {formData.isActive ? (
-                    <>
-                      <IoCheckmarkCircleOutline className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                      <span>Active</span>
-                    </>
-                  ) : (
-                    <>
-                      <IoPowerOutline className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                      <span>Inactive</span>
-                    </>
-                  )}
-                </button>
-                <p className="text-[9px] sm:text-[10px] text-white/70 text-right max-w-[90px] sm:max-w-[100px] leading-tight">
-                  {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
-                </p>
-              </div>
-
-              <div className="relative flex flex-col items-center gap-4 sm:gap-5 pt-8 sm:pt-10">
+              <div className="relative flex flex-col items-center gap-4 sm:gap-5">
                 {/* Profile Picture - Centered */}
                 <div className="relative">
                   <div className="relative h-24 w-24 sm:h-28 sm:w-28">
@@ -328,7 +300,7 @@ const DoctorProfile = () => {
                 </h1>
 
                 {/* Email - Centered */}
-                <p className="text-sm sm:text-base text-white/90 text-center truncate max-w-full px-4">
+                <p className="text-sm sm:text-base text-white/90 text-center truncate max-w-full">
                   {formData.email}
                 </p>
 
@@ -344,6 +316,34 @@ const DoctorProfile = () => {
                       {formData.rating}
                     </span>
                   )}
+                </div>
+
+                {/* Active Status - Top Right */}
+                <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
+                  <button
+                    type="button"
+                    onClick={handleToggleActive}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 ${
+                      formData.isActive
+                        ? 'bg-emerald-500/90 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
+                        : 'bg-slate-500/90 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
+                    }`}
+                  >
+                    {formData.isActive ? (
+                      <>
+                        <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                        <span>Active</span>
+                      </>
+                    ) : (
+                      <>
+                        <IoPowerOutline className="h-3.5 w-3.5" />
+                        <span>Inactive</span>
+                      </>
+                    )}
+                  </button>
+                  <p className="text-[10px] text-white/70 text-right max-w-[100px]">
+                    {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
+                  </p>
                 </div>
 
                 {/* Action Buttons - Full Width, Stacked */}
