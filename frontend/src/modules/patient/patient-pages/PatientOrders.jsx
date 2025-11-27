@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoFlaskOutline,
@@ -95,10 +95,83 @@ const mockOrders = [
 const PatientOrders = () => {
   const navigate = useNavigate()
   const [filter, setFilter] = useState('all')
+  const [orders, setOrders] = useState([])
+
+  // Load orders from localStorage
+  useEffect(() => {
+    const loadOrders = () => {
+      try {
+        const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+        
+        // Transform orders to display format
+        const transformedOrders = patientOrders.map(order => {
+          const orderDate = order.createdAt || order.paidAt || new Date().toISOString()
+          const date = new Date(orderDate).toISOString().split('T')[0]
+          const time = new Date(orderDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          
+          if (order.type === 'lab') {
+            return {
+              id: order.id,
+              type: 'lab',
+              labName: order.labName || order.providerNames?.join(', ') || 'Laboratory',
+              testName: order.investigations?.map(inv => typeof inv === 'string' ? inv : inv.name).join(', ') || 'Lab Tests',
+              status: order.status || 'confirmed',
+              amount: order.totalAmount || 0,
+              date: date,
+              time: time,
+              collectionType: 'home',
+              address: order.patient?.address || 'N/A',
+              prescriptionId: order.requestId,
+              investigations: order.investigations || [],
+              providerIds: order.providerIds || [order.labId].filter(Boolean),
+              providerNames: order.providerNames || [order.labName].filter(Boolean),
+            }
+          } else if (order.type === 'pharmacy') {
+            return {
+              id: order.id,
+              type: 'pharmacy',
+              pharmacyName: order.pharmacyName || order.providerNames?.join(', ') || 'Pharmacy',
+              medicineName: order.medicines?.map(med => typeof med === 'string' ? med : med.name).join(', ') || 'Medicines',
+              status: order.status || 'confirmed',
+              amount: order.totalAmount || 0,
+              date: date,
+              time: time,
+              deliveryType: 'home',
+              address: order.patient?.address || 'N/A',
+              prescriptionId: order.requestId,
+              medicines: order.medicines || [],
+              providerIds: order.providerIds || [order.pharmacyId].filter(Boolean),
+              providerNames: order.providerNames || [order.pharmacyName].filter(Boolean),
+            }
+          }
+          return null
+        }).filter(Boolean)
+        
+        // Merge with mock data for backward compatibility
+        const merged = [...transformedOrders, ...mockOrders]
+        const unique = merged.filter((order, idx, self) => 
+          idx === self.findIndex(o => o.id === order.id)
+        )
+        
+        // Sort by date (newest first)
+        unique.sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time))
+        
+        setOrders(unique)
+      } catch (error) {
+        console.error('Error loading orders:', error)
+        setOrders(mockOrders)
+      }
+    }
+    
+    loadOrders()
+    // Refresh every 2 seconds to get new orders
+    const interval = setInterval(loadOrders, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   const filteredOrders = filter === 'all'
-    ? mockOrders
-    : mockOrders.filter(order => order.type === filter)
+    ? orders
+    : orders.filter(order => order.type === filter)
 
   const getStatusColor = (status) => {
     switch (status) {

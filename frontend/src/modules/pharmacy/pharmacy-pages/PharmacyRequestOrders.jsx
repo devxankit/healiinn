@@ -62,15 +62,53 @@ const PharmacyRequestOrders = () => {
       // Load orders from pharmacy-specific localStorage key
       const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
       
-      // Also load from adminRequests for backward compatibility
+      // Also load from adminRequests - check both single pharmacy and multiple pharmacies structure
       const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const medicineRequests = allRequests.filter(r => r.type === 'order_medicine' && r.adminResponse?.pharmacy?.id === pharmacyId)
+      const medicineRequests = allRequests.filter(r => {
+        if (r.type !== 'order_medicine') return false
+        // Check if this pharmacy is in the response (single pharmacy or multiple pharmacies)
+        if (r.adminResponse?.pharmacy?.id === pharmacyId) return true
+        if (r.adminResponse?.pharmacies && Array.isArray(r.adminResponse.pharmacies)) {
+          return r.adminResponse.pharmacies.some(p => p.id === pharmacyId)
+        }
+        // Check medicines for this pharmacy
+        if (r.adminResponse?.medicines && Array.isArray(r.adminResponse.medicines)) {
+          return r.adminResponse.medicines.some(m => m.pharmacyId === pharmacyId)
+        }
+        return false
+      })
+      
+      // Transform adminRequests to order format
+      const transformedRequests = medicineRequests.map(req => {
+        // Get medicines for this specific pharmacy
+        const pharmacyMedicines = req.adminResponse?.medicines?.filter(m => m.pharmacyId === pharmacyId) || []
+        const pharmacyTotal = pharmacyMedicines.reduce((sum, med) => sum + ((med.quantity || 0) * (med.price || 0)), 0)
+        
+        return {
+          id: req.id,
+          requestId: req.id,
+          patientName: req.patientName,
+          patientPhone: req.patientPhone,
+          patientAddress: req.patientAddress,
+          prescription: req.prescription,
+          medicines: pharmacyMedicines,
+          totalAmount: pharmacyTotal,
+          status: req.status === 'confirmed' && req.paymentPending ? 'payment_pending' : req.status === 'confirmed' ? 'confirmed' : 'pending',
+          createdAt: req.createdAt || req.responseDate,
+          paymentConfirmed: req.paymentConfirmed || false,
+          paidAt: req.paidAt,
+        }
+      })
       
       // Combine and deduplicate
-      const combined = [...pharmacyOrders, ...medicineRequests]
+      const combined = [...pharmacyOrders, ...transformedRequests]
       const unique = combined.filter((req, idx, self) => 
-        idx === self.findIndex(r => r.id === req.id || r.requestId === req.requestId)
+        idx === self.findIndex(r => (r.id === req.id || r.requestId === req.requestId || r.id === req.requestId) && 
+                                    (r.requestId === req.requestId || r.requestId === req.id))
       )
+      
+      // Sort by date (newest first)
+      unique.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
       
       setRequests(unique)
     } catch (error) {
@@ -83,32 +121,109 @@ const PharmacyRequestOrders = () => {
     try {
       const pharmacyId = 'pharm-1' // Mock pharmacy ID
       const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
+      const orderToUpdate = pharmacyOrders.find(o => o.id === orderId || o.requestId === orderId)
+      const requestId = orderToUpdate?.requestId || orderId
+      
+      // Update pharmacy orders
       const updatedOrders = pharmacyOrders.map(order => {
         if (order.id === orderId || order.requestId === orderId) {
           return {
             ...order,
-            status: 'confirmed',
+            status: 'completed',
             confirmedAt: new Date().toISOString(),
             confirmedBy: 'Pharmacy',
+            completedAt: new Date().toISOString(),
           }
         }
         return order
       })
       localStorage.setItem(`pharmacyOrders_${pharmacyId}`, JSON.stringify(updatedOrders))
       
-      // Also update admin requests
+      // Update admin requests
       const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
       const updatedRequests = allRequests.map(req => {
-        if (req.id === orderId || req.id === pharmacyOrders.find(o => o.id === orderId || o.requestId === orderId)?.requestId) {
+        if (req.id === requestId) {
+          // Check if all pharmacies for this request are confirmed
+          const providerIds = req.adminResponse?.pharmacies?.map(p => p.id) || 
+                            (req.adminResponse?.pharmacy?.id ? [req.adminResponse.pharmacy.id] : [])
+          const allPharmacyConfirmed = providerIds.every(pid => {
+            const pharmOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pid}`) || '[]')
+            const pharmOrder = pharmOrders.find(o => o.requestId === requestId)
+            return pharmOrder?.status === 'completed' || pharmOrder?.pharmacyConfirmed
+          })
+          
           return {
             ...req,
             pharmacyConfirmed: true,
             pharmacyConfirmedAt: new Date().toISOString(),
+            status: req.paymentConfirmed && allPharmacyConfirmed ? 'completed' : req.status,
           }
         }
         return req
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      
+      // Update patient requests
+      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+      const updatedPatientRequests = patientRequests.map(req => {
+        if (req.id === requestId) {
+          // Check if all pharmacies for this request are confirmed
+          const providerIds = (req.providerId || '').split(',').filter(Boolean)
+          const allPharmacyConfirmed = providerIds.every(pid => {
+            const pharmOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pid}`) || '[]')
+            const pharmOrder = pharmOrders.find(o => o.requestId === requestId)
+            return pharmOrder?.status === 'completed' || pharmOrder?.pharmacyConfirmed
+          })
+          
+          return {
+            ...req,
+            pharmacyConfirmed: true,
+            pharmacyConfirmedAt: new Date().toISOString(),
+            status: req.paymentConfirmed && allPharmacyConfirmed ? 'completed' : req.status,
+          }
+        }
+        return req
+      })
+      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
+      
+      // Update patient orders
+      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+      const updatedPatientOrders = patientOrders.map(order => {
+        if (order.requestId === requestId && order.type === 'pharmacy') {
+          const providerIds = order.providerIds || (order.providerId ? [order.providerId] : [])
+          const allPharmacyConfirmed = providerIds.every(pid => {
+            const pharmOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pid}`) || '[]')
+            const pharmOrder = pharmOrders.find(o => o.requestId === requestId)
+            return pharmOrder?.status === 'completed' || pharmOrder?.pharmacyConfirmed
+          })
+          
+          return {
+            ...order,
+            status: order.paymentConfirmed && allPharmacyConfirmed ? 'completed' : order.status,
+            pharmacyConfirmed: true,
+            pharmacyConfirmedAt: new Date().toISOString(),
+            completedAt: order.paymentConfirmed && allPharmacyConfirmed ? new Date().toISOString() : order.completedAt,
+          }
+        }
+        return order
+      })
+      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
+      
+      // Update admin orders
+      const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
+      const updatedAdminOrders = adminOrders.map(order => {
+        if (order.requestId === requestId && order.type === 'pharmacy' && order.pharmacyId === pharmacyId) {
+          return {
+            ...order,
+            status: 'completed',
+            pharmacyConfirmed: true,
+            pharmacyConfirmedAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+          }
+        }
+        return order
+      })
+      localStorage.setItem('adminOrders', JSON.stringify(updatedAdminOrders))
       
       loadRequests()
       alert('Order confirmed successfully!')
@@ -325,8 +440,13 @@ const PharmacyRequestOrders = () => {
           </div>
         ) : (
           filteredRequests.map((request) => {
-            const StatusIcon = request.status === 'completed' ? IoCheckmarkCircleOutline : IoTimeOutline
-            const medications = request.prescription?.medications || []
+            const getStatusIcon = (status) => {
+              if (status === 'completed') return IoCheckmarkCircleOutline
+              if (status === 'confirmed' || status === 'payment_pending') return IoCheckmarkCircleOutline
+              return IoTimeOutline
+            }
+            const StatusIcon = getStatusIcon(request.status)
+            const medications = request.medicines || request.prescription?.medications || []
             const medicationsCount = medications.length
 
             return (
@@ -382,12 +502,19 @@ const PharmacyRequestOrders = () => {
                       <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
                         request.status === 'pending'
                           ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                          : request.status === 'payment_pending'
+                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                          : request.status === 'confirmed'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                           : request.status === 'completed'
                           ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                           : 'bg-slate-50 text-slate-800 border border-slate-200'
                       }`}>
                         <StatusIcon className="h-3 w-3" />
-                        {request.status === 'pending' ? 'Pending' : request.status === 'completed' ? 'Completed' : request.status}
+                        {request.status === 'pending' ? 'Pending' : 
+                         request.status === 'payment_pending' ? 'Payment Pending' :
+                         request.status === 'confirmed' ? 'Confirmed' :
+                         request.status === 'completed' ? 'Completed' : request.status}
                       </span>
                     </div>
                     <div className="mt-3 flex items-center justify-between">
@@ -397,7 +524,7 @@ const PharmacyRequestOrders = () => {
                           <span>{formatDateTime(request.createdAt)}</span>
                         </div>
                       </div>
-                      {(request.status === 'pending' || request.status === 'confirmed') && !request.pharmacyConfirmed && (
+                      {(request.status === 'confirmed' || request.status === 'payment_pending') && !request.pharmacyConfirmed && request.paymentConfirmed && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -501,14 +628,14 @@ const PharmacyRequestOrders = () => {
               )}
 
               {/* Medications */}
-              {selectedRequest.prescription?.medications && selectedRequest.prescription.medications.length > 0 && (
+              {(selectedRequest.medicines && selectedRequest.medicines.length > 0) || (selectedRequest.prescription?.medications && selectedRequest.prescription.medications.length > 0) ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
                     <IoMedicalOutline className="h-4 w-4" />
-                    Required Medicines ({selectedRequest.prescription.medications.length})
+                    Required Medicines ({(selectedRequest.medicines || selectedRequest.prescription?.medications || []).length})
                   </h3>
                   <div className="space-y-2">
-                    {selectedRequest.prescription.medications.map((med, idx) => {
+                    {(selectedRequest.medicines || selectedRequest.prescription?.medications || []).map((med, idx) => {
                       const medName = typeof med === 'string' ? med : med.name || 'Medicine'
                       const dosage = typeof med === 'object' ? med.dosage : null
                       const frequency = typeof med === 'object' ? med.frequency : null
@@ -527,6 +654,14 @@ const PharmacyRequestOrders = () => {
                                 {frequency && <p>Frequency: {frequency}</p>}
                                 {duration && <p>Duration: {duration}</p>}
                                 {instructions && <p className="text-slate-500">Instructions: {instructions}</p>}
+                                {typeof med === 'object' && med.quantity && (
+                                  <p className="font-semibold text-[#11496c]">Quantity: {med.quantity} tablets</p>
+                                )}
+                                {typeof med === 'object' && med.price && (
+                                  <p className="font-semibold text-[#11496c]">
+                                    Price: ₹{((med.quantity || 1) * (med.price || 0)).toFixed(2)}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -535,7 +670,7 @@ const PharmacyRequestOrders = () => {
                     })}
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* Prescription PDF */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">

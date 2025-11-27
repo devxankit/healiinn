@@ -13,6 +13,10 @@ import {
   IoFlaskOutline,
   IoMedicalOutline,
   IoCloseOutline,
+  IoHomeOutline,
+  IoBusinessOutline,
+  IoCallOutline,
+  IoLocationOutline,
 } from 'react-icons/io5'
 
 const formatDate = (dateString) => {
@@ -62,15 +66,52 @@ const LaboratoryRequestOrders = () => {
       // Load orders from lab-specific localStorage key
       const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
       
-      // Also load from adminRequests for backward compatibility
+      // Also load from adminRequests - check both single lab and multiple labs structure
       const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const labTestRequests = allRequests.filter(r => r.type === 'book_test_visit' && r.adminResponse?.lab?.id === labId)
+      const labTestRequests = allRequests.filter(r => {
+        if (r.type !== 'book_test_visit') return false
+        // Check if this lab is in the response (single lab or multiple labs)
+        if (r.adminResponse?.lab?.id === labId) return true
+        if (r.adminResponse?.labs && Array.isArray(r.adminResponse.labs)) {
+          return r.adminResponse.labs.some(l => l.id === labId)
+        }
+        return false
+      })
       
-      // Combine and deduplicate
-      const combined = [...labOrders, ...labTestRequests]
+      // Transform adminRequests to order format
+      const transformedRequests = labTestRequests.map(req => ({
+        id: req.id,
+        requestId: req.id,
+        patientName: req.patientName,
+        patientPhone: req.patientPhone,
+        patientAddress: req.patientAddress,
+        patientEmail: req.patientEmail,
+        prescription: {
+          ...req.prescription,
+          pdfUrl: req.prescriptionPdfUrl || req.prescription?.pdfUrl, // Include prescription PDF URL
+        },
+        prescriptionPdfUrl: req.prescriptionPdfUrl || req.prescription?.pdfUrl, // Include at request level too
+        visitType: req.visitType || 'lab', // Include visitType
+        investigations: req.adminResponse?.investigations || req.prescription?.investigations || [],
+        totalAmount: req.adminResponse?.totalAmount || 0,
+        status: req.status === 'confirmed' && req.paymentPending ? 'payment_pending' : req.status === 'confirmed' ? 'confirmed' : 'pending',
+        createdAt: req.createdAt || req.responseDate,
+        paymentConfirmed: req.paymentConfirmed || false,
+        paidAt: req.paidAt,
+      }))
+      
+      // Combine and deduplicate - preserve visitType from labOrders
+      const combined = [...labOrders.map(order => ({
+        ...order,
+        visitType: order.visitType || 'lab', // Ensure visitType is present
+      })), ...transformedRequests]
       const unique = combined.filter((req, idx, self) => 
-        idx === self.findIndex(r => r.id === req.id || r.requestId === req.requestId)
+        idx === self.findIndex(r => (r.id === req.id || r.requestId === req.requestId || r.id === req.requestId) && 
+                                    (r.requestId === req.requestId || r.requestId === req.id))
       )
+      
+      // Sort by date (newest first)
+      unique.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
       
       setRequests(unique)
     } catch (error) {
@@ -83,32 +124,89 @@ const LaboratoryRequestOrders = () => {
     try {
       const labId = 'lab-1' // Mock lab ID
       const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
+      const orderToUpdate = labOrders.find(o => o.id === orderId || o.requestId === orderId)
+      const requestId = orderToUpdate?.requestId || orderId
+      
+      // Update lab orders
       const updatedOrders = labOrders.map(order => {
         if (order.id === orderId || order.requestId === orderId) {
           return {
             ...order,
-            status: 'confirmed',
+            status: 'completed',
             confirmedAt: new Date().toISOString(),
             confirmedBy: 'Laboratory',
+            completedAt: new Date().toISOString(),
           }
         }
         return order
       })
       localStorage.setItem(`labOrders_${labId}`, JSON.stringify(updatedOrders))
       
-      // Also update admin requests
+      // Update admin requests
       const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
       const updatedRequests = allRequests.map(req => {
-        if (req.id === orderId || req.id === labOrders.find(o => o.id === orderId || o.requestId === orderId)?.requestId) {
+        if (req.id === requestId) {
           return {
             ...req,
             labConfirmed: true,
             labConfirmedAt: new Date().toISOString(),
+            status: req.paymentConfirmed ? 'completed' : req.status,
           }
         }
         return req
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      
+      // Update patient requests
+      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+      const updatedPatientRequests = patientRequests.map(req => {
+        if (req.id === requestId) {
+          return {
+            ...req,
+            labConfirmed: true,
+            labConfirmedAt: new Date().toISOString(),
+            status: req.paymentConfirmed ? 'completed' : req.status,
+          }
+        }
+        return req
+      })
+      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
+      
+      // Update patient orders
+      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+      const updatedPatientOrders = patientOrders.map(order => {
+        if (order.requestId === requestId && order.type === 'lab') {
+          return {
+            ...order,
+            status: 'completed',
+            labConfirmed: true,
+            labConfirmedAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+          }
+        }
+        return order
+      })
+      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
+      
+      // Update admin orders - check for both 'lab' and 'laboratory' type
+      const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
+      const updatedAdminOrders = adminOrders.map(order => {
+        // Match by requestId and labId, and check for both 'lab' and 'laboratory' types
+        if (order.requestId === requestId && 
+            (order.type === 'lab' || order.type === 'laboratory') && 
+            order.labId === labId) {
+          return {
+            ...order,
+            type: 'laboratory', // Ensure type is 'laboratory' for consistency
+            status: 'completed',
+            labConfirmed: true,
+            labConfirmedAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+          }
+        }
+        return order
+      })
+      localStorage.setItem('adminOrders', JSON.stringify(updatedAdminOrders))
       
       loadRequests()
       alert('Order confirmed successfully!')
@@ -315,91 +413,160 @@ const LaboratoryRequestOrders = () => {
           </div>
         ) : (
           filteredRequests.map((request) => {
-            const StatusIcon = request.status === 'completed' ? IoCheckmarkCircleOutline : IoTimeOutline
-            const investigations = request.prescription?.investigations || []
+            const getStatusIcon = (status) => {
+              if (status === 'completed') return IoCheckmarkCircleOutline
+              if (status === 'confirmed' || status === 'payment_pending') return IoCheckmarkCircleOutline
+              return IoTimeOutline
+            }
+            const StatusIcon = getStatusIcon(request.status)
+            const investigations = request.investigations || request.prescription?.investigations || []
             const investigationsCount = investigations.length
 
             return (
               <article
                 key={request.id}
                 onClick={() => setSelectedRequest(request)}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                className={`rounded-lg border p-3 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98] ${
+                  request.visitType === 'home'
+                    ? 'border-emerald-200 bg-emerald-50/30'
+                    : 'border-slate-200 bg-white'
+                }`}
               >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#11496c] to-[#0d3a52] text-white">
-                    <IoPersonOutline className="h-6 w-6" />
+                <div className="flex items-start gap-3">
+                  {/* Avatar - Smaller */}
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#11496c] to-[#0d3a52] text-white">
+                    <IoPersonOutline className="h-5 w-5" />
                   </div>
+                  
+                  {/* Main Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-semibold text-slate-900">{request.patientName || 'Unknown Patient'}</h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                          <div className="flex items-center gap-1">
-                            <IoMedicalOutline className="h-3.5 w-3.5" />
-                            <span>{request.prescription?.doctorName || 'Doctor'}</span>
+                        {/* Patient Name and Visit Type Badge */}
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-sm font-semibold text-slate-900 truncate">{request.patientName || request.patient?.name || 'Unknown Patient'}</h3>
+                          {request.visitType && (
+                            <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold border shrink-0 ${
+                              request.visitType === 'home'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : 'bg-blue-100 text-blue-800 border-blue-300'
+                            }`}>
+                              {request.visitType === 'home' ? (
+                                <>
+                                  <IoHomeOutline className="h-2.5 w-2.5" />
+                                  HOME
+                                </>
+                              ) : (
+                                <>
+                                  <IoBusinessOutline className="h-2.5 w-2.5" />
+                                  LAB
+                                </>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Patient Contact Info - Very Compact */}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500 mb-1">
+                          {(request.patientPhone || request.patient?.phone) && (
+                            <div className="flex items-center gap-0.5">
+                              <IoCallOutline className="h-2.5 w-2.5" />
+                              <span className="truncate max-w-[120px]">{request.patientPhone || request.patient?.phone}</span>
+                            </div>
+                          )}
+                          {(request.patientAddress || request.patient?.address) && (
+                            <div className="flex items-center gap-0.5">
+                              <IoLocationOutline className="h-2.5 w-2.5 shrink-0" />
+                              <span className="truncate max-w-[140px]">{request.patientAddress || request.patient?.address}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Doctor Info - Compact */}
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-slate-600 mb-1">
+                          <div className="flex items-center gap-0.5">
+                            <IoMedicalOutline className="h-3 w-3" />
+                            <span className="truncate">{request.prescription?.doctorName || 'Doctor'}</span>
                           </div>
                           {request.prescription?.doctorSpecialty && (
                             <>
-                              <span>•</span>
-                              <span>{request.prescription.doctorSpecialty}</span>
+                              <span className="text-slate-400">•</span>
+                              <span className="truncate">{request.prescription.doctorSpecialty}</span>
                             </>
                           )}
                         </div>
+                        
+                        {/* Diagnosis - Compact */}
                         {request.prescription?.diagnosis && (
-                          <p className="mt-1.5 text-xs text-slate-600 line-clamp-1">
+                          <p className="text-[10px] text-slate-600 truncate mb-1">
                             Diagnosis: {request.prescription.diagnosis}
                           </p>
                         )}
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-medium text-blue-700 border border-blue-200">
-                            <IoFlaskOutline className="h-3 w-3" />
+                        
+                        {/* Tests Info - Compact */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 border border-blue-200">
+                            <IoFlaskOutline className="h-2.5 w-2.5" />
                             {investigationsCount} Test{investigationsCount !== 1 ? 's' : ''}
                           </span>
                           {investigations.slice(0, 2).map((test, idx) => {
                             const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
                             return (
-                              <span key={idx} className="text-[10px] text-slate-500">
+                              <span key={idx} className="text-[9px] text-slate-500 truncate max-w-[100px]">
                                 {testName}
                                 {idx < Math.min(2, investigations.length - 1) ? ',' : ''}
                               </span>
                             )
                           })}
                           {investigations.length > 2 && (
-                            <span className="text-[10px] text-slate-500">+{investigations.length - 2} more</span>
+                            <span className="text-[9px] text-slate-500">+{investigations.length - 2} more</span>
                           )}
                         </div>
+                        
+                        {/* Date and Time - Compact */}
+                        {request.createdAt && (
+                          <div className="flex items-center gap-1 mt-1.5 text-[9px] text-slate-500">
+                            <IoCalendarOutline className="h-2.5 w-2.5" />
+                            <span>{formatDateTime(request.createdAt)}</span>
+                          </div>
+                        )}
                       </div>
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold ${
+                      
+                      {/* Status Badge - Top Right */}
+                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0 ${
                         request.status === 'pending'
                           ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                          : request.status === 'payment_pending'
+                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                          : request.status === 'confirmed'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                           : request.status === 'completed'
                           ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                           : 'bg-slate-50 text-slate-800 border border-slate-200'
                       }`}>
-                        <StatusIcon className="h-3 w-3" />
-                        {request.status === 'pending' ? 'Pending' : request.status === 'completed' ? 'Completed' : request.status}
+                        <StatusIcon className="h-2.5 w-2.5" />
+                        {request.status === 'pending' ? 'Pending' : 
+                         request.status === 'payment_pending' ? 'Payment' :
+                         request.status === 'confirmed' ? 'Confirmed' :
+                         request.status === 'completed' ? 'Done' : request.status}
                       </span>
                     </div>
-                    <div className="mt-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3 text-xs text-slate-500">
-                        <div className="flex items-center gap-1">
-                          <IoCalendarOutline className="h-3.5 w-3.5" />
-                          <span>{formatDateTime(request.createdAt)}</span>
-                        </div>
-                      </div>
-                      {(request.status === 'pending' || request.status === 'confirmed') && !request.labConfirmed && (
+                    
+                    {/* Action Button - Compact */}
+                    {(request.status === 'confirmed' || request.status === 'payment_pending') && !request.labConfirmed && request.paymentConfirmed && (
+                      <div className="mt-2 flex justify-end">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             handleConfirmOrder(request.id || request.requestId)
                           }}
-                          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                          className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
                         >
-                          <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                          Confirm Order
+                          <IoCheckmarkCircleOutline className="h-3 w-3" />
+                          Confirm
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </article>
@@ -436,27 +603,71 @@ const LaboratoryRequestOrders = () => {
 
             {/* Content */}
             <div className="p-4 sm:p-6 space-y-4">
+              {/* Visit Type Badge */}
+              {selectedRequest.visitType && (
+                <div className={`rounded-xl border p-4 ${
+                  selectedRequest.visitType === 'home'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {selectedRequest.visitType === 'home' ? (
+                      <>
+                        <IoHomeOutline className="h-5 w-5 text-emerald-700" />
+                        <div>
+                          <h3 className="text-sm font-semibold text-emerald-900">Home Sample Collection</h3>
+                          <p className="text-xs text-emerald-700 mt-0.5">Sample will be collected from patient's home address</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <IoBusinessOutline className="h-5 w-5 text-blue-700" />
+                        <div>
+                          <h3 className="text-sm font-semibold text-blue-900">Lab Visit</h3>
+                          <p className="text-xs text-blue-700 mt-0.5">Patient will visit the lab for sample collection</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Patient Information */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <IoPersonOutline className="h-4 w-4" />
                   Patient Information
                 </h3>
-                <div className="space-y-2 text-sm">
+                <div className="space-y-3 text-sm">
                   <div>
                     <span className="font-medium text-slate-700">Name:</span>
-                    <span className="ml-2 text-slate-900">{selectedRequest.patientName || 'N/A'}</span>
+                    <span className="ml-2 text-slate-900 font-semibold">{selectedRequest.patientName || selectedRequest.patient?.name || 'N/A'}</span>
                   </div>
-                  {selectedRequest.patientPhone && (
-                    <div>
-                      <span className="font-medium text-slate-700">Phone:</span>
-                      <span className="ml-2 text-slate-900">{selectedRequest.patientPhone}</span>
+                  {(selectedRequest.patientPhone || selectedRequest.patient?.phone) && (
+                    <div className="flex items-center gap-2">
+                      <IoCallOutline className="h-4 w-4 text-slate-400 shrink-0" />
+                      <div>
+                        <span className="font-medium text-slate-700">Phone:</span>
+                        <span className="ml-2 text-slate-900">{selectedRequest.patientPhone || selectedRequest.patient?.phone}</span>
+                      </div>
                     </div>
                   )}
-                  {selectedRequest.patientAddress && (
+                  {(selectedRequest.patientAddress || selectedRequest.patient?.address) && (
+                    <div className="flex items-start gap-2">
+                      <IoLocationOutline className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                      <div className="flex-1">
+                        <span className="font-medium text-slate-700">Address:</span>
+                        <p className="mt-0.5 text-slate-900 leading-relaxed">{selectedRequest.patientAddress || selectedRequest.patient?.address}</p>
+                        {selectedRequest.visitType === 'home' && (
+                          <span className="mt-1 inline-block text-xs text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded">Sample Collection Address</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {(selectedRequest.patientEmail || selectedRequest.patient?.email) && (
                     <div>
-                      <span className="font-medium text-slate-700">Address:</span>
-                      <span className="ml-2 text-slate-900">{selectedRequest.patientAddress}</span>
+                      <span className="font-medium text-slate-700">Email:</span>
+                      <span className="ml-2 text-slate-900">{selectedRequest.patientEmail || selectedRequest.patient?.email}</span>
                     </div>
                   )}
                 </div>
@@ -491,16 +702,17 @@ const LaboratoryRequestOrders = () => {
               )}
 
               {/* Lab Tests */}
-              {selectedRequest.prescription?.investigations && selectedRequest.prescription.investigations.length > 0 && (
+              {(selectedRequest.investigations && selectedRequest.investigations.length > 0) || (selectedRequest.prescription?.investigations && selectedRequest.prescription.investigations.length > 0) ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
                     <IoFlaskOutline className="h-4 w-4" />
-                    Lab Tests Required ({selectedRequest.prescription.investigations.length})
+                    Lab Tests Required ({(selectedRequest.investigations || selectedRequest.prescription?.investigations || []).length})
                   </h3>
                   <div className="space-y-2">
-                    {selectedRequest.prescription.investigations.map((test, idx) => {
+                    {(selectedRequest.investigations || selectedRequest.prescription?.investigations || []).map((test, idx) => {
                       const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
                       const testNotes = typeof test === 'object' ? test.notes : null
+                      const testPrice = typeof test === 'object' ? test.price : null
                       return (
                         <div key={idx} className="rounded-lg border border-slate-200 bg-white p-3">
                           <div className="flex items-start gap-2">
@@ -512,6 +724,9 @@ const LaboratoryRequestOrders = () => {
                               {testNotes && (
                                 <p className="mt-1 text-xs text-slate-600">{testNotes}</p>
                               )}
+                              {testPrice && (
+                                <p className="mt-1 text-xs font-semibold text-[#11496c]">Price: ₹{Number(testPrice).toFixed(2)}</p>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -519,24 +734,44 @@ const LaboratoryRequestOrders = () => {
                     })}
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* Prescription PDF */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
                   <IoDocumentTextOutline className="h-4 w-4" />
-                  Prescription PDF
+                  Prescription PDF {selectedRequest.prescriptionPdfUrl || selectedRequest.prescription?.pdfUrl ? '(From Doctor)' : ''}
                 </h3>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleViewPDF(selectedRequest)}
+                    onClick={() => {
+                      const pdfUrl = selectedRequest.prescriptionPdfUrl || selectedRequest.prescription?.pdfUrl
+                      if (pdfUrl && pdfUrl !== '#' && pdfUrl !== 'undefined' && pdfUrl !== 'null') {
+                        window.open(pdfUrl, '_blank')
+                      } else {
+                        handleViewPDF(selectedRequest)
+                      }
+                    }}
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#11496c] hover:bg-[#11496c] hover:text-white hover:shadow-md"
                   >
                     <IoEyeOutline className="h-4 w-4" />
                     <span>View PDF</span>
                   </button>
                   <button
-                    onClick={() => handleDownloadPDF(selectedRequest)}
+                    onClick={() => {
+                      const pdfUrl = selectedRequest.prescriptionPdfUrl || selectedRequest.prescription?.pdfUrl
+                      if (pdfUrl && pdfUrl !== '#' && pdfUrl !== 'undefined' && pdfUrl !== 'null') {
+                        const link = document.createElement('a')
+                        link.href = pdfUrl
+                        link.download = `Prescription_${selectedRequest.patientName || selectedRequest.patient?.name || 'Patient'}_${selectedRequest.id || Date.now()}.pdf`
+                        link.target = '_blank'
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                      } else {
+                        handleDownloadPDF(selectedRequest)
+                      }
+                    }}
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#11496c] to-[#0d3a52] px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
                   >
                     <IoDownloadOutline className="h-4 w-4" />

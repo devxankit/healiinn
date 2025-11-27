@@ -24,6 +24,7 @@ import {
   IoFlaskOutline,
   IoSearchOutline,
   IoChatbubbleOutline,
+  IoHomeOutline,
 } from 'react-icons/io5'
 
 const formatDate = (dateString) => {
@@ -48,7 +49,8 @@ const AdminRequests = () => {
   const [showPharmacyDropdown, setShowPharmacyDropdown] = useState(false)
   const [showLabDropdown, setShowLabDropdown] = useState(false)
   const [selectedPharmacies, setSelectedPharmacies] = useState([])
-  const [selectedLab, setSelectedLab] = useState(null)
+  const [selectedLabs, setSelectedLabs] = useState([]) // Changed to array for multiple labs
+  const [selectedLab, setSelectedLab] = useState(null) // Keep for backward compatibility, but will use selectedLabs
   const pharmacyDropdownRef = useRef(null)
   const labDropdownRef = useRef(null)
   const [adminMedicines, setAdminMedicines] = useState([]) // Medicines added by admin
@@ -59,7 +61,9 @@ const AdminRequests = () => {
   const [pharmacyMedicineSearch, setPharmacyMedicineSearch] = useState('') // Search term for pharmacy medicines
   const [expandedPharmacyId, setExpandedPharmacyId] = useState(null) // Track which pharmacy's medicines are expanded
   const [expandedPharmacySearch, setExpandedPharmacySearch] = useState('') // Search term for expanded pharmacy medicines
-  const [labTestSearch, setLabTestSearch] = useState('') // Search term for lab tests
+  const [expandedLabId, setExpandedLabId] = useState(null) // Track which lab's tests are expanded
+  const [expandedLabSearch, setExpandedLabSearch] = useState('') // Search term for expanded lab tests
+  const [labTestSearch, setLabTestSearch] = useState('') // Search term for lab tests (keep for backward compatibility)
   const [showCancelModal, setShowCancelModal] = useState(false) // Show cancel reason modal
   const [cancelReason, setCancelReason] = useState('') // Cancel reason text
   const [requestToCancel, setRequestToCancel] = useState(null) // Request to cancel
@@ -554,12 +558,16 @@ const AdminRequests = () => {
       return
     }
 
-    // Add new test
+    // Add new test - ensure price is properly converted to number
+    const testPrice = typeof labTest.price === 'string' 
+      ? parseFloat(labTest.price.replace(/[^0-9.]/g, '')) || 0
+      : Number(labTest.price) || 0
+    
     const newTest = {
       labId,
       labName,
       test: labTest,
-      price: parseFloat(labTest.price) || 0,
+      price: testPrice,
     }
     setSelectedTestsFromLab([...selectedTestsFromLab, newTest])
   }
@@ -567,10 +575,13 @@ const AdminRequests = () => {
   // Calculate total amount from selected medicines and tests
   useEffect(() => {
     const medicinesTotal = selectedMedicinesFromPharmacy.reduce((sum, item) => {
-      return sum + (item.quantity * item.price)
+      const quantity = Number(item.quantity) || 0
+      const price = Number(item.price) || 0
+      return sum + (quantity * price)
     }, 0)
     const testsTotal = selectedTestsFromLab.reduce((sum, item) => {
-      return sum + item.price
+      const price = Number(item.price) || 0
+      return sum + price
     }, 0)
     setTotalAmount(medicinesTotal + testsTotal)
   }, [selectedMedicinesFromPharmacy, selectedTestsFromLab])
@@ -667,8 +678,8 @@ const AdminRequests = () => {
       return
     }
       } else if (activeSection === 'lab') {
-        if (!selectedRequest || !selectedLab) {
-          alert('Please select a lab first')
+        if (!selectedRequest || selectedLabs.length === 0) {
+          alert('Please select at least one lab first')
           return
         }
         if (selectedTestsFromLab.length === 0) {
@@ -710,9 +721,9 @@ const AdminRequests = () => {
             email: p.email,
           })),
           medicines: adminMedicinesList,
-          totalAmount: totalAmount,
-          respondedAt: new Date().toISOString(),
-          respondedBy: 'Admin',
+              totalAmount: totalAmount,
+              respondedAt: new Date().toISOString(),
+              respondedBy: 'Admin',
         }
 
         patientRequest = {
@@ -748,6 +759,21 @@ const AdminRequests = () => {
           },
         }
 
+        // Get prescription PDF URL from patient prescriptions if available
+        let prescriptionPdfUrl = null
+        try {
+          if (selectedRequest.prescriptionId) {
+            const patientPrescriptionsKey = `patientPrescriptions_${selectedRequest.patientId || 'pat-current'}`
+            const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+            const matchingPrescription = patientPrescriptions.find(p => p.id === selectedRequest.prescriptionId || p.consultationId === selectedRequest.prescriptionId)
+            if (matchingPrescription?.pdfUrl) {
+              prescriptionPdfUrl = matchingPrescription.pdfUrl
+            }
+          }
+        } catch (error) {
+          console.error('Error loading prescription PDF:', error)
+        }
+
         // Send order to each selected pharmacy with their medicines
         selectedPharmacies.forEach((pharmacy) => {
           // Get medicines for this pharmacy
@@ -779,7 +805,11 @@ const AdminRequests = () => {
             totalAmount: pharmacyTotal,
             status: 'pending',
             createdAt: new Date().toISOString(),
-            prescription: selectedRequest.prescription,
+            prescription: {
+              ...selectedRequest.prescription,
+              pdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl, // Include prescription PDF URL
+            },
+            prescriptionPdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl, // Also include at order level
           }
 
           // Save to pharmacy orders
@@ -789,6 +819,10 @@ const AdminRequests = () => {
         })
 
       } else if (activeSection === 'lab') {
+        // For multiple labs, use first lab for response data
+        const primaryLab = selectedLabs[0]
+        const labNames = selectedLabs.map(l => l.labName).join(', ')
+        
         // Use selected tests instead of prescription investigations
         const investigations = selectedTestsFromLab.map(item => ({
           name: item.test.name,
@@ -797,77 +831,126 @@ const AdminRequests = () => {
         const calculatedTotal = selectedTestsFromLab.reduce((sum, item) => sum + item.price, 0)
 
         adminResponseData = {
-          message: adminResponse || `Lab tests are available. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
-          lab: {
-            id: selectedLab.labId,
-            name: selectedLab.labName,
-            address: selectedLab.address,
-            phone: selectedLab.phone,
-            email: selectedLab.email,
-          },
+          message: adminResponse || `Lab tests are available. Selected laboratories: ${labNames}. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
+          labs: selectedLabs.map(l => ({
+            id: l.labId,
+            name: l.labName,
+            address: l.address,
+            phone: l.phone,
+            email: l.email,
+          })),
           investigations: investigations,
           totalAmount: calculatedTotal,
           respondedAt: new Date().toISOString(),
           respondedBy: 'Admin',
         }
 
-        patientRequest = {
-        id: selectedRequest.id,
-          type: 'lab',
-          providerName: 'Healiinn',
-          providerId: 'admin',
-          testName: 'Lab Test Request',
-        status: 'accepted', // Payment pending
-        requestDate: selectedRequest.createdAt,
-        responseDate: new Date().toISOString(),
-          totalAmount: calculatedTotal,
-          message: adminResponse || `Lab tests are available. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
-        prescriptionId: selectedRequest.prescriptionId,
-        patient: {
-          name: selectedRequest.patientName,
-          phone: selectedRequest.patientPhone,
-          email: selectedRequest.patientEmail || 'patient@example.com',
-          address: selectedRequest.patientAddress,
-            age: 32,
-            gender: 'Male',
-        },
-        providerResponse: {
-            message: adminResponse || `All prescribed tests are available. We can schedule your visit. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
-            responseBy: 'Healiinn Team',
-          responseTime: new Date().toISOString(),
-        },
-        doctor: {
-          name: selectedRequest.prescription?.doctorName || 'Doctor',
-          specialty: selectedRequest.prescription?.doctorSpecialty || 'Specialty',
-          phone: '+91 98765 43210',
-        },
-          investigations: investigations,
+        // Get prescription PDF URL from patient prescriptions if available
+        let prescriptionPdfUrl = null
+        try {
+          if (selectedRequest.prescriptionId) {
+            const patientPrescriptionsKey = `patientPrescriptions_${selectedRequest.patientId || 'pat-current'}`
+            const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+            const matchingPrescription = patientPrescriptions.find(p => p.id === selectedRequest.prescriptionId || p.consultationId === selectedRequest.prescriptionId)
+            if (matchingPrescription?.pdfUrl) {
+              prescriptionPdfUrl = matchingPrescription.pdfUrl
+            }
+          }
+        } catch (error) {
+          console.error('Error loading prescription PDF:', error)
         }
 
-        // Send order to lab
-        providerOrder = {
-          id: `order-${Date.now()}`,
-          requestId: selectedRequest.id,
+        patientRequest = {
+          id: selectedRequest.id,
           type: 'lab',
-          labId: selectedLab.labId,
-          labName: selectedLab.labName,
+          visitType: selectedRequest.visitType || 'lab', // Pass visitType to patient
+          providerName: labNames, // All lab names
+          providerId: selectedLabs.map(l => l.labId).join(','), // All lab IDs
+          testName: 'Lab Test Request',
+          status: 'accepted', // Payment pending
+          requestDate: selectedRequest.createdAt,
+          responseDate: new Date().toISOString(),
+          totalAmount: calculatedTotal,
+          message: adminResponse || `Lab tests are available. Selected laboratories: ${labNames}. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
+          prescriptionId: selectedRequest.prescriptionId,
+          prescriptionPdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl, // Include prescription PDF URL
           patient: {
             name: selectedRequest.patientName,
             phone: selectedRequest.patientPhone,
             email: selectedRequest.patientEmail || 'patient@example.com',
             address: selectedRequest.patientAddress,
+            age: 32,
+            gender: 'Male',
+          },
+          providerResponse: {
+            message: adminResponse || `All prescribed tests are available. We can schedule your visit. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
+            responseBy: 'Healiinn Team',
+            responseTime: new Date().toISOString(),
+          },
+          doctor: {
+            name: selectedRequest.prescription?.doctorName || 'Doctor',
+            specialty: selectedRequest.prescription?.doctorSpecialty || 'Specialty',
+            phone: '+91 98765 43210',
           },
           investigations: investigations,
-          totalAmount: calculatedTotal,
-          status: 'pending', // Lab needs to confirm
-          createdAt: new Date().toISOString(),
-          prescription: selectedRequest.prescription,
         }
 
-        // Save to lab orders
-        const labOrders = JSON.parse(localStorage.getItem(`labOrders_${selectedLab.labId}`) || '[]')
-        labOrders.push(providerOrder)
-        localStorage.setItem(`labOrders_${selectedLab.labId}`, JSON.stringify(labOrders))
+        // Send order to each selected lab with their tests
+        selectedLabs.forEach((lab) => {
+          // Get tests for this lab
+          const labTests = selectedTestsFromLab
+            .filter(item => item.labId === lab.labId)
+            .map(item => ({
+              name: item.test.name,
+              price: item.price,
+            }))
+          
+          const labTotal = labTests.reduce((sum, test) => sum + test.price, 0)
+          
+          // Get prescription PDF URL from patient prescriptions if available
+          let prescriptionPdfUrl = null
+          try {
+            if (selectedRequest.prescriptionId) {
+              const patientPrescriptionsKey = `patientPrescriptions_${selectedRequest.patientId || 'pat-current'}`
+              const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+              const matchingPrescription = patientPrescriptions.find(p => p.id === selectedRequest.prescriptionId || p.consultationId === selectedRequest.prescriptionId)
+              if (matchingPrescription?.pdfUrl) {
+                prescriptionPdfUrl = matchingPrescription.pdfUrl
+              }
+            }
+          } catch (error) {
+            console.error('Error loading prescription PDF:', error)
+          }
+
+          providerOrder = {
+            id: `order-${Date.now()}-${lab.labId}`,
+            requestId: selectedRequest.id,
+            type: 'lab',
+            visitType: selectedRequest.visitType || 'lab', // Pass visitType to lab
+            labId: lab.labId,
+            labName: lab.labName,
+            patient: {
+              name: selectedRequest.patientName,
+              phone: selectedRequest.patientPhone,
+              email: selectedRequest.patientEmail || 'patient@example.com',
+              address: selectedRequest.patientAddress,
+            },
+            investigations: labTests,
+            totalAmount: labTotal,
+            status: 'pending', // Lab needs to confirm
+            createdAt: new Date().toISOString(),
+            prescription: {
+              ...selectedRequest.prescription,
+              pdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl, // Include prescription PDF URL
+            },
+            prescriptionPdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl, // Also include at order level
+          }
+
+          // Save to lab orders
+          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.labId}`) || '[]')
+          labOrders.push(providerOrder)
+          localStorage.setItem(`labOrders_${lab.labId}`, JSON.stringify(labOrders))
+        })
       }
 
       // Update request with admin response - directly enable payment
@@ -893,6 +976,7 @@ const AdminRequests = () => {
         patientRequests[existingIndex] = {
           ...patientRequests[existingIndex],
           ...patientRequest,
+          adminResponse: adminResponseData, // Include admin response with labs and investigations
           status: 'accepted',
           paymentPending: true, // Enable payment directly
         }
@@ -900,6 +984,7 @@ const AdminRequests = () => {
         // Create new entry if doesn't exist
         patientRequests.push({
           ...patientRequest,
+          adminResponse: adminResponseData, // Include admin response with labs and investigations
           paymentPending: true, // Enable payment directly
         })
       }
@@ -918,16 +1003,18 @@ const AdminRequests = () => {
             localStorage.setItem(`pharmacyOrders_${pharmacy.pharmacyId}`, JSON.stringify(pharmacyOrders))
           }
         })
-      } else if (activeSection === 'lab' && selectedLab) {
-        const labOrders = JSON.parse(localStorage.getItem(`labOrders_${selectedLab.labId}`) || '[]')
-        const orderIndex = labOrders.findIndex(order => order.requestId === selectedRequest.id)
-        if (orderIndex >= 0) {
-          labOrders[orderIndex] = {
-            ...labOrders[orderIndex],
-            status: 'payment_pending',
+      } else if (activeSection === 'lab' && selectedLabs.length > 0) {
+        selectedLabs.forEach((lab) => {
+          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.labId}`) || '[]')
+          const orderIndex = labOrders.findIndex(order => order.requestId === selectedRequest.id)
+          if (orderIndex >= 0) {
+            labOrders[orderIndex] = {
+              ...labOrders[orderIndex],
+              status: 'payment_pending',
+            }
+            localStorage.setItem(`labOrders_${lab.labId}`, JSON.stringify(labOrders))
           }
-          localStorage.setItem(`labOrders_${selectedLab.labId}`, JSON.stringify(labOrders))
-        }
+        })
       }
 
       // Show success message
@@ -940,6 +1027,7 @@ const AdminRequests = () => {
       setSelectedPharmacy(null)
       setSelectedLab(null)
       setSelectedPharmacies([])
+      setSelectedLabs([])
       setAdminMedicines([])
       setAdminResponse('')
       setTotalAmount(0)
@@ -947,6 +1035,8 @@ const AdminRequests = () => {
       setSelectedTestsFromLab([])
       setExpandedPharmacyId(null)
       setExpandedPharmacySearch('')
+      setExpandedLabId(null)
+      setExpandedLabSearch('')
       setLabTestSearch('')
       loadRequests()
     } catch (error) {
@@ -1399,6 +1489,27 @@ const AdminRequests = () => {
                     </div>
                   )}
 
+                  {/* Visit Type Badge for Lab Requests */}
+                  {activeSection === 'lab' && request.visitType && (
+                    <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 border w-fit mb-2 ${
+                      request.visitType === 'home'
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-blue-50 border-blue-200'
+                    }`}>
+                      {request.visitType === 'home' ? (
+                        <>
+                          <IoHomeOutline className="h-3 w-3 text-emerald-700" />
+                          <span className="text-[10px] font-semibold text-emerald-700">Home Collection</span>
+                        </>
+                      ) : (
+                        <>
+                          <IoBusinessOutline className="h-3 w-3 text-blue-700" />
+                          <span className="text-[10px] font-semibold text-blue-700">Lab Visit</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   {/* Prescription Actions - Icons Only */}
                   <div className="mt-3 pt-3 border-t border-slate-200">
                     <div className="flex items-center justify-center gap-2 flex-wrap">
@@ -1585,6 +1696,18 @@ const AdminRequests = () => {
               setShowLabDropdown(false)
               setSelectedPharmacy(null)
               setSelectedLab(null)
+              setSelectedPharmacies([])
+              setSelectedLabs([])
+              setAdminMedicines([])
+              setAdminResponse('')
+              setTotalAmount(0)
+              setSelectedMedicinesFromPharmacy([])
+              setSelectedTestsFromLab([])
+              setExpandedPharmacyId(null)
+              setExpandedPharmacySearch('')
+              setExpandedLabId(null)
+              setExpandedLabSearch('')
+              setLabTestSearch('')
             }
           }}
         >
@@ -1597,13 +1720,25 @@ const AdminRequests = () => {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedRequest(null)
-                  setShowPharmacyDropdown(false)
-                  setShowLabDropdown(false)
-                  setSelectedPharmacy(null)
-                  setSelectedLab(null)
-                }}
+              onClick={() => {
+                setSelectedRequest(null)
+                setShowPharmacyDropdown(false)
+                setShowLabDropdown(false)
+                setSelectedPharmacy(null)
+                setSelectedLab(null)
+                setSelectedPharmacies([])
+                setSelectedLabs([])
+                setAdminMedicines([])
+                setAdminResponse('')
+                setTotalAmount(0)
+                setSelectedMedicinesFromPharmacy([])
+                setSelectedTestsFromLab([])
+                setExpandedPharmacyId(null)
+                setExpandedPharmacySearch('')
+                setExpandedLabId(null)
+                setExpandedLabSearch('')
+                setLabTestSearch('')
+              }}
                 className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
               >
                 ×
@@ -1678,8 +1813,8 @@ const AdminRequests = () => {
                 </div>
               </div>
 
-              {/* Prescription Medications */}
-              {selectedRequest.prescription?.medications && selectedRequest.prescription.medications.length > 0 && (
+              {/* Prescription Medications - Show only for pharmacy requests */}
+              {activeSection === 'pharmacy' && selectedRequest.prescription?.medications && selectedRequest.prescription.medications.length > 0 && (
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
                   <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                     <IoBagHandleOutline className="h-3.5 w-3.5" />
@@ -2057,249 +2192,277 @@ const AdminRequests = () => {
 
               {/* Lab Selection Dropdown - Only for lab requests (not cancelled) */}
               {activeSection === 'lab' && selectedRequest.status !== 'cancelled' && (
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
-                <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-                  <IoFlaskOutline className="h-3.5 w-3.5" />
-                  Select Laboratory
+                <div className="rounded-lg border border-slate-200 bg-white p-3">
+                  <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
+                    <IoFlaskOutline className="h-3.5 w-3.5" />
+                    Select Laboratory
                 </h3>
                 
                 {/* Dropdown Button */}
-                <div className="relative" ref={labDropdownRef}>
+                  <div className="relative" ref={labDropdownRef}>
                   <button
                     type="button"
-                    onClick={() => setShowLabDropdown(!showLabDropdown)}
-                    className="w-full flex items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 hover:border-[#11496c] hover:bg-slate-50 transition"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <IoFlaskOutline className="h-3.5 w-3.5 text-[#11496c]" />
-                      <span className="truncate">{selectedLab ? selectedLab.labName : 'Select a laboratory'}</span>
+                      onClick={() => setShowLabDropdown(!showLabDropdown)}
+                      className="w-full flex items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 hover:border-[#11496c] hover:bg-slate-50 transition"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <IoFlaskOutline className="h-3.5 w-3.5 text-[#11496c]" />
+                        <span className="truncate">
+                          {selectedLabs.length > 0 
+                            ? `${selectedLabs.length} ${selectedLabs.length === 1 ? 'laboratory' : 'laboratories'} selected`
+                            : 'Select a laboratory'}
+                        </span>
                     </span>
                     <IoChevronDownOutline 
-                      className={`h-3.5 w-3.5 text-slate-500 transition-transform shrink-0 ${showLabDropdown ? 'rotate-180' : ''}`} 
+                        className={`h-3.5 w-3.5 text-slate-500 transition-transform shrink-0 ${showLabDropdown ? 'rotate-180' : ''}`} 
                     />
                   </button>
 
                   {/* Dropdown Menu */}
-                  {showLabDropdown && (
-                    <div className="absolute z-20 mt-1.5 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-64 overflow-y-auto">
-                      {labs.length === 0 ? (
-                        <div className="p-3 text-center text-xs text-slate-500">
-                          No laboratories available
+                    {showLabDropdown && (
+                      <div className="absolute z-20 mt-1.5 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-96 overflow-y-auto">
+                        {labs.length === 0 ? (
+                          <div className="p-3 text-center text-xs text-slate-500">
+                            No laboratories available
                         </div>
                       ) : (
-                        <div className="p-1.5">
-                          {labs.map((lab) => (
-                            <div
-                              key={lab.labId}
-                              onClick={() => {
-                                setSelectedLab(lab)
-                                setShowLabDropdown(false)
-                              }}
-                              className={`rounded-lg border p-2.5 mb-1.5 cursor-pointer transition ${
-                                selectedLab?.labId === lab.labId
+                          <div className="p-1.5">
+                            {labs.map((lab) => {
+                              const isSelected = selectedLabs.some(l => l.labId === lab.labId)
+                              const isExpanded = expandedLabId === lab.labId
+                              
+                              return (
+                                <div
+                                  key={lab.labId}
+                                  className={`rounded-lg border mb-1.5 transition ${
+                                    isSelected
                                   ? 'border-[#11496c] bg-blue-50'
-                                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                              }`}
-                            >
-                              {/* Lab Header */}
-                              <div className="flex items-start justify-between mb-1.5">
-                                <div className="flex-1 min-w-0">
-                                  <h4 className="text-xs font-semibold text-slate-900 mb-0.5 truncate">
-                                    {lab.labName}
+                                      : 'border-slate-200 bg-white hover:border-slate-300'
+                                  }`}
+                                >
+                                  {/* Lab Header */}
+                                  <div className="p-2.5">
+                                    <div className="flex items-start justify-between mb-1.5">
+                                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={(e) => {
+                                            e.stopPropagation()
+                                            if (isSelected) {
+                                              setSelectedLabs(selectedLabs.filter(l => l.labId !== lab.labId))
+                                            } else {
+                                              setSelectedLabs([...selectedLabs, lab])
+                                            }
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] cursor-pointer"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <h4 className="text-xs font-semibold text-slate-900 mb-0.5 truncate">
+                                            {lab.labName}
                                   </h4>
-                                  {lab.rating && (
-                                    <div className="flex items-center gap-1 mb-0.5">
+                                          {lab.rating && (
+                                            <div className="flex items-center gap-1 mb-0.5">
                                       <div className="flex items-center gap-0.5">
-                                        {renderStars(lab.rating)}
+                                                {renderStars(lab.rating)}
                                       </div>
-                                      <span className="text-[10px] font-semibold text-slate-700">
-                                        {lab.rating.toFixed(1)}
+                                              <span className="text-[10px] font-semibold text-slate-700">
+                                                {lab.rating.toFixed(1)}
                                       </span>
                                     </div>
                                   )}
                                 </div>
-                                {selectedLab?.labId === lab.labId && (
-                                  <IoCheckmarkCircleOutline className="h-4 w-4 text-[#11496c] shrink-0" />
-                                )}
+                                      </div>
                               </div>
 
-                              {/* Lab Details */}
-                              <div className="space-y-1 text-[10px] text-slate-600">
-                                {lab.address && (
-                                  <div className="flex items-start gap-1">
-                                    <IoLocationOutline className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
-                                    <span className="flex-1 line-clamp-1">{lab.address}</span>
+                                    {/* Lab Details */}
+                                    <div className="space-y-1 text-[10px] text-slate-600">
+                                      {lab.address && (
+                                        <div className="flex items-start gap-1">
+                                          <IoLocationOutline className="h-3 w-3 text-slate-400 mt-0.5 shrink-0" />
+                                          <span className="flex-1 line-clamp-1">{lab.address}</span>
                                   </div>
                                 )}
-                                {lab.phone && (
-                                  <div className="flex items-center gap-1">
-                                    <IoCallOutline className="h-3 w-3 text-slate-400 shrink-0" />
-                                    <span>{lab.phone}</span>
+                                      {lab.phone && (
+                                        <div className="flex items-center gap-1">
+                                          <IoCallOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                                          <span>{lab.phone}</span>
                                   </div>
                                 )}
-                                {lab.tests && lab.tests.length > 0 && (
-                                  <div className="flex items-center gap-1 pt-0.5 border-t border-slate-200">
-                                    <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
-                                    <span className="font-semibold text-[#11496c]">
-                                      {lab.tests.length} {lab.tests.length === 1 ? 'test' : 'tests'}
+                                      {lab.tests && lab.tests.length > 0 && (
+                                        <div 
+                                          className="flex items-center justify-between pt-1.5 border-t border-slate-200 cursor-pointer hover:bg-slate-50 -mx-2.5 px-2.5 py-1 rounded"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            const newExpandedId = isExpanded ? null : lab.labId
+                                            setExpandedLabId(newExpandedId)
+                                            if (!newExpandedId) {
+                                              setExpandedLabSearch('') // Clear search when collapsing
+                                            }
+                                          }}
+                                        >
+                                          <div className="flex items-center gap-1">
+                                            <IoFlaskOutline className="h-3 w-3 text-blue-600 shrink-0" />
+                                    <span className="font-semibold text-blue-700">
+                                              {lab.tests.length} {lab.tests.length === 1 ? 'test' : 'tests'}
                                     </span>
+                                          </div>
+                                          <IoChevronDownOutline 
+                                            className={`h-3 w-3 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                          />
                                   </div>
                                 )}
+                                    </div>
+                                  </div>
+
+                                  {/* Expanded Tests Section */}
+                                  {isExpanded && lab.tests && lab.tests.length > 0 && (
+                                    <div className="border-t border-slate-200 bg-slate-50 p-2">
+                                      {/* Search Input */}
+                                      <div className="mb-2">
+                                        <div className="relative">
+                                          <IoSearchOutline className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-slate-400" />
+                                          <input
+                                            type="text"
+                                            value={expandedLabId === lab.labId ? expandedLabSearch : ''}
+                                            onChange={(e) => {
+                                              if (expandedLabId === lab.labId) {
+                                                setExpandedLabSearch(e.target.value)
+                                              }
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            placeholder="Search test name..."
+                                            className="w-full rounded border border-slate-300 bg-white pl-7 pr-2 py-1 text-[10px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {/* Tests List */}
+                                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                                        {lab.tests.filter((test) => {
+                                          if (expandedLabId !== lab.labId || !expandedLabSearch) return true
+                                          const searchTerm = expandedLabSearch.toLowerCase()
+                                          return test.name?.toLowerCase().includes(searchTerm)
+                                        }).map((test, idx) => {
+                                          const isTestSelected = selectedTestsFromLab.some(
+                                            item => item.test.name === test.name && item.labId === lab.labId
+                                          )
+                                          
+                                          return (
+                                            <div 
+                                              key={idx}
+                                              className={`rounded border p-2 text-[10px] transition ${
+                                                isTestSelected 
+                                                  ? 'border-[#11496c] bg-blue-50' 
+                                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                                              }`}
+                                            >
+                                              <div className="flex items-start justify-between gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                  <div className="flex items-center gap-1.5 mb-1">
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleAddTestFromLab(test, lab.labId, lab.labName)
+                                                      }}
+                                                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${
+                                                        isTestSelected
+                                                          ? 'border-[#11496c] bg-[#11496c] text-white'
+                                                          : 'border-slate-300 bg-white text-slate-600 hover:border-[#11496c] hover:text-[#11496c]'
+                                                      }`}
+                                                    >
+                                                      {isTestSelected ? (
+                                                        <IoCheckmarkCircleOutline className="h-3 w-3" />
+                                                      ) : (
+                                                        <IoAddOutline className="h-3 w-3" />
+                                                      )}
+                                                    </button>
+                                                    <div className="flex-1 min-w-0">
+                                                      <p className="font-semibold text-slate-900">
+                                                        {test.name}
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                  <div className="flex items-center gap-3 text-slate-600 ml-6">
+                                                    {test.price && (
+                                                      <span className="font-semibold text-[#11496c]">
+                                                        ₹{test.price}
+                                  </span>
+                                                    )}
+                                </div>
                               </div>
                             </div>
-                          ))}
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                      {lab.tests.filter((test) => {
+                                        if (expandedLabId !== lab.labId || !expandedLabSearch) return true
+                                        const searchTerm = expandedLabSearch.toLowerCase()
+                                        return test.name?.toLowerCase().includes(searchTerm)
+                                      }).length === 0 && expandedLabSearch && (
+                                        <div className="text-center py-3 text-[10px] text-slate-500">
+                                          No tests found matching "{expandedLabSearch}"
                         </div>
                       )}
                     </div>
                   )}
                 </div>
-
-                {/* Selected Lab Details */}
-                {selectedLab && (
-                  <div className="mt-3 rounded-lg border border-[#11496c] bg-blue-50 p-2.5">
-                    <h4 className="text-xs font-semibold text-slate-900 mb-2">
-                      Selected: {selectedLab.labName}
-                    </h4>
-                    <div className="space-y-1.5 text-[10px]">
-                      {selectedLab.address && (
-                        <p className="flex items-start gap-1.5">
-                          <IoLocationOutline className="h-3 w-3 text-slate-500 mt-0.5 shrink-0" />
-                          <span className="text-slate-700 line-clamp-1">{selectedLab.address}</span>
-                        </p>
-                      )}
-                      {selectedLab.phone && (
-                        <p className="flex items-center gap-1.5">
-                          <IoCallOutline className="h-3 w-3 text-slate-500 shrink-0" />
-                          <span className="text-slate-700">{selectedLab.phone}</span>
-                        </p>
-                      )}
-                      {selectedLab.tests && selectedLab.tests.length > 0 && (
-                        <div className="pt-1.5 border-t border-blue-200">
-                          <p className="font-semibold text-[#11496c] mb-1.5 text-[10px]">
-                            Search Tests ({selectedLab.tests.length})
-                          </p>
-                          {/* Search Input */}
-                          <div className="mb-1.5">
-                            <div className="relative">
-                              <IoSearchOutline className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-slate-400" />
-                              <input
-                                type="text"
-                                value={labTestSearch}
-                                onChange={(e) => setLabTestSearch(e.target.value)}
-                                placeholder="Search test name..."
-                                className="w-full rounded border border-slate-300 bg-white pl-7 pr-2 py-1 text-[10px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                              />
-                            </div>
-                          </div>
-                          {/* Filtered Tests List */}
-                          <div className="space-y-1 max-h-32 overflow-y-auto">
-                            {selectedLab.tests
-                              .filter(test => 
-                                !labTestSearch || 
-                                test.name.toLowerCase().includes(labTestSearch.toLowerCase())
                               )
-                              .map((test, idx) => {
-                                const isSelected = selectedTestsFromLab.some(
-                                  item => item.test.name === test.name && item.labId === selectedLab.labId
-                                )
-                                
-                                return (
-                                  <div 
-                                    key={idx} 
-                                    className={`flex items-center justify-between gap-1.5 text-[10px] rounded px-1.5 py-1 transition ${
-                                      isSelected 
-                                        ? 'bg-blue-50 border border-[#11496c]' 
-                                        : 'bg-white border border-slate-200 hover:border-slate-300'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleAddTestFromLab(test, selectedLab.labId, selectedLab.labName)}
-                                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
-                                          isSelected
-                                            ? 'border-[#11496c] bg-[#11496c] text-white'
-                                            : 'border-slate-300 bg-white text-slate-600 hover:border-[#11496c] hover:text-[#11496c]'
-                                        }`}
-                                      >
-                                        {isSelected ? (
-                                          <IoCheckmarkCircleOutline className="h-2.5 w-2.5" />
-                                        ) : (
-                                          <IoAddOutline className="h-2.5 w-2.5" />
-                                        )}
-                                      </button>
-                                      <div className="flex-1 min-w-0">
-                                        <span className="font-medium text-slate-900 truncate block">
-                                          {test.name}
-                                </span>
-                                        <span className="text-slate-600 text-[9px]">
-                                          ₹{test.price}
-                                </span>
-                              </div>
+                            })}
                           </div>
-                                  </div>
-                                )
-                              })}
-                            {selectedLab.tests.filter(test => 
-                              !labTestSearch || 
-                              test.name.toLowerCase().includes(labTestSearch.toLowerCase())
-                            ).length === 0 && (
-                              <div className="text-center py-2 text-[9px] text-slate-500">
-                                {labTestSearch ? 'No tests found' : 'No tests available'}
-                        </div>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-                  </div>
-                )}
 
-                {/* Selected Tests Summary */}
-                {selectedTestsFromLab.length > 0 && (
-                  <div className="mt-3 rounded-lg border-2 border-[#11496c] bg-blue-50 p-2.5">
-                    <h4 className="text-xs font-semibold text-slate-900 mb-2 flex items-center gap-1.5">
-                      <IoFlaskOutline className="h-3.5 w-3.5" />
-                      Selected Tests
-                    </h4>
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                      {selectedTestsFromLab.map((item, idx) => (
-                        <div key={idx} className="rounded border border-blue-200 bg-white p-1.5 text-[10px]">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-slate-900">
-                                {item.test.name}
-                              </p>
-                              <p className="text-slate-600">
-                                {item.labName}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-bold text-[#11496c]">
-                                ₹{item.price.toFixed(2)}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedTestsFromLab(selectedTestsFromLab.filter((_, i) => i !== idx))
-                                }}
-                                className="mt-0.5 text-red-600 hover:text-red-700"
-                                title="Remove"
-                              >
-                                <IoTrashOutline className="h-3 w-3" />
-                              </button>
+                  {/* Selected Tests Summary */}
+                  {selectedTestsFromLab.length > 0 && (
+                    <div className="mt-3 rounded-lg border-2 border-[#11496c] bg-blue-50 p-2.5">
+                      <h4 className="text-xs font-semibold text-slate-900 mb-2 flex items-center gap-1.5">
+                        <IoFlaskOutline className="h-3.5 w-3.5" />
+                        Selected Tests
+                      </h4>
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                        {selectedTestsFromLab.map((item, idx) => (
+                          <div key={idx} className="rounded border border-blue-200 bg-white p-1.5 text-[10px]">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-slate-900">
+                                  {item.test.name}
+                                </p>
+                                <p className="text-slate-600">
+                                  {item.labName}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-[#11496c]">
+                                  ₹{(Number(item.price) || 0).toFixed(2)}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedTestsFromLab(selectedTestsFromLab.filter((_, i) => i !== idx))
+                                  }}
+                                  className="mt-0.5 text-red-600 hover:text-red-700"
+                                  title="Remove"
+                                >
+                                  <IoTrashOutline className="h-3 w-3" />
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-900">Total Amount:</span>
+                        <span className="text-sm font-bold text-[#11496c]">₹{totalAmount.toFixed(2)}</span>
+                      </div>
                     </div>
-                    <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-900">Total Amount:</span>
-                      <span className="text-sm font-bold text-[#11496c]">₹{totalAmount.toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
               )}
 
               {/* Admin Response Message - Only show if status is pending */}
@@ -2413,6 +2576,7 @@ const AdminRequests = () => {
                     setSelectedPharmacy(null)
                     setSelectedLab(null)
                     setSelectedPharmacies([])
+                    setSelectedLabs([])
                     setAdminMedicines([])
                     setAdminResponse('')
                     setTotalAmount(0)
@@ -2420,6 +2584,8 @@ const AdminRequests = () => {
                     setSelectedTestsFromLab([])
                     setExpandedPharmacyId(null)
                     setExpandedPharmacySearch('')
+                    setExpandedLabId(null)
+                    setExpandedLabSearch('')
                     setLabTestSearch('')
                   }}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
@@ -2433,7 +2599,7 @@ const AdminRequests = () => {
                     disabled={
                       isSendingResponse || 
                       (activeSection === 'pharmacy' && (selectedPharmacies.length === 0 || selectedMedicinesFromPharmacy.length === 0)) ||
-                      (activeSection === 'lab' && (!selectedLab || selectedTestsFromLab.length === 0))
+                      (activeSection === 'lab' && (selectedLabs.length === 0 || selectedTestsFromLab.length === 0))
                     }
                     className="flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] disabled:opacity-50 disabled:cursor-not-allowed"
                   >

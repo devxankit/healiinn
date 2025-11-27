@@ -18,6 +18,8 @@ import {
   IoStar,
   IoStarOutline,
   IoInformationCircleOutline,
+  IoHomeOutline,
+  IoBusinessOutline,
 } from 'react-icons/io5'
 
 const mockPrescriptions = [
@@ -258,6 +260,10 @@ const PatientPrescriptions = () => {
   const [showLabViewModal, setShowLabViewModal] = useState(false)
   const [selectedLabDoctorId, setSelectedLabDoctorId] = useState(null)
   const [isSharingLabReport, setIsSharingLabReport] = useState(false)
+  
+  // Test visit modal states
+  const [showTestVisitModal, setShowTestVisitModal] = useState(false)
+  const [testVisitPrescription, setTestVisitPrescription] = useState(null)
   
   // Get active tab from URL params, default to 'prescriptions'
   const tabFromUrl = searchParams.get('tab')
@@ -738,39 +744,65 @@ const PatientPrescriptions = () => {
     }
   }
 
-  const handleBookTestVisit = async (prescription) => {
+  const handleBookTestVisit = (prescription) => {
+    // Show modal to select Home or Lab
+    setTestVisitPrescription(prescription)
+    setShowTestVisitModal(true)
+  }
+
+  const handleTestVisitHome = async () => {
+    if (!testVisitPrescription) return
+
     try {
       // Get patient info from localStorage or use defaults
       const patientProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
-      const patientPhone = patientProfile.phone || prescription.patientPhone || '+1-555-000-0000'
+      const patientPhone = patientProfile.phone || testVisitPrescription.patientPhone || '+1-555-000-0000'
       const patientAddress = patientProfile.address 
         ? `${patientProfile.address.line1 || ''} ${patientProfile.address.line2 || ''} ${patientProfile.address.city || ''} ${patientProfile.address.state || ''} ${patientProfile.address.postalCode || ''}`.trim()
-        : prescription.patientAddress || 'Address not provided'
+        : testVisitPrescription.patientAddress || 'Address not provided'
       
-      // Create request data
+      // Get prescription PDF URL if available
+      let prescriptionPdfUrl = testVisitPrescription.pdfUrl || null
+      if (!prescriptionPdfUrl || prescriptionPdfUrl === '#') {
+        try {
+          const patientPrescriptionsKey = `patientPrescriptions_${testVisitPrescription.patientId || 'pat-current'}`
+          const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+          const matchingPrescription = patientPrescriptions.find(p => p.id === testVisitPrescription.id || p.consultationId === testVisitPrescription.id)
+          if (matchingPrescription?.pdfUrl && matchingPrescription.pdfUrl !== '#') {
+            prescriptionPdfUrl = matchingPrescription.pdfUrl
+          }
+        } catch (error) {
+          console.error('Error loading prescription PDF:', error)
+        }
+      }
+
+      // Create request data for home sample collection (goes to admin first)
       const requestData = {
-        id: `test-request-${Date.now()}`,
+        id: `test-request-home-${Date.now()}`,
         type: 'book_test_visit',
-        prescriptionId: prescription.id,
+        visitType: 'home', // Mark as home visit
+        prescriptionId: testVisitPrescription.id,
+        prescriptionPdfUrl: prescriptionPdfUrl, // Include prescription PDF URL
         prescription: {
-          doctorName: prescription.doctor.name,
-          doctorSpecialty: prescription.doctor.specialty,
-          diagnosis: prescription.diagnosis,
-          issuedAt: prescription.issuedAt,
-          investigations: prescription.investigations || [],
-          medications: prescription.medications || [], // Include medications for complete prescription
-          advice: prescription.advice || '',
-          lifestyleAdvice: prescription.lifestyleAdvice || '',
-          patientName: prescription.patientName || patientProfile.name || 'Current Patient',
+          doctorName: testVisitPrescription.doctor.name,
+          doctorSpecialty: testVisitPrescription.doctor.specialty,
+          diagnosis: testVisitPrescription.diagnosis,
+          issuedAt: testVisitPrescription.issuedAt,
+          investigations: testVisitPrescription.investigations || [],
+          medications: testVisitPrescription.medications || [],
+          advice: testVisitPrescription.advice || '',
+          lifestyleAdvice: testVisitPrescription.lifestyleAdvice || '',
+          patientName: testVisitPrescription.patientName || patientProfile.name || 'Current Patient',
           patientPhone: patientPhone,
           patientAddress: patientAddress,
+          pdfUrl: prescriptionPdfUrl, // Include in prescription object too
         },
         patientId: 'pat-current', // In real app, get from auth
-        patientName: prescription.patientName || patientProfile.name || 'Current Patient', // In real app, get from auth
+        patientName: testVisitPrescription.patientName || patientProfile.name || 'Current Patient',
         patientPhone: patientPhone,
         patientAddress: patientAddress,
         patientEmail: patientProfile.email || 'patient@example.com',
-        status: 'pending',
+        status: 'pending', // Goes to admin first
         createdAt: new Date().toISOString(),
       }
 
@@ -783,15 +815,16 @@ const PatientPrescriptions = () => {
       const patientRequestData = {
         id: requestData.id,
         type: 'lab',
+        visitType: 'home',
         providerName: 'Healiinn',
         providerId: 'admin',
-        testName: 'Lab Test Request',
+        testName: 'Lab Test Request (Home Sample Collection)',
         status: 'pending',
         requestDate: requestData.createdAt,
         responseDate: null,
         totalAmount: null,
-        message: 'Your lab test request has been sent to admin. Waiting for response...',
-        prescriptionId: prescription.id,
+        message: 'Your home sample collection request has been sent to admin. Waiting for approval...',
+        prescriptionId: testVisitPrescription.id,
         patient: {
           name: requestData.patientName,
           phone: requestData.patientPhone,
@@ -802,8 +835,8 @@ const PatientPrescriptions = () => {
         },
         providerResponse: null,
         doctor: {
-          name: prescription.doctor.name,
-          specialty: prescription.doctor.specialty,
+          name: testVisitPrescription.doctor.name,
+          specialty: testVisitPrescription.doctor.specialty,
           phone: '+91 98765 43210',
         },
         prescription: requestData.prescription,
@@ -813,10 +846,122 @@ const PatientPrescriptions = () => {
       patientRequests.push(patientRequestData)
       localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
 
+      // Close modal
+      setShowTestVisitModal(false)
+      setTestVisitPrescription(null)
+
       // Show success message
-      alert('Test visit request sent to admin successfully!')
+      alert('Home sample collection request sent to admin successfully! Admin will review and approve your request.')
     } catch (error) {
-      console.error('Error sending test visit request:', error)
+      console.error('Error sending home test visit request:', error)
+      alert('Error sending request. Please try again.')
+    }
+  }
+
+  const handleTestVisitLab = async () => {
+    if (!testVisitPrescription) return
+
+    try {
+      // Get patient info from localStorage or use defaults
+      const patientProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
+      const patientPhone = patientProfile.phone || testVisitPrescription.patientPhone || '+1-555-000-0000'
+      const patientAddress = patientProfile.address 
+        ? `${patientProfile.address.line1 || ''} ${patientProfile.address.line2 || ''} ${patientProfile.address.city || ''} ${patientProfile.address.state || ''} ${patientProfile.address.postalCode || ''}`.trim()
+        : testVisitPrescription.patientAddress || 'Address not provided'
+      
+      // Get prescription PDF URL if available
+      let prescriptionPdfUrl = testVisitPrescription.pdfUrl || null
+      if (!prescriptionPdfUrl || prescriptionPdfUrl === '#') {
+        try {
+          const patientPrescriptionsKey = `patientPrescriptions_${testVisitPrescription.patientId || 'pat-current'}`
+          const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+          const matchingPrescription = patientPrescriptions.find(p => p.id === testVisitPrescription.id || p.consultationId === testVisitPrescription.id)
+          if (matchingPrescription?.pdfUrl && matchingPrescription.pdfUrl !== '#') {
+            prescriptionPdfUrl = matchingPrescription.pdfUrl
+          }
+        } catch (error) {
+          console.error('Error loading prescription PDF:', error)
+        }
+      }
+
+      // Create request data for lab visit (goes to admin first, just like home)
+      const requestData = {
+        id: `test-request-lab-${Date.now()}`,
+        type: 'book_test_visit',
+        visitType: 'lab', // Mark as lab visit
+        prescriptionId: testVisitPrescription.id,
+        prescriptionPdfUrl: prescriptionPdfUrl, // Include prescription PDF URL
+        prescription: {
+          doctorName: testVisitPrescription.doctor.name,
+          doctorSpecialty: testVisitPrescription.doctor.specialty,
+          diagnosis: testVisitPrescription.diagnosis,
+          issuedAt: testVisitPrescription.issuedAt,
+          investigations: testVisitPrescription.investigations || [],
+          medications: testVisitPrescription.medications || [],
+          advice: testVisitPrescription.advice || '',
+          lifestyleAdvice: testVisitPrescription.lifestyleAdvice || '',
+          patientName: testVisitPrescription.patientName || patientProfile.name || 'Current Patient',
+          patientPhone: patientPhone,
+          patientAddress: patientAddress,
+          pdfUrl: prescriptionPdfUrl, // Include in prescription object too
+        },
+        patientId: 'pat-current', // In real app, get from auth
+        patientName: testVisitPrescription.patientName || patientProfile.name || 'Current Patient',
+        patientPhone: patientPhone,
+        patientAddress: patientAddress,
+        patientEmail: patientProfile.email || 'patient@example.com',
+        status: 'pending', // Goes to admin first
+        createdAt: new Date().toISOString(),
+      }
+
+      // Save to localStorage for admin to see
+      const existingRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      existingRequests.push(requestData)
+      localStorage.setItem('adminRequests', JSON.stringify(existingRequests))
+
+      // Also create entry in patientRequests so patient can see it immediately
+      const patientRequestData = {
+        id: requestData.id,
+        type: 'lab',
+        visitType: 'lab',
+        providerName: 'Healiinn',
+        providerId: 'admin',
+        testName: 'Lab Test Request (Lab Visit)',
+        status: 'pending',
+        requestDate: requestData.createdAt,
+        responseDate: null,
+        totalAmount: null,
+        message: 'Your lab visit request has been sent to admin. Waiting for approval...',
+        prescriptionId: testVisitPrescription.id,
+        patient: {
+          name: requestData.patientName,
+          phone: requestData.patientPhone,
+          email: requestData.patientEmail,
+          address: requestData.patientAddress,
+          age: patientProfile.age || 32,
+          gender: patientProfile.gender || 'Male',
+        },
+        providerResponse: null,
+        doctor: {
+          name: testVisitPrescription.doctor.name,
+          specialty: testVisitPrescription.doctor.specialty,
+          phone: '+91 98765 43210',
+        },
+        prescription: requestData.prescription,
+      }
+
+      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+      patientRequests.push(patientRequestData)
+      localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
+
+      // Close modal
+      setShowTestVisitModal(false)
+      setTestVisitPrescription(null)
+
+      // Show success message
+      alert('Lab visit request sent to admin successfully! Admin will review and approve your request.')
+    } catch (error) {
+      console.error('Error sending lab visit request:', error)
       alert('Error sending request. Please try again.')
     }
   }
@@ -1832,6 +1977,89 @@ const PatientPrescriptions = () => {
                       : 'Share & Book'}
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Visit Selection Modal */}
+      {showTestVisitModal && testVisitPrescription && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4 py-6 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 p-6">
+              <h2 className="text-lg font-bold text-slate-900">Choose Test Visit Type</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTestVisitModal(false)
+                  setTestVisitPrescription(null)
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+              >
+                <IoCloseOutline className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-sm font-semibold text-slate-900 mb-1">Prescription:</p>
+                <p className="text-sm text-slate-600">
+                  {testVisitPrescription.doctor?.name || 'Doctor'} - {testVisitPrescription.diagnosis || 'Test'}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {/* Home Option */}
+                <button
+                  type="button"
+                  onClick={handleTestVisitHome}
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white p-4 text-left transition-all hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-[0.98]"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
+                      <IoHomeOutline className="h-6 w-6 text-emerald-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-900">Home Sample Collection</h3>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Sample will be collected from your home. Request will be sent to admin for approval.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Lab Option */}
+                <button
+                  type="button"
+                  onClick={handleTestVisitLab}
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white p-4 text-left transition-all hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-[0.98]"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-100">
+                      <IoBusinessOutline className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-900">Visit Lab</h3>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Visit the lab for sample collection. Request will be sent to admin for approval.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 border-t border-slate-200 p-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTestVisitModal(false)
+                  setTestVisitPrescription(null)
+                }}
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel
               </button>
             </div>
           </div>

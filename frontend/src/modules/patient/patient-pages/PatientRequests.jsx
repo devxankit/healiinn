@@ -569,15 +569,91 @@ const PatientRequests = () => {
         }
 
       } else if (selectedRequest.type === 'lab') {
-        // Lab order
-        const order = {
+        // Get provider IDs (can be multiple, comma-separated)
+        const providerIds = selectedRequest.providerId ? selectedRequest.providerId.split(',') : []
+        const providerNames = selectedRequest.providerName ? selectedRequest.providerName.split(',').map(n => n.trim()) : []
+        
+        // Group investigations by lab (if multiple labs)
+        const investigationsByLab = {}
+        if (selectedRequest.investigations && selectedRequest.investigations.length > 0) {
+          // For now, all investigations go to first lab (can be enhanced later)
+          const labId = providerIds[0] || selectedRequest.providerId
+          investigationsByLab[labId] = selectedRequest.investigations
+        }
+
+        // Create orders for each lab
+        const labOrders = []
+        let totalLabAmount = 0
+
+        providerIds.forEach((labId, index) => {
+          const labName = providerNames[index] || selectedRequest.providerName || 'Laboratory'
+          const labInvestigations = investigationsByLab[labId] || selectedRequest.investigations || []
+          // Calculate amount for this lab (if investigations have labId, filter by it)
+          const labAmount = labInvestigations.reduce((sum, inv) => sum + (Number(inv.price) || 0), 0)
+          totalLabAmount += labAmount
+
+          const order = {
+            id: `order-${Date.now()}-${labId}-${index}`,
+            requestId: selectedRequest.id,
+            type: 'lab',
+            patientId: 'pat-current',
+            patientName: selectedRequest.patient?.name || 'Patient',
+            labId: labId,
+            labName: labName,
+            investigations: labInvestigations,
+            totalAmount: labAmount || selectedRequest.totalAmount,
+            status: 'confirmed',
+            createdAt: new Date().toISOString(),
+            paidAt: new Date().toISOString(),
+            paymentConfirmed: true,
+          }
+
+          labOrders.push(order)
+
+          // Save to lab orders
+          const labOrdersList = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
+          const existingIndex = labOrdersList.findIndex(o => o.requestId === selectedRequest.id)
+          if (existingIndex >= 0) {
+            labOrdersList[existingIndex] = {
+              ...labOrdersList[existingIndex],
+              ...order,
+            }
+          } else {
+            labOrdersList.push(order)
+          }
+          localStorage.setItem(`labOrders_${labId}`, JSON.stringify(labOrdersList))
+
+          // Update lab wallet (if exists)
+          try {
+            const labWallet = JSON.parse(localStorage.getItem(`labWallet_${labId}`) || '{"balance": 0, "transactions": []}')
+            labWallet.balance = (labWallet.balance || 0) + (labAmount || selectedRequest.totalAmount)
+            const transaction = {
+              id: `txn-${Date.now()}-${labId}`,
+              type: 'credit',
+              amount: labAmount || selectedRequest.totalAmount,
+              description: `Payment received for order from ${selectedRequest.patient?.name || 'Patient'}`,
+              orderId: order.id,
+              requestId: selectedRequest.id,
+              patientName: selectedRequest.patient?.name || 'Patient',
+              createdAt: new Date().toISOString(),
+            }
+            labWallet.transactions = labWallet.transactions || []
+            labWallet.transactions.unshift(transaction)
+            localStorage.setItem(`labWallet_${labId}`, JSON.stringify(labWallet))
+          } catch (error) {
+            console.error('Error updating lab wallet:', error)
+          }
+        })
+
+        // Save patient order (combined)
+        const patientOrder = {
           id: `order-${Date.now()}`,
           requestId: selectedRequest.id,
           type: 'lab',
           patientId: 'pat-current',
           patientName: selectedRequest.patient?.name || 'Patient',
-          labId: selectedRequest.providerId,
-          labName: selectedRequest.providerName || 'Laboratory',
+          providerIds: providerIds,
+          providerNames: providerNames,
           investigations: selectedRequest.investigations || [],
           totalAmount: selectedRequest.totalAmount,
           status: 'confirmed',
@@ -585,56 +661,20 @@ const PatientRequests = () => {
           paidAt: new Date().toISOString(),
           paymentConfirmed: true,
         }
-
-        // Save patient order
         const orders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-        orders.push(order)
+        orders.push(patientOrder)
         localStorage.setItem('patientOrders', JSON.stringify(orders))
 
-        // Save to admin orders
+        // Save to admin orders (all lab orders) - ensure type is 'laboratory'
         const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
-        adminOrders.push(order)
-        localStorage.setItem('adminOrders', JSON.stringify(adminOrders))
-
-        // Update lab order status
-        try {
-          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${selectedRequest.providerId}`) || '[]')
-          const updatedLabOrders = labOrders.map(labOrder => {
-            if (labOrder.requestId === selectedRequest.id) {
-              return {
-                ...labOrder,
-                status: 'confirmed',
-                paidAt: new Date().toISOString(),
-                paymentConfirmed: true,
-              }
-            }
-            return labOrder
+        labOrders.forEach(order => {
+          // Ensure type is 'laboratory' for consistency in admin orders
+          adminOrders.push({
+            ...order,
+            type: 'laboratory', // Convert 'lab' to 'laboratory' for admin orders
           })
-          localStorage.setItem(`labOrders_${selectedRequest.providerId}`, JSON.stringify(updatedLabOrders))
-        } catch (error) {
-          console.error('Error updating lab order:', error)
-        }
-
-        // Update lab wallet (if exists)
-        try {
-          const labWallet = JSON.parse(localStorage.getItem(`labWallet_${selectedRequest.providerId}`) || '{"balance": 0, "transactions": []}')
-          labWallet.balance = (labWallet.balance || 0) + selectedRequest.totalAmount
-          const transaction = {
-            id: `txn-${Date.now()}-${selectedRequest.providerId}`,
-            type: 'credit',
-            amount: selectedRequest.totalAmount,
-            description: `Payment received for order from ${selectedRequest.patient?.name || 'Patient'}`,
-            orderId: order.id,
-            requestId: selectedRequest.id,
-            patientName: selectedRequest.patient?.name || 'Patient',
-            createdAt: new Date().toISOString(),
-          }
-          labWallet.transactions = labWallet.transactions || []
-          labWallet.transactions.unshift(transaction)
-          localStorage.setItem(`labWallet_${selectedRequest.providerId}`, JSON.stringify(labWallet))
-        } catch (error) {
-          console.error('Error updating lab wallet:', error)
-        }
+        })
+        localStorage.setItem('adminOrders', JSON.stringify(adminOrders))
 
         // Update admin wallet with total payment
         try {
@@ -644,13 +684,18 @@ const PatientRequests = () => {
             id: `txn-${Date.now()}`,
             type: 'credit',
             amount: selectedRequest.totalAmount,
-            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for lab test order (${selectedRequest.providerName || 'Laboratory'})`,
-            orderId: order.id,
+            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for lab test order (${providerNames.join(', ')})`,
+            orderId: patientOrder.id,
             requestId: selectedRequest.id,
-            providerId: selectedRequest.providerId,
-            providerName: selectedRequest.providerName,
+            providerIds: providerIds,
+            providerNames: providerNames,
             patientName: selectedRequest.patient?.name || 'Patient',
             createdAt: new Date().toISOString(),
+            breakdown: labOrders.map(o => ({
+              labId: o.labId,
+              labName: o.labName,
+              amount: o.totalAmount,
+            })),
           }
           adminWallet.transactions = adminWallet.transactions || []
           adminWallet.transactions.unshift(transaction)
@@ -887,12 +932,86 @@ const PatientRequests = () => {
                   </div>
                 )}
 
-                {/* Total Amount for Lab Requests - Show if amount > 0 */}
+                {/* Lab Information and Tests - Only for lab requests */}
                 {(request.type === 'lab' || request.type === 'book_test_visit') && request.totalAmount && request.totalAmount > 0 && (
-                  <div className="mt-2 flex items-center justify-between rounded-lg border border-[#11496c] bg-[rgba(17,73,108,0.05)] px-2 py-1.5">
-                    <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wide">Total Amount:</span>
-                    <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
-                  </div>
+                  <>
+                    {/* Lab Name and Address */}
+                    {request.providerName && (
+                      <div className="mt-2 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
+                          <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Laboratory</h4>
+                        </div>
+                        <div className="space-y-1 text-[9px]">
+                          <div className="font-semibold text-slate-900">
+                            {request.providerName}
+                          </div>
+                          {request.providerResponse?.labs && Array.isArray(request.providerResponse.labs) && request.providerResponse.labs.length > 0 && (
+                            <div className="space-y-1">
+                              {request.providerResponse.labs.map((lab, idx) => (
+                                <div key={idx} className="bg-white rounded px-1.5 py-1 border border-[rgba(17,73,108,0.1)]">
+                                  <div className="font-semibold text-slate-900">{lab.name || lab.labName}</div>
+                                  {lab.address && (
+                                    <div className="flex items-start gap-1 mt-0.5 text-slate-600">
+                                      <IoLocationOutline className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                                      <span className="leading-tight">{lab.address}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {request.adminResponse?.labs && Array.isArray(request.adminResponse.labs) && request.adminResponse.labs.length > 0 && (
+                            <div className="space-y-1">
+                              {request.adminResponse.labs.map((lab, idx) => (
+                                <div key={idx} className="bg-white rounded px-1.5 py-1 border border-[rgba(17,73,108,0.1)]">
+                                  <div className="font-semibold text-slate-900">{lab.name || lab.labName}</div>
+                                  {lab.address && (
+                                    <div className="flex items-start gap-1 mt-0.5 text-slate-600">
+                                      <IoLocationOutline className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                                      <span className="leading-tight">{lab.address}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Lab Tests List with Prices */}
+                    {(request.investigations && request.investigations.length > 0) || (request.adminResponse?.investigations && request.adminResponse.investigations.length > 0) ? (
+                      <div className="mt-2 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
+                          <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Tests Added by Admin</h4>
+                        </div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {((request.investigations || request.adminResponse?.investigations || [])).map((test, idx) => {
+                            const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
+                            const testPrice = typeof test === 'object' ? (test.price || 0) : 0
+                            return (
+                              <div key={idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-[rgba(17,73,108,0.1)]">
+                                <div className="flex-1 min-w-0">
+                                  <span className="font-semibold text-slate-900">{testName}</span>
+                                </div>
+                                {testPrice > 0 && (
+                                  <span className="font-semibold text-[#11496c] shrink-0 ml-2">₹{Number(testPrice).toFixed(2)}</span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Total Amount for Lab Requests */}
+                    <div className="mt-2 flex items-center justify-between rounded-lg border border-[#11496c] bg-[rgba(17,73,108,0.05)] px-2 py-1.5">
+                      <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wide">Total Amount:</span>
+                      <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
+                    </div>
+                  </>
                 )}
 
                 {/* Cancellation Reason - Show when cancelled */}

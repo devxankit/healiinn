@@ -441,22 +441,51 @@ const AdminOrders = () => {
       try {
         const allOrders = []
         
+        // Load from adminOrders (centralized orders)
+        const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
+        adminOrders.forEach((order) => {
+          // Determine type: 'lab' or 'laboratory' -> 'laboratory', 'pharmacy' -> 'pharmacy'
+          const orderType = order.type === 'lab' || order.type === 'laboratory' ? 'laboratory' : 
+                           order.type === 'pharmacy' ? 'pharmacy' : 
+                           (order.labId || order.labName) ? 'laboratory' : 'pharmacy'
+          
+          allOrders.push({
+            ...order,
+            type: orderType, // Ensure type is set correctly
+            orderId: order.id || `ORD-${Date.now()}`,
+            date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
+            patientName: order.patientName || order.patient?.name || 'Unknown Patient',
+            providerName: order.pharmacyName || order.labName || 'Provider',
+            providerId: order.pharmacyId || order.labId || 'provider-1',
+            amount: order.totalAmount || 0,
+            items: order.medicines?.map(m => typeof m === 'string' ? m : m.name || `${m.dosage || ''}`).filter(Boolean) || 
+                   order.investigations?.map(i => typeof i === 'string' ? i : i.name || i.testName).filter(Boolean) || [],
+            // Preserve status from lab confirmation
+            status: order.status || 'pending',
+          })
+        })
+        
         // Load pharmacy orders from all pharmacies
         const allPharmacyAvailability = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
         allPharmacyAvailability.forEach((pharmacy) => {
           const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacy.pharmacyId}`) || '[]')
           pharmacyOrders.forEach((order) => {
-            allOrders.push({
-              ...order,
-              orderId: order.id || `ORD-${Date.now()}`,
-              date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-              time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
-              patientName: order.patient?.name || 'Unknown Patient',
-              providerName: order.pharmacyName || pharmacy.pharmacyName,
-              providerId: order.pharmacyId || pharmacy.pharmacyId,
-              amount: order.totalAmount || 0,
-              items: order.medicines?.map(m => m.name || `${m.dosage || ''}`).filter(Boolean) || [],
-            })
+            // Check if already added from adminOrders
+            const exists = allOrders.some(o => o.id === order.id || o.orderId === order.id)
+            if (!exists) {
+              allOrders.push({
+                ...order,
+                orderId: order.id || `ORD-${Date.now()}`,
+                date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
+                patientName: order.patientName || order.patient?.name || 'Unknown Patient',
+                providerName: order.pharmacyName || pharmacy.pharmacyName,
+                providerId: order.pharmacyId || pharmacy.pharmacyId,
+                amount: order.totalAmount || 0,
+                items: order.medicines?.map(m => typeof m === 'string' ? m : m.name || `${m.dosage || ''}`).filter(Boolean) || [],
+              })
+            }
           })
         })
         
@@ -465,17 +494,36 @@ const AdminOrders = () => {
         allLabAvailability.forEach((lab) => {
           const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.labId}`) || '[]')
           labOrders.forEach((order) => {
-            allOrders.push({
-              ...order,
-              orderId: order.id || `LAB-${Date.now()}`,
-              date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-              time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
-              patientName: order.patient?.name || 'Unknown Patient',
-              providerName: order.labName || lab.labName,
-              providerId: order.labId || lab.labId,
-              amount: order.totalAmount || 0,
-              items: order.investigations?.map(i => i.name).filter(Boolean) || [],
-            })
+            // Check if already added from adminOrders (prioritize adminOrders for status sync)
+            const existingOrder = allOrders.find(o => o.id === order.id || o.orderId === order.id || 
+                                                      (o.requestId && o.requestId === order.requestId))
+            if (!existingOrder) {
+              allOrders.push({
+                ...order,
+                type: 'laboratory', // Ensure type is set to 'laboratory'
+                orderId: order.id || `LAB-${Date.now()}`,
+                date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
+                patientName: order.patientName || order.patient?.name || 'Unknown Patient',
+                providerName: order.labName || lab.labName,
+                providerId: order.labId || lab.labId,
+                amount: order.totalAmount || 0,
+                items: order.investigations?.map(i => typeof i === 'string' ? i : i.name || i.testName).filter(Boolean) || [],
+                status: order.status || 'pending', // Preserve status from lab confirmation
+              })
+            } else {
+              // Update existing order with latest status from labOrders if it's more recent
+              const existingIndex = allOrders.findIndex(o => o.id === order.id || o.orderId === order.id || 
+                                                              (o.requestId && o.requestId === order.requestId))
+              if (existingIndex !== -1 && order.status) {
+                allOrders[existingIndex] = {
+                  ...allOrders[existingIndex],
+                  status: order.status, // Update status from lab confirmation
+                  completedAt: order.completedAt || allOrders[existingIndex].completedAt,
+                  labConfirmed: order.labConfirmed || allOrders[existingIndex].labConfirmed,
+                }
+              }
+            }
           })
         })
         
@@ -484,6 +532,13 @@ const AdminOrders = () => {
         const unique = merged.filter((order, idx, self) => 
           idx === self.findIndex(o => o.id === order.id || o.orderId === order.orderId)
         )
+        
+        // Sort by date (newest first)
+        unique.sort((a, b) => {
+          const dateA = new Date(`${a.date} ${a.time}`)
+          const dateB = new Date(`${b.date} ${b.time}`)
+          return dateB - dateA
+        })
         
         setOrders(unique)
       } catch (error) {
