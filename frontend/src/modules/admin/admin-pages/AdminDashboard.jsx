@@ -467,6 +467,9 @@ const AdminDashboard = () => {
   const navigate = useNavigate()
   const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(mockStats.todayAppointments)
   const [doctorAppointmentsOverview, setDoctorAppointmentsOverview] = useState([])
+  const [pendingPaymentCount, setPendingPaymentCount] = useState(0)
+  const [confirmedPaymentCount, setConfirmedPaymentCount] = useState(0)
+  const [paymentNotifications, setPaymentNotifications] = useState([])
 
   // Load real appointment count and doctor overview from localStorage
   // This MUST be called before any conditional returns to follow React Hooks rules
@@ -548,15 +551,55 @@ const AdminDashboard = () => {
     return () => clearInterval(interval)
   }, [])
 
+  // Load payment data from localStorage
+  useEffect(() => {
+    const token = getAuthToken('admin')
+    if (!token) {
+      return
+    }
+    
+    try {
+      // Load payment-related requests from localStorage
+      const allRequests = JSON.parse(localStorage.getItem('allRequests') || '[]')
+      
+      // Count pending payments (requests with payment status pending)
+      const pendingPayments = allRequests.filter(
+        (req) => req.paymentStatus === 'pending' || (req.status === 'pending' && req.paymentStatus !== 'confirmed')
+      )
+      
+      // Count confirmed payments (requests with payment confirmed but not yet assigned)
+      const confirmedPayments = allRequests.filter(
+        (req) => req.paymentStatus === 'confirmed' && (req.status === 'pending' || req.status === 'payment_confirmed')
+      )
+      
+      setPendingPaymentCount(pendingPayments.length)
+      setConfirmedPaymentCount(confirmedPayments.length)
+      
+      // Create payment notifications from recent payment updates
+      const notifications = allRequests
+        .filter((req) => req.paymentStatus === 'confirmed' || req.paymentStatus === 'pending')
+        .slice(0, 5) // Show latest 5
+        .map((req) => ({
+          id: req.id || `payment-${Date.now()}`,
+          type: req.type || 'payment',
+          message: req.paymentStatus === 'confirmed' 
+            ? `Payment confirmed for ${req.patientName || 'Patient'}'s request`
+            : `Payment pending for ${req.patientName || 'Patient'}'s request`,
+          timestamp: req.updatedAt || req.createdAt || new Date().toISOString(),
+        }))
+      
+      setPaymentNotifications(notifications)
+    } catch (error) {
+      console.error('Error loading payment data:', error)
+      setPendingPaymentCount(0)
+      setConfirmedPaymentCount(0)
+      setPaymentNotifications([])
+    }
+  }, [])
+
   const usersChange = ((mockStats.thisMonthUsers - mockStats.lastMonthUsers) / mockStats.lastMonthUsers) * 100
   const revenueChange = ((mockStats.thisMonthRevenue - mockStats.lastMonthRevenue) / mockStats.lastMonthRevenue) * 100
   const consultationsChange = ((mockStats.thisMonthConsultations - mockStats.lastMonthConsultations) / mockStats.lastMonthConsultations) * 100
-
-  const todayLabel = new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date())
 
   const getStatusColor = (status) => {
     switch (status) {

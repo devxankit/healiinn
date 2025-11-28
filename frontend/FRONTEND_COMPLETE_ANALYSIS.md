@@ -89,17 +89,33 @@ frontend/
 
 #### 1. Patient Authentication
 **Login Endpoints:**
-- `POST /api/patients/auth/send-otp` - Request login OTP (sends OTP to phone)
-- `POST /api/patients/auth/verify-otp` - Verify OTP and login (returns tokens)
-- `POST /api/patients/auth/signup` - Patient registration
+- `POST /api/patients/auth/login/otp` - Request login OTP (sends OTP to phone)
+- `POST /api/patients/auth/login` - Verify OTP and login (returns tokens)
+- `POST /api/patients/auth/signup` - Patient registration (creates account and sends OTP)
+
+**Frontend Service:** `frontend/src/modules/patient/patient-services/patientService.js`
+- ✅ `requestLoginOtp(phone)` → `POST /api/patients/auth/login/otp`
+- ✅ `loginPatient({phone, otp})` → `POST /api/patients/auth/login`
+- ✅ `signupPatient(data)` → `POST /api/patients/auth/signup`
 
 **Login Flow:**
-1. User enters phone number (10 digits)
-2. System sends OTP via SMS using `/api/patients/auth/send-otp`
-3. User enters 6-digit OTP
-4. Backend verifies OTP using `/api/patients/auth/verify-otp`
-5. Returns access token + refresh token
-6. Tokens stored in localStorage/sessionStorage based on "Remember Me"
+1. User enters phone number (10 digits) in `PatientLogin.jsx`
+2. Frontend calls `requestLoginOtp(phone)` → Backend `POST /api/patients/auth/login/otp`
+3. Backend generates OTP and sends via SMS (see OTP Implementation section)
+4. User enters 6-digit OTP in frontend
+5. Frontend calls `loginPatient({phone, otp})` → Backend `POST /api/patients/auth/login`
+6. Backend verifies OTP and returns access token + refresh token
+7. Frontend stores tokens using `storePatientTokens(tokens, remember)`
+8. User redirected to dashboard
+
+**Signup Flow:**
+1. User fills signup form (firstName, lastName, email, phone) in `PatientLogin.jsx`
+2. Frontend calls `signupPatient(data)` → Backend `POST /api/patients/auth/signup`
+3. Backend creates account and automatically sends OTP to mobile number
+4. User enters 6-digit OTP
+5. Frontend calls `loginPatient({phone, otp})` → Backend `POST /api/patients/auth/login`
+6. Backend verifies OTP and returns tokens
+7. User logged in and redirected to dashboard
 
 **Signup Flow:**
 - **Simplified Signup:** Only requires name, email, and mobile number
@@ -116,9 +132,25 @@ frontend/
 - `POST /api/doctors/auth/login` - Verify OTP and login (returns tokens)
 - `POST /api/doctors/auth/signup` - Doctor registration
 
+**Frontend Service:** `frontend/src/modules/doctor/doctor-services/doctorService.js`
+- ✅ `requestLoginOtp(phone)` → `POST /api/doctors/auth/login/otp`
+- ✅ `loginDoctor({phone, otp})` → `POST /api/doctors/auth/login`
+- ✅ `signupDoctor(data)` → `POST /api/doctors/auth/signup`
+
+**Frontend Page:** `frontend/src/modules/doctor/doctor-pages/DoctorLogin.jsx`
+- ✅ Handles Doctor, Pharmacy, and Laboratory login (multi-module login page)
+- ✅ OTP input with 6-digit validation
+- ✅ Resend OTP functionality with 60-second timer
+
 **Login Flow:**
-- Phone number + OTP authentication (same as Patient)
-- Returns access token + refresh token
+1. User selects module (doctor/pharmacy/laboratory) and enters phone number
+2. Frontend calls `requestLoginOtp(phone)` → Backend `POST /api/doctors/auth/login/otp`
+3. Backend generates OTP and sends via SMS
+4. User enters 6-digit OTP
+5. Frontend calls `loginDoctor({phone, otp})` → Backend `POST /api/doctors/auth/login`
+6. Backend verifies OTP and returns tokens
+7. Frontend stores tokens using `storeDoctorTokens(tokens, remember)`
+8. User redirected to dashboard
 
 **Signup Flow:**
 - Multi-step form (3 steps)
@@ -129,13 +161,28 @@ frontend/
 
 #### 3. Pharmacy Authentication
 **Login Endpoints:**
-- `POST /api/pharmacy/auth/login/otp` - Request login OTP (sends OTP to phone)
-- `POST /api/pharmacy/auth/login` - Verify OTP and login (returns tokens)
-- `POST /api/pharmacy/auth/signup` - Pharmacy registration
+- `POST /api/pharmacies/auth/login/otp` - Request login OTP (sends OTP to phone)
+- `POST /api/pharmacies/auth/login` - Verify OTP and login (returns tokens)
+- `POST /api/pharmacies/auth/signup` - Pharmacy registration
+
+**Frontend Service:** `frontend/src/modules/pharmacy/pharmacy-services/pharmacyService.js`
+- ✅ `requestLoginOtp(phone)` → `POST /api/pharmacies/auth/login/otp`
+- ✅ `loginPharmacy({phone, otp})` → `POST /api/pharmacies/auth/login`
+- ✅ `signupPharmacy(data)` → `POST /api/pharmacies/auth/signup`
+
+**Frontend Page:** `frontend/src/modules/doctor/doctor-pages/DoctorLogin.jsx` (shared login page)
+- ✅ Uses same login component as Doctor/Laboratory
+- ✅ Module selection: doctor/pharmacy/laboratory
 
 **Login Flow:**
-- Phone number + OTP authentication (same as Patient)
-- Returns access token + refresh token
+1. User selects "pharmacy" module and enters phone number
+2. Frontend calls `requestLoginOtp(phone)` → Backend `POST /api/pharmacies/auth/login/otp`
+3. Backend generates OTP and sends via SMS
+4. User enters 6-digit OTP
+5. Frontend calls `loginPharmacy({phone, otp})` → Backend `POST /api/pharmacies/auth/login`
+6. Backend verifies OTP and returns tokens
+7. Frontend stores tokens using `storePharmacyTokens(tokens, remember)`
+8. User redirected to dashboard
 
 **Signup Flow:**
 - Multi-step form (3 steps)
@@ -146,13 +193,28 @@ frontend/
 
 #### 4. Laboratory Authentication
 **Login Endpoints:**
-- `POST /api/laboratory/auth/login/otp` - Request login OTP (sends OTP to phone)
-- `POST /api/laboratory/auth/login` - Verify OTP and login (returns tokens)
-- `POST /api/laboratory/auth/signup` - Laboratory registration
+- `POST /api/laboratories/auth/login/otp` - Request login OTP (sends OTP to phone)
+- `POST /api/laboratories/auth/login` - Verify OTP and login (returns tokens)
+- `POST /api/laboratories/auth/signup` - Laboratory registration
+
+**Frontend Service:** `frontend/src/modules/laboratory/laboratory-services/laboratoryService.js`
+- ✅ `requestLoginOtp(phone)` → `POST /api/laboratories/auth/login/otp`
+- ✅ `loginLaboratory({phone, otp})` → `POST /api/laboratories/auth/login`
+- ✅ `signupLaboratory(data)` → `POST /api/laboratories/auth/signup`
+
+**Frontend Page:** `frontend/src/modules/doctor/doctor-pages/DoctorLogin.jsx` (shared login page)
+- ✅ Uses same login component as Doctor/Pharmacy
+- ✅ Module selection: doctor/pharmacy/laboratory
 
 **Login Flow:**
-- Phone number + OTP authentication (same as Patient)
-- Returns access token + refresh token
+1. User selects "laboratory" module and enters phone number
+2. Frontend calls `requestLoginOtp(phone)` → Backend `POST /api/laboratories/auth/login/otp`
+3. Backend generates OTP and sends via SMS
+4. User enters 6-digit OTP
+5. Frontend calls `loginLaboratory({phone, otp})` → Backend `POST /api/laboratories/auth/login`
+6. Backend verifies OTP and returns tokens
+7. Frontend stores tokens using `storeLaboratoryTokens(tokens, remember)`
+8. User redirected to dashboard
 
 **Signup Flow:**
 - Multi-step form (3 steps)
@@ -196,7 +258,36 @@ VITE_API_URL = http://localhost:5000
 
 **⚠️ Issue:** Inconsistent base URL usage across modules
 
-### API Request Headers
+### API Client Implementation
+
+**Centralized API Client:** `frontend/src/utils/apiClient.js`
+
+**Key Features:**
+- ✅ Module-specific API client instances
+- ✅ Automatic token refresh on 401 errors
+- ✅ Module-specific token management
+- ✅ Error handling and retry logic
+- ✅ Base URL: `VITE_API_BASE_URL` (default: `http://localhost:5000/api`)
+
+**Usage Example:**
+```javascript
+import { ApiClient, storeTokens, clearTokens } from '../../../utils/apiClient'
+
+// Create module-specific client
+const apiClient = new ApiClient('patient')
+
+// Make API call
+const data = await apiClient.post('/patients/auth/login/otp', { phone })
+```
+
+**Token Management Functions:**
+- `getAuthToken(module)` - Get auth token from storage
+- `getRefreshToken(module)` - Get refresh token from storage
+- `storeTokens(module, tokens, remember)` - Store tokens
+- `clearTokens(module)` - Clear tokens on logout
+- `refreshAccessToken(module)` - Auto-refresh token on 401
+
+**API Request Headers:**
 
 **Standard Headers:**
 ```javascript
@@ -208,9 +299,15 @@ VITE_API_URL = http://localhost:5000
 
 **Token Retrieval:**
 ```javascript
+// Automatically handled by apiClient
 const token = localStorage.getItem('{module}AuthToken') || 
               sessionStorage.getItem('{module}AuthToken')
 ```
+
+**Automatic Token Refresh:**
+- On 401 error, apiClient automatically tries to refresh token
+- If refresh succeeds, retries original request
+- If refresh fails, clears tokens and redirects to login
 
 ---
 
@@ -1508,121 +1605,137 @@ AdminVerification
 
 ## 🔌 API Service Layer
 
-### Current Implementation
+### ✅ Centralized API Client Implementation
 
-**Admin Service** (`admin-services/adminService.js`)
+**Base API Client:** `frontend/src/utils/apiClient.js` (321 lines)
+
+**Key Features:**
+- ✅ Module-specific API client instances (`ApiClient` class)
+- ✅ Automatic token refresh on 401 errors
+- ✅ Module-specific token management
+- ✅ Error handling and retry logic
+- ✅ Base URL: `VITE_API_BASE_URL` (default: `http://localhost:5000/api`)
+
+**Exported Functions:**
+```javascript
+// Class for creating module-specific clients
+export { ApiClient }
+
+// Token management utilities
+export { storeTokens, clearTokens, getAuthToken, getRefreshToken }
+
+// Default admin client instance
+export default apiClient
+```
+
+**Usage Pattern:**
+```javascript
+// In service files (patientService.js, doctorService.js, etc.)
+import { ApiClient, storeTokens, clearTokens } from '../../../utils/apiClient'
+
+// Create module-specific client
+const apiClient = new ApiClient('patient') // or 'doctor', 'pharmacy', etc.
+
+// Make API calls
+const data = await apiClient.post('/patients/auth/login/otp', { phone })
+const profile = await apiClient.get('/patients/auth/me')
+```
+
+**Automatic Token Refresh:**
+- On 401 error, automatically attempts token refresh
+- If refresh succeeds, retries original request
+- If refresh fails, clears tokens and redirects to login
+- Handles both accessToken and refreshToken
+
+### Current Service Implementation Status
+
+**✅ Patient Service** (`patient-services/patientService.js`)
+- ✅ Complete auth service layer
+- ✅ Uses `ApiClient('patient')`
+- ✅ Token management via `storeTokens`/`clearTokens`
+- ✅ All auth endpoints: signup, login/otp, login, logout, profile
+
+**✅ Doctor Service** (`doctor-services/doctorService.js`)
+- ✅ Complete auth service layer
+- ✅ Uses `ApiClient('doctor')`
+- ✅ Token management
+- ✅ All auth endpoints connected
+
+**✅ Pharmacy Service** (`pharmacy-services/pharmacyService.js`)
+- ✅ Complete auth service layer
+- ✅ Uses `ApiClient('pharmacy')`
+- ✅ Additional functions: fetchPharmacies, getPharmacyById, getPharmacyOrders, updateOrderStatus, getPharmacyPatients
+- ⚠️ Some functions exist but backend endpoints pending
+
+**✅ Laboratory Service** (`laboratory-services/laboratoryService.js`)
+- ✅ Complete auth service layer
+- ✅ Uses `ApiClient('laboratory')`
+- ✅ Token management
+- ✅ All auth endpoints connected
+
+**✅ Admin Service** (`admin-services/adminService.js`)
 - ✅ Complete service layer
+- ✅ Uses default `apiClient` instance (admin)
 - ✅ Token management
-- ✅ Error handling
-- ✅ All admin APIs covered
-
-**Pharmacy Service** (`pharmacy-services/pharmacyService.js`)
-- ✅ Basic service layer
-- ✅ Token management
-- ⚠️ Limited APIs (only login, orders, patients)
+- ✅ All auth endpoints + many feature endpoints (backend pending)
+- ✅ Functions for: dashboard, users, doctors, pharmacies, laboratories, verifications, activities, wallet, settings
 
 **Other Modules**
-- ❌ No service layer
-- ❌ Direct fetch calls in components
-- ❌ Inconsistent error handling
+- ✅ All modules now use centralized `apiClient`
+- ✅ Consistent error handling across all modules
+- ✅ No more direct fetch calls in components
 
-### Recommended Service Structure
+### ✅ Service Structure (IMPLEMENTED)
+
+**Current Implementation:** All modules follow this pattern:
 
 ```javascript
-// services/apiClient.js - Base API client
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+// Example: patient-services/patientService.js
+import { ApiClient, storeTokens, clearTokens } from '../../../utils/apiClient'
 
-class ApiClient {
-  constructor(module) {
-    this.module = module
-    this.baseURL = API_BASE_URL
-  }
+// Create module-specific API client
+const apiClient = new ApiClient('patient')
 
-  getAuthToken() {
-    return localStorage.getItem(`${this.module}AuthToken`) || 
-           sessionStorage.getItem(`${this.module}AuthToken`)
-  }
-
-  getHeaders() {
-    const token = this.getAuthToken()
-    return {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-    }
-  }
-
-  async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`
-    const config = {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options.headers,
-      },
-    }
-
-    try {
-      const response = await fetch(url, config)
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.message || `Request failed: ${response.statusText}`)
-      }
-      return await response.json()
-    } catch (error) {
-      console.error(`API Error [${this.module}]:`, error)
-      throw error
-    }
-  }
-
-  get(endpoint, params = {}) {
-    const queryString = new URLSearchParams(params).toString()
-    const url = queryString ? `${endpoint}?${queryString}` : endpoint
-    return this.request(url, { method: 'GET' })
-  }
-
-  post(endpoint, data) {
-    return this.request(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    })
-  }
-
-  patch(endpoint, data) {
-    return this.request(endpoint, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    })
-  }
-
-  delete(endpoint) {
-    return this.request(endpoint, { method: 'DELETE' })
-  }
+// Auth functions
+export const signupPatient = async (signupData) => {
+  const data = await apiClient.post('/patients/auth/signup', signupData)
+  return data
 }
 
-// services/patientService.js
-export const patientService = new ApiClient('patient')
-
-export const patientAuth = {
-  signup: (data) => patientService.post('/patients/auth/signup', data),
-  loginOtp: (phone) => patientService.post('/patients/auth/login/otp', { phone }),
-  login: (data) => patientService.post('/patients/auth/login', data),
-  forgotPassword: (email) => patientService.post('/patients/auth/forgot-password', { email }),
-  verifyOtp: (data) => patientService.post('/patients/auth/verify-otp', data),
-  resetPassword: (data) => patientService.post('/patients/auth/reset-password', data),
-  getProfile: () => patientService.get('/patients/auth/profile'),
-  updateProfile: (data) => patientService.patch('/patients/auth/profile', data),
+export const requestLoginOtp = async (phone) => {
+  const data = await apiClient.post('/patients/auth/login/otp', { phone })
+  return data
 }
 
-export const patientAppointments = {
-  getAll: (filters) => patientService.get('/patients/appointments', filters),
-  getById: (id) => patientService.get(`/patients/appointments/${id}`),
-  create: (data) => patientService.post('/patients/appointments', data),
-  update: (id, data) => patientService.patch(`/patients/appointments/${id}`, data),
-  cancel: (id) => patientService.delete(`/patients/appointments/${id}`),
+export const loginPatient = async (credentials) => {
+  const data = await apiClient.post('/patients/auth/login', credentials)
+  return data
 }
 
-// Similar for other modules...
+// Token management
+export const storePatientTokens = (tokens, remember = true) => {
+  storeTokens('patient', tokens, remember)
+}
+
+export const clearPatientTokens = () => {
+  clearTokens('patient')
+}
+
+// Profile functions
+export const getPatientProfile = async () => {
+  return await apiClient.get('/patients/auth/me')
+}
+
+export const updatePatientProfile = async (profileData) => {
+  return await apiClient.put('/patients/auth/me', profileData)
+}
 ```
+
+**All modules follow same pattern:**
+- ✅ `doctorService.js` - Uses `ApiClient('doctor')`
+- ✅ `pharmacyService.js` - Uses `ApiClient('pharmacy')`
+- ✅ `laboratoryService.js` - Uses `ApiClient('laboratory')`
+- ✅ `adminService.js` - Uses default `apiClient` (admin)
 
 ---
 
@@ -2403,9 +2516,10 @@ All modules have sidebar components with:
 
 ### API Endpoint Corrections
 
-**Patient Authentication:**
-- ✅ Correct: `POST /api/patients/auth/send-otp` (not `/api/patients/auth/login/otp`)
-- ✅ Correct: `POST /api/patients/auth/verify-otp` (not `/api/patients/auth/login`)
+**Patient Authentication (CORRECTED):**
+- ✅ Correct: `POST /api/patients/auth/login/otp` - Request login OTP
+- ✅ Correct: `POST /api/patients/auth/login` - Verify OTP and login
+- ✅ Correct: `POST /api/patients/auth/signup` - Signup (sends OTP automatically)
 
 **Password Reset Flow:**
 - **REMOVED** for Patient, Doctor, Pharmacy, and Laboratory modules
@@ -2521,12 +2635,397 @@ All modules have sidebar components with:
 
 ---
 
-**Document Version:** 2.3 (Updated - Password Removed from Signup)  
+---
+
+## 📱 OTP Implementation & SMS Service
+
+### ✅ OTP Service Status: FULLY IMPLEMENTED
+
+**Backend Implementation:**
+- ✅ SMS Service: `backend/services/smsService.js`
+- ✅ OTP Service: `backend/services/loginOtpService.js`
+- ✅ Supports multiple SMS providers: MSG91, Twilio, TextLocal, AWS SNS
+- ✅ Development mode: `SMS_PROVIDER=NONE` (logs OTP to console)
+
+**Frontend Connection:**
+- ✅ All modules properly connected via service files
+- ✅ OTP input components with 6-digit validation
+- ✅ Resend OTP functionality with timer
+- ✅ Error handling and user feedback
+
+**OTP Flow Details:**
+
+**Signup OTP (Patient Only):**
+1. User signs up → Backend creates account
+2. Backend automatically calls `requestLoginOtp()` → OTP sent to mobile
+3. User enters OTP → Frontend calls `loginPatient()` → Verifies and logs in
+
+**Login OTP (All Roles):**
+1. User enters phone → Frontend calls `requestLoginOtp()` → Backend sends OTP
+2. User enters OTP → Frontend calls `login{Module}()` → Verifies and logs in
+
+**OTP Delivery:**
+- **Development:** `SMS_PROVIDER=NONE` → OTP logged to terminal/console
+- **Production:** `SMS_PROVIDER=MSG91` (or other) → OTP sent via SMS to mobile
+
+**See:** `backend/OTP_SMS_SETUP.md` and `OTP_CONNECTION_STATUS.md` for complete details
+
+---
+
+## 🔗 Backend Connection Status
+
+### ✅ Authentication: 100% CONNECTED
+
+**All Modules:**
+- ✅ Signup endpoints connected
+- ✅ Login OTP endpoints connected
+- ✅ Login verification endpoints connected
+- ✅ Profile endpoints connected
+- ✅ Logout endpoints connected
+- ✅ Token refresh auto-handled by apiClient
+
+**Connection Files:**
+- ✅ `frontend/src/modules/patient/patient-services/patientService.js`
+- ✅ `frontend/src/modules/doctor/doctor-services/doctorService.js`
+- ✅ `frontend/src/modules/pharmacy/pharmacy-services/pharmacyService.js`
+- ✅ `frontend/src/modules/laboratory/laboratory-services/laboratoryService.js`
+- ✅ `frontend/src/modules/admin/admin-services/adminService.js`
+- ✅ `frontend/src/utils/apiClient.js` (shared utility)
+
+**See:** `frontend/FRONTEND_CONNECTION_STATUS.md` for detailed connection status
+
+---
+
+## 📁 Complete File Structure with Links
+
+### Frontend Structure
+```
+frontend/
+├── src/
+│   ├── App.jsx                    # Main routing (329 lines)
+│   ├── main.jsx                   # Entry point
+│   ├── utils/
+│   │   ├── apiClient.js          # ✅ Centralized API client (321 lines)
+│   │   ├── dummyData.js          # Mock data
+│   │   └── initializeDummyData.js
+│   ├── components/
+│   │   └── ProtectedRoute.jsx    # ✅ Route protection
+│   ├── contexts/
+│   │   └── ToastContext.jsx      # ✅ Toast notifications
+│   └── modules/
+│       ├── patient/
+│       │   ├── patient-services/
+│       │   │   └── patientService.js  # ✅ Auth connected
+│       │   └── patient-pages/        # 20 pages
+│       ├── doctor/
+│       │   ├── doctor-services/
+│       │   │   └── doctorService.js   # ✅ Auth connected
+│       │   └── doctor-pages/          # 14 pages
+│       ├── pharmacy/
+│       │   ├── pharmacy-services/
+│       │   │   └── pharmacyService.js # ✅ Auth connected
+│       │   └── pharmacy-pages/       # 16 pages
+│       ├── laboratory/
+│       │   ├── laboratory-services/
+│       │   │   └── laboratoryService.js # ✅ Auth connected
+│       │   └── laboratory-pages/        # 19 pages
+│       └── admin/
+│           ├── admin-services/
+│           │   └── adminService.js    # ✅ Auth + many functions
+│           └── admin-pages/           # 16 pages
+```
+
+### Backend Structure (Reference)
+```
+backend/
+├── services/
+│   ├── smsService.js            # ✅ SMS/OTP service
+│   ├── loginOtpService.js       # ✅ OTP generation/verification
+│   └── emailService.js          # Email service
+├── controllers/
+│   ├── patient-controllers/
+│   │   └── patientAuthController.js  # ✅ Auth endpoints
+│   ├── doctor-controllers/
+│   │   └── doctorAuthController.js   # ✅ Auth endpoints
+│   ├── pharmacy-controllers/
+│   │   └── pharmacyAuthController.js # ✅ Auth endpoints
+│   ├── laboratory-controllers/
+│   │   └── laboratoryAuthController.js # ✅ Auth endpoints
+│   └── admin-controllers/
+│       └── adminAuthController.js     # ✅ Auth endpoints
+└── models/
+    ├── LoginOtpToken.js         # ✅ OTP storage model
+    └── [other models]
+```
+
+---
+
+## 🔄 Complete Data Flow Diagrams
+
+### Authentication Flow (All Modules)
+
+```
+┌─────────────┐
+│   Frontend  │
+│  Login Page │
+└──────┬──────┘
+       │
+       │ 1. User enters phone
+       ▼
+┌─────────────────────────┐
+│  Service Layer           │
+│  requestLoginOtp(phone) │
+└──────┬──────────────────┘
+       │
+       │ 2. POST /api/{role}/auth/login/otp
+       ▼
+┌─────────────────────────┐
+│   Backend Controller     │
+│   requestLoginOtp()     │
+└──────┬──────────────────┘
+       │
+       │ 3. Generate OTP
+       ▼
+┌─────────────────────────┐
+│   OTP Service           │
+│   generateOtp()         │
+└──────┬──────────────────┘
+       │
+       │ 4. Hash & Store OTP
+       ▼
+┌─────────────────────────┐
+│   SMS Service           │
+│   sendMobileOtp()       │
+└──────┬──────────────────┘
+       │
+       │ 5. Send OTP (SMS/Console)
+       ▼
+┌─────────────────────────┐
+│   User Mobile/Terminal   │
+│   Receives OTP          │
+└─────────────────────────┘
+       │
+       │ 6. User enters OTP
+       ▼
+┌─────────────────────────┐
+│   Frontend              │
+│   login{Module}({phone, otp}) │
+└──────┬──────────────────┘
+       │
+       │ 7. POST /api/{role}/auth/login
+       ▼
+┌─────────────────────────┐
+│   Backend Controller     │
+│   verifyLoginOtp()     │
+└──────┬──────────────────┘
+       │
+       │ 8. Verify OTP & Generate Tokens
+       ▼
+┌─────────────────────────┐
+│   Frontend              │
+│   storeTokens()         │
+└──────┬──────────────────┘
+       │
+       │ 9. Redirect to Dashboard
+       ▼
+┌─────────────────────────┐
+│   Dashboard             │
+└─────────────────────────┘
+```
+
+### Signup Flow (Patient Only)
+
+```
+┌─────────────┐
+│   Frontend  │
+│  Signup Form│
+└──────┬──────┘
+       │
+       │ 1. User fills form (name, email, phone)
+       ▼
+┌─────────────────────────┐
+│  Service Layer           │
+│  signupPatient(data)    │
+└──────┬──────────────────┘
+       │
+       │ 2. POST /api/patients/auth/signup
+       ▼
+┌─────────────────────────┐
+│   Backend Controller     │
+│   registerPatient()     │
+└──────┬──────────────────┘
+       │
+       │ 3. Create account in DB
+       │ 4. Automatically call requestLoginOtp()
+       │ 5. Generate & Send OTP
+       ▼
+┌─────────────────────────┐
+│   User Mobile/Terminal   │
+│   Receives OTP          │
+└─────────────────────────┘
+       │
+       │ 6. User enters OTP
+       ▼
+┌─────────────────────────┐
+│   Frontend              │
+│   loginPatient({phone, otp}) │
+└──────┬──────────────────┘
+       │
+       │ 7. POST /api/patients/auth/login
+       │ 8. Verify OTP & Login
+       ▼
+┌─────────────────────────┐
+│   Dashboard             │
+└─────────────────────────┘
+```
+
+---
+
+## 📊 Backend Connection Status Summary
+
+### ✅ Fully Connected Features
+
+| Feature | Backend Status | Frontend Status | Connection Status |
+|---------|---------------|-----------------|-------------------|
+| **Authentication (All Modules)** | ✅ Complete | ✅ Complete | ✅ 100% Connected |
+| **OTP Service** | ✅ Complete | ✅ Complete | ✅ 100% Connected |
+| **SMS Service** | ✅ Complete | N/A | ✅ Backend Ready |
+| **Token Management** | ✅ Complete | ✅ Complete | ✅ 100% Connected |
+| **Route Protection** | ✅ Complete | ✅ Complete | ✅ 100% Connected |
+| **Profile Management** | ✅ Complete | ✅ Complete | ✅ 100% Connected |
+
+### 🟡 Partially Connected Features
+
+| Feature | Backend Status | Frontend Status | Connection Status |
+|---------|---------------|-----------------|-------------------|
+| **Pharmacy Orders** | ❌ Pending | ✅ Service functions exist | 🟡 Frontend Ready |
+| **Pharmacy Patients** | ❌ Pending | ✅ Service functions exist | 🟡 Frontend Ready |
+| **Admin Dashboard** | ❌ Pending | ✅ Service functions exist | 🟡 Frontend Ready |
+| **Admin Users** | ❌ Pending | ✅ Service functions exist | 🟡 Frontend Ready |
+
+### ❌ Not Connected Features (Pending Backend)
+
+| Feature | Backend Status | Frontend Status | Connection Status |
+|---------|---------------|-----------------|-------------------|
+| **Appointments** | ❌ Pending | ✅ Pages ready | ❌ Not Connected |
+| **Consultations** | ❌ Pending | ✅ Pages ready | ❌ Not Connected |
+| **Prescriptions** | ❌ Pending | ✅ Pages ready | ❌ Not Connected |
+| **Orders** | ❌ Pending | ✅ Pages ready | ❌ Not Connected |
+| **Reports** | ❌ Pending | ✅ Pages ready | ❌ Not Connected |
+| **Wallet** | ❌ Pending | ✅ Pages ready | ❌ Not Connected |
+| **Requests** | ❌ Pending | ✅ Pages ready | ❌ Not Connected |
+| **Sessions** | ❌ Pending | ✅ Pages ready | ❌ Not Connected |
+| **Support** | ❌ Pending | ✅ Pages ready | ❌ Not Connected |
+
+**See:** `frontend/FRONTEND_CONNECTION_STATUS.md` for detailed connection status
+
+---
+
+## 🔗 File Linking & References
+
+### Frontend → Backend File Mapping
+
+**Authentication:**
+- `frontend/src/modules/patient/patient-services/patientService.js` → `backend/controllers/patient-controllers/patientAuthController.js`
+- `frontend/src/modules/doctor/doctor-services/doctorService.js` → `backend/controllers/doctor-controllers/doctorAuthController.js`
+- `frontend/src/modules/pharmacy/pharmacy-services/pharmacyService.js` → `backend/controllers/pharmacy-controllers/pharmacyAuthController.js`
+- `frontend/src/modules/laboratory/laboratory-services/laboratoryService.js` → `backend/controllers/laboratory-controllers/laboratoryAuthController.js`
+- `frontend/src/modules/admin/admin-services/adminService.js` → `backend/controllers/admin-controllers/adminAuthController.js`
+
+**OTP Service:**
+- `backend/services/smsService.js` - SMS sending implementation
+- `backend/services/loginOtpService.js` - OTP generation/verification
+- `backend/models/LoginOtpToken.js` - OTP storage model
+
+**API Client:**
+- `frontend/src/utils/apiClient.js` - Centralized API client (used by all services)
+
+**Route Protection:**
+- `frontend/src/components/ProtectedRoute.jsx` - Route protection component
+- `frontend/src/App.jsx` - Route definitions with protection
+
+**Toast Notifications:**
+- `frontend/src/contexts/ToastContext.jsx` - Toast notification context
+- Used in all authentication pages
+
+### Related Documentation Files
+
+- `frontend/FRONTEND_COMPLETE_ANALYSIS.md` - This file (complete frontend analysis)
+- `frontend/FRONTEND_CONNECTION_STATUS.md` - Detailed connection status
+- `backend/OTP_SMS_SETUP.md` - OTP/SMS setup guide
+- `OTP_CONNECTION_STATUS.md` - OTP connection details
+- `OTP_IMPLEMENTATION_SUMMARY.md` - OTP implementation summary
+- `backend/BACKEND_TRACKING.md` - Backend implementation tracking
+
+---
+
+## 🎯 Quick Reference Guide
+
+### For Backend Developers
+
+**Start Here:**
+1. Read this document (`FRONTEND_COMPLETE_ANALYSIS.md`) for complete frontend requirements
+2. Check `FRONTEND_CONNECTION_STATUS.md` for what's already connected
+3. Check `backend/BACKEND_TRACKING.md` for backend implementation status
+4. Follow API endpoint patterns from "Module-Wise API Endpoints" section
+5. Use data models from "Data Structures & Models" section
+
+**API Endpoint Pattern:**
+```
+POST /api/{module}/auth/signup      - Signup
+POST /api/{module}/auth/login/otp  - Request OTP
+POST /api/{module}/auth/login      - Verify OTP & Login
+POST /api/{module}/auth/logout     - Logout
+GET  /api/{module}/auth/me         - Get Profile
+PUT  /api/{module}/auth/me         - Update Profile
+```
+
+**Response Format:**
+```javascript
+{
+  success: true,
+  message: "Operation successful",
+  data: {
+    // Response data
+    tokens: { accessToken, refreshToken }, // For login
+    user: { /* user object */ }            // For profile
+  }
+}
+```
+
+### For Frontend Developers
+
+**Service File Pattern:**
+```javascript
+import { ApiClient, storeTokens, clearTokens } from '../../../utils/apiClient'
+const apiClient = new ApiClient('moduleName')
+
+export const functionName = async (params) => {
+  const data = await apiClient.post('/endpoint', params)
+  return data
+}
+```
+
+**Token Management:**
+```javascript
+// Store tokens after login
+storeTokens('moduleName', { accessToken, refreshToken }, remember)
+
+// Clear tokens on logout
+clearTokens('moduleName')
+```
+
+---
+
+**Document Version:** 3.0 (Final - Complete with OTP, API Client, Backend Connections)  
 **Last Updated:** January 2025  
 **Maintained By:** Development Team  
-**Total Pages:** Complete Analysis with all modules, APIs, data structures, routes, and connections  
+**Total Pages:** Complete Analysis with all modules, APIs, data structures, routes, connections, OTP implementation, and backend status  
 **Status:** ✅ Complete and Ready for Backend Development  
-**Verification:** ✅ All pages, routes, APIs, and data structures verified  
-**Completeness:** ✅ 100% - No missing information  
-**Authentication:** ✅ Updated - Password removed from signup, OTP-based login only
+**Verification:** ✅ All pages, routes, APIs, data structures, connections, and implementations verified  
+**Completeness:** ✅ 100% - All information documented including OTP, API Client, and Backend Connections  
+**Authentication:** ✅ Updated - OTP-based login, Password removed from signup  
+**OTP Service:** ✅ Fully implemented and connected (Backend + Frontend)  
+**API Client:** ✅ Centralized implementation with automatic token refresh  
+**Backend Connections:** ✅ Authentication 100% connected, Other features pending backend implementation
 
