@@ -6,9 +6,7 @@ const {
   getLaboratoryProfile,
   updateLaboratoryProfile,
   logoutLaboratory,
-  laboratoryForgotPassword,
-  laboratoryVerifyOtp,
-  laboratoryResetPassword,
+  refreshToken,
   getLaboratoryById,
 } = require('../../controllers/laboratory-controllers/laboratoryAuthController');
 const { protect } = require('../../middleware/authMiddleware');
@@ -22,10 +20,8 @@ const router = express.Router();
 router.post('/signup', sanitizeInput, authRateLimiter, registerLaboratory);
 router.post('/login/otp', sanitizeInput, otpRateLimiter, requestLoginOtp);
 router.post('/login', sanitizeInput, authRateLimiter, loginLaboratory);
-router.post('/forgot-password', sanitizeInput, passwordResetRateLimiter, laboratoryForgotPassword);
-router.post('/verify-otp', sanitizeInput, otpRateLimiter, laboratoryVerifyOtp);
-router.post('/reset-password', sanitizeInput, passwordResetRateLimiter, laboratoryResetPassword);
 
+router.post('/refresh-token', sanitizeInput, refreshToken);
 router.get('/me', protect(ROLES.LABORATORY), getLaboratoryProfile);
 router.put('/me', protect(ROLES.LABORATORY), sanitizeInput, updateLaboratoryProfile);
 router.post('/logout', protect(ROLES.LABORATORY), logoutLaboratory);

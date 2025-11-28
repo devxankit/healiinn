@@ -6,9 +6,7 @@ const {
   getPharmacyProfile,
   updatePharmacyProfile,
   logoutPharmacy,
-  pharmacyForgotPassword,
-  pharmacyVerifyOtp,
-  pharmacyResetPassword,
+  refreshToken,
   getPharmacyById,
 } = require('../../controllers/pharmacy-controllers/pharmacyAuthController');
 const { protect } = require('../../middleware/authMiddleware');
@@ -22,10 +20,8 @@ const router = express.Router();
 router.post('/signup', sanitizeInput, authRateLimiter, registerPharmacy);
 router.post('/login/otp', sanitizeInput, otpRateLimiter, requestLoginOtp);
 router.post('/login', sanitizeInput, authRateLimiter, loginPharmacy);
-router.post('/forgot-password', sanitizeInput, passwordResetRateLimiter, pharmacyForgotPassword);
-router.post('/verify-otp', sanitizeInput, otpRateLimiter, pharmacyVerifyOtp);
-router.post('/reset-password', sanitizeInput, passwordResetRateLimiter, pharmacyResetPassword);
 
+router.post('/refresh-token', sanitizeInput, refreshToken);
 router.get('/me', protect(ROLES.PHARMACY), getPharmacyProfile);
 router.put('/me', protect(ROLES.PHARMACY), sanitizeInput, updatePharmacyProfile);
 router.post('/logout', protect(ROLES.PHARMACY), logoutPharmacy);

@@ -10,10 +10,12 @@ const createError = (status, message) => {
 };
 
 const extractToken = (req) => {
+  // Priority 1: Authorization header (Bearer token)
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     return req.headers.authorization.split(' ')[1];
   }
 
+  // Priority 2: Cookie token
   if (req.cookies && req.cookies.token) {
     return req.cookies.token;
   }
@@ -26,23 +28,40 @@ const protect = (...allowedRoles) =>
     const token = extractToken(req);
 
     if (!token) {
-      throw createError(401, 'Authentication token missing');
+      throw createError(401, 'Authentication token missing. Please login again.');
     }
 
     let decoded;
 
     try {
-      decoded = verifyAccessToken(token);
+      // verifyAccessToken is now async and checks blacklist
+      decoded = await verifyAccessToken(token);
     } catch (error) {
-      throw createError(401, 'Invalid or expired token');
+      // Handle specific error types
+      if (error.name === 'TokenExpiredError') {
+        throw createError(401, 'Access token has expired. Please refresh your token.');
+      }
+      if (error.name === 'TokenRevokedError') {
+        throw createError(401, 'Token has been revoked. Please login again.');
+      }
+      if (error.name === 'JsonWebTokenError') {
+        throw createError(401, 'Invalid token. Please login again.');
+      }
+      throw createError(401, 'Token verification failed. Please login again.');
     }
 
     const { id, role } = decoded;
+
+    // Validate decoded token structure
+    if (!id || !role) {
+      throw createError(401, 'Invalid token payload');
+    }
+
     const Model = getModelForRole(role);
     const user = await Model.findById(id);
 
     if (!user) {
-      throw createError(401, 'Account not found');
+      throw createError(401, 'Account not found. Please login again.');
     }
 
     // Handle both array format and individual arguments
@@ -54,18 +73,21 @@ const protect = (...allowedRoles) =>
       throw createError(403, 'You do not have access to this resource');
     }
 
+    // Check approval status for doctors, labs, and pharmacies
     if (
       [ROLES.DOCTOR, ROLES.LABORATORY, ROLES.PHARMACY].includes(role) &&
       user.status &&
       user.status !== APPROVAL_STATUS.APPROVED
     ) {
-      throw createError(403, 'Account is not approved yet');
+      throw createError(403, 'Account is not approved yet. Please wait for admin approval.');
     }
 
+    // Check if account is active
     if (Object.prototype.hasOwnProperty.call(user, 'isActive') && user.isActive === false) {
-      throw createError(403, 'Account is inactive');
+      throw createError(403, 'Account is inactive. Please contact support.');
     }
 
+    // Attach user info to request
     req.auth = { id, role };
     req.user = user;
 

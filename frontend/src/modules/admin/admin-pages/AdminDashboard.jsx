@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   IoPeopleOutline,
   IoMedicalOutline,
@@ -466,12 +467,15 @@ const AdminDashboard = () => {
   const navigate = useNavigate()
   const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(mockStats.todayAppointments)
   const [doctorAppointmentsOverview, setDoctorAppointmentsOverview] = useState([])
-  const [paymentNotifications, setPaymentNotifications] = useState([])
-  const [pendingPaymentCount, setPendingPaymentCount] = useState(0)
-  const [confirmedPaymentCount, setConfirmedPaymentCount] = useState(0)
 
   // Load real appointment count and doctor overview from localStorage
+  // This MUST be called before any conditional returns to follow React Hooks rules
   useEffect(() => {
+    // Check token before loading
+    const token = getAuthToken('admin')
+    if (!token) {
+      return
+    }
     const loadAppointments = () => {
       try {
         const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
@@ -541,32 +545,6 @@ const AdminDashboard = () => {
     loadAppointments()
     // Refresh every 2 seconds
     const interval = setInterval(loadAppointments, 2000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // Load payment notifications and status
-  useEffect(() => {
-    const loadPaymentStatus = () => {
-      try {
-        // Load notifications
-        const notifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
-        const unreadNotifications = notifications.filter(n => !n.read && n.type === 'payment_confirmed')
-        setPaymentNotifications(unreadNotifications.slice(0, 5)) // Show latest 5
-
-        // Load payment status from adminRequests
-        const adminRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-        const pending = adminRequests.filter(req => req.paymentPending && !req.paymentConfirmed).length
-        const confirmed = adminRequests.filter(req => req.paymentConfirmed && req.readyForAssignment).length
-        setPendingPaymentCount(pending)
-        setConfirmedPaymentCount(confirmed)
-      } catch (error) {
-        console.error('Error loading payment status:', error)
-      }
-    }
-    
-    loadPaymentStatus()
-    // Refresh every 2 seconds
-    const interval = setInterval(loadPaymentStatus, 2000)
     return () => clearInterval(interval)
   }, [])
 

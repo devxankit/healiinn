@@ -1,44 +1,55 @@
 // Admin service utilities for API calls
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
+import apiClient, { storeTokens, clearTokens } from '../../../utils/apiClient'
 
 /**
- * Get authentication token from storage
+ * Check if admin exists (to determine if signup should be enabled)
+ * @returns {Promise<object>} Response with adminExists and canRegister flags
  */
-const getAuthToken = () => {
-  return localStorage.getItem('adminAuthToken') || sessionStorage.getItem('adminAuthToken')
+export const checkAdminExists = async () => {
+  try {
+    // This is a public endpoint, so we use fetch directly without auth
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+    const response = await fetch(`${API_BASE_URL}/admin/auth/check-exists`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to check admin status')
+    }
+    
+    return await response.json()
+  } catch (error) {
+    console.error('Error checking admin exists:', error)
+    throw error
+  }
 }
 
 /**
- * Get auth headers for API requests
+ * Admin signup
+ * @param {object} signupData - Signup data (name, email, password, phone, registrationCode, isSuperAdmin)
+ * @returns {Promise<object>} Response data with admin and tokens
  */
-const getAuthHeaders = () => {
-  const token = getAuthToken()
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
+export const signupAdmin = async (signupData) => {
+  try {
+    const data = await apiClient.post('/admin/auth/signup', signupData)
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
   }
 }
 
 /**
  * Admin login
+ * @param {object} credentials - Login credentials (email, password)
+ * @returns {Promise<object>} Response data with admin and tokens
  */
 export const loginAdmin = async (credentials) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || `Login failed: ${response.statusText}`)
-    }
-
-    const data = await response.json()
+    const data = await apiClient.post('/admin/auth/login', credentials)
     return data
   } catch (error) {
     console.error('Error logging in:', error)
@@ -47,20 +58,27 @@ export const loginAdmin = async (credentials) => {
 }
 
 /**
+ * Store admin tokens after login/signup
+ * @param {object} tokens - Tokens object (accessToken, refreshToken)
+ * @param {boolean} remember - Whether to use localStorage
+ */
+export const storeAdminTokens = (tokens, remember = true) => {
+  storeTokens('admin', tokens, remember)
+}
+
+/**
+ * Clear admin tokens on logout
+ */
+export const clearAdminTokens = () => {
+  clearTokens('admin')
+}
+
+/**
  * Get admin dashboard statistics
  */
 export const getDashboardStats = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/dashboard/stats`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch dashboard stats: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/dashboard/stats')
   } catch (error) {
     console.error('Error fetching dashboard stats:', error)
     throw error
@@ -72,24 +90,7 @@ export const getDashboardStats = async () => {
  */
 export const getUsers = async (filters = {}) => {
   try {
-    const queryParams = new URLSearchParams()
-    if (filters.search) queryParams.append('search', filters.search)
-    if (filters.status) queryParams.append('status', filters.status)
-    if (filters.page) queryParams.append('page', filters.page)
-    if (filters.limit) queryParams.append('limit', filters.limit)
-    if (filters.sortBy) queryParams.append('sortBy', filters.sortBy)
-    if (filters.sortOrder) queryParams.append('sortOrder', filters.sortOrder)
-
-    const response = await fetch(`${API_BASE_URL}/admin/users?${queryParams}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch users: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/users', filters)
   } catch (error) {
     console.error('Error fetching users:', error)
     throw error
@@ -101,16 +102,7 @@ export const getUsers = async (filters = {}) => {
  */
 export const getUserById = async (userId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch user: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get(`/admin/users/${userId}`)
   } catch (error) {
     console.error('Error fetching user:', error)
     throw error
@@ -498,16 +490,7 @@ export const getPendingVerifications = async (filters = {}) => {
  */
 export const getAdminProfile = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/profile`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch admin profile: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/auth/me')
   } catch (error) {
     console.error('Error fetching admin profile:', error)
     throw error
@@ -519,17 +502,7 @@ export const getAdminProfile = async () => {
  */
 export const updateAdminProfile = async (profileData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/profile`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(profileData),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to update admin profile: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.put('/admin/auth/me', profileData)
   } catch (error) {
     console.error('Error updating admin profile:', error)
     throw error
@@ -607,25 +580,56 @@ export const updateAdminSettings = async (settings) => {
  */
 export const logoutAdmin = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/auth/logout`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to logout: ${response.statusText}`)
-    }
-
+    await apiClient.post('/admin/auth/logout')
     // Clear tokens from storage
-    localStorage.removeItem('adminAuthToken')
-    sessionStorage.removeItem('adminAuthToken')
-
-    return await response.json()
+    clearAdminTokens()
+    return { success: true, message: 'Logout successful' }
   } catch (error) {
     console.error('Error logging out:', error)
     // Clear tokens even if API call fails
-    localStorage.removeItem('adminAuthToken')
-    sessionStorage.removeItem('adminAuthToken')
+    clearAdminTokens()
+    throw error
+  }
+}
+
+/**
+ * Forgot password - Request OTP
+ * @param {string} email - Email address
+ * @returns {Promise<object>} Response data
+ */
+export const forgotPassword = async (email) => {
+  try {
+    return await apiClient.post('/admin/auth/forgot-password', { email })
+  } catch (error) {
+    console.error('Error requesting password reset:', error)
+    throw error
+  }
+}
+
+/**
+ * Verify password reset OTP
+ * @param {object} data - { email, otp }
+ * @returns {Promise<object>} Response data
+ */
+export const verifyPasswordOtp = async (data) => {
+  try {
+    return await apiClient.post('/admin/auth/verify-otp', data)
+  } catch (error) {
+    console.error('Error verifying OTP:', error)
+    throw error
+  }
+}
+
+/**
+ * Reset password
+ * @param {object} data - { email, otp, newPassword }
+ * @returns {Promise<object>} Response data
+ */
+export const resetPassword = async (data) => {
+  try {
+    return await apiClient.post('/admin/auth/reset-password', data)
+  } catch (error) {
+    console.error('Error resetting password:', error)
     throw error
   }
 }
@@ -731,7 +735,11 @@ export const updateWithdrawalStatus = async (withdrawalId, status, adminNote = n
 }
 
 export default {
+  checkAdminExists,
+  signupAdmin,
   loginAdmin,
+  storeAdminTokens,
+  clearAdminTokens,
   getDashboardStats,
   getUsers,
   getUserById,
@@ -757,6 +765,9 @@ export default {
   getAdminSettings,
   updateAdminSettings,
   logoutAdmin,
+  forgotPassword,
+  verifyPasswordOtp,
+  resetPassword,
   getAdminWalletOverview,
   getProviderSummaries,
   getWithdrawals,

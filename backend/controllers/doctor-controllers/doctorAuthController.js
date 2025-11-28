@@ -1,12 +1,7 @@
 const Doctor = require('../../models/Doctor');
 const asyncHandler = require('../../middleware/asyncHandler');
-const { createAccessToken, createRefreshToken } = require('../../utils/tokenService');
+const { createAccessToken, createRefreshToken, verifyRefreshToken, blacklistToken, decodeToken } = require('../../utils/tokenService');
 const { sendSignupAcknowledgementEmail } = require('../../services/emailService');
-const {
-  requestPasswordReset,
-  verifyPasswordResetOtp,
-  resetPassword,
-} = require('../../services/passwordResetService');
 const { requestLoginOtp, verifyLoginOtp } = require('../../services/loginOtpService');
 const { getProfileByRoleAndId, updateProfileByRoleAndId } = require('../../services/profileService');
 const { notifyAdminsOfPendingSignup } = require('../../services/adminNotificationService');
@@ -55,7 +50,6 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     lastName,
     email,
     phone,
-    password,
     gender,
     specialization,
     licenseNumber,
@@ -83,10 +77,10 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
 
   const resolvedName = parseName({ name, firstName, lastName });
 
-  if (!resolvedName.firstName || !email || !phone || !password || !specialization || !licenseNumber) {
+  if (!resolvedName.firstName || !email || !phone || !specialization || !licenseNumber) {
     return res.status(400).json({
       success: false,
-      message: 'Required fields missing. Provide name/firstName, email, phone, password, specialization, and license number.',
+      message: 'Required fields missing. Provide name/firstName, email, phone, specialization, and license number.',
     });
   }
 
@@ -239,7 +233,6 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     lastName: resolvedName.lastName || '',
     email,
     phone,
-    password,
     specialization,
     licenseNumber,
     gender,
@@ -312,6 +305,19 @@ exports.loginDoctor = asyncHandler(async (req, res) => {
 
   const result = await verifyLoginOtp({ role: ROLES.DOCTOR, phone, otp });
   const { user } = result;
+
+  // Check approval status
+  if (user.status && user.status !== APPROVAL_STATUS.APPROVED) {
+    return res.status(403).json({
+      success: false,
+      message: user.status === APPROVAL_STATUS.PENDING
+        ? 'Your account is pending admin approval. Please wait for approval before logging in.'
+        : 'Your account has been rejected. Please contact support for assistance.',
+      data: {
+        status: user.status,
+      },
+    });
+  }
 
   const tokens = buildAuthResponse(user);
 
@@ -512,8 +518,107 @@ exports.updateDoctorProfile = asyncHandler(async (req, res) => {
 });
 
 exports.logoutDoctor = asyncHandler(async (req, res) => {
+  const accessToken = req.headers.authorization?.split(' ')[1] || req.cookies?.token;
+  const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
+
+  // Blacklist access token if provided
+  if (accessToken) {
+    try {
+      const decoded = decodeToken(accessToken);
+      if (decoded && decoded.id && decoded.role) {
+        await blacklistToken(accessToken, 'access', decoded.id, decoded.role, 'logout');
+      }
+    } catch (error) {
+      console.log('Error blacklisting access token:', error.message);
+    }
+  }
+
+  // Blacklist refresh token if provided
+  if (refreshToken) {
+    try {
+      const decoded = decodeToken(refreshToken);
+      if (decoded && decoded.id && decoded.role) {
+        await blacklistToken(refreshToken, 'refresh', decoded.id, decoded.role, 'logout');
+      }
+    } catch (error) {
+      console.log('Error blacklisting refresh token:', error.message);
+    }
+  }
+
   res.clearCookie('token');
-  return res.status(200).json({ success: true, message: 'Logout successful.' });
+  res.clearCookie('refreshToken');
+  return res.status(200).json({ success: true, message: 'Logout successful. All tokens have been revoked.' });
+});
+
+// Refresh token endpoint
+exports.refreshToken = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({
+      success: false,
+      message: 'Refresh token is required.',
+    });
+  }
+
+  try {
+    const decoded = await verifyRefreshToken(refreshToken);
+    const doctor = await Doctor.findById(decoded.id);
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(doctor, 'isActive') && doctor.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is inactive.',
+      });
+    }
+
+    // Token rotation - blacklist old refresh token
+    try {
+      await blacklistToken(refreshToken, 'refresh', decoded.id, decoded.role, 'refresh');
+    } catch (error) {
+      console.log('Error blacklisting old refresh token:', error.message);
+    }
+
+    const payload = { id: doctor._id, role: ROLES.DOCTOR };
+    const newAccessToken = createAccessToken(payload);
+    const newRefreshToken = createRefreshToken(payload);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Tokens refreshed successfully.',
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      },
+    });
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token has expired. Please login again.',
+      });
+    }
+    if (error.name === 'TokenRevokedError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token has been revoked. Please login again.',
+      });
+    }
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token. Please login again.',
+      });
+    }
+    throw error;
+  }
 });
 
 exports.getDoctorById = asyncHandler(async (req, res) => {
@@ -531,50 +636,4 @@ exports.getDoctorById = asyncHandler(async (req, res) => {
 
   return res.status(200).json({ success: true, data: doctor });
 });
-
-exports.doctorForgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ success: false, message: 'Email is required.' });
-  }
-
-  const result = await requestPasswordReset({ role: ROLES.DOCTOR, email });
-
-  return res.status(200).json({ success: true, message: result.message });
-});
-
-exports.doctorVerifyOtp = asyncHandler(async (req, res) => {
-  const { email, otp } = req.body;
-
-  if (!email || !otp) {
-    return res.status(400).json({ success: false, message: 'Email and OTP are required.' });
-  }
-
-  const result = await verifyPasswordResetOtp({ role: ROLES.DOCTOR, email, otp });
-
-  return res
-    .status(200)
-    .json({ success: true, message: result.message, data: { resetToken: result.resetToken } });
-});
-
-exports.doctorResetPassword = asyncHandler(async (req, res) => {
-  const { email, resetToken, newPassword, confirmPassword } = req.body;
-
-  if (!email || !resetToken || !newPassword || !confirmPassword) {
-    return res.status(400).json({
-      success: false,
-      message: 'Email, resetToken, newPassword, and confirmPassword are required.',
-    });
-  }
-
-  if (newPassword !== confirmPassword) {
-    return res.status(400).json({ success: false, message: 'Password confirmation does not match.' });
-  }
-
-  await resetPassword({ role: ROLES.DOCTOR, email, resetToken, newPassword });
-
-  return res.status(200).json({ success: true, message: 'Password reset successfully.' });
-});
-
 

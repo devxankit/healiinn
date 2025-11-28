@@ -9,9 +9,9 @@ const laboratorySchema = new mongoose.Schema(
     ownerName: { type: String, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, required: true, unique: true, trim: true },
-    password: { type: String, required: true, minlength: 8 },
+    password: { type: String, minlength: 8 },
     licenseNumber: { type: String, required: true, trim: true, unique: true },
-    certifications: [{ type: String, trim: true }],
+    gstNumber: { type: String, trim: true },
     address: {
       line1: { type: String, trim: true },
       line2: { type: String, trim: true },
@@ -40,7 +40,6 @@ const laboratorySchema = new mongoose.Schema(
         enum: ['manual', 'gps'],
       },
     },
-    servicesOffered: [{ type: String, trim: true }],
     testsOffered: [
       {
         testName: { type: String, trim: true },
@@ -94,7 +93,7 @@ const laboratorySchema = new mongoose.Schema(
 );
 
 laboratorySchema.pre('save', async function encryptPassword(next) {
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     return next();
   }
 

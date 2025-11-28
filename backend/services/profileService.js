@@ -108,7 +108,7 @@ const applyDoctorUpdates = async (doc, updates, Model) => {
 const applyLaboratoryUpdates = async (doc, updates, Model) => {
   const allowedScalars = ['labName', 'ownerName', 'profileImage'];
   const mergeFields = ['address', 'contactPerson', 'documents', 'operatingHours'];
-  const arrayReplaceFields = ['certifications', 'servicesOffered', 'timings'];
+  const arrayReplaceFields = ['timings'];
 
   if (updates.phone && updates.phone !== doc.phone) {
     await ensureUniqueField(Model, 'phone', updates.phone, doc._id, 'Phone number already registered.');
