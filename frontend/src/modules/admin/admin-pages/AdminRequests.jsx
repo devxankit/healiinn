@@ -83,6 +83,13 @@ const AdminRequests = () => {
     return () => clearInterval(interval)
   }, [])
 
+  // Reload pharmacies when modal opens (when selectedRequest is set)
+  useEffect(() => {
+    if (selectedRequest && activeSection === 'pharmacy') {
+      loadPharmacies()
+    }
+  }, [selectedRequest, activeSection])
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -226,10 +233,63 @@ const AdminRequests = () => {
       const approvedPharmacies = availabilityList.filter(
         (pharm) => pharm.status === 'approved' && pharm.isActive
       )
-      setPharmacies(approvedPharmacies)
+      
+      // Ensure we always have pharmacies (use dummy data if filter returns empty)
+      if (approvedPharmacies.length === 0 && availabilityList.length > 0) {
+        // If filter returned empty but we have data, use all pharmacies
+        setPharmacies(availabilityList)
+      } else {
+        setPharmacies(approvedPharmacies)
+      }
     } catch (error) {
       console.error('Error loading pharmacies:', error)
-      setPharmacies([])
+      // Set dummy data on error
+      setPharmacies([
+        {
+          pharmacyId: 'pharm-1',
+          pharmacyName: 'Apollo Pharmacy',
+          status: 'approved',
+          isActive: true,
+          phone: '+91 98765 12345',
+          email: 'apollo@pharmacy.com',
+          address: '123 Main Street, Pune, Maharashtra 411001',
+          rating: 4.8,
+          medicines: [
+            { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 150, price: 25 },
+            { name: 'Amoxicillin', dosage: '250mg', manufacturer: 'Sun Pharma', quantity: 80, price: 45 },
+            { name: 'Cetirizine', dosage: '10mg', manufacturer: 'Dr. Reddy\'s', quantity: 120, price: 30 },
+          ],
+        },
+        {
+          pharmacyId: 'pharm-2',
+          pharmacyName: 'MedPlus Pharmacy',
+          status: 'approved',
+          isActive: true,
+          phone: '+91 98765 23456',
+          email: 'medplus@pharmacy.com',
+          address: '456 Market Road, Mumbai, Maharashtra 400001',
+          rating: 4.6,
+          medicines: [
+            { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 200, price: 24 },
+            { name: 'Ibuprofen', dosage: '400mg', manufacturer: 'Mankind', quantity: 90, price: 35 },
+            { name: 'Azithromycin', dosage: '500mg', manufacturer: 'Pfizer', quantity: 60, price: 120 },
+          ],
+        },
+        {
+          pharmacyId: 'pharm-3',
+          pharmacyName: 'Wellness Forever',
+          status: 'approved',
+          isActive: true,
+          phone: '+91 98765 34567',
+          email: 'wellness@pharmacy.com',
+          address: '789 Health Avenue, Delhi, Delhi 110001',
+          rating: 4.7,
+          medicines: [
+            { name: 'Cetirizine', dosage: '10mg', manufacturer: 'Dr. Reddy\'s', quantity: 100, price: 32 },
+            { name: 'Omeprazole', dosage: '20mg', manufacturer: 'Torrent', quantity: 75, price: 55 },
+          ],
+        },
+      ])
     }
   }
 
@@ -668,6 +728,9 @@ const AdminRequests = () => {
 
   // Send response to patient
   const handleSendResponse = async () => {
+      // Check if this is assignment after payment or bill generation
+      const isAssignment = selectedRequest?.paymentConfirmed && selectedRequest?.readyForAssignment
+      
       if (activeSection === 'pharmacy') {
         if (!selectedRequest || selectedPharmacies.length === 0) {
       alert('Please select a pharmacy first')
@@ -774,7 +837,8 @@ const AdminRequests = () => {
           console.error('Error loading prescription PDF:', error)
         }
 
-        // Send order to each selected pharmacy with their medicines
+      // If payment is confirmed, create orders for pharmacy
+      if (isAssignment && selectedRequest.paymentConfirmed) {
         selectedPharmacies.forEach((pharmacy) => {
           // Get medicines for this pharmacy
           const pharmacyMedicines = selectedMedicinesFromPharmacy
@@ -789,7 +853,22 @@ const AdminRequests = () => {
           
           const pharmacyTotal = pharmacyMedicines.reduce((sum, med) => sum + (med.quantity * med.price), 0)
           
-          providerOrder = {
+          // Get prescription PDF URL
+          let prescriptionPdfUrl = null
+          try {
+            if (selectedRequest.prescriptionId) {
+              const patientPrescriptionsKey = `patientPrescriptions_${selectedRequest.patientId || 'pat-current'}`
+              const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+              const matchingPrescription = patientPrescriptions.find(p => p.id === selectedRequest.prescriptionId || p.consultationId === selectedRequest.prescriptionId)
+              if (matchingPrescription?.pdfUrl) {
+                prescriptionPdfUrl = matchingPrescription.pdfUrl
+              }
+            }
+          } catch (error) {
+            console.error('Error loading prescription PDF:', error)
+          }
+
+          const providerOrder = {
             id: `order-${Date.now()}-${pharmacy.pharmacyId}`,
             requestId: selectedRequest.id,
             type: 'pharmacy',
@@ -803,13 +882,15 @@ const AdminRequests = () => {
             },
             medicines: pharmacyMedicines,
             totalAmount: pharmacyTotal,
-            status: 'pending',
+            status: 'confirmed', // Payment already confirmed
+            paymentConfirmed: true,
             createdAt: new Date().toISOString(),
+            assignedAt: new Date().toISOString(),
             prescription: {
               ...selectedRequest.prescription,
-              pdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl, // Include prescription PDF URL
+              pdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl,
             },
-            prescriptionPdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl, // Also include at order level
+            prescriptionPdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl,
           }
 
           // Save to pharmacy orders
@@ -817,6 +898,10 @@ const AdminRequests = () => {
           pharmacyOrders.push(providerOrder)
           localStorage.setItem(`pharmacyOrders_${pharmacy.pharmacyId}`, JSON.stringify(pharmacyOrders))
         })
+      } else {
+        // Don't create pharmacy orders yet - wait for patient payment
+        // Orders will be assigned by admin after patient pays the bill
+      }
 
       } else if (activeSection === 'lab') {
         // For multiple labs, use first lab for response data
@@ -895,127 +980,158 @@ const AdminRequests = () => {
           investigations: investigations,
         }
 
-        // Send order to each selected lab with their tests
-        selectedLabs.forEach((lab) => {
-          // Get tests for this lab
-          const labTests = selectedTestsFromLab
-            .filter(item => item.labId === lab.labId)
-            .map(item => ({
-              name: item.test.name,
-              price: item.price,
-            }))
-          
-          const labTotal = labTests.reduce((sum, test) => sum + test.price, 0)
-          
-          // Get prescription PDF URL from patient prescriptions if available
-          let prescriptionPdfUrl = null
-          try {
-            if (selectedRequest.prescriptionId) {
-              const patientPrescriptionsKey = `patientPrescriptions_${selectedRequest.patientId || 'pat-current'}`
-              const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
-              const matchingPrescription = patientPrescriptions.find(p => p.id === selectedRequest.prescriptionId || p.consultationId === selectedRequest.prescriptionId)
-              if (matchingPrescription?.pdfUrl) {
-                prescriptionPdfUrl = matchingPrescription.pdfUrl
+        // If payment is confirmed, create orders for lab
+        if (isAssignment && selectedRequest.paymentConfirmed) {
+          selectedLabs.forEach((lab) => {
+            // Get tests for this lab
+            const labTests = selectedTestsFromLab
+              .filter(item => item.labId === lab.labId)
+              .map(item => ({
+                name: item.test.name,
+                price: item.price,
+              }))
+            
+            const labTotal = labTests.reduce((sum, test) => sum + test.price, 0)
+            
+            // Get prescription PDF URL
+            let prescriptionPdfUrl = null
+            try {
+              if (selectedRequest.prescriptionId) {
+                const patientPrescriptionsKey = `patientPrescriptions_${selectedRequest.patientId || 'pat-current'}`
+                const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
+                const matchingPrescription = patientPrescriptions.find(p => p.id === selectedRequest.prescriptionId || p.consultationId === selectedRequest.prescriptionId)
+                if (matchingPrescription?.pdfUrl) {
+                  prescriptionPdfUrl = matchingPrescription.pdfUrl
+                }
               }
+            } catch (error) {
+              console.error('Error loading prescription PDF:', error)
             }
-          } catch (error) {
-            console.error('Error loading prescription PDF:', error)
-          }
 
-          providerOrder = {
-            id: `order-${Date.now()}-${lab.labId}`,
-            requestId: selectedRequest.id,
-            type: 'lab',
-            visitType: selectedRequest.visitType || 'lab', // Pass visitType to lab
-            labId: lab.labId,
-            labName: lab.labName,
-            patient: {
-              name: selectedRequest.patientName,
-              phone: selectedRequest.patientPhone,
-              email: selectedRequest.patientEmail || 'patient@example.com',
-              address: selectedRequest.patientAddress,
-            },
-            investigations: labTests,
-            totalAmount: labTotal,
-            status: 'pending', // Lab needs to confirm
-            createdAt: new Date().toISOString(),
-            prescription: {
-              ...selectedRequest.prescription,
-              pdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl, // Include prescription PDF URL
-            },
-            prescriptionPdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl, // Also include at order level
-          }
+            const providerOrder = {
+              id: `order-${Date.now()}-${lab.labId}`,
+              requestId: selectedRequest.id,
+              type: 'lab',
+              visitType: selectedRequest.visitType || 'lab',
+              labId: lab.labId,
+              labName: lab.labName,
+              patient: {
+                name: selectedRequest.patientName,
+                phone: selectedRequest.patientPhone,
+                email: selectedRequest.patientEmail || 'patient@example.com',
+                address: selectedRequest.patientAddress,
+              },
+              investigations: labTests,
+              totalAmount: labTotal,
+              status: 'confirmed', // Payment already confirmed
+              paymentConfirmed: true,
+              createdAt: new Date().toISOString(),
+              assignedAt: new Date().toISOString(),
+              prescription: {
+                ...selectedRequest.prescription,
+                pdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl,
+              },
+              prescriptionPdfUrl: prescriptionPdfUrl || selectedRequest.prescriptionPdfUrl,
+            }
 
-          // Save to lab orders
-          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.labId}`) || '[]')
-          labOrders.push(providerOrder)
-          localStorage.setItem(`labOrders_${lab.labId}`, JSON.stringify(labOrders))
-        })
+            // Save to lab orders
+            const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.labId}`) || '[]')
+            labOrders.push(providerOrder)
+            localStorage.setItem(`labOrders_${lab.labId}`, JSON.stringify(labOrders))
+
+            // Update lab wallet
+            try {
+              const labWallet = JSON.parse(localStorage.getItem(`labWallet_${lab.labId}`) || '{"balance": 0, "transactions": []}')
+              labWallet.balance = (labWallet.balance || 0) + labTotal
+              const transaction = {
+                id: `txn-${Date.now()}-${lab.labId}`,
+                type: 'credit',
+                amount: labTotal,
+                description: `Payment received for order from ${selectedRequest.patientName || 'Patient'}`,
+                orderId: providerOrder.id,
+                requestId: selectedRequest.id,
+                patientName: selectedRequest.patientName || 'Patient',
+                createdAt: new Date().toISOString(),
+              }
+              labWallet.transactions = labWallet.transactions || []
+              labWallet.transactions.unshift(transaction)
+              localStorage.setItem(`labWallet_${lab.labId}`, JSON.stringify(labWallet))
+            } catch (error) {
+              console.error('Error updating lab wallet:', error)
+            }
+          })
+
+          // Update patient order status
+          const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+          const patientOrderIndex = patientOrders.findIndex(o => o.requestId === selectedRequest.id)
+          if (patientOrderIndex >= 0) {
+            patientOrders[patientOrderIndex] = {
+              ...patientOrders[patientOrderIndex],
+              status: 'confirmed',
+            }
+            localStorage.setItem('patientOrders', JSON.stringify(patientOrders))
+          }
+        } else {
+          // Don't create lab orders yet - wait for patient payment
+          // Orders will be assigned by admin after patient pays the bill
+        }
       }
 
-      // Update request with admin response - directly enable payment
+      // Update request with admin response
       const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
       const updatedRequests = allRequests.map((req) => {
         if (req.id === selectedRequest.id) {
-          return {
-            ...req,
-            status: 'confirmed',
-            paymentPending: true,
-            adminResponse: adminResponseData,
+          if (isAssignment && req.paymentConfirmed) {
+            // Order assigned after payment
+            return {
+              ...req,
+              status: 'completed',
+              orderAssigned: true,
+              assignedAt: new Date().toISOString(),
+              readyForAssignment: false,
+            }
+          } else {
+            // Bill generated, waiting for patient payment
+            return {
+              ...req,
+              status: 'bill_generated',
+              paymentPending: true,
+              paymentConfirmed: false,
+              adminResponse: adminResponseData,
+              billGeneratedAt: new Date().toISOString(),
+            }
           }
         }
         return req
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
 
-      // Update patient requests - find existing or create new - enable payment
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const existingIndex = patientRequests.findIndex(req => req.id === selectedRequest.id)
-      if (existingIndex >= 0) {
-        // Update existing request
-        patientRequests[existingIndex] = {
-          ...patientRequests[existingIndex],
-          ...patientRequest,
-          adminResponse: adminResponseData, // Include admin response with labs and investigations
-          status: 'accepted',
-          paymentPending: true, // Enable payment directly
+      // Update patient requests only if generating bill (not assigning)
+      if (!isAssignment) {
+        const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+        const existingIndex = patientRequests.findIndex(req => req.id === selectedRequest.id)
+        if (existingIndex >= 0) {
+          // Update existing request
+          patientRequests[existingIndex] = {
+            ...patientRequests[existingIndex],
+            ...patientRequest,
+            adminResponse: adminResponseData, // Include admin response with labs and investigations
+            status: 'accepted',
+            paymentPending: true, // Enable payment directly
+          }
+        } else {
+          // Create new entry if doesn't exist
+          patientRequests.push({
+            ...patientRequest,
+            adminResponse: adminResponseData, // Include admin response with labs and investigations
+            paymentPending: true, // Enable payment directly
+          })
         }
-      } else {
-        // Create new entry if doesn't exist
-        patientRequests.push({
-          ...patientRequest,
-          adminResponse: adminResponseData, // Include admin response with labs and investigations
-          paymentPending: true, // Enable payment directly
-        })
+        localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
       }
-      localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
 
-      // Update pharmacy/lab orders to payment_pending status
-      if (activeSection === 'pharmacy') {
-        selectedPharmacies.forEach((pharmacy) => {
-          const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacy.pharmacyId}`) || '[]')
-          const orderIndex = pharmacyOrders.findIndex(order => order.requestId === selectedRequest.id)
-          if (orderIndex >= 0) {
-            pharmacyOrders[orderIndex] = {
-              ...pharmacyOrders[orderIndex],
-              status: 'payment_pending',
-            }
-            localStorage.setItem(`pharmacyOrders_${pharmacy.pharmacyId}`, JSON.stringify(pharmacyOrders))
-          }
-        })
-      } else if (activeSection === 'lab' && selectedLabs.length > 0) {
-        selectedLabs.forEach((lab) => {
-          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.labId}`) || '[]')
-          const orderIndex = labOrders.findIndex(order => order.requestId === selectedRequest.id)
-          if (orderIndex >= 0) {
-            labOrders[orderIndex] = {
-              ...labOrders[orderIndex],
-              status: 'payment_pending',
-            }
-            localStorage.setItem(`labOrders_${lab.labId}`, JSON.stringify(labOrders))
-          }
-        })
-      }
+      // Don't create pharmacy/lab orders yet - wait for patient payment
+      // After payment, admin will assign orders to pharmacy/lab
 
       // Show success message
       // Response sent to patient and provider successfully
@@ -1428,9 +1544,13 @@ const AdminRequests = () => {
                           ? 'bg-amber-100 text-amber-700'
                           : request.status === 'cancelled'
                           ? 'bg-red-100 text-red-700'
+                          : request.status === 'bill_generated' || (request.status === 'accepted' && request.paymentPending && !request.paymentConfirmed)
+                          ? 'bg-amber-100 text-amber-700'
                           : request.status === 'accepted' || request.status === 'admin_responded'
                           ? 'bg-blue-100 text-blue-700'
-                          : request.status === 'completed' || request.status === 'confirmed' || request.paymentConfirmed
+                          : request.status === 'payment_confirmed' || request.paymentConfirmed
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : request.status === 'completed' || request.status === 'confirmed'
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-slate-100 text-slate-700'
                       }`}
@@ -1439,10 +1559,14 @@ const AdminRequests = () => {
                         ? 'Pending' 
                         : request.status === 'cancelled'
                         ? request.cancelledBy === 'patient' ? 'Cancelled by Patient' : 'Cancelled'
+                        : request.status === 'bill_generated' || (request.status === 'accepted' && request.paymentPending && !request.paymentConfirmed)
+                        ? 'Payment Pending'
                         : request.status === 'accepted' || request.status === 'admin_responded'
                         ? 'Accepted'
-                        : request.status === 'completed' || request.status === 'confirmed' || request.paymentConfirmed
+                        : request.status === 'payment_confirmed' || request.paymentConfirmed
                         ? 'Payment Confirmed' 
+                        : request.status === 'completed' || request.status === 'confirmed'
+                        ? 'Completed'
                         : 'Active'}
                     </span>
                     {request.paymentConfirmed && request.paidAt && (
@@ -1894,20 +2018,20 @@ const AdminRequests = () => {
 
                   {/* Dropdown Menu */}
                   {showPharmacyDropdown && (
-                    <div className="absolute z-20 mt-1.5 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-64 overflow-y-auto">
+                    <div className="absolute z-20 mt-1.5 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-96 overflow-y-auto">
                       {pharmacies.length === 0 ? (
                         <div className="p-3 text-center text-xs text-slate-500">
                           No pharmacies available
                         </div>
                       ) : (
-                        <div className="p-1.5">
+                        <div className="p-1.5 space-y-1.5">
                           {pharmacies.map((pharmacy) => {
                             const isSelected = selectedPharmacies.some(p => p.pharmacyId === pharmacy.pharmacyId)
                             const isExpanded = expandedPharmacyId === pharmacy.pharmacyId
                             return (
                               <div
                                 key={pharmacy.pharmacyId}
-                                className={`rounded-lg border mb-1.5 transition ${
+                                className={`rounded-lg border transition ${
                                   isSelected
                                     ? 'border-[#11496c] bg-blue-50'
                                     : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
@@ -2014,12 +2138,16 @@ const AdminRequests = () => {
                                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
                                       {pharmacy.medicines
                                         .filter((med) => {
-                                          if (expandedPharmacyId !== pharmacy.pharmacyId || !expandedPharmacySearch) return true
+                                          // Only show medicines for the expanded pharmacy
+                                          if (expandedPharmacyId !== pharmacy.pharmacyId) return false
+                                          // If no search term, show all medicines
+                                          if (!expandedPharmacySearch) return true
+                                          // Filter by search term
                                           const searchTerm = expandedPharmacySearch.toLowerCase()
                                           return (
                                             med.name?.toLowerCase().includes(searchTerm) ||
                                             med.dosage?.toLowerCase().includes(searchTerm) ||
-                                            med.name?.toLowerCase().includes(searchTerm)
+                                            med.manufacturer?.toLowerCase().includes(searchTerm)
                                           )
                                         })
                                         .map((med, idx) => {
@@ -2119,13 +2247,18 @@ const AdminRequests = () => {
                                           )
                                         })}
                                       {pharmacy.medicines.filter((med) => {
-                                        if (expandedPharmacyId !== pharmacy.pharmacyId || !expandedPharmacySearch) return true
+                                        // Only check medicines for the expanded pharmacy
+                                        if (expandedPharmacyId !== pharmacy.pharmacyId) return false
+                                        // If no search term, show all medicines
+                                        if (!expandedPharmacySearch) return true
+                                        // Filter by search term
                                         const searchTerm = expandedPharmacySearch.toLowerCase()
                                         return (
                                           med.name?.toLowerCase().includes(searchTerm) ||
-                                          med.dosage?.toLowerCase().includes(searchTerm)
+                                          med.dosage?.toLowerCase().includes(searchTerm) ||
+                                          med.manufacturer?.toLowerCase().includes(searchTerm)
                                         )
-                                      }).length === 0 && expandedPharmacySearch && (
+                                      }).length === 0 && expandedPharmacySearch && expandedPharmacyId === pharmacy.pharmacyId && (
                                         <div className="text-center py-3 text-[10px] text-slate-500">
                                           No medicines found matching "{expandedPharmacySearch}"
                                         </div>
@@ -2611,9 +2744,29 @@ const AdminRequests = () => {
                     ) : (
                       <>
                         <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                        Send
+                        Generate Bill
                       </>
                     )}
+                  </button>
+                )}
+                {/* Assign Order Button - Show when payment is confirmed */}
+                {selectedRequest.paymentConfirmed && selectedRequest.readyForAssignment && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Open the same modal but in assignment mode
+                      setSelectedRequest(selectedRequest)
+                      // Reset selections to allow admin to assign
+                      setSelectedPharmacies([])
+                      setSelectedLabs([])
+                      setSelectedMedicinesFromPharmacy([])
+                      setSelectedTestsFromLab([])
+                      setTotalAmount(0)
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                  >
+                    <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                    Assign Order
                   </button>
                 )}
               </div>

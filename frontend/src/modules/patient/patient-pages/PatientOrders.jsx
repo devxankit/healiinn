@@ -109,22 +109,35 @@ const PatientOrders = () => {
           const date = new Date(orderDate).toISOString().split('T')[0]
           const time = new Date(orderDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
           
+          // Preserve payment status - check paymentConfirmed first, then paymentPending, then order.status
+          let orderStatus = order.status
+          if (order.paymentConfirmed) {
+            orderStatus = 'payment_confirmed'
+          } else if (order.paymentPending || order.status === 'payment_pending') {
+            orderStatus = 'payment_pending'
+          } else if (!orderStatus) {
+            orderStatus = 'confirmed'
+          }
+          
           if (order.type === 'lab') {
             return {
               id: order.id,
               type: 'lab',
               labName: order.labName || order.providerNames?.join(', ') || 'Laboratory',
               testName: order.investigations?.map(inv => typeof inv === 'string' ? inv : inv.name).join(', ') || 'Lab Tests',
-              status: order.status || 'confirmed',
+              status: orderStatus,
               amount: order.totalAmount || 0,
               date: date,
               time: time,
               collectionType: 'home',
-              address: order.patient?.address || 'N/A',
+              address: order.patient?.address || order.address || 'N/A',
               prescriptionId: order.requestId,
+              requestId: order.requestId,
               investigations: order.investigations || [],
               providerIds: order.providerIds || [order.labId].filter(Boolean),
               providerNames: order.providerNames || [order.labName].filter(Boolean),
+              paymentPending: order.paymentPending,
+              paymentConfirmed: order.paymentConfirmed,
             }
           } else if (order.type === 'pharmacy') {
             return {
@@ -132,16 +145,19 @@ const PatientOrders = () => {
               type: 'pharmacy',
               pharmacyName: order.pharmacyName || order.providerNames?.join(', ') || 'Pharmacy',
               medicineName: order.medicines?.map(med => typeof med === 'string' ? med : med.name).join(', ') || 'Medicines',
-              status: order.status || 'confirmed',
+              status: orderStatus,
               amount: order.totalAmount || 0,
               date: date,
               time: time,
               deliveryType: 'home',
-              address: order.patient?.address || 'N/A',
+              address: order.patient?.address || order.address || 'N/A',
               prescriptionId: order.requestId,
+              requestId: order.requestId,
               medicines: order.medicines || [],
               providerIds: order.providerIds || [order.pharmacyId].filter(Boolean),
               providerNames: order.providerNames || [order.pharmacyName].filter(Boolean),
+              paymentPending: order.paymentPending,
+              paymentConfirmed: order.paymentConfirmed,
             }
           }
           return null
@@ -175,6 +191,10 @@ const PatientOrders = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'payment_pending':
+        return 'bg-blue-100 text-blue-700'
+      case 'payment_confirmed':
+        return 'bg-emerald-100 text-emerald-700'
       case 'new':
         return 'bg-[rgba(17,73,108,0.15)] text-[#11496c]'
       case 'home_collection_requested':
@@ -198,6 +218,10 @@ const PatientOrders = () => {
 
   const getStatusLabel = (status) => {
     switch (status) {
+      case 'payment_pending':
+        return 'Payment Pending'
+      case 'payment_confirmed':
+        return 'Payment Confirmed'
       // Lab statuses
       case 'new':
         return 'New Order'
@@ -228,6 +252,10 @@ const PatientOrders = () => {
 
   const getStatusIcon = (status) => {
     switch (status) {
+      case 'payment_pending':
+        return <IoTimeOutline className="h-3.5 w-3.5" />
+      case 'payment_confirmed':
+        return <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
       case 'new':
       case 'home_collection_requested':
       case 'patient_arrived':

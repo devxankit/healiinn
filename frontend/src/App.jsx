@@ -84,6 +84,7 @@ import AdminInventory from './modules/admin/admin-pages/AdminInventory'
 import AdminVerification from './modules/admin/admin-pages/AdminVerification'
 import AdminProfile from './modules/admin/admin-pages/AdminProfile'
 import AdminWallet from './modules/admin/admin-pages/AdminWallet'
+import AdminRevenue from './modules/admin/admin-pages/AdminRevenue'
 import AdminSupport from './modules/admin/admin-pages/AdminSupport'
 import AdminAppointments from './modules/admin/admin-pages/AdminAppointments'
 import AdminOrders from './modules/admin/admin-pages/AdminOrders'
@@ -250,6 +251,7 @@ function App() {
                     <Route path="/inventory" element={<AdminInventory />} />
                     <Route path="/laboratories" element={<AdminLaboratories />} />
                     <Route path="/wallet" element={<AdminWallet />} />
+                    <Route path="/revenue" element={<AdminRevenue />} />
                     <Route path="/verification" element={<AdminVerification />} />
                     <Route path="/appointments" element={<AdminAppointments />} />
                     <Route path="/orders" element={<AdminOrders />} />

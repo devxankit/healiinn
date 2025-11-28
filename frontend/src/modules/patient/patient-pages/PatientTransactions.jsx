@@ -125,30 +125,74 @@ const PatientTransactions = () => {
         console.error('Error loading appointments:', error)
       }
 
-      // Load Lab and Pharmacy Requests (from PatientRequests)
+      // Load Lab and Pharmacy Requests (from PatientRequests) - Only payment confirmed
       try {
         const requests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
         requests.forEach((req) => {
-          // Only include paid/confirmed requests
-          if (req.totalAmount && (req.status === 'paid' || req.status === 'confirmed' || req.status === 'accepted')) {
+          // Only include payment confirmed requests
+          if (req.paymentConfirmed && req.totalAmount && (req.status === 'confirmed' || req.status === 'paid' || req.paidAt)) {
+            const paidDate = req.paidAt ? new Date(req.paidAt) : (req.responseDate ? new Date(req.responseDate) : new Date())
+            const dateStr = paidDate.toISOString().split('T')[0]
+            const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            
             allTransactions.push({
               id: `req-${req.id}`,
               type: req.type === 'lab' ? 'Lab Test' : 'Pharmacy',
               category: req.type === 'lab' ? 'laboratory' : 'pharmacy',
               providerName: req.providerName || (req.type === 'lab' ? 'Laboratory' : 'Pharmacy'),
-              serviceName: req.type === 'lab' ? req.testName : req.medicineName,
+              serviceName: req.type === 'lab' ? (req.testName || 'Lab Tests') : (req.medicineName || 'Medicines'),
               amount: req.totalAmount,
-              status: req.status === 'paid' || req.status === 'confirmed' ? 'completed' : req.status === 'accepted' ? 'pending' : 'pending',
-              date: req.responseDate || req.requestDate || new Date().toISOString().split('T')[0],
-              time: req.responseTime ? new Date(req.responseTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
-              transactionId: `TXN-${req.type.toUpperCase()}-${req.id}`,
+              status: 'completed',
+              date: dateStr,
+              time: timeStr,
+              transactionId: `TXN-${req.type === 'lab' ? 'LAB' : 'PHAR'}-${req.id?.substring(0, 8) || Date.now()}`,
               paymentMethod: req.paymentMethod || 'Online',
               requestId: req.id,
+              paidAt: req.paidAt,
             })
           }
         })
       } catch (error) {
         console.error('Error loading requests:', error)
+      }
+
+      // Load from patientOrders - payment confirmed orders
+      try {
+        const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+        patientOrders.forEach((order) => {
+          // Only include payment confirmed orders
+          if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
+            const paidDate = new Date(order.paidAt)
+            const dateStr = paidDate.toISOString().split('T')[0]
+            const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            
+            // Check if transaction already exists (from requests)
+            const existingTxn = allTransactions.find(txn => txn.requestId === order.requestId)
+            if (!existingTxn) {
+              allTransactions.push({
+                id: `order-${order.id}`,
+                type: order.type === 'lab' ? 'Lab Test' : 'Pharmacy',
+                category: order.type === 'lab' ? 'laboratory' : 'pharmacy',
+                providerName: order.type === 'lab' 
+                  ? (order.labName || order.providerNames?.join(', ') || 'Laboratory')
+                  : (order.pharmacyName || order.providerNames?.join(', ') || 'Pharmacy'),
+                serviceName: order.type === 'lab' 
+                  ? (order.investigations?.map(inv => typeof inv === 'string' ? inv : inv.name).join(', ') || 'Lab Tests')
+                  : (order.medicines?.map(med => typeof med === 'string' ? med : med.name).join(', ') || 'Medicines'),
+                amount: order.totalAmount,
+                status: 'completed',
+                date: dateStr,
+                time: timeStr,
+                transactionId: `TXN-${order.type === 'lab' ? 'LAB' : 'PHAR'}-${order.id?.substring(0, 8) || Date.now()}`,
+                paymentMethod: 'Online',
+                requestId: order.requestId,
+                paidAt: order.paidAt,
+              })
+            }
+          }
+        })
+      } catch (error) {
+        console.error('Error loading orders:', error)
       }
 
       // If no transactions found, use mock data
@@ -237,11 +281,21 @@ const PatientTransactions = () => {
         return dateString
       }
       return date.toLocaleDateString('en-US', {
-        weekday: 'short',
         month: 'short',
         day: 'numeric',
         year: 'numeric',
       })
+    } catch (error) {
+      return dateString
+    }
+  }
+
+  const formatDateTime = (dateString, timeString) => {
+    try {
+      if (dateString && timeString && timeString !== 'N/A') {
+        return `${formatDate(dateString)}, ${timeString}`
+      }
+      return formatDate(dateString)
     } catch (error) {
       return dateString
     }
@@ -292,51 +346,65 @@ const PatientTransactions = () => {
               <div className="flex-1 flex items-start justify-between gap-3 min-w-0">
                 {/* Left Content */}
                 <div className="flex-1 min-w-0 space-y-1.5">
-                  {/* Type and Amount Row */}
+                  {/* Provider Name and Amount Row */}
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-base font-semibold text-slate-900">{transaction.type}</h3>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{transaction.providerName}</p>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs text-slate-500 capitalize shrink-0">{transaction.category}</span>
+                      </div>
+                    </div>
                     <div className="shrink-0">
-                      <p className="text-lg font-bold text-slate-900 whitespace-nowrap">{formatCurrency(transaction.amount)}</p>
+                      <p className={`text-lg font-bold whitespace-nowrap ${transaction.status === 'completed' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                        {transaction.status === 'completed' ? '+' : ''}{formatCurrency(transaction.amount)}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Provider/Service Name */}
+                  {/* Description */}
                   <div>
-                    <p className="text-sm font-medium text-slate-600">{transaction.providerName}</p>
+                    <p className="text-xs text-slate-600">
+                      {transaction.category === 'laboratory' 
+                        ? `Payment for lab test order to ${transaction.providerName}`
+                        : transaction.category === 'pharmacy'
+                        ? `Payment for medicine order to ${transaction.providerName}`
+                        : `Payment for ${transaction.type.toLowerCase()}`
+                      }
+                    </p>
                     {transaction.serviceName && (
-                      <p className="text-xs text-slate-500 mt-0.5">{transaction.serviceName}</p>
-                    )}
-                    {transaction.queueNumber && (
-                      <p className="text-xs text-slate-500 mt-0.5">Token: #{transaction.queueNumber}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{transaction.serviceName}</p>
                     )}
                   </div>
 
-                  {/* Status Badge */}
-                  <div>
+                  {/* Status Badge and Type Badge */}
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(transaction.status)}`}>
                       {getStatusIcon(transaction.status)}
                       <span className="capitalize">{transaction.status === 'paid' ? 'completed' : transaction.status === 'accepted' ? 'pending' : transaction.status}</span>
                     </span>
-                  </div>
-
-                  {/* Date and Time Row */}
-                  <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500">
-                    <span className="flex items-center gap-1.5">
-                      <IoCalendarOutline className="h-3.5 w-3.5 shrink-0" />
-                      <span>{formatDate(transaction.date)}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      transaction.category === 'laboratory' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : transaction.category === 'pharmacy'
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {transaction.type}
                     </span>
-                    {transaction.time && transaction.time !== 'N/A' && (
-                      <span className="flex items-center gap-1.5">
-                        <IoTimeOutline className="h-3.5 w-3.5 shrink-0" />
-                        <span>{transaction.time}</span>
-                      </span>
-                    )}
                   </div>
 
-                  {/* Transaction ID and Payment */}
+                  {/* Date and Time */}
+                  <div className="text-xs text-slate-500">
+                    <span>{formatDateTime(transaction.date, transaction.time)}</span>
+                  </div>
+
+                  {/* Transaction ID and Order ID */}
                   <div className="space-y-0.5 pt-0.5">
-                    <p className="text-xs text-slate-400">ID: {transaction.transactionId}</p>
-                    <p className="text-xs text-slate-400">Payment: {transaction.paymentMethod}</p>
+                    <p className="text-xs text-slate-400">Transaction ID: {transaction.transactionId}</p>
+                    {transaction.requestId && (
+                      <p className="text-xs text-slate-400">Order: {transaction.requestId}</p>
+                    )}
                   </div>
                 </div>
               </div>

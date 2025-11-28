@@ -94,7 +94,11 @@ const LaboratoryRequestOrders = () => {
         visitType: req.visitType || 'lab', // Include visitType
         investigations: req.adminResponse?.investigations || req.prescription?.investigations || [],
         totalAmount: req.adminResponse?.totalAmount || 0,
-        status: req.status === 'confirmed' && req.paymentPending ? 'payment_pending' : req.status === 'confirmed' ? 'confirmed' : 'pending',
+        status: req.status === 'confirmed' && req.paymentPending ? 'payment_pending' : req.status === 'confirmed' ? 'confirmed' : req.status === 'rejected' ? 'rejected' : req.status === 'accepted' ? 'accepted' : 'pending',
+        labAccepted: req.labAccepted || false,
+        labRejected: req.labRejected || false,
+        acceptedAt: req.labAcceptedAt || req.acceptedAt,
+        rejectedAt: req.labRejectedAt || req.rejectedAt,
         createdAt: req.createdAt || req.responseDate,
         paymentConfirmed: req.paymentConfirmed || false,
         paidAt: req.paidAt,
@@ -117,6 +121,192 @@ const LaboratoryRequestOrders = () => {
     } catch (error) {
       console.error('Error loading requests:', error)
       setRequests([])
+    }
+  }
+
+  const handleRejectOrder = async (orderId) => {
+    try {
+      // Confirm rejection
+      const confirmReject = window.confirm(
+        'Are you sure you want to reject this order? This action cannot be undone.'
+      )
+      if (!confirmReject) return
+
+      const labId = 'lab-1' // Mock lab ID
+      const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
+      const orderToUpdate = labOrders.find(o => o.id === orderId || o.requestId === orderId)
+      const requestId = orderToUpdate?.requestId || orderId
+      
+      // Update lab orders - set status as 'rejected'
+      const updatedOrders = labOrders.map(order => {
+        if (order.id === orderId || order.requestId === orderId) {
+          return {
+            ...order,
+            status: 'rejected',
+            rejectedAt: new Date().toISOString(),
+            rejectedBy: 'Laboratory',
+            labRejected: true,
+          }
+        }
+        return order
+      })
+      localStorage.setItem(`labOrders_${labId}`, JSON.stringify(updatedOrders))
+      
+      // Update admin requests
+      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      const updatedRequests = allRequests.map(req => {
+        if (req.id === requestId) {
+          return {
+            ...req,
+            labRejected: true,
+            labRejectedAt: new Date().toISOString(),
+            rejectedBy: 'Laboratory',
+            rejectionMessage: `Order rejected by laboratory`,
+          }
+        }
+        return req
+      })
+      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      
+      // Update patient requests
+      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+      const updatedPatientRequests = patientRequests.map(req => {
+        if (req.id === requestId) {
+          return {
+            ...req,
+            labRejected: true,
+            labRejectedAt: new Date().toISOString(),
+            rejectedBy: 'Laboratory',
+            status: 'rejected',
+          }
+        }
+        return req
+      })
+      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
+      
+      // Update patient orders
+      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+      const updatedPatientOrders = patientOrders.map(order => {
+        if (order.requestId === requestId && (order.type === 'lab' || order.type === 'laboratory')) {
+          return {
+            ...order,
+            status: 'rejected',
+            labRejected: true,
+            labRejectedAt: new Date().toISOString(),
+            rejectedAt: new Date().toISOString(),
+          }
+        }
+        return order
+      })
+      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
+      
+      // Update current state
+      const updatedRequestsState = requests.map(r => {
+        if (r.id === orderId || r.requestId === orderId) {
+          return {
+            ...r,
+            status: 'rejected',
+            rejectedAt: new Date().toISOString(),
+            labRejected: true,
+          }
+        }
+        return r
+      })
+      setRequests(updatedRequestsState)
+      
+      loadRequests()
+      alert('Order rejected successfully. Admin and patient have been notified.')
+    } catch (error) {
+      console.error('Error rejecting order:', error)
+      alert('Error rejecting order. Please try again.')
+    }
+  }
+
+  const handleAcceptOrder = async (orderId) => {
+    try {
+      const labId = 'lab-1' // Mock lab ID
+      const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
+      const orderToUpdate = labOrders.find(o => o.id === orderId || o.requestId === orderId)
+      const requestId = orderToUpdate?.requestId || orderId
+      
+      // Update lab orders - set status as 'accepted'
+      const updatedOrders = labOrders.map(order => {
+        if (order.id === orderId || order.requestId === orderId) {
+          return {
+            ...order,
+            status: 'accepted',
+            acceptedAt: new Date().toISOString(),
+            acceptedBy: 'Laboratory',
+            labAccepted: true,
+          }
+        }
+        return order
+      })
+      localStorage.setItem(`labOrders_${labId}`, JSON.stringify(updatedOrders))
+      
+      // Update admin requests
+      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      const updatedRequests = allRequests.map(req => {
+        if (req.id === requestId) {
+          return {
+            ...req,
+            labAccepted: true,
+            labAcceptedAt: new Date().toISOString(),
+          }
+        }
+        return req
+      })
+      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      
+      // Update patient requests
+      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
+      const updatedPatientRequests = patientRequests.map(req => {
+        if (req.id === requestId) {
+          return {
+            ...req,
+            labAccepted: true,
+            labAcceptedAt: new Date().toISOString(),
+          }
+        }
+        return req
+      })
+      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
+      
+      // Update patient orders
+      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+      const updatedPatientOrders = patientOrders.map(order => {
+        if (order.requestId === requestId && (order.type === 'lab' || order.type === 'laboratory')) {
+          return {
+            ...order,
+            status: 'accepted',
+            labAccepted: true,
+            labAcceptedAt: new Date().toISOString(),
+            acceptedAt: new Date().toISOString(),
+          }
+        }
+        return order
+      })
+      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
+      
+      // Update current state
+      const updatedRequestsState = requests.map(r => {
+        if (r.id === orderId || r.requestId === orderId) {
+          return {
+            ...r,
+            status: 'accepted',
+            acceptedAt: new Date().toISOString(),
+            labAccepted: true,
+          }
+        }
+        return r
+      })
+      setRequests(updatedRequestsState)
+      
+      loadRequests()
+      alert('Order accepted successfully!')
+    } catch (error) {
+      console.error('Error accepting order:', error)
+      alert('Error accepting order. Please try again.')
     }
   }
 
@@ -552,8 +742,33 @@ const LaboratoryRequestOrders = () => {
                       </span>
                     </div>
                     
-                    {/* Action Button - Compact */}
-                    {(request.status === 'confirmed' || request.status === 'payment_pending') && !request.labConfirmed && request.paymentConfirmed && (
+                    {/* Action Buttons - Accept/Reject */}
+                    {((request.paymentConfirmed || request.status === 'payment_pending' || request.status === 'pending' || request.status === 'confirmed') && !request.labAccepted && !request.labRejected && request.status !== 'completed' && request.status !== 'rejected' && request.status !== 'accepted') && (
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRejectOrder(request.id || request.requestId)
+                          }}
+                          className="flex items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-95"
+                        >
+                          <IoCloseCircleOutline className="h-3 w-3" />
+                          Reject
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleAcceptOrder(request.id || request.requestId)
+                          }}
+                          className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                        >
+                          <IoCheckmarkCircleOutline className="h-3 w-3" />
+                          Accept
+                        </button>
+                      </div>
+                    )}
+                    {/* Confirm Order Button - Show when order is accepted and payment confirmed but not yet confirmed */}
+                    {(request.status === 'accepted' || request.status === 'confirmed' || request.status === 'payment_pending') && request.labAccepted && !request.labConfirmed && request.paymentConfirmed && (
                       <div className="mt-2 flex justify-end">
                         <button
                           onClick={(e) => {
@@ -565,6 +780,24 @@ const LaboratoryRequestOrders = () => {
                           <IoCheckmarkCircleOutline className="h-3 w-3" />
                           Confirm
                         </button>
+                      </div>
+                    )}
+                    {/* Rejected Status Badge */}
+                    {(request.status === 'rejected' || request.labRejected) && (
+                      <div className="mt-2 flex justify-end">
+                        <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold bg-red-100 text-red-700 border border-red-300">
+                          <IoCloseCircleOutline className="h-3 w-3" />
+                          Rejected
+                        </span>
+                      </div>
+                    )}
+                    {/* Accepted Status Badge */}
+                    {request.status === 'accepted' && request.labAccepted && !request.labConfirmed && (
+                      <div className="mt-2 flex justify-end">
+                        <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold bg-green-100 text-green-700 border border-green-300">
+                          <IoCheckmarkCircleOutline className="h-3 w-3" />
+                          Accepted
+                        </span>
                       </div>
                     )}
                   </div>
@@ -786,18 +1019,74 @@ const LaboratoryRequestOrders = () => {
                 <span>Request Date: {formatDateTime(selectedRequest.createdAt)}</span>
               </div>
 
-              {/* Action Button */}
-              {selectedRequest.status === 'pending' && (
-                <div className="pt-4 border-t border-slate-200">
+              {/* Action Buttons */}
+              <div className="pt-4 border-t border-slate-200 space-y-2">
+                {/* Reject and Accept Buttons - Show when payment confirmed and order not yet accepted/rejected */}
+                {((selectedRequest.paymentConfirmed || selectedRequest.status === 'payment_pending' || selectedRequest.status === 'pending' || selectedRequest.status === 'confirmed') && !selectedRequest.labAccepted && !selectedRequest.labRejected && selectedRequest.status !== 'completed' && selectedRequest.status !== 'rejected' && selectedRequest.status !== 'accepted') && (
+                  <>
+                    <button
+                      onClick={() => {
+                        handleRejectOrder(selectedRequest.id || selectedRequest.requestId)
+                        setSelectedRequest(null)
+                      }}
+                      className="w-full rounded-xl bg-gradient-to-br from-red-500 to-red-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <IoCloseCircleOutline className="h-5 w-5" />
+                      <span>Reject Order</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleAcceptOrder(selectedRequest.id || selectedRequest.requestId)
+                        setSelectedRequest(null)
+                      }}
+                      className="w-full rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <IoCheckmarkCircleOutline className="h-5 w-5" />
+                      <span>Accept Order</span>
+                    </button>
+                  </>
+                )}
+                {/* Confirm Order Button - Show when order is accepted and payment confirmed but not yet confirmed */}
+                {(selectedRequest.status === 'accepted' || selectedRequest.status === 'confirmed' || selectedRequest.status === 'payment_pending') && selectedRequest.labAccepted && !selectedRequest.labConfirmed && selectedRequest.paymentConfirmed && (
                   <button
-                    onClick={() => handleMarkCompleted(selectedRequest.id)}
+                    onClick={() => {
+                      handleConfirmOrder(selectedRequest.id || selectedRequest.requestId)
+                      setSelectedRequest(null)
+                    }}
+                    className="w-full rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <IoCheckmarkCircleOutline className="h-5 w-5" />
+                    <span>Confirm Order</span>
+                  </button>
+                )}
+                {/* Rejected Status Badge */}
+                {(selectedRequest.status === 'rejected' || selectedRequest.labRejected) && (
+                  <div className="w-full rounded-xl bg-red-50 border-2 border-red-200 px-4 py-3 flex items-center justify-center gap-2">
+                    <IoCloseCircleOutline className="h-5 w-5 text-red-600" />
+                    <span className="text-sm font-semibold text-red-700">Order Rejected</span>
+                  </div>
+                )}
+                {/* Accepted Status Badge */}
+                {selectedRequest.status === 'accepted' && selectedRequest.labAccepted && !selectedRequest.labConfirmed && (
+                  <div className="w-full rounded-xl bg-green-50 border-2 border-green-200 px-4 py-3 flex items-center justify-center gap-2">
+                    <IoCheckmarkCircleOutline className="h-5 w-5 text-green-600" />
+                    <span className="text-sm font-semibold text-green-700">Order Accepted</span>
+                  </div>
+                )}
+                {/* Mark as Completed Button - Show when status is pending */}
+                {selectedRequest.status === 'pending' && (
+                  <button
+                    onClick={() => {
+                      handleMarkCompleted(selectedRequest.id)
+                      setSelectedRequest(null)
+                    }}
                     className="w-full rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
                   >
                     <IoCheckmarkCircleOutline className="h-5 w-5" />
                     <span>Mark as Completed</span>
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>

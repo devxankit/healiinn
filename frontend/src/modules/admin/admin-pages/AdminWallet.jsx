@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoWalletOutline,
@@ -396,6 +396,132 @@ const AdminWallet = () => {
   const [transactionFilter, setTransactionFilter] = useState('all') // all, commission, withdrawal
   const [transactionSearchTerm, setTransactionSearchTerm] = useState('')
   const [transactions, setTransactions] = useState(mockTransactions)
+
+  // Load transactions from localStorage
+  useEffect(() => {
+    const loadTransactions = () => {
+      const allTransactions = []
+
+      try {
+        // Load from patientOrders - payment confirmed orders
+        const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+        patientOrders.forEach((order) => {
+          // Only include payment confirmed orders
+          if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
+            const paidDate = new Date(order.paidAt)
+            const dateStr = paidDate.toISOString().split('T')[0]
+            const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            
+            // Calculate commission (10% of total amount)
+            const commissionAmount = order.totalAmount * 0.1
+            
+            allTransactions.push({
+              id: `order-${order.id}`,
+              transactionId: `TXN-${order.type === 'lab' ? 'LAB' : 'PHAR'}-${order.id?.substring(0, 8) || Date.now()}`,
+              type: 'commission',
+              category: order.type === 'lab' ? 'laboratory_commission' : 'pharmacy_commission',
+              providerName: order.type === 'lab' 
+                ? (order.labName || order.providerNames?.join(', ') || 'Laboratory')
+                : (order.pharmacyName || order.providerNames?.join(', ') || 'Pharmacy'),
+              providerType: order.type === 'lab' ? 'laboratory' : 'pharmacy',
+              amount: commissionAmount,
+              status: 'completed',
+              description: `Commission from ${order.type === 'lab' ? 'lab test' : 'medicine'} order`,
+              createdAt: `${dateStr}T${timeStr}`,
+              orderId: order.requestId || order.id,
+              patientName: order.patientName || 'Patient',
+            })
+          }
+        })
+
+        // Load from pharmacyOrders - all pharmacies
+        const allPharmacyAvailability = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
+        allPharmacyAvailability.forEach((pharmacy) => {
+          const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacy.id}`) || '[]')
+          pharmacyOrders.forEach((order) => {
+            if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
+              const paidDate = new Date(order.paidAt)
+              const dateStr = paidDate.toISOString().split('T')[0]
+              const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+              const commissionAmount = order.totalAmount * 0.1
+              
+              // Check if already exists
+              const exists = allTransactions.find(txn => txn.orderId === order.requestId && txn.providerType === 'pharmacy')
+              if (!exists) {
+                allTransactions.push({
+                  id: `pharm-order-${order.id}`,
+                  transactionId: `TXN-PHAR-${order.id?.substring(0, 8) || Date.now()}`,
+                  type: 'commission',
+                  category: 'pharmacy_commission',
+                  providerName: pharmacy.name || 'Pharmacy',
+                  providerType: 'pharmacy',
+                  amount: commissionAmount,
+                  status: 'completed',
+                  description: `Commission from medicine order`,
+                  createdAt: `${dateStr}T${timeStr}`,
+                  orderId: order.requestId || order.id,
+                  patientName: order.patientName || 'Patient',
+                })
+              }
+            }
+          })
+        })
+
+        // Load from labOrders - all labs
+        const allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
+        allLabAvailability.forEach((lab) => {
+          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.id}`) || '[]')
+          labOrders.forEach((order) => {
+            if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
+              const paidDate = new Date(order.paidAt)
+              const dateStr = paidDate.toISOString().split('T')[0]
+              const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+              const commissionAmount = order.totalAmount * 0.1
+              
+              // Check if already exists
+              const exists = allTransactions.find(txn => txn.orderId === order.requestId && txn.providerType === 'laboratory')
+              if (!exists) {
+                allTransactions.push({
+                  id: `lab-order-${order.id}`,
+                  transactionId: `TXN-LAB-${order.id?.substring(0, 8) || Date.now()}`,
+                  type: 'commission',
+                  category: 'laboratory_commission',
+                  providerName: lab.name || 'Laboratory',
+                  providerType: 'laboratory',
+                  amount: commissionAmount,
+                  status: 'completed',
+                  description: `Commission from lab test order`,
+                  createdAt: `${dateStr}T${timeStr}`,
+                  orderId: order.requestId || order.id,
+                  patientName: order.patientName || 'Patient',
+                })
+              }
+            }
+          })
+        })
+
+        // Add mock withdrawals
+        allTransactions.push(...mockTransactions.filter(txn => txn.type === 'withdrawal'))
+
+        // Sort by date (newest first)
+        allTransactions.sort((a, b) => {
+          const dateA = new Date(a.createdAt)
+          const dateB = new Date(b.createdAt)
+          return dateB - dateA
+        })
+
+        setTransactions(allTransactions)
+      } catch (error) {
+        console.error('Error loading transactions:', error)
+        setTransactions(mockTransactions)
+      }
+    }
+
+    loadTransactions()
+    // Refresh every 2 seconds to get new transactions
+    const interval = setInterval(loadTransactions, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   const allProviders = [
     ...mockProviders.doctors.map(p => ({ ...p, type: 'doctor' })),

@@ -286,7 +286,7 @@ const AdminDoctors = () => {
           </p>
         </button>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Consultations</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Appointments</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
             {doctors.reduce((sum, d) => sum + d.totalConsultations, 0)}
           </p>

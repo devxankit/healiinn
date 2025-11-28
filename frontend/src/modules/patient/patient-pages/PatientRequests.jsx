@@ -408,137 +408,78 @@ const PatientRequests = () => {
       // Simulate payment processing
       await new Promise(resolve => setTimeout(resolve, 2000))
       
-      // Update request status to confirmed
+      // Update request status to confirmed and payment confirmed
       const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
       const updatedRequests = patientRequests.map(req => 
         req.id === selectedRequest.id 
-          ? { ...req, status: 'confirmed', paidAt: new Date().toISOString() }
+          ? { 
+              ...req, 
+              status: 'confirmed', 
+              paymentPending: false,
+              paymentConfirmed: true,
+              paidAt: new Date().toISOString() 
+            }
           : req
       )
       localStorage.setItem('patientRequests', JSON.stringify(updatedRequests))
 
-      // Send confirmation to admin
+      // Update admin requests - payment confirmed, ready for order assignment
       const allAdminRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
       const updatedAdminRequests = allAdminRequests.map(req => {
         if (req.id === selectedRequest.id) {
           return {
             ...req,
-            status: 'confirmed',
+            status: 'payment_confirmed', // Payment confirmed, admin can now assign orders
+            paymentPending: false,
             paymentConfirmed: true,
             paidAt: new Date().toISOString(),
-            confirmationMessage: `Payment confirmed! Order has been created for patient ${selectedRequest.patient?.name || 'Patient'}.`,
+            confirmationMessage: `Payment confirmed! Please assign order to ${selectedRequest.type === 'pharmacy' ? 'pharmacy' : 'laboratory'}.`,
+            readyForAssignment: true, // Flag to indicate admin can assign orders
           }
         }
         return req
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedAdminRequests))
 
-      // Handle multiple pharmacies/labs
-      if (selectedRequest.type === 'pharmacy') {
-        // Get provider IDs (can be multiple, comma-separated)
-        const providerIds = selectedRequest.providerId ? selectedRequest.providerId.split(',') : []
-        const providerNames = selectedRequest.providerName ? selectedRequest.providerName.split(',').map(n => n.trim()) : []
-        
-        // Group medicines by pharmacy
-        const medicinesByPharmacy = {}
-        if (selectedRequest.adminMedicines && selectedRequest.adminMedicines.length > 0) {
-          selectedRequest.adminMedicines.forEach(med => {
-            const pharmId = med.pharmacyId || providerIds[0]
-            if (!medicinesByPharmacy[pharmId]) {
-              medicinesByPharmacy[pharmId] = []
-            }
-            medicinesByPharmacy[pharmId].push(med)
-          })
-        }
-
-        // Create orders for each pharmacy
-        const pharmacyOrders = []
-        let totalPharmacyAmount = 0
-
-        providerIds.forEach((pharmId, index) => {
-          const pharmName = providerNames[index] || selectedRequest.providerName || 'Pharmacy'
-          const pharmacyMedicines = medicinesByPharmacy[pharmId] || []
-          const pharmacyAmount = pharmacyMedicines.reduce((sum, med) => sum + ((med.quantity || 0) * (med.price || 0)), 0)
-          totalPharmacyAmount += pharmacyAmount
-
-          const order = {
-            id: `order-${Date.now()}-${pharmId}-${index}`,
+      // Create notification for admin
+      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
+      adminNotifications.unshift({
+        id: `notif-${Date.now()}`,
+        type: 'payment_confirmed',
+        title: 'Payment Confirmed',
+        message: `Patient ${selectedRequest.patient?.name || 'Patient'} has paid ₹${selectedRequest.totalAmount || 0} for ${selectedRequest.type === 'pharmacy' ? 'pharmacy' : 'lab test'} order. Please assign order.`,
             requestId: selectedRequest.id,
-            type: 'pharmacy',
-            patientId: 'pat-current',
             patientName: selectedRequest.patient?.name || 'Patient',
-            pharmacyId: pharmId,
-            pharmacyName: pharmName,
-            medicines: pharmacyMedicines,
-            totalAmount: pharmacyAmount,
-            status: 'confirmed',
+        amount: selectedRequest.totalAmount || 0,
+        orderType: selectedRequest.type,
             createdAt: new Date().toISOString(),
-            paidAt: new Date().toISOString(),
-            paymentConfirmed: true,
-          }
+        read: false,
+      })
+      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
 
-          pharmacyOrders.push(order)
-
-          // Save to pharmacy orders
-          const pharmOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmId}`) || '[]')
-          const existingIndex = pharmOrders.findIndex(o => o.requestId === selectedRequest.id)
-          if (existingIndex >= 0) {
-            pharmOrders[existingIndex] = {
-              ...pharmOrders[existingIndex],
-              ...order,
-            }
-          } else {
-            pharmOrders.push(order)
-          }
-          localStorage.setItem(`pharmacyOrders_${pharmId}`, JSON.stringify(pharmOrders))
-
-          // Update pharmacy wallet (if exists)
-          try {
-            const pharmacyWallet = JSON.parse(localStorage.getItem(`pharmacyWallet_${pharmId}`) || '{"balance": 0, "transactions": []}')
-            pharmacyWallet.balance = (pharmacyWallet.balance || 0) + pharmacyAmount
-            const transaction = {
-              id: `txn-${Date.now()}-${pharmId}`,
-              type: 'credit',
-              amount: pharmacyAmount,
-              description: `Payment received for order from ${selectedRequest.patient?.name || 'Patient'}`,
-              orderId: order.id,
-              requestId: selectedRequest.id,
-              patientName: selectedRequest.patient?.name || 'Patient',
-              createdAt: new Date().toISOString(),
-            }
-            pharmacyWallet.transactions = pharmacyWallet.transactions || []
-            pharmacyWallet.transactions.unshift(transaction)
-            localStorage.setItem(`pharmacyWallet_${pharmId}`, JSON.stringify(pharmacyWallet))
-          } catch (error) {
-            console.error('Error updating pharmacy wallet:', error)
-          }
-        })
-
-        // Save patient order (combined)
+      // Don't create orders here - admin will assign orders after payment
+      // Orders will be created when admin clicks "Assign Order" button
+      
+      // Just create patient order record for tracking
+      if (selectedRequest.type === 'pharmacy') {
         const patientOrder = {
           id: `order-${Date.now()}`,
           requestId: selectedRequest.id,
           type: 'pharmacy',
           patientId: 'pat-current',
           patientName: selectedRequest.patient?.name || 'Patient',
-          providerIds: providerIds,
-          providerNames: providerNames,
+          providerIds: selectedRequest.providerId ? selectedRequest.providerId.split(',') : [],
+          providerNames: selectedRequest.providerName ? selectedRequest.providerName.split(',').map(n => n.trim()) : [],
           medicines: selectedRequest.adminMedicines || [],
           totalAmount: selectedRequest.totalAmount,
-          status: 'confirmed',
+          status: 'payment_confirmed', // Payment confirmed, waiting for admin to assign
           createdAt: new Date().toISOString(),
           paidAt: new Date().toISOString(),
+          paymentConfirmed: true,
         }
         const orders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
         orders.push(patientOrder)
         localStorage.setItem('patientOrders', JSON.stringify(orders))
-
-        // Save to admin orders (all pharmacy orders)
-        const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
-        pharmacyOrders.forEach(order => {
-          adminOrders.push(order)
-        })
-        localStorage.setItem('adminOrders', JSON.stringify(adminOrders))
 
         // Update admin wallet with total payment
         try {
@@ -548,18 +489,10 @@ const PatientRequests = () => {
             id: `txn-${Date.now()}`,
             type: 'credit',
             amount: selectedRequest.totalAmount,
-            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for medicine order (${providerNames.join(', ')})`,
-            orderId: patientOrder.id,
+            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for medicine order. Awaiting order assignment.`,
             requestId: selectedRequest.id,
-            providerIds: providerIds,
-            providerNames: providerNames,
             patientName: selectedRequest.patient?.name || 'Patient',
             createdAt: new Date().toISOString(),
-            breakdown: pharmacyOrders.map(o => ({
-              pharmacyId: o.pharmacyId,
-              pharmacyName: o.pharmacyName,
-              amount: o.totalAmount,
-            })),
           }
           adminWallet.transactions = adminWallet.transactions || []
           adminWallet.transactions.unshift(transaction)
@@ -569,94 +502,19 @@ const PatientRequests = () => {
         }
 
       } else if (selectedRequest.type === 'lab') {
-        // Get provider IDs (can be multiple, comma-separated)
-        const providerIds = selectedRequest.providerId ? selectedRequest.providerId.split(',') : []
-        const providerNames = selectedRequest.providerName ? selectedRequest.providerName.split(',').map(n => n.trim()) : []
-        
-        // Group investigations by lab (if multiple labs)
-        const investigationsByLab = {}
-        if (selectedRequest.investigations && selectedRequest.investigations.length > 0) {
-          // For now, all investigations go to first lab (can be enhanced later)
-          const labId = providerIds[0] || selectedRequest.providerId
-          investigationsByLab[labId] = selectedRequest.investigations
-        }
-
-        // Create orders for each lab
-        const labOrders = []
-        let totalLabAmount = 0
-
-        providerIds.forEach((labId, index) => {
-          const labName = providerNames[index] || selectedRequest.providerName || 'Laboratory'
-          const labInvestigations = investigationsByLab[labId] || selectedRequest.investigations || []
-          // Calculate amount for this lab (if investigations have labId, filter by it)
-          const labAmount = labInvestigations.reduce((sum, inv) => sum + (Number(inv.price) || 0), 0)
-          totalLabAmount += labAmount
-
-          const order = {
-            id: `order-${Date.now()}-${labId}-${index}`,
-            requestId: selectedRequest.id,
-            type: 'lab',
-            patientId: 'pat-current',
-            patientName: selectedRequest.patient?.name || 'Patient',
-            labId: labId,
-            labName: labName,
-            investigations: labInvestigations,
-            totalAmount: labAmount || selectedRequest.totalAmount,
-            status: 'confirmed',
-            createdAt: new Date().toISOString(),
-            paidAt: new Date().toISOString(),
-            paymentConfirmed: true,
-          }
-
-          labOrders.push(order)
-
-          // Save to lab orders
-          const labOrdersList = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
-          const existingIndex = labOrdersList.findIndex(o => o.requestId === selectedRequest.id)
-          if (existingIndex >= 0) {
-            labOrdersList[existingIndex] = {
-              ...labOrdersList[existingIndex],
-              ...order,
-            }
-          } else {
-            labOrdersList.push(order)
-          }
-          localStorage.setItem(`labOrders_${labId}`, JSON.stringify(labOrdersList))
-
-          // Update lab wallet (if exists)
-          try {
-            const labWallet = JSON.parse(localStorage.getItem(`labWallet_${labId}`) || '{"balance": 0, "transactions": []}')
-            labWallet.balance = (labWallet.balance || 0) + (labAmount || selectedRequest.totalAmount)
-            const transaction = {
-              id: `txn-${Date.now()}-${labId}`,
-              type: 'credit',
-              amount: labAmount || selectedRequest.totalAmount,
-              description: `Payment received for order from ${selectedRequest.patient?.name || 'Patient'}`,
-              orderId: order.id,
-              requestId: selectedRequest.id,
-              patientName: selectedRequest.patient?.name || 'Patient',
-              createdAt: new Date().toISOString(),
-            }
-            labWallet.transactions = labWallet.transactions || []
-            labWallet.transactions.unshift(transaction)
-            localStorage.setItem(`labWallet_${labId}`, JSON.stringify(labWallet))
-          } catch (error) {
-            console.error('Error updating lab wallet:', error)
-          }
-        })
-
-        // Save patient order (combined)
+        // Just create patient order record for tracking
         const patientOrder = {
           id: `order-${Date.now()}`,
           requestId: selectedRequest.id,
           type: 'lab',
+          visitType: selectedRequest.visitType || 'lab',
           patientId: 'pat-current',
           patientName: selectedRequest.patient?.name || 'Patient',
-          providerIds: providerIds,
-          providerNames: providerNames,
+          providerIds: selectedRequest.providerId ? selectedRequest.providerId.split(',') : [],
+          providerNames: selectedRequest.providerName ? selectedRequest.providerName.split(',').map(n => n.trim()) : [],
           investigations: selectedRequest.investigations || [],
           totalAmount: selectedRequest.totalAmount,
-          status: 'confirmed',
+          status: 'payment_confirmed', // Payment confirmed, waiting for admin to assign
           createdAt: new Date().toISOString(),
           paidAt: new Date().toISOString(),
           paymentConfirmed: true,
@@ -664,17 +522,6 @@ const PatientRequests = () => {
         const orders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
         orders.push(patientOrder)
         localStorage.setItem('patientOrders', JSON.stringify(orders))
-
-        // Save to admin orders (all lab orders) - ensure type is 'laboratory'
-        const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
-        labOrders.forEach(order => {
-          // Ensure type is 'laboratory' for consistency in admin orders
-          adminOrders.push({
-            ...order,
-            type: 'laboratory', // Convert 'lab' to 'laboratory' for admin orders
-          })
-        })
-        localStorage.setItem('adminOrders', JSON.stringify(adminOrders))
 
         // Update admin wallet with total payment
         try {
@@ -684,18 +531,10 @@ const PatientRequests = () => {
             id: `txn-${Date.now()}`,
             type: 'credit',
             amount: selectedRequest.totalAmount,
-            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for lab test order (${providerNames.join(', ')})`,
-            orderId: patientOrder.id,
+            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for lab test order. Awaiting order assignment.`,
             requestId: selectedRequest.id,
-            providerIds: providerIds,
-            providerNames: providerNames,
             patientName: selectedRequest.patient?.name || 'Patient',
             createdAt: new Date().toISOString(),
-            breakdown: labOrders.map(o => ({
-              labId: o.labId,
-              labName: o.labName,
-              amount: o.totalAmount,
-            })),
           }
           adminWallet.transactions = adminWallet.transactions || []
           adminWallet.transactions.unshift(transaction)

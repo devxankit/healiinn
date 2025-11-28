@@ -118,24 +118,75 @@ const LaboratoryAddReport = () => {
         })
       }, 150)
 
+      // Convert PDF file to base64 for storage
+      const pdfBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => resolve(e.target.result)
+        reader.onerror = reject
+        reader.readAsDataURL(selectedFile)
+      })
+      
+      const reportFileName = selectedFile.name
+      
+      // Store PDF in localStorage with patientId and orderId for patient access - automatically share with patient
+      const patientId = order.patientId || 'pat-current'
+      const orderId = order.orderId || order.id
+      
+      // Store in patient's lab reports
+      const patientLabReportsKey = `patientLabReports_${patientId}`
+      const existingReports = JSON.parse(localStorage.getItem(patientLabReportsKey) || '[]')
+      
+      // Check if report already exists
+      const existingIndex = existingReports.findIndex(r => r.orderId === orderId || r.id === order.id)
+      
+      const reportData = {
+        id: order.id || `report-${Date.now()}`,
+        orderId: orderId,
+        patientId: patientId,
+        testName: order.testName,
+        labName: 'MediLab Diagnostics', // Current laboratory name
+        labId: 'lab-1', // Current lab ID
+        date: new Date(order.orderDate || new Date()).toISOString().split('T')[0],
+        status: 'ready',
+        pdfFileUrl: pdfBase64, // Store as base64
+        pdfFileName: reportFileName,
+        sharedAt: new Date().toISOString(),
+        sharedBy: 'laboratory',
+      }
+      
+      if (existingIndex >= 0) {
+        existingReports[existingIndex] = reportData
+      } else {
+        existingReports.push(reportData)
+      }
+      localStorage.setItem(patientLabReportsKey, JSON.stringify(existingReports))
+      
+      // Also store in sharedLabReports for backward compatibility
+      const sharedReportsKey = `sharedLabReports_${patientId}`
+      const existingSharedReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
+      const sharedIndex = existingSharedReports.findIndex(r => r.orderId === orderId || r.id === order.id)
+      
+      if (sharedIndex >= 0) {
+        existingSharedReports[sharedIndex] = reportData
+      } else {
+        existingSharedReports.push(reportData)
+      }
+      localStorage.setItem(sharedReportsKey, JSON.stringify(existingSharedReports))
+      
       await new Promise((resolve) => setTimeout(resolve, 2000))
       
       clearInterval(progressInterval)
       setUploadProgress(100)
       setUploadStatus('success')
       
-      // Create report URL (in real app, this would come from the upload response)
-      const reportUrl = URL.createObjectURL(selectedFile)
-      const reportFileName = selectedFile.name
-
-      // Update order in localStorage
+      // Update order in localStorage with base64 PDF
       const storedOrders = JSON.parse(localStorage.getItem('laboratoryConfirmedOrders') || '[]')
       const updatedOrders = storedOrders.map((o) =>
         (o.id === order.id || o.orderId === order.orderId)
           ? { 
               ...o, 
               hasReport: true,
-              reportUrl: reportUrl,
+              reportUrl: pdfBase64, // Store base64 instead of blob URL
               reportFileName: reportFileName,
             }
           : o

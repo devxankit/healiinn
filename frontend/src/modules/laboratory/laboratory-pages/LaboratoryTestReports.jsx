@@ -230,6 +230,10 @@ const LaboratoryTestReports = () => {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500))
       
+      // Get PDF from order (should be base64 from LaboratoryAddReport)
+      const pdfFileUrl = order.reportUrl || order.pdfFileUrl
+      const pdfFileName = order.reportFileName || `${order.testName.replace(/\s+/g, '_')}_${order.orderId}.pdf`
+      
       // Prepare report data
       const reportData = {
         id: order.id,
@@ -239,22 +243,41 @@ const LaboratoryTestReports = () => {
         patientEmail: order.patientEmail,
         patientPhone: order.patientPhone,
         testName: order.testName,
+        labName: 'MediLab Diagnostics', // Current laboratory name
+        labId: 'lab-1', // Current lab ID
+        date: new Date(order.orderDate || new Date()).toISOString().split('T')[0],
+        status: 'ready',
         orderDate: order.orderDate,
-        status: order.status,
         sharedAt: new Date().toISOString(),
         sharedBy: 'laboratory',
-        reportUrl: order.reportUrl || `https://example.com/reports/${order.orderId}.pdf`,
-        reportFileName: `${order.testName.replace(/\s+/g, '_')}_${order.orderId}.pdf`,
+        pdfFileUrl: pdfFileUrl, // Base64 PDF from laboratory
+        pdfFileName: pdfFileName,
       }
 
       // Share with Patient - Save to patient's localStorage
-      const patientReportsKey = `sharedLabReports_${order.patientId}`
-      const existingPatientReports = JSON.parse(localStorage.getItem(patientReportsKey) || '[]')
-      const alreadySharedWithPatient = existingPatientReports.find(r => r.id === order.id)
-      if (!alreadySharedWithPatient) {
+      const patientId = order.patientId || 'pat-current'
+      
+      // Store in patientLabReports
+      const patientLabReportsKey = `patientLabReports_${patientId}`
+      const existingPatientReports = JSON.parse(localStorage.getItem(patientLabReportsKey) || '[]')
+      const existingIndex = existingPatientReports.findIndex(r => r.id === order.id || r.orderId === order.orderId)
+      if (existingIndex >= 0) {
+        existingPatientReports[existingIndex] = reportData
+      } else {
         existingPatientReports.push(reportData)
-        localStorage.setItem(patientReportsKey, JSON.stringify(existingPatientReports))
       }
+      localStorage.setItem(patientLabReportsKey, JSON.stringify(existingPatientReports))
+      
+      // Also store in sharedLabReports for backward compatibility
+      const sharedReportsKey = `sharedLabReports_${patientId}`
+      const existingSharedReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
+      const sharedIndex = existingSharedReports.findIndex(r => r.id === order.id || r.orderId === order.orderId)
+      if (sharedIndex >= 0) {
+        existingSharedReports[sharedIndex] = reportData
+      } else {
+        existingSharedReports.push(reportData)
+      }
+      localStorage.setItem(sharedReportsKey, JSON.stringify(existingSharedReports))
 
       // Share with Admin - Save to admin's localStorage
       const adminReportsKey = 'adminSharedLabReports'

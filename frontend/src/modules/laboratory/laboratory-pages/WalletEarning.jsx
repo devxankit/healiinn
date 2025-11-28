@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  IoArrowBackOutline,
   IoArrowDownOutline,
   IoCalendarOutline,
   IoCheckmarkCircleOutline,
@@ -87,7 +85,6 @@ const formatDateTime = (dateString) => {
 }
 
 const WalletEarning = () => {
-  const navigate = useNavigate()
   const [filterType, setFilterType] = useState('all') // all, today, year, month
 
   const earningsChange = ((mockEarningData.thisMonthEarnings - mockEarningData.lastMonthEarnings) / mockEarningData.lastMonthEarnings) * 100
@@ -100,20 +97,6 @@ const WalletEarning = () => {
 
   return (
     <section className="flex flex-col gap-6 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate('/laboratory/wallet')}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95"
-        >
-          <IoArrowBackOutline className="h-5 w-5" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Earnings</h1>
-          <p className="mt-1 text-sm text-slate-600">View your earnings and income details</p>
-        </div>
-      </div>
-
       {/* Main Earnings Card */}
       <div className="relative overflow-hidden rounded-3xl border border-emerald-100/60 bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 p-6 sm:p-8 text-white shadow-xl shadow-emerald-500/30">
         <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />

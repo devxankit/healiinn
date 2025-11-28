@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  IoArrowBackOutline,
   IoCashOutline,
   IoAddOutline,
   IoCardOutline,
@@ -91,7 +89,6 @@ const formatDateTime = (dateString) => {
 }
 
 const WalletWithdraw = () => {
-  const navigate = useNavigate()
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('bank')
@@ -180,18 +177,8 @@ const WalletWithdraw = () => {
 
   return (
     <section className="flex flex-col gap-6 pb-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate('/pharmacy/wallet')}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:border-slate-300 active:scale-95"
-        >
-          <IoArrowBackOutline className="h-5 w-5" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Withdraw</h1>
-          <p className="mt-1 text-sm text-slate-600">Manage your withdrawals</p>
-        </div>
+      {/* Withdraw Button */}
+      <div className="flex justify-end">
         <button
           onClick={() => setShowWithdrawModal(true)}
           disabled={mockWithdrawData.availableBalance <= 0}

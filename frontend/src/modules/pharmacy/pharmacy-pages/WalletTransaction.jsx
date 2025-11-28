@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoArrowBackOutline,
@@ -9,21 +9,14 @@ import {
   IoCheckmarkCircleOutline,
   IoTimeOutline,
   IoFilterOutline,
+  IoBagHandleOutline,
+  IoPersonOutline,
 } from 'react-icons/io5'
 
-// Mock data
-const mockTransactions = [
+// Mock data for withdrawals
+const mockWithdrawals = [
   {
-    id: 'txn-1',
-    type: 'earning',
-    amount: 2500.0,
-    description: 'Order payment received - Order #1307',
-    date: '2025-01-15T10:30:00',
-    status: 'completed',
-    category: 'Order Payment',
-  },
-  {
-    id: 'txn-2',
+    id: 'wd-1',
     type: 'withdrawal',
     amount: -8000.0,
     description: 'Withdrawal to Bank Account',
@@ -32,58 +25,13 @@ const mockTransactions = [
     category: 'Withdrawal',
   },
   {
-    id: 'txn-3',
-    type: 'earning',
-    amount: 3200.0,
-    description: 'Order payment received - Order #1309',
-    date: '2025-01-13T09:15:00',
-    status: 'completed',
-    category: 'Order Payment',
-  },
-  {
-    id: 'txn-4',
-    type: 'earning',
-    amount: 1800.0,
-    description: 'Order payment received - Order #1308',
-    date: '2025-01-12T16:45:00',
-    status: 'pending',
-    category: 'Order Payment',
-  },
-  {
-    id: 'txn-5',
-    type: 'earning',
-    amount: 2100.0,
-    description: 'Order payment received - Order #1310',
-    date: '2025-01-11T11:00:00',
-    status: 'completed',
-    category: 'Order Payment',
-  },
-  {
-    id: 'txn-6',
+    id: 'wd-2',
     type: 'withdrawal',
     amount: -5000.0,
     description: 'Withdrawal to Bank Account',
     date: '2025-01-10T10:00:00',
     status: 'completed',
     category: 'Withdrawal',
-  },
-  {
-    id: 'txn-7',
-    type: 'earning',
-    amount: 1500.0,
-    description: 'Order payment received - Order #1311',
-    date: '2025-01-09T14:20:00',
-    status: 'completed',
-    category: 'Order Payment',
-  },
-  {
-    id: 'txn-8',
-    type: 'earning',
-    amount: 2750.0,
-    description: 'Order payment received - Order #1312',
-    date: '2025-01-08T16:30:00',
-    status: 'completed',
-    category: 'Order Payment',
   },
 ]
 
@@ -113,8 +61,63 @@ const formatDateTime = (dateString) => {
 const WalletTransaction = () => {
   const navigate = useNavigate()
   const [filterType, setFilterType] = useState('all') // all, earnings, withdrawals
+  const [transactions, setTransactions] = useState([])
 
-  const filteredTransactions = mockTransactions.filter((txn) => {
+  // Load transactions from localStorage
+  useEffect(() => {
+    const loadTransactions = () => {
+      const allTransactions = []
+      const pharmacyId = 'pharm-1' // Mock pharmacy ID - in real app, get from auth
+
+      try {
+        // Load from pharmacyOrders - payment confirmed orders
+        const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
+        pharmacyOrders.forEach((order) => {
+          // Only include payment confirmed orders
+          if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
+            const paidDate = new Date(order.paidAt)
+            const dateStr = paidDate.toISOString().split('T')[0]
+            const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            
+            allTransactions.push({
+              id: `order-${order.id}`,
+              type: 'earning',
+              amount: order.totalAmount,
+              description: `Payment received from ${order.patientName || 'Patient'} - Order ${order.requestId || order.id}`,
+              date: `${dateStr}T${timeStr}`,
+              status: 'completed',
+              category: 'Order Payment',
+              patientName: order.patientName || 'Patient',
+              requestId: order.requestId,
+              transactionId: `TXN-PHAR-${order.id?.substring(0, 8) || Date.now()}`,
+              medicines: order.medicines || [],
+            })
+          }
+        })
+      } catch (error) {
+        console.error('Error loading pharmacy orders:', error)
+      }
+
+      // Add mock withdrawals
+      allTransactions.push(...mockWithdrawals)
+
+      // Sort by date (newest first)
+      allTransactions.sort((a, b) => {
+        const dateA = new Date(a.date)
+        const dateB = new Date(b.date)
+        return dateB - dateA
+      })
+
+      setTransactions(allTransactions)
+    }
+
+    loadTransactions()
+    // Refresh every 2 seconds to get new orders
+    const interval = setInterval(loadTransactions, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const filteredTransactions = transactions.filter((txn) => {
     if (filterType === 'all') return true
     if (filterType === 'earnings') return txn.type === 'earning'
     if (filterType === 'withdrawals') return txn.type === 'withdrawal'
@@ -123,7 +126,7 @@ const WalletTransaction = () => {
 
   return (
     <section className="flex flex-col gap-6 pb-4">
-      {/* Header */}
+      {/* Header - Back Button Only */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/pharmacy/wallet')}
@@ -131,10 +134,6 @@ const WalletTransaction = () => {
         >
           <IoArrowBackOutline className="h-5 w-5" />
         </button>
-        <div className="flex-1">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Transactions</h1>
-          <p className="mt-1 text-sm text-slate-600">View all your transaction history</p>
-        </div>
       </div>
 
       {/* Main Transaction Card - Hero */}
@@ -146,7 +145,7 @@ const WalletTransaction = () => {
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1">
               <p className="text-sm font-medium text-white/80 mb-1">Total Transactions</p>
-              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{mockTransactions.length}</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{transactions.length}</p>
             </div>
             <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
               <IoReceiptOutline className="h-8 w-8 sm:h-10 sm:w-10" />
@@ -231,8 +230,13 @@ const WalletTransaction = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900">{transaction.description}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-sm font-semibold text-slate-900">{transaction.patientName || 'Patient'}</p>
+                          <span className="text-xs text-slate-400">•</span>
+                          <span className="text-xs text-slate-500 capitalize">Patient</span>
+                        </div>
+                        <p className="text-xs text-slate-600 mb-2">{transaction.description}</p>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium">
                             {transaction.category}
                           </span>
@@ -240,6 +244,12 @@ const WalletTransaction = () => {
                             <IoCalendarOutline className="h-3.5 w-3.5" />
                             {formatDateTime(transaction.date)}
                           </span>
+                          {transaction.transactionId && (
+                            <span className="text-xs text-slate-400">Transaction ID: {transaction.transactionId}</span>
+                          )}
+                          {transaction.requestId && (
+                            <span className="text-xs text-slate-400">Order: {transaction.requestId}</span>
+                          )}
                         </div>
                         {transaction.status === 'pending' && (
                           <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200">
