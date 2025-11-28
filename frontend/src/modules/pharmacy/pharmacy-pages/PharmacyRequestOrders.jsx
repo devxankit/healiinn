@@ -376,6 +376,23 @@ const PharmacyRequestOrders = () => {
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
       
+      // Create notification for admin
+      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
+      const request = allRequests.find(r => r.id === requestId)
+      adminNotifications.unshift({
+        id: `notif-${Date.now()}`,
+        type: 'pharmacy_rejected',
+        title: 'Pharmacy Order Rejected',
+        message: `Pharmacy ${pharmacyInfo?.pharmacyName || 'Pharmacy'} has rejected the order for patient ${request?.patientName || 'Patient'}. Order ID: ${requestId}`,
+        requestId: requestId,
+        patientName: request?.patientName || 'Patient',
+        pharmacyName: pharmacyInfo?.pharmacyName || 'Pharmacy',
+        orderType: 'pharmacy',
+        createdAt: new Date().toISOString(),
+        read: false,
+      })
+      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
+      
       // Update patient requests
       const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
       const updatedPatientRequests = patientRequests.map(req => {
@@ -465,6 +482,23 @@ const PharmacyRequestOrders = () => {
         return req
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      
+      // Create notification for admin
+      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
+      const request = allRequests.find(r => r.id === requestId)
+      adminNotifications.unshift({
+        id: `notif-${Date.now()}`,
+        type: 'pharmacy_accepted',
+        title: 'Pharmacy Order Accepted',
+        message: `Pharmacy ${pharmacyInfo?.pharmacyName || 'Pharmacy'} has accepted the order for patient ${request?.patientName || 'Patient'}. Order ID: ${requestId}`,
+        requestId: requestId,
+        patientName: request?.patientName || 'Patient',
+        pharmacyName: pharmacyInfo?.pharmacyName || 'Pharmacy',
+        orderType: 'pharmacy',
+        createdAt: new Date().toISOString(),
+        read: false,
+      })
+      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
       
       // Update patient requests
       const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
@@ -1164,246 +1198,244 @@ const PharmacyRequestOrders = () => {
               <article
                 key={request.id}
                 onClick={() => setSelectedRequest(request)}
-                className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-[#11496c]/30 hover:shadow-lg cursor-pointer active:scale-[0.99] sm:p-5"
+                className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.99]"
               >
-                {/* Status Indicator Bar */}
-                <div className={`absolute top-0 left-0 right-0 h-1 ${
-                  request.status === 'completed' || request.deliveryStatus === 'delivered' 
-                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
-                    : request.pharmacyAccepted 
-                    ? 'bg-gradient-to-r from-green-500 to-green-600'
-                    : request.pharmacyRejected
-                    ? 'bg-gradient-to-r from-red-500 to-red-600'
-                    : request.status === 'payment_pending' || request.status === 'confirmed'
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600'
-                    : 'bg-gradient-to-r from-amber-500 to-amber-600'
-                }`} />
-                
-                <div className="flex items-start gap-4 pt-1">
-                  {/* Patient Avatar */}
-                  <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#11496c] to-[#0d3a52] text-white shadow-md group-hover:shadow-lg transition-shadow">
-                    <IoPersonOutline className="h-7 w-7" />
-                    {request.paymentConfirmed && (
-                      <div className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 border-2 border-white">
-                        <IoCheckmarkCircleOutline className="h-3 w-3 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <h3 className="text-base font-bold text-slate-900">{request.patientName || 'Unknown Patient'}</h3>
-                          {request.totalAmount && (
-                            <span className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-emerald-50 to-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
-                              <IoWalletOutline className="h-3 w-3" />
-                              ₹{request.totalAmount.toFixed(2)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mb-2">
-                          <div className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 border border-slate-200">
-                            <IoMedicalOutline className="h-3.5 w-3.5 text-[#11496c]" />
-                            <span className="font-medium">{request.prescription?.doctorName || 'Doctor'}</span>
-                          </div>
-                          {request.prescription?.doctorSpecialty && (
-                            <span className="text-slate-500">{request.prescription.doctorSpecialty}</span>
-                          )}
-                        </div>
-                        {request.prescription?.diagnosis && (
-                          <div className="mb-2 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5">
-                            <p className="text-xs font-medium text-amber-900">
-                              <span className="font-semibold">Diagnosis:</span> {request.prescription.diagnosis}
-                            </p>
-                          </div>
-                        )}
-                        {/* Pharmacy Information */}
-                        {pharmacyInfo && (
-                          <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <IoBagHandleOutline className="h-3.5 w-3.5 text-[#11496c]" />
-                              <span className="text-xs font-semibold text-[#11496c]">{pharmacyInfo.pharmacyName}</span>
-                            </div>
-                            <div className="space-y-1 text-[10px] text-slate-600">
-                              {pharmacyInfo.address && (
-                                <div className="flex items-start gap-1">
-                                  <IoLocationOutline className="h-3 w-3 shrink-0 mt-0.5" />
-                                  <span className="line-clamp-1">{formatPharmacyAddress(pharmacyInfo.address)}</span>
-                                </div>
-                              )}
-                              {pharmacyInfo.phone && (
-                                <div className="flex items-center gap-1">
-                                  <IoCallOutline className="h-3 w-3 shrink-0" />
-                                  <span>{pharmacyInfo.phone}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700 border border-blue-200 shadow-sm">
-                            <IoBagHandleOutline className="h-3.5 w-3.5" />
-                            {medicationsCount} Medicine{medicationsCount !== 1 ? 's' : ''}
-                          </span>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {medications.slice(0, 2).map((med, idx) => {
-                              const medName = typeof med === 'string' ? med : med.name || 'Medicine'
-                              return (
-                                <span key={idx} className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700 border border-slate-200">
-                                  {medName}
-                                </span>
-                              )
-                            })}
-                            {medications.length > 2 && (
-                              <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 border border-slate-200">
-                                +{medications.length - 2} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {request.deliveryType && (
-                          <div className="mt-2">
-                            <span className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[10px] font-bold ${
-                              request.deliveryType === 'home'
-                                ? 'bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border border-emerald-300'
-                                : 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-300'
-                            }`}>
-                              {request.deliveryType === 'home' ? (
-                                <>
-                                  <IoBagHandleOutline className="h-3.5 w-3.5" />
-                                  HOME DELIVERY
-                                </>
-                              ) : (
-                                <>
-                                  <IoMedicalOutline className="h-3.5 w-3.5" />
-                                  PICKUP
-                                </>
-                              )}
-                            </span>
+                <div className="space-y-2">
+                  {/* Line 1: Profile + Name (Left) | Amount + Status (Right) */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#11496c] to-[#0d3a52] text-white">
+                        <IoPersonOutline className="h-5 w-5" />
+                        {request.paymentConfirmed && (
+                          <div className="absolute -top-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500 border-2 border-white">
+                            <IoCheckmarkCircleOutline className="h-1.5 w-1.5 text-white" />
                           </div>
                         )}
                       </div>
-                      {/* Status Badge */}
-                      <span className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow-sm ${getDeliveryStatusColor(request.status, request.deliveryStatus)}`}>
-                        <StatusIcon className="h-3.5 w-3.5" />
+                      <h3 className="text-sm font-bold text-slate-900 truncate">{request.patientName || 'Unknown Patient'}</h3>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {request.totalAmount && (
+                        <div className="flex items-center gap-0.5 rounded-lg bg-emerald-50 px-2 py-0.5 border border-emerald-200">
+                          <IoWalletOutline className="h-2.5 w-2.5 text-emerald-700" />
+                          <span className="text-[10px] font-bold text-emerald-700">₹{request.totalAmount.toFixed(1)}</span>
+                        </div>
+                      )}
+                      <span className={`inline-flex items-center gap-0.5 rounded-lg px-2 py-0.5 text-[10px] font-bold ${
+                        request.status === 'completed' || request.deliveryStatus === 'delivered'
+                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                          : request.pharmacyAccepted
+                          ? 'bg-green-100 text-green-700 border border-green-200'
+                          : request.pharmacyRejected
+                          ? 'bg-red-100 text-red-700 border border-red-200'
+                          : 'bg-blue-100 text-blue-700 border border-blue-200'
+                      }`}>
+                        <StatusIcon className="h-2.5 w-2.5" />
                         {getDeliveryStatusLabel(request.status, request.deliveryStatus)}
                       </span>
                     </div>
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                        <div className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 border border-slate-200">
-                          <IoCalendarOutline className="h-3.5 w-3.5 text-[#11496c]" />
-                          <span className="font-medium">{formatDateTime(request.createdAt)}</span>
-                        </div>
-                        {request.estimatedDeliveryTime && (request.deliveryStatus === 'out_for_delivery' || request.status === 'out_for_delivery') && (
-                          <div className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 border border-blue-200">
-                            <IoTimeOutline className="h-3.5 w-3.5 text-blue-600" />
-                            <span className="font-medium text-blue-700">ETA: {formatDateTime(request.estimatedDeliveryTime)}</span>
+                  </div>
+
+                  {/* Line 2: Doctor Information Card */}
+                  <div className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 border border-slate-200">
+                    <IoMedicalOutline className="h-3 w-3 text-[#11496c] shrink-0" />
+                    <span className="text-xs font-semibold text-slate-900">{request.prescription?.doctorName || 'Doctor'}</span>
+                  </div>
+
+                  {/* Line 3: Doctor Specialty */}
+                  {request.prescription?.doctorSpecialty && (
+                    <div className="text-xs text-slate-600 font-medium ml-1">
+                      {request.prescription.doctorSpecialty}
+                    </div>
+                  )}
+
+                  {/* Line 4: Diagnosis Card */}
+                  {request.prescription?.diagnosis && (
+                    <div className="rounded-lg bg-amber-50 border border-amber-200 px-2 py-1">
+                      <p className="text-xs font-semibold text-amber-900">
+                        <span className="font-bold">Diagnosis:</span> {request.prescription.diagnosis}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Line 5: Pharmacy Information Card */}
+                  {pharmacyInfo && (
+                    <div className="rounded-lg border border-slate-200 bg-white p-2">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <IoBagHandleOutline className="h-3 w-3 text-[#11496c] shrink-0" />
+                        <span className="text-xs font-semibold text-[#11496c]">{pharmacyInfo.pharmacyName}</span>
+                      </div>
+                      <div className="space-y-0.5 text-[10px] text-slate-600">
+                        {pharmacyInfo.address && (
+                          <div className="flex items-start gap-1">
+                            <IoLocationOutline className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                            <span className="line-clamp-1">{formatPharmacyAddress(pharmacyInfo.address)}</span>
+                          </div>
+                        )}
+                        {pharmacyInfo.phone && (
+                          <div className="flex items-center gap-1">
+                            <IoCallOutline className="h-2.5 w-2.5 shrink-0" />
+                            <span>{pharmacyInfo.phone}</span>
                           </div>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* Reject and Accept Buttons - Show when payment confirmed and order not yet accepted/rejected */}
-                        {((request.paymentConfirmed || request.status === 'payment_pending' || request.status === 'pending' || request.status === 'confirmed') && !request.pharmacyAccepted && !request.pharmacyRejected && request.status !== 'completed' && request.status !== 'rejected' && request.status !== 'accepted' && request.deliveryStatus !== 'preparing' && request.status !== 'preparing' && request.deliveryStatus !== 'out_for_delivery' && request.status !== 'out_for_delivery' && request.deliveryStatus !== 'delivered') && (
+                    </div>
+                  )}
+
+                  {/* Line 6: Medicine Count Badge */}
+                  <div>
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200">
+                      <IoBagHandleOutline className="h-2.5 w-2.5" />
+                      {medicationsCount} Medicine{medicationsCount !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  {/* Line 7: Medicine Names */}
+                  {medications.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {medications.map((med, idx) => {
+                        const medName = typeof med === 'string' ? med : med.name || 'Medicine'
+                        return (
+                          <div key={idx} className="rounded-lg bg-slate-50 border border-slate-200 px-2 py-0.5">
+                            <span className="text-xs font-medium text-slate-700">{medName}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Line 8: Delivery Type Badge */}
+                  {request.deliveryType && (
+                    <div>
+                      <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold ${
+                        request.deliveryType === 'home'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-blue-50 text-blue-700 border border-blue-200'
+                      }`}>
+                        {request.deliveryType === 'home' ? (
                           <>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRejectOrder(request.id || request.requestId)
-                              }}
-                              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
-                            >
-                              <IoCloseCircleOutline className="h-4 w-4" />
-                              Reject
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleAcceptOrder(request.id || request.requestId)
-                              }}
-                              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
-                            >
-                              <IoCheckmarkCircleOutline className="h-4 w-4" />
-                              Accept
-                            </button>
+                            <IoBagHandleOutline className="h-2.5 w-2.5" />
+                            HOME DELIVERY
+                          </>
+                        ) : (
+                          <>
+                            <IoMedicalOutline className="h-2.5 w-2.5" />
+                            PICKUP
                           </>
                         )}
-                        {/* Deliver Order Button - Show when payment confirmed and not yet delivered */}
-                        {request.paymentConfirmed && 
-                         request.deliveryStatus !== 'delivered' && 
-                         request.status !== 'completed' && 
-                         (request.status === 'confirmed' || 
-                          request.status === 'payment_pending' || 
-                          request.deliveryStatus === 'preparing' || 
-                          request.status === 'preparing' || 
-                          request.deliveryStatus === 'out_for_delivery' || 
-                          request.status === 'out_for_delivery') && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleMarkAsDelivered(request.id || request.requestId)
-                            }}
-                            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <IoCheckmarkDoneOutline className="h-4 w-4" />
-                            Deliver Order
-                          </button>
-                        )}
-                        {/* Confirm Order Button - Show when order is accepted and payment confirmed but not yet preparing */}
-                        {(request.status === 'accepted' || request.status === 'confirmed' || request.status === 'payment_pending') && request.pharmacyAccepted && !request.pharmacyConfirmed && request.paymentConfirmed && request.deliveryStatus !== 'preparing' && request.status !== 'preparing' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleConfirmOrder(request.id || request.requestId)
-                            }}
-                            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <IoCheckmarkCircleOutline className="h-4 w-4" />
-                            Confirm Order
-                          </button>
-                        )}
-                        {/* Rejected Status Badge */}
-                        {(request.status === 'rejected' || request.pharmacyRejected) && (
-                          <span className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold bg-red-100 text-red-700 border border-red-300 shadow-sm">
-                            <IoCloseCircleOutline className="h-3.5 w-3.5" />
-                            Rejected
-                          </span>
-                        )}
-                        {/* Accepted Status Badge */}
-                        {request.status === 'accepted' && request.pharmacyAccepted && !request.pharmacyConfirmed && (
-                          <span className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold bg-green-100 text-green-700 border border-green-300 shadow-sm">
-                            <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                            Accepted
-                          </span>
-                        )}
-                        {/* Preparing - Show "Out for Delivery" button */}
-                        {(request.deliveryStatus === 'preparing' || request.status === 'preparing') && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleOutForDelivery(request.id || request.requestId)
-                            }}
-                            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <IoCarOutline className="h-4 w-4" />
-                            Out for Delivery
-                          </button>
-                        )}
-                        {/* Out for Delivery - Show "Mark as Delivered" button */}
-                        {(request.deliveryStatus === 'out_for_delivery' || request.status === 'out_for_delivery') && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleMarkAsDelivered(request.id || request.requestId)
-                            }}
-                            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <IoCheckmarkDoneOutline className="h-4 w-4" />
-                            Mark as Delivered
-                          </button>
-                        )}
-                      </div>
+                      </span>
                     </div>
+                  )}
+
+                  {/* Line 9: Date and Time */}
+                  {request.createdAt && (
+                    <div className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-0.5 border border-slate-200 w-fit">
+                      <IoCalendarOutline className="h-2.5 w-2.5 text-[#11496c] shrink-0" />
+                      <span className="text-[10px] font-medium text-slate-700">{formatDateTime(request.createdAt)}</span>
+                    </div>
+                  )}
+
+                  {/* Line 10: Accept/Reject Buttons */}
+                  {((request.paymentConfirmed || request.status === 'payment_pending' || request.status === 'pending' || request.status === 'confirmed') && !request.pharmacyAccepted && !request.pharmacyRejected && request.status !== 'completed' && request.status !== 'rejected' && request.status !== 'accepted' && request.deliveryStatus !== 'preparing' && request.status !== 'preparing' && request.deliveryStatus !== 'out_for_delivery' && request.status !== 'out_for_delivery' && request.deliveryStatus !== 'delivered') && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRejectOrder(request.id || request.requestId)
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-95"
+                      >
+                        <IoCloseCircleOutline className="h-3.5 w-3.5" />
+                        Reject
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleAcceptOrder(request.id || request.requestId)
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                      >
+                        <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                        Accept
+                      </button>
+                    </div>
+                  )}
+                  {/* Other Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Deliver Order Button - Show when payment confirmed and not yet delivered */}
+                    {request.paymentConfirmed && 
+                     request.deliveryStatus !== 'delivered' && 
+                     request.status !== 'completed' && 
+                     (request.status === 'confirmed' || 
+                      request.status === 'payment_pending' || 
+                      request.deliveryStatus === 'preparing' || 
+                      request.status === 'preparing' || 
+                      request.deliveryStatus === 'out_for_delivery' || 
+                      request.status === 'out_for_delivery') && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleMarkAsDelivered(request.id || request.requestId)
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                      >
+                        <IoCheckmarkDoneOutline className="h-3.5 w-3.5" />
+                        Deliver Order
+                      </button>
+                    )}
+                    {/* Confirm Order Button - Show when order is accepted and payment confirmed but not yet preparing */}
+                    {(request.status === 'accepted' || request.status === 'confirmed' || request.status === 'payment_pending') && request.pharmacyAccepted && !request.pharmacyConfirmed && request.paymentConfirmed && request.deliveryStatus !== 'preparing' && request.status !== 'preparing' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleConfirmOrder(request.id || request.requestId)
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                      >
+                        <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                        Confirm Order
+                      </button>
+                    )}
+                    {/* Rejected Status Badge */}
+                    {(request.status === 'rejected' || request.pharmacyRejected) && (
+                      <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 border border-red-300">
+                        <IoCloseCircleOutline className="h-3 w-3" />
+                        Rejected
+                      </span>
+                    )}
+                    {/* Accepted Status Badge */}
+                    {request.status === 'accepted' && request.pharmacyAccepted && !request.pharmacyConfirmed && (
+                      <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold bg-green-100 text-green-700 border border-green-300">
+                        <IoCheckmarkCircleOutline className="h-3 w-3" />
+                        Accepted
+                      </span>
+                    )}
+                    {/* Preparing - Show "Out for Delivery" button */}
+                    {(request.deliveryStatus === 'preparing' || request.status === 'preparing') && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleOutForDelivery(request.id || request.requestId)
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
+                      >
+                        <IoCarOutline className="h-3.5 w-3.5" />
+                        Out for Delivery
+                      </button>
+                    )}
+                    {/* Out for Delivery - Show "Mark as Delivered" button */}
+                    {(request.deliveryStatus === 'out_for_delivery' || request.status === 'out_for_delivery') && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleMarkAsDelivered(request.id || request.requestId)
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                      >
+                        <IoCheckmarkDoneOutline className="h-3.5 w-3.5" />
+                        Mark as Delivered
+                      </button>
+                    )}
                   </div>
                 </div>
               </article>
