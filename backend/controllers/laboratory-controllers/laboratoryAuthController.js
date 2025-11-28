@@ -28,9 +28,8 @@ exports.registerLaboratory = asyncHandler(async (req, res) => {
     email,
     phone,
     licenseNumber,
-    certifications,
+    gstNumber,
     address,
-    servicesOffered,
     timings,
     contactPerson,
     documents,
@@ -61,11 +60,6 @@ exports.registerLaboratory = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'License number already registered.' });
   }
 
-  const normalizedServices = Array.isArray(servicesOffered)
-    ? servicesOffered
-    : servicesOffered
-    ? [servicesOffered]
-    : undefined;
 
   const normalizedTimings = Array.isArray(timings) ? timings : timings ? [timings] : undefined;
 
@@ -169,9 +163,8 @@ exports.registerLaboratory = asyncHandler(async (req, res) => {
     email,
     phone,
     licenseNumber,
-    certifications,
+    gstNumber,
     address: addressPayload,
-    servicesOffered: normalizedServices,
     timings: normalizedTimings,
     contactPerson,
     documents,
@@ -266,10 +259,6 @@ exports.getLaboratoryProfile = asyncHandler(async (req, res) => {
 
 exports.updateLaboratoryProfile = asyncHandler(async (req, res) => {
   const updates = { ...req.body };
-
-  if (updates.servicesOffered !== undefined && !Array.isArray(updates.servicesOffered)) {
-    updates.servicesOffered = [updates.servicesOffered];
-  }
 
   if (updates.timings !== undefined && !Array.isArray(updates.timings)) {
     updates.timings = [updates.timings];

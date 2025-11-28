@@ -11,7 +11,7 @@ const laboratorySchema = new mongoose.Schema(
     phone: { type: String, required: true, unique: true, trim: true },
     password: { type: String, minlength: 8 },
     licenseNumber: { type: String, required: true, trim: true, unique: true },
-    certifications: [{ type: String, trim: true }],
+    gstNumber: { type: String, trim: true },
     address: {
       line1: { type: String, trim: true },
       line2: { type: String, trim: true },
@@ -40,7 +40,6 @@ const laboratorySchema = new mongoose.Schema(
         enum: ['manual', 'gps'],
       },
     },
-    servicesOffered: [{ type: String, trim: true }],
     testsOffered: [
       {
         testName: { type: String, trim: true },

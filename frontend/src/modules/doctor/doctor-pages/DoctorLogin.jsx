@@ -115,8 +115,6 @@ const DoctorLogin = () => {
       postalCode: '',
       country: '',
     },
-    deliveryOptions: [],
-    serviceRadiusKm: '',
     timings: '',
     contactPerson: {
       name: '',
@@ -134,7 +132,7 @@ const DoctorLogin = () => {
     email: '',
     phone: '',
     licenseNumber: '',
-    certifications: [],
+    gstNumber: '',
     address: {
       line1: '',
       line2: '',
@@ -143,7 +141,6 @@ const DoctorLogin = () => {
       postalCode: '',
       country: '',
     },
-    servicesOffered: [],
     testsOffered: '',
     timings: '',
     contactPerson: {
@@ -692,18 +689,6 @@ const DoctorLogin = () => {
       return
     }
 
-    if (name === 'deliveryOptions') {
-      setPharmacySignupData((prev) => {
-        const options = prev.deliveryOptions || []
-        if (checked && !options.includes(value)) {
-          return { ...prev, deliveryOptions: [...options, value] }
-        } else if (!checked && options.includes(value)) {
-          return { ...prev, deliveryOptions: options.filter((o) => o !== value) }
-        }
-        return prev
-      })
-      return
-    }
 
     // Restrict phone fields to 10 digits only
     if (name === 'phone' || name === 'contactPerson.phone') {
@@ -780,8 +765,6 @@ const DoctorLogin = () => {
         licenseNumber: pharmacySignupData.licenseNumber,
         gstNumber: pharmacySignupData.gstNumber || undefined,
         address: Object.values(pharmacySignupData.address).some((val) => val) ? pharmacySignupData.address : undefined,
-        deliveryOptions: pharmacySignupData.deliveryOptions.length > 0 ? pharmacySignupData.deliveryOptions : undefined,
-        serviceRadiusKm: pharmacySignupData.serviceRadiusKm ? Number(pharmacySignupData.serviceRadiusKm) : undefined,
         timings: pharmacySignupData.timings ? [pharmacySignupData.timings] : undefined,
         contactPerson: Object.values(pharmacySignupData.contactPerson).some((val) => val) ? pharmacySignupData.contactPerson : undefined,
       }
@@ -872,27 +855,6 @@ const DoctorLogin = () => {
       return
     }
 
-    if (name === 'certifications') {
-      const certValue = value.trim()
-      if (certValue && !laboratorySignupData.certifications.includes(certValue)) {
-        setLaboratorySignupData((prev) => ({
-          ...prev,
-          certifications: [...prev.certifications, certValue],
-        }))
-      }
-      return
-    }
-
-    if (name === 'servicesOffered') {
-      const serviceValue = value.trim()
-      if (serviceValue && !laboratorySignupData.servicesOffered.includes(serviceValue)) {
-        setLaboratorySignupData((prev) => ({
-          ...prev,
-          servicesOffered: [...prev.servicesOffered, serviceValue],
-        }))
-      }
-      return
-    }
 
     // Restrict phone fields to 10 digits only
     if (name === 'phone' || name === 'contactPerson.phone') {
@@ -949,25 +911,22 @@ const DoctorLogin = () => {
       return
     }
 
+    // Limit GST number
+    if (name === 'gstNumber') {
+      const trimmedValue = value.trim().slice(0, 50)
+      setLaboratorySignupData((prev) => ({
+        ...prev,
+        [name]: trimmedValue,
+      }))
+      return
+    }
+
     setLaboratorySignupData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
   }
 
-  const removeCertification = (cert) => {
-    setLaboratorySignupData((prev) => ({
-      ...prev,
-      certifications: prev.certifications.filter((c) => c !== cert),
-    }))
-  }
-
-  const removeService = (service) => {
-    setLaboratorySignupData((prev) => ({
-      ...prev,
-      servicesOffered: prev.servicesOffered.filter((s) => s !== service),
-    }))
-  }
 
   const handleLaboratorySignupSubmit = async (event) => {
     event.preventDefault()
@@ -1011,9 +970,8 @@ const DoctorLogin = () => {
         email: laboratorySignupData.email,
         phone: laboratorySignupData.phone,
         licenseNumber: laboratorySignupData.licenseNumber,
-        certifications: laboratorySignupData.certifications.length > 0 ? laboratorySignupData.certifications : undefined,
+        gstNumber: laboratorySignupData.gstNumber || undefined,
         address: Object.values(laboratorySignupData.address).some((val) => val) ? laboratorySignupData.address : undefined,
-        servicesOffered: laboratorySignupData.servicesOffered.length > 0 ? laboratorySignupData.servicesOffered : undefined,
         timings: laboratorySignupData.timings ? [laboratorySignupData.timings] : undefined,
         contactPerson: Object.values(laboratorySignupData.contactPerson).some((val) => val) ? laboratorySignupData.contactPerson : undefined,
         operatingHours: Object.values(laboratorySignupData.operatingHours).some((val) => Array.isArray(val) ? val.length > 0 : val)
@@ -2281,46 +2239,8 @@ const DoctorLogin = () => {
                   </div>
                 </section>
 
-                {/* Delivery Options */}
+                {/* Operating Timings */}
                 <section>
-                  <label className="text-sm font-semibold text-slate-700 mb-2 block">
-                    Delivery Options
-                  </label>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {['pickup', 'delivery', 'both'].map((option) => (
-                      <label key={option} className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 cursor-pointer hover:bg-slate-100 transition">
-                        <input
-                          type="checkbox"
-                          name="deliveryOptions"
-                          value={option}
-                          checked={pharmacySignupData.deliveryOptions.includes(option)}
-                          onChange={handlePharmacySignupChange}
-                          className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
-                        />
-                        <span className="text-sm text-slate-700 capitalize">{option}</span>
-                      </label>
-                    ))}
-                  </div>
-                </section>
-
-                {/* Service Radius & Timings */}
-                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="serviceRadiusKm" className="text-sm font-semibold text-slate-700">
-                      Service Radius (Km)
-                    </label>
-                    <input
-                      id="serviceRadiusKm"
-                      name="serviceRadiusKm"
-                      type="number"
-                      min="0"
-                      value={pharmacySignupData.serviceRadiusKm}
-                      onChange={handlePharmacySignupChange}
-                      placeholder="5"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="timings" className="text-sm font-semibold text-slate-700">
                       Operating Timings
@@ -2709,87 +2629,24 @@ const DoctorLogin = () => {
                   </div>
                 </section>
 
-                {/* Certifications */}
+                {/* GST Number */}
                 <section>
-                  <label htmlFor="certifications" className="text-sm font-semibold text-slate-700 mb-2 block">
-                    Certifications
-                  </label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {laboratorySignupData.certifications.map((cert, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center gap-1 rounded-full bg-[#11496c] px-3 py-1 text-xs font-semibold text-white"
-                      >
-                        {cert}
-                        <button
-                          type="button"
-                          onClick={() => removeCertification(cert)}
-                          className="hover:text-slate-200"
-                          aria-label={`Remove ${cert}`}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="relative">
-                    <input
-                      id="certifications"
-                      name="certifications"
-                      type="text"
-                      placeholder="Enter certification and press Enter"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleLaboratorySignupChange({ target: { name: 'certifications', value: e.target.value } })
-                          e.target.value = ''
-                        }
-                      }}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
-                  </div>
-                </section>
-
-                {/* Services Offered */}
-                <section>
-                  <label htmlFor="servicesOffered" className="text-sm font-semibold text-slate-700 mb-2 block">
-                    Services Offered
-                  </label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {laboratorySignupData.servicesOffered.map((service, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center gap-1 rounded-full bg-[#11496c] px-3 py-1 text-xs font-semibold text-white"
-                      >
-                        {service}
-                        <button
-                          type="button"
-                          onClick={() => removeService(service)}
-                          className="hover:text-slate-200"
-                          aria-label={`Remove ${service}`}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="relative">
-                    <input
-                      id="servicesOffered"
-                      name="servicesOffered"
-                      type="text"
-                      placeholder="Enter service and press Enter"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleLaboratorySignupChange({ target: { name: 'servicesOffered', value: e.target.value } })
-                          e.target.value = ''
-                        }
-                      }}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                      style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                    />
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="gstNumber" className="text-sm font-semibold text-slate-700">
+                      GST Number
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="gstNumber"
+                        name="gstNumber"
+                        type="text"
+                        value={laboratorySignupData.gstNumber}
+                        onChange={handleLaboratorySignupChange}
+                        placeholder="Enter GST number"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                      />
+                    </div>
                   </div>
                 </section>
 
