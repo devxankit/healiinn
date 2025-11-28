@@ -68,6 +68,164 @@ const mockOrders = [
     deliveryType: 'home',
     address: '789 Pine St, New York, NY',
   },
+  {
+    id: 'order-4',
+    type: 'laboratory',
+    patientId: 'pat-4',
+    patientName: 'Emily Brown',
+    patientPhone: '+1-555-456-7890',
+    patientEmail: 'emily.brown@example.com',
+    status: 'pending',
+    createdAt: '2024-01-12T09:20:00.000Z',
+    testRequestId: 'test-3024',
+    tests: [
+      { name: 'Thyroid Function Test', price: 450.0 },
+    ],
+    totalAmount: 450.0,
+    deliveryType: 'pickup',
+    address: '321 Elm St, New York, NY',
+  },
+  {
+    id: 'order-5',
+    type: 'laboratory',
+    patientId: 'pat-5',
+    patientName: 'David Wilson',
+    patientPhone: '+1-555-567-8901',
+    patientEmail: 'david.wilson@example.com',
+    status: 'ready',
+    createdAt: '2024-01-11T11:30:00.000Z',
+    testRequestId: 'test-3025',
+    tests: [
+      { name: 'Hemoglobin A1C', price: 500.0 },
+      { name: 'Vitamin D', price: 350.0 },
+    ],
+    totalAmount: 850.0,
+    deliveryType: 'home',
+    address: '654 Maple Ave, New York, NY',
+  },
+  {
+    id: 'order-6',
+    type: 'laboratory',
+    patientId: 'pat-6',
+    patientName: 'Lisa Anderson',
+    patientPhone: '+1-555-678-9012',
+    patientEmail: 'lisa.anderson@example.com',
+    status: 'completed',
+    createdAt: '2024-01-10T15:45:00.000Z',
+    testRequestId: 'test-3026',
+    tests: [
+      { name: 'Complete Metabolic Panel (CMP)', price: 1200.0 },
+    ],
+    totalAmount: 1200.0,
+    deliveryType: 'pickup',
+    address: '987 Cedar Blvd, New York, NY',
+  },
+  {
+    id: 'order-7',
+    type: 'laboratory',
+    patientId: 'pat-7',
+    patientName: 'Robert Taylor',
+    patientPhone: '+1-555-789-0123',
+    patientEmail: 'robert.taylor@example.com',
+    status: 'pending',
+    createdAt: '2024-01-09T08:15:00.000Z',
+    testRequestId: 'test-3027',
+    tests: [
+      { name: 'Urine Analysis', price: 300.0 },
+      { name: 'Stool Test', price: 650.0 },
+    ],
+    totalAmount: 950.0,
+    deliveryType: 'home',
+    address: '147 Birch Ln, New York, NY',
+  },
+  {
+    id: 'order-8',
+    type: 'laboratory',
+    patientId: 'pat-8',
+    patientName: 'Jennifer Martinez',
+    patientPhone: '+1-555-890-1234',
+    patientEmail: 'jennifer.martinez@example.com',
+    status: 'ready',
+    createdAt: '2024-01-08T13:20:00.000Z',
+    testRequestId: 'test-3028',
+    tests: [
+      { name: 'ECG', price: 600.0 },
+      { name: 'Chest X-Ray', price: 500.0 },
+    ],
+    totalAmount: 1100.0,
+    deliveryType: 'pickup',
+    address: '258 Spruce Dr, New York, NY',
+  },
+  {
+    id: 'order-9',
+    type: 'laboratory',
+    patientId: 'pat-9',
+    patientName: 'Michael Chen',
+    patientPhone: '+1-555-901-2345',
+    patientEmail: 'michael.chen@example.com',
+    status: 'pending',
+    createdAt: '2024-01-07T10:00:00.000Z',
+    testRequestId: 'test-3029',
+    tests: [
+      { name: 'PSA Test', price: 800.0 },
+    ],
+    totalAmount: 800.0,
+    deliveryType: 'home',
+    address: '369 Willow Way, New York, NY',
+  },
+  {
+    id: 'order-10',
+    type: 'laboratory',
+    patientId: 'pat-10',
+    patientName: 'Priya Sharma',
+    patientPhone: '+1-555-012-3456',
+    patientEmail: 'priya.sharma@example.com',
+    status: 'completed',
+    createdAt: '2024-01-06T14:30:00.000Z',
+    testRequestId: 'test-3030',
+    tests: [
+      { name: 'HbA1c', price: 550.0 },
+      { name: 'Lipid Panel', price: 600.0 },
+    ],
+    totalAmount: 1150.0,
+    deliveryType: 'pickup',
+    address: '741 Ash St, New York, NY',
+  },
+  {
+    id: 'order-11',
+    type: 'laboratory',
+    patientId: 'pat-11',
+    patientName: 'James Wilson',
+    patientPhone: '+1-555-123-4568',
+    patientEmail: 'james.wilson@example.com',
+    status: 'ready',
+    createdAt: '2024-01-05T16:00:00.000Z',
+    testRequestId: 'test-3031',
+    tests: [
+      { name: 'Bone Density Test', price: 900.0 },
+    ],
+    totalAmount: 900.0,
+    deliveryType: 'home',
+    address: '852 Poplar Ave, New York, NY',
+  },
+  {
+    id: 'order-12',
+    type: 'laboratory',
+    patientId: 'pat-12',
+    patientName: 'Maria Garcia',
+    patientPhone: '+1-555-234-5679',
+    patientEmail: 'maria.garcia@example.com',
+    status: 'pending',
+    createdAt: '2024-01-04T09:45:00.000Z',
+    testRequestId: 'test-3032',
+    tests: [
+      { name: 'Pap Smear', price: 400.0 },
+      { name: 'Mammogram', price: 750.0 },
+    ],
+    totalAmount: 1150.0,
+    deliveryType: 'pickup',
+    address: '963 Oakwood Dr, New York, NY',
+  },
 ]
 
 const statusConfig = {
@@ -280,14 +438,14 @@ const LaboratoryOrders = () => {
       </div>
 
       {/* Orders List */}
-      <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
         {loading ? (
-          <div className="text-center py-12">
+          <div className="lg:col-span-4 text-center py-12">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#11496c] border-r-transparent"></div>
             <p className="mt-4 text-sm text-slate-500">Loading orders...</p>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+          <div className="lg:col-span-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             <IoBagHandleOutline className="mx-auto h-12 w-12 text-slate-300 mb-3" />
             <p className="text-sm font-medium text-slate-600">No orders found</p>
             <p className="mt-1 text-xs text-slate-500">
@@ -305,50 +463,52 @@ const LaboratoryOrders = () => {
             return (
               <article
                 key={orderId}
-                className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md sm:p-5"
+                className="group relative overflow-hidden flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#11496c]/30 active:scale-[0.98] lg:hover:scale-[1.02] sm:p-5 lg:gap-3.5"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-semibold text-slate-900">{order.patientName}</h3>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${statusInfo.color}`}>
-                        <StatusIcon className="h-3 w-3" />
+                {/* Hover Background Effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
+                <div className="relative flex items-start justify-between gap-3 lg:gap-2">
+                  <div className="flex-1 min-w-0 lg:min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap lg:gap-1.5">
+                      <h3 className="text-base font-semibold text-slate-900 group-hover:text-[#11496c] transition-colors duration-300 lg:text-sm lg:truncate lg:flex-1">{order.patientName}</h3>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${statusInfo.color} group-hover:scale-105 transition-transform duration-300 shrink-0 lg:text-[9px] lg:px-1.5 lg:py-0.5`}>
+                        <StatusIcon className="h-3 w-3 lg:h-2.5 lg:w-2.5" />
                         {statusInfo.label}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-slate-500">Order ID: {orderId}</p>
+                    <p className="mt-1 text-xs text-slate-500 group-hover:text-slate-600 transition-colors lg:text-[10px] lg:truncate">Order ID: {String(orderId).slice(0, 12)}...</p>
                     {order.testRequestId && (
-                      <p className="text-xs text-slate-500">Test Request: {order.testRequestId}</p>
+                      <p className="text-xs text-slate-500 group-hover:text-slate-600 transition-colors line-clamp-1 lg:text-[10px] lg:truncate">Test: {String(order.testRequestId).slice(0, 10)}...</p>
                     )}
-                    <p className="mt-1 text-xs text-slate-600">
-                      <IoCalendarOutline className="mr-1 inline h-3 w-3" />
-                      {formatDateTime(order.createdAt)}
+                    <p className="mt-1 text-xs text-slate-600 group-hover:text-slate-700 transition-colors lg:text-[10px] lg:flex lg:items-center lg:gap-1">
+                      <IoCalendarOutline className="mr-1 inline h-3 w-3 text-[#11496c] lg:h-2.5 lg:w-2.5 lg:mr-0" />
+                      <span className="lg:truncate">{formatDateTime(order.createdAt)}</span>
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-slate-900">{formatCurrency(order.totalAmount)}</p>
-                    <p className="text-xs text-slate-500">
-                      {order.deliveryType === 'home' ? 'Home Delivery' : 'Pickup'}
+                  <div className="text-right shrink-0 lg:flex lg:flex-col lg:items-end lg:gap-0.5">
+                    <p className="text-lg font-bold text-slate-900 group-hover:text-[#11496c] transition-colors duration-300 lg:text-base lg:leading-tight">{formatCurrency(order.totalAmount)}</p>
+                    <p className="text-xs text-slate-500 group-hover:text-slate-600 transition-colors lg:text-[10px]">
+                      {order.deliveryType === 'home' ? 'Home' : 'Pickup'}
                     </p>
                   </div>
                 </div>
 
                 {/* Tests */}
                 {order.tests && order.tests.length > 0 && (
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tests</p>
-                    <ul className="space-y-1.5">
+                  <div className="relative rounded-lg bg-slate-50 p-3 group-hover:bg-slate-100 transition-colors duration-300 lg:p-2.5">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 group-hover:text-slate-600 transition-colors lg:text-[10px] lg:mb-1.5">Tests</p>
+                    <ul className="space-y-1.5 lg:space-y-1">
                       {order.tests.map((test, idx) => {
                         const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
                         const testPrice = typeof test === 'object' && test.price ? test.price : 0
                         return (
-                          <li key={idx} className="flex items-center justify-between text-xs">
-                            <span className="text-slate-700 flex items-center gap-1">
-                              <IoFlaskOutline className="h-3 w-3" />
-                              {testName}
+                          <li key={idx} className="flex items-center justify-between text-xs lg:text-[10px]">
+                            <span className="text-slate-700 group-hover:text-slate-900 transition-colors flex items-center gap-1 line-clamp-1 lg:flex-1 lg:min-w-0">
+                              <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0 lg:h-2.5 lg:w-2.5" />
+                              <span className="truncate">{testName}</span>
                             </span>
                             {testPrice > 0 && (
-                              <span className="font-semibold text-slate-900">{formatCurrency(testPrice)}</span>
+                              <span className="font-semibold text-slate-900 group-hover:text-[#11496c] transition-colors shrink-0 lg:ml-1 lg:text-[10px]">{formatCurrency(testPrice)}</span>
                             )}
                           </li>
                         )
@@ -358,49 +518,51 @@ const LaboratoryOrders = () => {
                 )}
 
                 {/* Address */}
-                <div className="flex items-start gap-2 text-xs text-slate-600">
-                  <IoLocationOutline className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{order.address}</span>
+                <div className="relative flex items-start gap-2 text-xs text-slate-600 group-hover:text-slate-700 transition-colors lg:text-[10px] lg:gap-1.5">
+                  <IoLocationOutline className="mt-0.5 h-4 w-4 shrink-0 text-[#11496c] lg:h-3 lg:w-3 lg:mt-0" />
+                  <span className="line-clamp-2 lg:line-clamp-1">{order.address}</span>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-2">
+                <div className="relative flex gap-2 flex-wrap lg:mt-auto lg:pt-2 lg:border-t lg:border-slate-200">
                   {order.status === 'pending' && (
                     <button
                       onClick={() => handleStatusUpdate(orderId, 'ready')}
-                      className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
+                      className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95 group-hover:scale-105 lg:px-2 lg:py-1.5 lg:text-[10px]"
                     >
-                      Mark Ready
+                      <span className="lg:hidden">Mark Ready</span>
+                      <span className="hidden lg:inline">Ready</span>
                     </button>
                   )}
                   {order.status === 'ready' && (
                     <button
                       onClick={() => handleStatusUpdate(orderId, 'completed')}
-                      className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-emerald-400/40 transition-all hover:bg-emerald-600 active:scale-95"
+                      className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-emerald-400/40 transition-all hover:bg-emerald-600 hover:shadow-md active:scale-95 group-hover:scale-105 lg:px-2 lg:py-1.5 lg:text-[10px]"
                     >
-                      Mark Completed
+                      <span className="lg:hidden">Mark Completed</span>
+                      <span className="hidden lg:inline">Complete</span>
                     </button>
                   )}
                   <button
                     onClick={() => setSelectedOrder(order)}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-[#11496c] hover:bg-[#11496c] hover:text-white active:scale-95 group-hover:scale-110 lg:h-8 lg:w-8"
                     aria-label="View Details"
                   >
-                    <IoDocumentTextOutline className="h-4 w-4" />
+                    <IoDocumentTextOutline className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
                   </button>
                   <a
                     href={`tel:${order.patientPhone}`}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-emerald-500 hover:bg-emerald-500 hover:text-white active:scale-95 group-hover:scale-110 lg:h-8 lg:w-8"
                     aria-label="Call Patient"
                   >
-                    <IoCallOutline className="h-4 w-4" />
+                    <IoCallOutline className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
                   </a>
                   <a
                     href={`mailto:${order.patientEmail}`}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-blue-500 hover:bg-blue-500 hover:text-white active:scale-95 group-hover:scale-110 lg:h-8 lg:w-8"
                     aria-label="Email Patient"
                   >
-                    <IoMailOutline className="h-4 w-4" />
+                    <IoMailOutline className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
                   </a>
                 </div>
               </article>

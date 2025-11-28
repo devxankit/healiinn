@@ -20,6 +20,9 @@ import {
   IoPersonCircleOutline,
   IoChatbubbleOutline,
   IoHelpCircleOutline,
+  IoSearchOutline,
+  IoPhonePortraitOutline,
+  IoMailOutline,
 } from 'react-icons/io5'
 
 const mockStats = {
@@ -90,6 +93,50 @@ const allAppointments = [
     duration: '30 min',
     reason: 'Routine check-up',
   },
+  {
+    id: 'apt-5',
+    patientName: 'Michael Chen',
+    patientImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
+    date: getTodayDateString(),
+    time: '11:00 AM',
+    type: 'In-person',
+    status: 'confirmed',
+    duration: '25 min',
+    reason: 'General consultation',
+  },
+  {
+    id: 'apt-6',
+    patientName: 'Priya Sharma',
+    patientImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    date: getTodayDateString(),
+    time: '12:15 PM',
+    type: 'In-person',
+    status: 'pending',
+    duration: '35 min',
+    reason: 'Health check-up',
+  },
+  {
+    id: 'apt-7',
+    patientName: 'Robert Williams',
+    patientImage: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+    date: getTodayDateString(),
+    time: '04:00 PM',
+    type: 'In-person',
+    status: 'confirmed',
+    duration: '40 min',
+    reason: 'Follow-up visit',
+  },
+  {
+    id: 'apt-8',
+    patientName: 'Emma Davis',
+    patientImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+    date: getTodayDateString(),
+    time: '05:30 PM',
+    type: 'In-person',
+    status: 'confirmed',
+    duration: '30 min',
+    reason: 'Regular consultation',
+  },
 ]
 
 const recentConsultations = [
@@ -136,6 +183,50 @@ const recentConsultations = [
     status: 'pending',
     fee: 1500,
     notes: 'Awaiting payment',
+  },
+  {
+    id: 'cons-5',
+    patientName: 'James Wilson',
+    patientImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+    date: '2025-01-12',
+    time: '03:00 PM',
+    type: 'In-person',
+    status: 'completed',
+    fee: 1800,
+    notes: 'Medication prescribed',
+  },
+  {
+    id: 'cons-6',
+    patientName: 'Maria Garcia',
+    patientImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
+    date: '2025-01-11',
+    time: '11:30 AM',
+    type: 'In-person',
+    status: 'completed',
+    fee: 1600,
+    notes: 'Follow-up scheduled',
+  },
+  {
+    id: 'cons-7',
+    patientName: 'Thomas Anderson',
+    patientImage: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
+    date: '2025-01-10',
+    time: '02:15 PM',
+    type: 'In-person',
+    status: 'completed',
+    fee: 1400,
+    notes: 'Health check completed',
+  },
+  {
+    id: 'cons-8',
+    patientName: 'Sophia Lee',
+    patientImage: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=400&q=80',
+    date: '2025-01-09',
+    time: '10:45 AM',
+    type: 'In-person',
+    status: 'completed',
+    fee: 1700,
+    notes: 'Test results reviewed',
   },
 ]
 
@@ -432,10 +523,10 @@ const DoctorDashboard = () => {
         navItems={sidebarNavItems}
         onLogout={handleLogout}
       />
-      <section className="flex flex-col gap-4 pb-24 -mt-20">
-        {/* Top Header with Gradient Background */}
+      <section className="flex flex-col gap-4 pb-24 -mt-20 lg:mt-0 lg:pb-8">
+        {/* Top Header with Gradient Background - Hidden on Desktop */}
         <header 
-          className="relative text-white -mx-4 mb-4 overflow-hidden"
+          className="lg:hidden relative text-white -mx-4 mb-4 overflow-hidden"
           style={{
             background: 'linear-gradient(to right, #11496c 0%, #1a5f7a 50%, #2a8ba8 100%)'
           }}
@@ -481,94 +572,135 @@ const DoctorDashboard = () => {
           </div>
         </header>
 
+        {/* Search Bar - Desktop Only */}
+        <div className="hidden lg:block mb-6">
+          <div className="relative w-full group">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 transition-all duration-300 group-hover:scale-110 group-focus-within:scale-110">
+              <IoSearchOutline className="h-5 w-5 text-slate-400 group-focus-within:text-[#11496c] transition-colors duration-300" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search patients, appointments, consultations..."
+              className="w-full pl-11 pr-20 py-2.5 text-sm rounded-xl border border-slate-300 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c] transition-all duration-300 shadow-sm hover:shadow-md hover:border-[#11496c]/50"
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300">
+              <kbd className="px-2 py-1 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-300 rounded">⌘K</kbd>
+            </div>
+          </div>
+        </div>
+
         {/* Stats Cards Grid */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4">
             {/* Total Patients */}
             <article
               onClick={() => navigate('/doctor/all-patients')}
-              className="relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+              className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-[rgba(17,73,108,0.2)] bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#11496c]/40 active:scale-[0.98] lg:hover:scale-105"
             >
-              <div className="flex items-start justify-between mb-2">
+              {/* Animated Background Gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
+              
+              <div className="relative flex items-start justify-between mb-2 lg:mb-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1">Total Patients</p>
-                  <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.totalPatients}</p>
+                  <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1 lg:mb-2 group-hover:text-[#0d3a52] transition-colors">Total Patients</p>
+                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-[#11496c] transition-colors duration-300">{mockStats.totalPatients}</p>
                 </div>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#11496c] text-white">
-                  <IoPeopleOutline className="text-base" aria-hidden="true" />
+                <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-[#11496c] text-white group-hover:bg-[#0d3a52] group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                  <IoPeopleOutline className="text-base lg:text-2xl" aria-hidden="true" />
                 </div>
               </div>
-              <p className="text-[10px] text-slate-600 leading-tight">Active patients</p>
+              <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">Active patients</p>
+              <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-[#11496c]/20 transition-colors">
+                <p className="text-xs text-slate-500 group-hover:text-[#11496c] font-medium transition-colors">New this month: <span className="text-emerald-600 font-semibold">+12</span></p>
+              </div>
             </article>
 
             {/* Total Consultations */}
             <article
               onClick={() => navigate('/doctor/all-consultations')}
-              className="relative overflow-hidden rounded-xl border border-emerald-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+              className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-emerald-100 bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-emerald-300 active:scale-[0.98] lg:hover:scale-105"
             >
-              <div className="flex items-start justify-between mb-2">
+              {/* Animated Background Gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-emerald-500/0 group-hover:from-emerald-500/5 group-hover:to-emerald-500/10 transition-all duration-300"></div>
+              
+              <div className="relative flex items-start justify-between mb-2 lg:mb-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1">Total Consultations</p>
-                  <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.totalConsultations}</p>
+                  <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1 lg:mb-2 group-hover:text-emerald-800 transition-colors">Total Consultations</p>
+                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-emerald-700 transition-colors duration-300">{mockStats.totalConsultations}</p>
                 </div>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white">
-                  <IoDocumentTextOutline className="text-base" aria-hidden="true" />
+                <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-emerald-500 text-white group-hover:bg-emerald-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                  <IoDocumentTextOutline className="text-base lg:text-2xl" aria-hidden="true" />
                 </div>
               </div>
-              <p className="text-[10px] text-slate-600 leading-tight">All time</p>
+              <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">All time</p>
+              <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-emerald-200 transition-colors">
+                <p className="text-xs text-slate-500 group-hover:text-emerald-700 font-medium transition-colors">This month: <span className="text-emerald-600 font-semibold">{mockStats.thisMonthConsultations}</span></p>
+              </div>
             </article>
 
             {/* Appointments */}
             <article
               onClick={() => navigate('/doctor/appointments')}
-              className="relative overflow-hidden rounded-xl border border-purple-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+              className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-purple-100 bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-purple-300 active:scale-[0.98] lg:hover:scale-105"
             >
-              <div className="flex items-start justify-between mb-2">
+              {/* Animated Background Gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-purple-500/0 group-hover:from-purple-500/5 group-hover:to-purple-500/10 transition-all duration-300"></div>
+              
+              <div className="relative flex items-start justify-between mb-2 lg:mb-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Appointment</p>
-                  <p className="text-xl font-bold text-slate-900 leading-none">{appointmentStats.todayCount}</p>
+                  <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1 lg:mb-2 group-hover:text-purple-800 transition-colors">Appointment</p>
+                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-purple-700 transition-colors duration-300">{appointmentStats.todayCount}</p>
                 </div>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500 text-white">
-                  <IoCalendarOutline className="text-base" aria-hidden="true" />
+                <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-purple-500 text-white group-hover:bg-purple-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                  <IoCalendarOutline className="text-base lg:text-2xl" aria-hidden="true" />
                 </div>
               </div>
-              <div className="space-y-0.5">
-                <p className="text-[10px] text-slate-600 leading-tight font-medium">Today</p>
-                <div className="flex items-center gap-2 text-[9px] text-slate-500">
+              <div className="relative space-y-0.5">
+                <p className="text-[10px] lg:text-xs text-slate-600 leading-tight font-medium group-hover:text-slate-700 transition-colors">Today</p>
+                <div className="flex items-center gap-2 text-[9px] lg:text-xs text-slate-500 group-hover:text-slate-600 transition-colors">
                   <span>Month: {appointmentStats.monthCount}</span>
                   <span>•</span>
                   <span>Year: {appointmentStats.yearCount}</span>
                 </div>
+              </div>
+              <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-purple-200 transition-colors">
+                <p className="text-xs text-slate-500 group-hover:text-purple-700 font-medium transition-colors">Pending: <span className="text-amber-600 font-semibold">{mockStats.pendingConsultations}</span></p>
               </div>
             </article>
 
             {/* Total Earnings */}
             <article
               onClick={() => navigate('/doctor/wallet')}
-              className="relative overflow-hidden rounded-xl border border-amber-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+              className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-amber-100 bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-amber-300 active:scale-[0.98] lg:hover:scale-105"
             >
-              <div className="flex items-start justify-between mb-2">
+              {/* Animated Background Gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 to-amber-500/0 group-hover:from-amber-500/5 group-hover:to-amber-500/10 transition-all duration-300"></div>
+              
+              <div className="relative flex items-start justify-between mb-2 lg:mb-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] font-semibold uppercase tracking-wide text-amber-700 leading-tight mb-1">Total Earnings</p>
-                  <p className="text-lg font-bold text-slate-900 leading-none">{formatCurrency(mockStats.totalEarnings)}</p>
-                  <div className="flex items-center gap-1 mt-1 text-[10px]">
+                  <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-amber-700 leading-tight mb-1 lg:mb-2 group-hover:text-amber-800 transition-colors">Total Earnings</p>
+                  <p className="text-lg lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-amber-700 transition-colors duration-300">{formatCurrency(mockStats.totalEarnings)}</p>
+                  <div className="flex items-center gap-1 mt-1 lg:mt-2 text-[10px] lg:text-xs group-hover:scale-105 transition-transform">
                     {earningsChange >= 0 ? (
                       <>
-                        <IoTrendingUpOutline className="h-3 w-3 text-emerald-600" />
+                        <IoTrendingUpOutline className="h-3 w-3 lg:h-4 lg:w-4 text-emerald-600 group-hover:scale-110 transition-transform" />
                         <span className="text-emerald-600 font-semibold">+{earningsChange.toFixed(1)}%</span>
                       </>
                     ) : (
                       <>
-                        <IoTrendingDownOutline className="h-3 w-3 text-red-600" />
+                        <IoTrendingDownOutline className="h-3 w-3 lg:h-4 lg:w-4 text-red-600 group-hover:scale-110 transition-transform" />
                         <span className="text-red-600 font-semibold">{earningsChange.toFixed(1)}%</span>
                       </>
                     )}
                   </div>
                 </div>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white">
-                  <IoWalletOutline className="text-base" aria-hidden="true" />
+                <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-amber-500 text-white group-hover:bg-amber-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
+                  <IoWalletOutline className="text-base lg:text-2xl" aria-hidden="true" />
                 </div>
               </div>
-              <p className="text-[10px] text-slate-600 leading-tight">vs last month</p>
+              <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">vs last month</p>
+              <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-amber-200 transition-colors">
+                <p className="text-xs text-slate-500 group-hover:text-amber-700 font-medium transition-colors">This month: <span className="text-emerald-600 font-semibold">{formatCurrency(mockStats.thisMonthEarnings)}</span></p>
+              </div>
             </article>
           </div>
 
@@ -576,10 +708,10 @@ const DoctorDashboard = () => {
         <section aria-labelledby="schedule-title" className="space-y-3">
             <header className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h2 id="schedule-title" className="text-base font-semibold text-slate-900">
+                <h2 id="schedule-title" className="text-base lg:text-lg font-semibold text-slate-900">
                   Today's Schedule
                 </h2>
-                <span className="flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)] px-2 text-xs font-medium text-[#11496c]">
+                <span className="flex h-6 min-w-7 items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)] px-2 text-xs font-medium text-[#11496c]">
                   {todayAppointments.length}
                 </span>
               </div>
@@ -592,7 +724,7 @@ const DoctorDashboard = () => {
               </button>
             </header>
 
-            <div className="space-y-3">
+            <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
               {todayAppointments.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                   <IoCalendarOutline className="mx-auto h-12 w-12 text-slate-300" />
@@ -606,54 +738,62 @@ const DoctorDashboard = () => {
                   <article
                     key={appointment.id}
                     onClick={() => handleViewAppointment(appointment)}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 lg:p-4 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#11496c]/30 cursor-pointer active:scale-[0.98] lg:hover:scale-[1.02]"
                   >
-                    <div className="flex items-start gap-4">
+                    {/* Hover Background Effect */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
+                    <div className="relative flex items-start gap-3 lg:gap-3">
                       <div className="relative shrink-0">
                         <img
                           src={appointment.patientImage}
                           alt={appointment.patientName}
-                          className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
+                          className="h-12 w-12 lg:h-14 lg:w-14 rounded-full object-cover ring-2 ring-slate-100 group-hover:ring-[#11496c]/30 transition-all duration-300 group-hover:scale-110"
                           onError={(e) => {
                             e.target.onerror = null
                             e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
                           }}
                         />
                         {appointment.status === 'confirmed' && (
-                          <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
-                            <IoCheckmarkCircleOutline className="h-3 w-3 text-white" />
+                          <div className="absolute -bottom-1 -right-1 flex h-4 w-4 lg:h-5 lg:w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white group-hover:scale-110 group-hover:ring-emerald-400 transition-all duration-300">
+                            <IoCheckmarkCircleOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3 text-white" />
                           </div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-semibold text-slate-900">{appointment.patientName}</h3>
-                            <p className="mt-0.5 text-xs text-slate-600">{appointment.reason}</p>
+                            <h3 className="text-sm lg:text-sm font-semibold text-slate-900 group-hover:text-[#11496c] transition-colors duration-300">{appointment.patientName}</h3>
+                            <p className="mt-0.5 text-xs lg:text-xs text-slate-600 group-hover:text-slate-700 transition-colors line-clamp-1">{appointment.reason}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
-                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)}`}>
+                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] lg:text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)} group-hover:scale-105 transition-transform duration-300`}>
                               {appointment.status === 'confirmed' ? (
-                                <IoCheckmarkCircleOutline className="h-3 w-3" />
+                                <IoCheckmarkCircleOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
                               ) : (
-                                <IoTimeOutline className="h-3 w-3" />
+                                <IoTimeOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
                               )}
                               {appointment.status}
                             </span>
                           </div>
                         </div>
-                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                          <div className="flex items-center gap-1">
-                            <IoTimeOutline className="h-3.5 w-3.5" />
+                        <div className="mt-2 lg:mt-2.5 flex flex-wrap items-center gap-2 lg:gap-2.5 text-[10px] lg:text-xs text-slate-600 group-hover:text-slate-700 transition-colors">
+                          <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
+                            <IoTimeOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c] group-hover:text-[#11496c]" />
                             <span className="font-medium">{appointment.time}</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <TypeIcon className="h-3.5 w-3.5" />
+                          <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
+                            <TypeIcon className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
                             <span>{appointment.type}</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <IoCalendarOutline className="h-3.5 w-3.5" />
+                          <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
+                            <IoCalendarOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
                             <span>{appointment.duration}</span>
+                          </div>
+                        </div>
+                        <div className="hidden lg:flex items-center gap-3 mt-2.5 pt-2.5 border-t border-slate-100 group-hover:border-[#11496c]/20 transition-colors">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 group-hover:text-[#11496c] transition-colors">
+                            <IoPhonePortraitOutline className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
+                            <span className="font-medium">Contact</span>
                           </div>
                         </div>
                       </div>
@@ -668,7 +808,7 @@ const DoctorDashboard = () => {
         {/* Recent Consultations */}
         <section aria-labelledby="consultations-title" className="space-y-3">
           <header className="flex items-center justify-between">
-            <h2 id="consultations-title" className="text-base font-semibold text-slate-900">
+            <h2 id="consultations-title" className="text-base lg:text-lg font-semibold text-slate-900">
               Recent Consultations
             </h2>
             <button
@@ -680,55 +820,75 @@ const DoctorDashboard = () => {
             </button>
           </header>
 
-          <div className="space-y-3">
+          <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
             {recentConsultations.map((consultation) => {
               const TypeIcon = getTypeIcon(consultation.type)
               return (
                 <article
                   key={consultation.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 lg:p-4 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#11496c]/30 cursor-pointer active:scale-[0.98] lg:hover:scale-[1.02]"
                 >
-                  <div className="flex items-start gap-3">
-                    <img
-                      src={consultation.patientImage}
-                      alt={consultation.patientName}
-                      className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(consultation.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
-                      }}
-                    />
+                  {/* Hover Background Effect */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
+                  
+                  <div className="relative flex items-start gap-3 lg:gap-3">
+                    <div className="relative shrink-0">
+                      <img
+                        src={consultation.patientImage}
+                        alt={consultation.patientName}
+                        className="h-10 w-10 lg:h-14 lg:w-14 shrink-0 rounded-full object-cover ring-2 ring-slate-100 group-hover:ring-[#11496c]/30 transition-all duration-300 group-hover:scale-110"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(consultation.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+                        }}
+                      />
+                      {consultation.status === 'completed' && (
+                        <div className="absolute -bottom-1 -right-1 flex h-4 w-4 lg:h-5 lg:w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white group-hover:scale-110 group-hover:ring-emerald-400 transition-all duration-300">
+                          <IoCheckmarkCircleOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3 text-white" />
+                        </div>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-slate-900">{consultation.patientName}</h3>
-                          <p className="mt-0.5 text-xs text-slate-600">{consultation.notes}</p>
+                          <h3 className="text-sm lg:text-sm font-semibold text-slate-900 group-hover:text-[#11496c] transition-colors duration-300">{consultation.patientName}</h3>
+                          <p className="mt-0.5 text-xs lg:text-xs text-slate-600 group-hover:text-slate-700 transition-colors line-clamp-1">{consultation.notes}</p>
                         </div>
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(consultation.status)}`}>
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] lg:text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(consultation.status)} group-hover:scale-105 transition-transform duration-300 shrink-0`}>
                           {consultation.status === 'completed' ? (
-                            <IoCheckmarkCircleOutline className="h-3 w-3" />
+                            <IoCheckmarkCircleOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
                           ) : (
-                            <IoTimeOutline className="h-3 w-3" />
+                            <IoTimeOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
                           )}
                           {consultation.status}
                         </span>
                       </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                        <div className="flex items-center gap-1">
-                          <IoCalendarOutline className="h-3.5 w-3.5" />
-                          <span>{formatDate(consultation.date)}</span>
+                      <div className="mt-2 lg:mt-2.5 flex flex-wrap items-center gap-2 lg:gap-2.5 text-[10px] lg:text-xs text-slate-600 group-hover:text-slate-700 transition-colors">
+                        <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
+                          <IoCalendarOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
+                          <span className="font-medium">{formatDate(consultation.date)}</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <IoTimeOutline className="h-3.5 w-3.5" />
+                        <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
+                          <IoTimeOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
                           <span>{consultation.time}</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <TypeIcon className="h-3.5 w-3.5" />
+                        <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
+                          <TypeIcon className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
                           <span>{consultation.type}</span>
                         </div>
-                        <div className="flex items-center gap-1 font-semibold text-emerald-600">
-                          <IoWalletOutline className="h-3.5 w-3.5" />
+                        <div className="flex items-center gap-1 font-semibold text-emerald-600 group-hover:text-emerald-700 group-hover:scale-105 transition-all">
+                          <IoWalletOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5" />
                           <span>{formatCurrency(consultation.fee)}</span>
+                        </div>
+                      </div>
+                      <div className="hidden lg:flex items-center gap-3 mt-2.5 pt-2.5 border-t border-slate-100 group-hover:border-[#11496c]/20 transition-colors">
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 group-hover:text-[#11496c] transition-colors">
+                          <IoMailOutline className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
+                          <span className="font-medium">Report</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 group-hover:text-amber-600 transition-colors">
+                          <IoStarOutline className="h-3.5 w-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
+                          <span className="font-medium">4.8</span>
                         </div>
                       </div>
                     </div>
@@ -744,3 +904,6 @@ const DoctorDashboard = () => {
 }
 
 export default DoctorDashboard
+
+
+

@@ -67,7 +67,7 @@ const DoctorNavbar = () => {
   return (
     <>
       {!isDashboardPage && !isLoginPage && (
-        <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/95 px-4 py-3 backdrop-blur shadow md:px-6">
+        <header className="lg:hidden fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/95 px-4 py-3 backdrop-blur shadow md:px-6">
         <div className="flex items-center">
           <img
             src={healinnLogo}
@@ -76,7 +76,7 @@ const DoctorNavbar = () => {
             loading="lazy"
           />
         </div>
-        <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-slate-200 md:flex">
+        <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-slate-200 md:flex lg:hidden">
           {navbarItems.map(({ id, label, to, Icon }) => (
             <NavLink
               key={id}

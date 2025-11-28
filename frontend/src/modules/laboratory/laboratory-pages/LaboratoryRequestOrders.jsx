@@ -117,6 +117,176 @@ const LaboratoryRequestOrders = () => {
       // Sort by date (newest first)
       unique.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
       
+      // Add default mock data if no requests exist
+      if (unique.length === 0) {
+        const mockData = [
+          {
+            id: 'req-1',
+            requestId: 'req-1',
+            patientName: 'John Doe',
+            patientPhone: '+1-555-000-0000',
+            patientAddress: '123 Main St, New York, NY',
+            patientEmail: 'john.doe@example.com',
+            visitType: 'lab',
+            prescription: {
+              doctorName: 'Dr. Sarah Mitchell',
+              doctorSpecialty: 'Cardiology',
+              diagnosis: 'Hypertension',
+              investigations: ['Lipid Profile', 'Blood Sugar Test'],
+            },
+            investigations: ['Lipid Profile', 'Blood Sugar Test'],
+            status: 'completed',
+            createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            paymentConfirmed: true,
+            labAccepted: true,
+            labConfirmed: true,
+          },
+          {
+            id: 'req-2',
+            requestId: 'req-2',
+            patientName: 'Emily Brown',
+            patientPhone: '+1-555-000-0000',
+            patientAddress: 'Address not provided',
+            patientEmail: 'emily.brown@example.com',
+            visitType: 'home',
+            prescription: {
+              doctorName: 'Dr. Sarah Mitchell',
+              doctorSpecialty: 'Cardiology',
+              diagnosis: 'Hypertension',
+              investigations: ['Lipid Profile'],
+            },
+            investigations: ['Lipid Profile'],
+            status: 'payment_pending',
+            createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+            paymentConfirmed: false,
+            labAccepted: false,
+          },
+          {
+            id: 'req-3',
+            requestId: 'req-3',
+            patientName: 'Mike Johnson',
+            patientPhone: '+1-555-111-1111',
+            patientAddress: '456 Oak Ave, New York, NY',
+            patientEmail: 'mike.johnson@example.com',
+            visitType: 'lab',
+            prescription: {
+              doctorName: 'Dr. Robert Taylor',
+              doctorSpecialty: 'Endocrinology',
+              diagnosis: 'Diabetes',
+              investigations: ['HbA1c Test', 'Complete Blood Count'],
+            },
+            investigations: ['HbA1c Test', 'Complete Blood Count'],
+            status: 'pending',
+            createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+            paymentConfirmed: true,
+            labAccepted: false,
+          },
+          {
+            id: 'req-4',
+            requestId: 'req-4',
+            patientName: 'Sarah Smith',
+            patientPhone: '+1-555-222-2222',
+            patientAddress: '789 Pine St, New York, NY',
+            patientEmail: 'sarah.smith@example.com',
+            visitType: 'home',
+            prescription: {
+              doctorName: 'Dr. Jennifer Martinez',
+              doctorSpecialty: 'General Medicine',
+              diagnosis: 'Fever',
+              investigations: ['Complete Blood Count', 'Liver Function Test'],
+            },
+            investigations: ['Complete Blood Count', 'Liver Function Test'],
+            status: 'pending',
+            createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+            paymentConfirmed: true,
+            labAccepted: false,
+          },
+          {
+            id: 'req-5',
+            requestId: 'req-5',
+            patientName: 'David Wilson',
+            patientPhone: '+1-555-333-3333',
+            patientAddress: '321 Elm St, New York, NY',
+            patientEmail: 'david.wilson@example.com',
+            visitType: 'lab',
+            prescription: {
+              doctorName: 'Dr. Michael Chen',
+              doctorSpecialty: 'Cardiology',
+              diagnosis: 'Chest Pain',
+              investigations: ['ECG', 'Troponin Test'],
+            },
+            investigations: ['ECG', 'Troponin Test'],
+            status: 'accepted',
+            createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+            paymentConfirmed: true,
+            labAccepted: true,
+            labConfirmed: false,
+          },
+          {
+            id: 'req-6',
+            requestId: 'req-6',
+            patientName: 'Lisa Anderson',
+            patientPhone: '+1-555-444-4444',
+            patientAddress: '654 Maple Dr, New York, NY',
+            patientEmail: 'lisa.anderson@example.com',
+            visitType: 'home',
+            prescription: {
+              doctorName: 'Dr. Sarah Mitchell',
+              doctorSpecialty: 'Cardiology',
+              diagnosis: 'High Cholesterol',
+              investigations: ['Lipid Profile', 'Thyroid Function Test'],
+            },
+            investigations: ['Lipid Profile', 'Thyroid Function Test'],
+            status: 'pending',
+            createdAt: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
+            paymentConfirmed: false,
+            labAccepted: false,
+          },
+          {
+            id: 'req-7',
+            requestId: 'req-7',
+            patientName: 'Robert Taylor',
+            patientPhone: '+1-555-555-5555',
+            patientAddress: '987 Cedar Ln, New York, NY',
+            patientEmail: 'robert.taylor@example.com',
+            visitType: 'lab',
+            prescription: {
+              doctorName: 'Dr. Jennifer Martinez',
+              doctorSpecialty: 'General Medicine',
+              diagnosis: 'Fatigue',
+              investigations: ['Vitamin D Test', 'Vitamin B12 Test'],
+            },
+            investigations: ['Vitamin D Test', 'Vitamin B12 Test'],
+            status: 'completed',
+            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            paymentConfirmed: true,
+            labAccepted: true,
+            labConfirmed: true,
+          },
+          {
+            id: 'req-8',
+            requestId: 'req-8',
+            patientName: 'Jennifer Martinez',
+            patientPhone: '+1-555-666-6666',
+            patientAddress: '147 Birch St, New York, NY',
+            patientEmail: 'jennifer.martinez@example.com',
+            visitType: 'home',
+            prescription: {
+              doctorName: 'Dr. Michael Chen',
+              doctorSpecialty: 'Cardiology',
+              diagnosis: 'Arrhythmia',
+              investigations: ['ECG', 'Holter Monitor'],
+            },
+            investigations: ['ECG', 'Holter Monitor'],
+            status: 'payment_pending',
+            createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+            paymentConfirmed: false,
+            labAccepted: false,
+          },
+        ]
+        unique.push(...mockData)
+      }
+      
       setRequests(unique)
     } catch (error) {
       console.error('Error loading requests:', error)
@@ -630,9 +800,9 @@ const LaboratoryRequestOrders = () => {
       </div>
 
       {/* Requests List */}
-      <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
         {filteredRequests.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-12 lg:col-span-4">
             <IoFlaskOutline className="h-12 w-12 text-slate-300 mx-auto mb-3" />
             <p className="text-sm font-medium text-slate-500">No requests found</p>
             <p className="text-xs text-slate-400 mt-1">Patient lab test requests will appear here</p>
@@ -652,191 +822,195 @@ const LaboratoryRequestOrders = () => {
               <article
                 key={request.id}
                 onClick={() => setSelectedRequest(request)}
-                className={`rounded-lg border p-3 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98] ${
+                className={`group rounded-lg border p-3 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98] lg:shadow-md lg:hover:shadow-xl lg:hover:scale-[1.02] lg:transition-all lg:duration-300 lg:flex lg:flex-col ${
                   request.visitType === 'home'
-                    ? 'border-emerald-200 bg-emerald-50/30'
-                    : 'border-slate-200 bg-white'
+                    ? 'border-emerald-200 bg-emerald-50/30 lg:border-emerald-300/50'
+                    : 'border-slate-200 bg-white lg:border-slate-300/50'
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  {/* Avatar - Smaller */}
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#11496c] to-[#0d3a52] text-white">
-                    <IoPersonOutline className="h-5 w-5" />
+                <div className="flex items-start gap-3 lg:flex-col lg:gap-3">
+                  {/* Avatar and Status Badge Row */}
+                  <div className="flex items-start justify-between gap-2 w-full lg:flex-col lg:items-center lg:gap-2">
+                    {/* Avatar */}
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#11496c] to-[#0d3a52] text-white lg:h-14 lg:w-14 lg:transition-transform lg:duration-300 lg:group-hover:scale-110">
+                      <IoPersonOutline className="h-5 w-5 lg:h-7 lg:w-7" />
+                    </div>
+                    
+                    {/* Status Badge - Top Right on mobile, below avatar on desktop */}
+                    <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0 lg:text-[9px] ${
+                      request.status === 'pending'
+                        ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                        : request.status === 'payment_pending'
+                        ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                        : request.status === 'confirmed'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : request.status === 'completed'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-slate-50 text-slate-800 border border-slate-200'
+                    }`}>
+                      <StatusIcon className="h-2.5 w-2.5 lg:h-2.5 lg:w-2.5" />
+                      {request.status === 'pending' ? 'Pending' : 
+                       request.status === 'payment_pending' ? 'Payment' :
+                       request.status === 'confirmed' ? 'Confirmed' :
+                       request.status === 'completed' ? 'Done' : request.status}
+                    </span>
                   </div>
                   
                   {/* Main Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <div className="flex-1 min-w-0">
-                        {/* Patient Name and Visit Type Badge */}
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-sm font-semibold text-slate-900 truncate">{request.patientName || request.patient?.name || 'Unknown Patient'}</h3>
-                          {request.visitType && (
-                            <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold border shrink-0 ${
-                              request.visitType === 'home'
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                : 'bg-blue-100 text-blue-800 border-blue-300'
-                            }`}>
-                              {request.visitType === 'home' ? (
-                                <>
-                                  <IoHomeOutline className="h-2.5 w-2.5" />
-                                  HOME
-                                </>
-                              ) : (
-                                <>
-                                  <IoBusinessOutline className="h-2.5 w-2.5" />
-                                  LAB
-                                </>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                        
-                        {/* Patient Contact Info - Very Compact */}
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500 mb-1">
-                          {(request.patientPhone || request.patient?.phone) && (
-                            <div className="flex items-center gap-0.5">
-                              <IoCallOutline className="h-2.5 w-2.5" />
-                              <span className="truncate max-w-[120px]">{request.patientPhone || request.patient?.phone}</span>
-                            </div>
-                          )}
-                          {(request.patientAddress || request.patient?.address) && (
-                            <div className="flex items-center gap-0.5">
-                              <IoLocationOutline className="h-2.5 w-2.5 shrink-0" />
-                              <span className="truncate max-w-[140px]">{request.patientAddress || request.patient?.address}</span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Doctor Info - Compact */}
-                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-slate-600 mb-1">
-                          <div className="flex items-center gap-0.5">
-                            <IoMedicalOutline className="h-3 w-3" />
-                            <span className="truncate">{request.prescription?.doctorName || 'Doctor'}</span>
-                          </div>
-                          {request.prescription?.doctorSpecialty && (
+                  <div className="flex-1 min-w-0 lg:w-full lg:flex-1 lg:space-y-2">
+                    {/* Patient Name and Visit Type Badge */}
+                    <div className="flex items-center gap-2 mb-1.5 lg:flex-col lg:items-center lg:gap-1.5 lg:mb-2">
+                      <h3 className="text-sm font-semibold text-slate-900 truncate lg:text-sm lg:text-center lg:w-full">{request.patientName || request.patient?.name || 'Unknown Patient'}</h3>
+                      {request.visitType && (
+                        <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold border shrink-0 lg:text-[9px] ${
+                          request.visitType === 'home'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : 'bg-blue-100 text-blue-800 border-blue-300'
+                        }`}>
+                          {request.visitType === 'home' ? (
                             <>
-                              <span className="text-slate-400">•</span>
-                              <span className="truncate">{request.prescription.doctorSpecialty}</span>
+                              <IoHomeOutline className="h-2.5 w-2.5 lg:h-2.5 lg:w-2.5" />
+                              HOME
+                            </>
+                          ) : (
+                            <>
+                              <IoBusinessOutline className="h-2.5 w-2.5 lg:h-2.5 lg:w-2.5" />
+                              LAB
                             </>
                           )}
-                        </div>
-                        
-                        {/* Diagnosis - Compact */}
-                        {request.prescription?.diagnosis && (
-                          <p className="text-[10px] text-slate-600 truncate mb-1">
-                            Diagnosis: {request.prescription.diagnosis}
-                          </p>
-                        )}
-                        
-                        {/* Tests Info - Compact */}
-                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 border border-blue-200">
-                            <IoFlaskOutline className="h-2.5 w-2.5" />
-                            {investigationsCount} Test{investigationsCount !== 1 ? 's' : ''}
-                          </span>
-                          {investigations.slice(0, 2).map((test, idx) => {
-                            const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
-                            return (
-                              <span key={idx} className="text-[9px] text-slate-500 truncate max-w-[100px]">
-                                {testName}
-                                {idx < Math.min(2, investigations.length - 1) ? ',' : ''}
-                              </span>
-                            )
-                          })}
-                          {investigations.length > 2 && (
-                            <span className="text-[9px] text-slate-500">+{investigations.length - 2} more</span>
-                          )}
-                        </div>
-                        
-                        {/* Date and Time - Compact */}
-                        {request.createdAt && (
-                          <div className="flex items-center gap-1 mt-1.5 text-[9px] text-slate-500">
-                            <IoCalendarOutline className="h-2.5 w-2.5" />
-                            <span>{formatDateTime(request.createdAt)}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Status Badge - Top Right */}
-                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0 ${
-                        request.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
-                          : request.status === 'payment_pending'
-                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                          : request.status === 'confirmed'
-                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          : request.status === 'completed'
-                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          : 'bg-slate-50 text-slate-800 border border-slate-200'
-                      }`}>
-                        <StatusIcon className="h-2.5 w-2.5" />
-                        {request.status === 'pending' ? 'Pending' : 
-                         request.status === 'payment_pending' ? 'Payment' :
-                         request.status === 'confirmed' ? 'Confirmed' :
-                         request.status === 'completed' ? 'Done' : request.status}
-                      </span>
+                        </span>
+                      )}
                     </div>
                     
-                    {/* Action Buttons - Accept/Reject */}
-                    {((request.paymentConfirmed || request.status === 'payment_pending' || request.status === 'pending' || request.status === 'confirmed') && !request.labAccepted && !request.labRejected && request.status !== 'completed' && request.status !== 'rejected' && request.status !== 'accepted') && (
-                      <div className="mt-2 flex items-center justify-end gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleRejectOrder(request.id || request.requestId)
-                          }}
-                          className="flex items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-95"
-                        >
-                          <IoCloseCircleOutline className="h-3 w-3" />
-                          Reject
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleAcceptOrder(request.id || request.requestId)
-                          }}
-                          className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
-                        >
-                          <IoCheckmarkCircleOutline className="h-3 w-3" />
-                          Accept
-                        </button>
+                    {/* Patient Contact Info */}
+                    <div className="space-y-1 mb-2 lg:space-y-1.5 lg:mb-2">
+                      {(request.patientPhone || request.patient?.phone) && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 lg:justify-center lg:text-[9px]">
+                          <IoCallOutline className="h-3 w-3 text-[#11496c] shrink-0 lg:h-2.5 lg:w-2.5" />
+                          <span className="truncate lg:max-w-none">{request.patientPhone || request.patient?.phone}</span>
+                        </div>
+                      )}
+                      {(request.patientAddress || request.patient?.address) && (
+                        <div className="flex items-start gap-1.5 text-[10px] text-slate-500 lg:justify-center lg:text-[9px]">
+                          <IoLocationOutline className="h-3 w-3 text-[#11496c] shrink-0 mt-0.5 lg:h-2.5 lg:w-2.5 lg:mt-0" />
+                          <span className="truncate line-clamp-1 lg:max-w-none">{request.patientAddress || request.patient?.address || 'Address not provided'}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Doctor Info */}
+                    <div className="space-y-0.5 mb-2 lg:space-y-1 lg:mb-2">
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-600 lg:justify-center lg:text-[9px]">
+                        <IoMedicalOutline className="h-3 w-3 text-[#11496c] shrink-0 lg:h-2.5 lg:w-2.5" />
+                        <span className="truncate lg:max-w-none">{request.prescription?.doctorName || 'Doctor'}</span>
+                      </div>
+                      {request.prescription?.doctorSpecialty && (
+                        <div className="text-[10px] text-slate-600 lg:text-center lg:text-[9px] pl-4.5 lg:pl-0">
+                          {request.prescription.doctorSpecialty}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Diagnosis */}
+                    {request.prescription?.diagnosis && (
+                      <div className="mb-2 lg:mb-2">
+                        <p className="text-[10px] text-slate-600 truncate lg:text-center lg:text-[9px]">
+                          <span className="font-medium">Diagnosis:</span> {request.prescription.diagnosis}
+                        </p>
                       </div>
                     )}
-                    {/* Confirm Order Button - Show when order is accepted and payment confirmed but not yet confirmed */}
-                    {(request.status === 'accepted' || request.status === 'confirmed' || request.status === 'payment_pending') && request.labAccepted && !request.labConfirmed && request.paymentConfirmed && (
-                      <div className="mt-2 flex justify-end">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleConfirmOrder(request.id || request.requestId)
-                          }}
-                          className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
-                        >
-                          <IoCheckmarkCircleOutline className="h-3 w-3" />
-                          Confirm
-                        </button>
-                      </div>
-                    )}
-                    {/* Rejected Status Badge */}
-                    {(request.status === 'rejected' || request.labRejected) && (
-                      <div className="mt-2 flex justify-end">
-                        <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold bg-red-100 text-red-700 border border-red-300">
-                          <IoCloseCircleOutline className="h-3 w-3" />
-                          Rejected
+                    
+                    {/* Tests Info */}
+                    <div className="space-y-1.5 mb-2 lg:space-y-2 lg:mb-2">
+                      <div className="flex items-center justify-center">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[9px] font-medium text-blue-700 border border-blue-200 lg:text-[9px]">
+                          <IoFlaskOutline className="h-2.5 w-2.5 lg:h-2.5 lg:w-2.5" />
+                          {investigationsCount} Test{investigationsCount !== 1 ? 's' : ''}
                         </span>
                       </div>
-                    )}
-                    {/* Accepted Status Badge */}
-                    {request.status === 'accepted' && request.labAccepted && !request.labConfirmed && (
-                      <div className="mt-2 flex justify-end">
-                        <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold bg-green-100 text-green-700 border border-green-300">
-                          <IoCheckmarkCircleOutline className="h-3 w-3" />
-                          Accepted
-                        </span>
+                      <div className="flex flex-wrap items-center justify-center gap-1 lg:flex-col lg:gap-0.5 lg:w-full">
+                        {investigations.slice(0, 2).map((test, idx) => {
+                          const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
+                          return (
+                            <span key={idx} className="text-[9px] text-slate-500 truncate lg:max-w-none lg:text-[9px] lg:text-center lg:w-full">
+                              {testName}
+                              {idx < Math.min(2, investigations.length - 1) ? ',' : ''}
+                            </span>
+                          )
+                        })}
+                        {investigations.length > 2 && (
+                          <span className="text-[9px] text-slate-500 lg:text-[9px]">+{investigations.length - 2} more</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Date and Time */}
+                    {request.createdAt && (
+                      <div className="flex items-center gap-1.5 text-[9px] text-slate-500 lg:justify-center lg:text-[9px]">
+                        <IoCalendarOutline className="h-2.5 w-2.5 text-[#11496c] shrink-0 lg:h-2.5 lg:w-2.5" />
+                        <span className="truncate lg:max-w-none">{formatDateTime(request.createdAt)}</span>
                       </div>
                     )}
                   </div>
+                  
+                  {/* Action Buttons - Accept/Reject */}
+                  {((request.paymentConfirmed || request.status === 'payment_pending' || request.status === 'pending' || request.status === 'confirmed') && !request.labAccepted && !request.labRejected && request.status !== 'completed' && request.status !== 'rejected' && request.status !== 'accepted') && (
+                    <div className="mt-2 flex items-center justify-end gap-2 lg:mt-auto lg:pt-2 lg:border-t lg:border-slate-200 lg:justify-center lg:gap-1.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRejectOrder(request.id || request.requestId)
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-95 lg:px-2 lg:py-1 lg:text-[9px] lg:flex-1 lg:justify-center"
+                      >
+                        <IoCloseCircleOutline className="h-3 w-3 lg:h-2.5 lg:w-2.5" />
+                        Reject
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleAcceptOrder(request.id || request.requestId)
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 lg:px-2 lg:py-1 lg:text-[9px] lg:flex-1 lg:justify-center"
+                      >
+                        <IoCheckmarkCircleOutline className="h-3 w-3 lg:h-2.5 lg:w-2.5" />
+                        Accept
+                      </button>
+                    </div>
+                  )}
+                  {/* Confirm Order Button - Show when order is accepted and payment confirmed but not yet confirmed */}
+                  {(request.status === 'accepted' || request.status === 'confirmed' || request.status === 'payment_pending') && request.labAccepted && !request.labConfirmed && request.paymentConfirmed && (
+                    <div className="mt-2 flex justify-end lg:mt-auto lg:pt-2 lg:border-t lg:border-slate-200 lg:justify-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleConfirmOrder(request.id || request.requestId)
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 lg:px-2 lg:py-1 lg:text-[9px] lg:w-full lg:justify-center"
+                      >
+                        <IoCheckmarkCircleOutline className="h-3 w-3 lg:h-2.5 lg:w-2.5" />
+                        Confirm
+                      </button>
+                    </div>
+                  )}
+                  {/* Rejected Status Badge */}
+                  {(request.status === 'rejected' || request.labRejected) && (
+                    <div className="mt-2 flex justify-end lg:mt-auto lg:pt-2 lg:border-t lg:border-slate-200 lg:justify-center">
+                      <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold bg-red-100 text-red-700 border border-red-300 lg:text-[9px] lg:w-full lg:justify-center">
+                        <IoCloseCircleOutline className="h-3 w-3 lg:h-2.5 lg:w-2.5" />
+                        Rejected
+                      </span>
+                    </div>
+                  )}
+                  {/* Accepted Status Badge */}
+                  {request.status === 'accepted' && request.labAccepted && !request.labConfirmed && (
+                    <div className="mt-2 flex justify-end lg:mt-auto lg:pt-2 lg:border-t lg:border-slate-200 lg:justify-center">
+                      <span className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-semibold bg-green-100 text-green-700 border border-green-300 lg:text-[9px] lg:w-full lg:justify-center">
+                        <IoCheckmarkCircleOutline className="h-3 w-3 lg:h-2.5 lg:w-2.5" />
+                        Accepted
+                      </span>
+                    </div>
+                  )}
                 </div>
               </article>
             )

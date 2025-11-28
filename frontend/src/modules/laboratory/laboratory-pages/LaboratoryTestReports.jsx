@@ -499,9 +499,9 @@ const LaboratoryTestReports = () => {
       )}
 
       {/* Confirmed Orders List */}
-      <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
         {filteredOrdersByHistory.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center lg:col-span-4">
             <IoDocumentTextOutline className="h-12 w-12 text-slate-300 mx-auto mb-3" />
             <p className="text-sm font-medium text-slate-600">
               No confirmed orders found for {historyFilter === 'day' ? 'today' : historyFilter === 'month' ? 'this month' : historyFilter === 'year' ? 'this year' : 'the selected period'}
@@ -511,96 +511,105 @@ const LaboratoryTestReports = () => {
           filteredOrdersByHistory.map((order) => (
             <div
               key={order.id}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-all"
+              className="group relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition-all lg:shadow-md lg:hover:shadow-xl lg:hover:scale-[1.02] lg:transition-all lg:duration-300 lg:cursor-pointer lg:flex lg:flex-col lg:p-3"
             >
-              <div className="flex items-start gap-4">
-                {/* Patient Image */}
-                <img
-                  src={order.patientImage}
-                  alt={order.patientName}
-                  className="h-16 w-16 rounded-xl object-cover bg-slate-100 border-2 border-slate-200"
-                  onError={(e) => {
-                    e.target.onerror = null
-                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientName)}&background=11496c&color=fff&size=160&bold=true`
-                  }}
-                />
-
-                {/* Patient Details */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex-1">
-                      <h3 className="text-base font-bold text-slate-900">{order.patientName}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Order ID: {order.orderId}</p>
-                      <p className="text-sm font-medium text-slate-700 mt-1">{order.testName}</p>
-                    </div>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${
+              {/* Top Section: Name/Status on left, Profile Image in corner (right) */}
+              <div className="flex items-start justify-between gap-3 mb-2 lg:mb-2">
+                {/* Name and Status on Left */}
+                <div className="flex-1 min-w-0 lg:flex-1">
+                  <div className="flex items-start gap-2 lg:flex-col lg:items-start lg:gap-1.5">
+                    <h3 className="text-base font-bold text-slate-900 lg:text-xs lg:truncate lg:leading-tight">{order.patientName}</h3>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold shrink-0 lg:px-1.5 lg:py-0.5 lg:text-[8px] lg:gap-0.5 ${
                       order.status === 'ready' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                       order.status === 'completed' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
                       'bg-amber-50 text-amber-700 border border-amber-200'
                     }`}>
-                      {order.status === 'ready' ? <IoCheckmarkCircleOutline className="h-3 w-3" /> : null}
+                      {order.status === 'ready' ? <IoCheckmarkCircleOutline className="h-3 w-3 lg:h-2 lg:w-2" /> : null}
                       {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                     </span>
                   </div>
+                </div>
 
-                  {/* Contact Info */}
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mt-2">
-                    <a href={`tel:${order.patientPhone}`} className="flex items-center gap-1 hover:text-[#11496c]">
-                      <IoCallOutline className="h-3 w-3" />
-                      {order.patientPhone}
-                    </a>
-                    <span className="text-slate-300">•</span>
-                    <a href={`mailto:${order.patientEmail}`} className="flex items-center gap-1 hover:text-[#11496c]">
-                      <IoMailOutline className="h-3 w-3" />
-                      {order.patientEmail}
-                    </a>
-                    <span className="text-slate-300">•</span>
-                    <div className="flex items-center gap-1">
-                      <IoCalendarOutline className="h-3 w-3" />
-                      {formatDate(order.orderDate)}
-                    </div>
-                  </div>
-
-                  {/* Report Status */}
-                  {order.hasReport && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
-                        <IoCheckmarkCircleOutline className="h-3 w-3" />
-                        Report Added
-                      </span>
-                      {order.reportShared && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700 border border-blue-200">
-                          <IoCheckmarkCircleOutline className="h-3 w-3" />
-                          Shared with Patient & Admin
-                        </span>
-                      )}
-                    </div>
-                  )}
+                {/* Patient Image in Corner (Right) */}
+                <div className="shrink-0 lg:absolute lg:top-2 lg:right-2">
+                  <img
+                    src={order.patientImage}
+                    alt={order.patientName}
+                    className="h-16 w-16 rounded-xl object-cover bg-slate-100 border-2 border-slate-200 lg:h-10 lg:w-10 lg:rounded-lg lg:border-[#11496c]/20 lg:transition-transform lg:duration-300 lg:group-hover:scale-110"
+                    onError={(e) => {
+                      e.target.onerror = null
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientName)}&background=11496c&color=fff&size=160&bold=true`
+                    }}
+                  />
                 </div>
               </div>
 
+              {/* Patient Details */}
+              <div className="flex-1 min-w-0 lg:flex-1 lg:w-full lg:pr-12">
+                <div className="mb-2 lg:mb-1.5">
+                  <p className="text-xs text-slate-500 mt-0.5 lg:text-[9px] lg:mt-0 lg:leading-tight">Order ID: {order.orderId}</p>
+                  <p className="text-sm font-medium text-slate-700 mt-1 lg:text-[10px] lg:line-clamp-2 lg:mt-1 lg:leading-tight">{order.testName}</p>
+                </div>
+
+                {/* Contact Info */}
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mt-2 lg:flex-col lg:items-start lg:gap-1 lg:mt-2">
+                  <a href={`tel:${order.patientPhone}`} className="flex items-center gap-1 hover:text-[#11496c] lg:text-[9px] lg:truncate lg:w-full lg:leading-tight">
+                    <IoCallOutline className="h-3 w-3 lg:h-2 lg:w-2" />
+                    <span className="truncate">{order.patientPhone}</span>
+                  </a>
+                  <span className="text-slate-300 lg:hidden">•</span>
+                  <a href={`mailto:${order.patientEmail}`} className="flex items-center gap-1 hover:text-[#11496c] lg:text-[9px] lg:truncate lg:w-full lg:leading-tight">
+                    <IoMailOutline className="h-3 w-3 lg:h-2 lg:w-2" />
+                    <span className="truncate">{order.patientEmail}</span>
+                  </a>
+                  <span className="text-slate-300 lg:hidden">•</span>
+                  <div className="flex items-center gap-1 lg:text-[9px] lg:leading-tight">
+                    <IoCalendarOutline className="h-3 w-3 lg:h-2 lg:w-2" />
+                    {formatDate(order.orderDate)}
+                  </div>
+                </div>
+
+                {/* Report Status */}
+                {order.hasReport && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 lg:mt-2 lg:flex-col lg:items-start lg:gap-1">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 border border-emerald-200 lg:px-1.5 lg:py-0.5 lg:text-[8px] lg:gap-0.5">
+                      <IoCheckmarkCircleOutline className="h-3 w-3 lg:h-2 lg:w-2" />
+                      Report Added
+                    </span>
+                    {order.reportShared && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700 border border-blue-200 lg:px-1.5 lg:py-0.5 lg:text-[8px] lg:gap-0.5">
+                        <IoCheckmarkCircleOutline className="h-3 w-3 lg:h-2 lg:w-2" />
+                        Shared
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Action Buttons */}
-              <div className="flex gap-2 mt-4 pt-4 border-t border-slate-200">
+              <div className="flex gap-2 mt-4 pt-4 border-t border-slate-200 lg:mt-auto lg:pt-2 lg:border-t lg:border-slate-200">
                 {!order.hasReport ? (
                   <button
                     onClick={() => handleAddReport(order)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95 lg:px-2 lg:py-1.5 lg:text-[10px] lg:gap-1 lg:hover:shadow-lg lg:hover:shadow-[rgba(17,73,108,0.3)]"
                   >
-                    <IoAddOutline className="h-4 w-4" />
-                    Add Lab Report
+                    <IoAddOutline className="h-4 w-4 lg:h-3 lg:w-3" />
+                    <span className="lg:hidden">Add Lab Report</span>
+                    <span className="hidden lg:inline">Add Report</span>
                   </button>
                 ) : (
                   <button
                     onClick={() => handleShareReport(order)}
                     disabled={isSending || order.reportShared}
-                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-all active:scale-95 ${
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-all active:scale-95 lg:px-2 lg:py-1.5 lg:text-[10px] lg:gap-1 lg:hover:shadow-lg ${
                       order.reportShared
                         ? 'bg-slate-100 text-slate-500 cursor-not-allowed'
-                        : 'bg-emerald-500 text-white shadow-emerald-400/40 hover:bg-emerald-600'
+                        : 'bg-emerald-500 text-white shadow-emerald-400/40 hover:bg-emerald-600 lg:hover:shadow-emerald-500/50'
                     }`}
                   >
-                    <IoShareSocialOutline className="h-4 w-4" />
-                    {order.reportShared ? 'Already Shared' : 'Share with Admin and Patient'}
+                    <IoShareSocialOutline className="h-4 w-4 lg:h-3 lg:w-3" />
+                    <span className="lg:hidden">{order.reportShared ? 'Already Shared' : 'Share with Admin and Patient'}</span>
+                    <span className="hidden lg:inline">{order.reportShared ? 'Shared' : 'Share'}</span>
                   </button>
                 )}
               </div>

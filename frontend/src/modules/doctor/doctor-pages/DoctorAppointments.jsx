@@ -522,50 +522,66 @@ const DoctorAppointments = () => {
           <button
             type="button"
             onClick={() => setFilterPeriod('today')}
-            className={`rounded-xl border p-3 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${
+            className={`group relative overflow-hidden rounded-xl border p-3 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] ${
               filterPeriod === 'today'
                 ? 'border-purple-400 bg-purple-100 ring-2 ring-purple-200'
-                : 'border-purple-200 bg-purple-50 hover:bg-purple-100'
+                : 'border-purple-200 bg-purple-50 hover:bg-purple-100 hover:border-purple-300'
             }`}
           >
-            <p className="text-[10px] font-semibold uppercase text-purple-700 mb-1">Today</p>
-            <p className="text-xl font-bold text-purple-900">{stats.today}</p>
+            {/* Animated Background Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-purple-500/0 group-hover:from-purple-500/10 group-hover:to-purple-500/20 transition-all duration-300"></div>
+            <div className="relative">
+              <p className="text-[10px] font-semibold uppercase text-purple-700 mb-1 group-hover:text-purple-900 transition-colors">Today</p>
+              <p className="text-xl font-bold text-purple-900 group-hover:text-purple-950 transition-colors duration-300">{stats.today}</p>
+            </div>
           </button>
           <button
             type="button"
             onClick={() => setFilterPeriod('monthly')}
-            className={`rounded-xl border p-3 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${
+            className={`group relative overflow-hidden rounded-xl border p-3 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] ${
               filterPeriod === 'monthly'
                 ? 'border-blue-400 bg-blue-100 ring-2 ring-blue-200'
-                : 'border-blue-200 bg-blue-50 hover:bg-blue-100'
+                : 'border-blue-200 bg-blue-50 hover:bg-blue-100 hover:border-blue-300'
             }`}
           >
-            <p className="text-[10px] font-semibold uppercase text-blue-700 mb-1">This Month</p>
-            <p className="text-xl font-bold text-blue-900">{stats.monthly}</p>
+            {/* Animated Background Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-blue-500/0 group-hover:from-blue-500/10 group-hover:to-blue-500/20 transition-all duration-300"></div>
+            <div className="relative">
+              <p className="text-[10px] font-semibold uppercase text-blue-700 mb-1 group-hover:text-blue-900 transition-colors">This Month</p>
+              <p className="text-xl font-bold text-blue-900 group-hover:text-blue-950 transition-colors duration-300">{stats.monthly}</p>
+            </div>
           </button>
           <button
             type="button"
             onClick={() => setFilterPeriod('yearly')}
-            className={`rounded-xl border p-3 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${
+            className={`group relative overflow-hidden rounded-xl border p-3 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] ${
               filterPeriod === 'yearly'
                 ? 'border-emerald-400 bg-emerald-100 ring-2 ring-emerald-200'
-                : 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100'
+                : 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300'
             }`}
           >
-            <p className="text-[10px] font-semibold uppercase text-emerald-700 mb-1">This Year</p>
-            <p className="text-xl font-bold text-emerald-900">{stats.yearly}</p>
+            {/* Animated Background Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-emerald-500/0 group-hover:from-emerald-500/10 group-hover:to-emerald-500/20 transition-all duration-300"></div>
+            <div className="relative">
+              <p className="text-[10px] font-semibold uppercase text-emerald-700 mb-1 group-hover:text-emerald-900 transition-colors">This Year</p>
+              <p className="text-xl font-bold text-emerald-900 group-hover:text-emerald-950 transition-colors duration-300">{stats.yearly}</p>
+            </div>
           </button>
           <button
             type="button"
             onClick={() => setFilterPeriod('all')}
-            className={`rounded-xl border p-3 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${
+            className={`group relative overflow-hidden rounded-xl border p-3 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] ${
               filterPeriod === 'all'
                 ? 'border-slate-400 bg-slate-100 ring-2 ring-slate-200'
-                : 'border-slate-200 bg-white hover:bg-slate-50'
+                : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300'
             }`}
           >
-            <p className="text-[10px] font-semibold uppercase text-slate-600 mb-1">Total</p>
-            <p className="text-xl font-bold text-slate-900">{stats.total}</p>
+            {/* Animated Background Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-500/0 to-slate-500/0 group-hover:from-slate-500/10 group-hover:to-slate-500/20 transition-all duration-300"></div>
+            <div className="relative">
+              <p className="text-[10px] font-semibold uppercase text-slate-600 mb-1 group-hover:text-slate-900 transition-colors">Total</p>
+              <p className="text-xl font-bold text-slate-900 group-hover:text-slate-950 transition-colors duration-300">{stats.total}</p>
+            </div>
           </button>
         </div>
 
@@ -584,9 +600,9 @@ const DoctorAppointments = () => {
         </div>
 
         {/* Appointments List */}
-        <div className="space-y-3">
+        <div className="space-y-3 lg:grid lg:grid-cols-6 lg:gap-3 lg:space-y-0">
           {filteredAppointments.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="lg:col-span-6 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
               <IoCalendarOutline className="mx-auto h-12 w-12 text-slate-300" />
               <p className="mt-4 text-sm font-medium text-slate-600">No appointments found</p>
               <p className="mt-1 text-xs text-slate-500">Try adjusting your search or filters</p>
@@ -598,85 +614,97 @@ const DoctorAppointments = () => {
                 <div
                   key={appointment.id}
                   onClick={() => handleViewAppointment(appointment)}
-                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md hover:border-[#11496c]/30 cursor-pointer active:scale-[0.98]"
+                  className="group relative overflow-hidden rounded-xl lg:rounded-lg border border-slate-200 bg-white p-2.5 lg:p-2.5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-[#11496c]/30 cursor-pointer active:scale-[0.98] lg:hover:scale-[1.01]"
                 >
-                  <div className="flex items-start gap-4">
-                    {/* Patient Image */}
-                    <img
-                      src={appointment.patientImage}
-                      alt={appointment.patientName}
-                      className="h-12 w-12 rounded-lg object-cover ring-2 ring-slate-100 shrink-0"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=3b82f6&color=fff&size=160`
-                      }}
-                    />
-
-                    {/* Appointment Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-bold text-slate-900 truncate">{appointment.patientName}</h3>
-                          <p className="text-sm text-slate-600 mt-0.5">{appointment.reason}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {(() => {
-                            const displayStatus = mapBackendStatusToDisplay(appointment.status)
-                            return (
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)}`}
-                              >
-                                {displayStatus === 'confirmed' ? (
-                                  <IoCheckmarkCircleOutline className="h-3 w-3" />
-                                ) : displayStatus === 'completed' ? (
-                                  <IoCheckmarkCircleOutline className="h-3 w-3" />
-                                ) : displayStatus === 'cancelled' ? (
-                                  <IoCloseCircleOutline className="h-3 w-3" />
-                                ) : (
-                                  <IoTimeOutline className="h-3 w-3" />
-                                )}
-                                {displayStatus}
-                              </span>
-                            )
-                          })()}
-                          {(appointment.status === 'confirmed' || appointment.status === 'scheduled') && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleCancelClick(e, appointment)}
-                              className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[10px] font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
-                              title="Cancel Appointment"
-                            >
-                              <IoCloseCircleOutline className="h-3.5 w-3.5" />
-                              Cancel
-                            </button>
+                  {/* Hover Background Effect */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
+                  
+                  <div className="relative flex flex-col gap-1.5 lg:gap-1.5">
+                    {/* Top Row: Image + Name + Status */}
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        {/* Patient Image */}
+                        <div className="relative shrink-0">
+                          <img
+                            src={appointment.patientImage}
+                            alt={appointment.patientName}
+                            className="h-8 w-8 lg:h-9 lg:w-9 rounded-lg object-cover ring-2 ring-slate-100 group-hover:ring-[#11496c]/30 transition-all duration-300 group-hover:scale-110"
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=3b82f6&color=fff&size=160`
+                            }}
+                          />
+                          {appointment.status === 'completed' && (
+                            <div className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white group-hover:scale-110 group-hover:ring-emerald-400 transition-all duration-300">
+                              <IoCheckmarkCircleOutline className="h-1.5 w-1.5 text-white" />
+                            </div>
                           )}
                         </div>
+                        {/* Name */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-xs lg:text-xs font-bold text-slate-900 truncate group-hover:text-[#11496c] transition-colors duration-300">{appointment.patientName}</h3>
+                          <p className="text-[9px] lg:text-[9px] text-slate-600 truncate group-hover:text-slate-700 transition-colors">{appointment.reason}</p>
+                        </div>
                       </div>
-
-                      {/* Appointment Details */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
-                        <div className="flex items-center gap-1">
-                          <IoCalendarOutline className="h-3.5 w-3.5 text-slate-500" />
-                          <span>{formatDate(appointment.date)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <IoTimeOutline className="h-3.5 w-3.5 text-slate-500" />
-                          <span>{formatTime(appointment.time)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <TypeIcon className="h-3.5 w-3.5 text-slate-500" />
-                          <span>{appointment.type}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <IoDocumentTextOutline className="h-3.5 w-3.5 text-slate-500" />
-                          <span>{appointment.appointmentType}</span>
-                        </div>
-                        {appointment.duration && (
-                          <div className="flex items-center gap-1">
-                            <span>{appointment.duration}</span>
-                          </div>
+                      {/* Status Badge */}
+                      <div className="flex flex-col items-end gap-0.5 shrink-0">
+                        {(() => {
+                          const displayStatus = mapBackendStatusToDisplay(appointment.status)
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[8px] lg:text-[8px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)} group-hover:scale-105 transition-transform duration-300`}
+                            >
+                              {displayStatus === 'confirmed' ? (
+                                <IoCheckmarkCircleOutline className="h-2 w-2" />
+                              ) : displayStatus === 'completed' ? (
+                                <IoCheckmarkCircleOutline className="h-2 w-2" />
+                              ) : displayStatus === 'cancelled' ? (
+                                <IoCloseCircleOutline className="h-2 w-2" />
+                              ) : (
+                                <IoTimeOutline className="h-2 w-2" />
+                              )}
+                              <span className="hidden lg:inline">{displayStatus}</span>
+                            </span>
+                          )
+                        })()}
+                        {(appointment.status === 'confirmed' || appointment.status === 'scheduled') && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleCancelClick(e, appointment)}
+                            className="flex items-center gap-0.5 rounded border border-red-200 bg-red-50 px-1 py-0.5 text-[8px] lg:text-[8px] font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
+                            title="Cancel Appointment"
+                          >
+                            <IoCloseCircleOutline className="h-2 w-2" />
+                            <span className="hidden lg:inline">Cancel</span>
+                          </button>
                         )}
                       </div>
+                    </div>
+
+                    {/* Details Row */}
+                    <div className="grid grid-cols-2 gap-x-1.5 gap-y-0.5 text-[8px] lg:text-[8px] text-slate-600 group-hover:text-slate-700 transition-colors">
+                      <div className="flex items-center gap-0.5">
+                        <IoCalendarOutline className="h-2.5 w-2.5 text-slate-500 shrink-0" />
+                        <span className="truncate">{formatDate(appointment.date)}</span>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        <IoTimeOutline className="h-2.5 w-2.5 text-slate-500 shrink-0" />
+                        <span className="truncate">{formatTime(appointment.time)}</span>
+                      </div>
+                      <div className="flex items-center gap-0.5">
+                        <TypeIcon className="h-2.5 w-2.5 text-slate-500 shrink-0" />
+                        <span className="truncate">{appointment.type}</span>
+                      </div>
+                      {appointment.duration ? (
+                        <div className="flex items-center gap-0.5">
+                          <span className="truncate">{appointment.duration}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-0.5">
+                          <IoDocumentTextOutline className="h-2.5 w-2.5 text-slate-500 shrink-0" />
+                          <span className="truncate">{appointment.appointmentType}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

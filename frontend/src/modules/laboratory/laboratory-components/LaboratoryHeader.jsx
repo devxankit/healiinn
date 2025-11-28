@@ -1,0 +1,100 @@
+import { NavLink, useNavigate } from 'react-router-dom'
+import {
+  IoHomeOutline,
+  IoPersonCircleOutline,
+  IoNotificationsOutline,
+  IoWalletOutline,
+  IoBagHandleOutline,
+  IoPeopleOutline,
+  IoHelpCircleOutline,
+  IoLogOutOutline,
+} from 'react-icons/io5'
+import healinnLogo from '../../../assets/images/logo.png'
+
+const navItems = [
+  { id: 'home', label: 'Dashboard', to: '/laboratory/dashboard', Icon: IoHomeOutline },
+  { id: 'orders', label: 'Orders', to: '/laboratory/orders', Icon: IoBagHandleOutline },
+  { id: 'patients', label: 'Patients', to: '/laboratory/patients', Icon: IoPeopleOutline },
+  { id: 'wallet', label: 'Wallet', to: '/laboratory/wallet', Icon: IoWalletOutline },
+  { id: 'support', label: 'Support', to: '/laboratory/support', Icon: IoHelpCircleOutline },
+  { id: 'profile', label: 'Profile', to: '/laboratory/profile', Icon: IoPersonCircleOutline },
+]
+
+const LaboratoryHeader = () => {
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    localStorage.removeItem('laboratoryAuthToken')
+    localStorage.removeItem('laboratoryAccessToken')
+    localStorage.removeItem('laboratoryRefreshToken')
+    sessionStorage.removeItem('laboratoryAuthToken')
+    sessionStorage.removeItem('laboratoryAccessToken')
+    sessionStorage.removeItem('laboratoryRefreshToken')
+    navigate('/laboratory/login', { replace: true })
+  }
+
+  return (
+    <header className="hidden lg:block fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo */}
+          <div className="flex items-center">
+            <NavLink to="/laboratory/dashboard" className="flex items-center">
+              <img
+                src={healinnLogo}
+                alt="Healiinn"
+                className="h-10 w-auto object-contain"
+                loading="lazy"
+              />
+            </NavLink>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex items-center gap-1">
+            {navItems.map(({ id, label, to, Icon }) => (
+              <NavLink
+                key={id}
+                to={to}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? 'bg-[#11496c] text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`
+                }
+                end={id === 'home'}
+              >
+                {Icon && <Icon className="h-4 w-4" />}
+                <span>{label}</span>
+              </NavLink>
+            ))}
+          </nav>
+
+          {/* Right Side - Notifications & Profile */}
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+              aria-label="Notifications"
+            >
+              <IoNotificationsOutline className="h-5 w-5" />
+              <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <IoLogOutOutline className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+export default LaboratoryHeader
+

@@ -21,6 +21,8 @@ import PatientOrders from './modules/patient/patient-pages/PatientOrders'
 import PatientSupport from './modules/patient/patient-pages/PatientSupport'
 import PatientHistory from './modules/patient/patient-pages/PatientHistory'
 import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
+import DoctorHeader from './modules/doctor/doctor-components/DoctorHeader'
+import DoctorFooter from './modules/doctor/doctor-components/DoctorFooter'
 import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
 import DoctorDashboard from './modules/doctor/doctor-pages/DoctorDashboard'
 import DoctorProfile from './modules/doctor/doctor-pages/DoctorProfile'
@@ -35,6 +37,12 @@ import DoctorAllPatients from './modules/doctor/doctor-pages/DoctorAllPatients'
 import DoctorAppointments from './modules/doctor/doctor-pages/DoctorAppointments'
 import DoctorAllConsultations from './modules/doctor/doctor-pages/DoctorAllConsultations'
 import DoctorSupport from './modules/doctor/doctor-pages/DoctorSupport'
+import PrivacyPolicy from './modules/doctor/doctor-pages/PrivacyPolicy'
+import TermsOfService from './modules/doctor/doctor-pages/TermsOfService'
+import MedicalGuidelines from './modules/doctor/doctor-pages/MedicalGuidelines'
+import DoctorFAQ from './modules/doctor/doctor-pages/DoctorFAQ'
+import HIPAACompliance from './modules/doctor/doctor-pages/HIPAACompliance'
+import DataProtection from './modules/doctor/doctor-pages/DataProtection'
 import PharmacyNavbar from './modules/pharmacy/pharmacy-components/PharmacyNavbar'
 import { PharmacySidebarProvider } from './modules/pharmacy/pharmacy-components/PharmacySidebarContext'
 import PharmacyDashboard from './modules/pharmacy/pharmacy-pages/PharmacyDashboard'
@@ -53,6 +61,8 @@ import PharmacyWalletTransaction from './modules/pharmacy/pharmacy-pages/WalletT
 import PharmacySupport from './modules/pharmacy/pharmacy-pages/PharmacySupport'
 import PharmacyRequestOrders from './modules/pharmacy/pharmacy-pages/PharmacyRequestOrders'
 import LaboratoryNavbar from './modules/laboratory/laboratory-components/LaboratoryNavbar'
+import LaboratoryHeader from './modules/laboratory/laboratory-components/LaboratoryHeader'
+import LaboratoryFooter from './modules/laboratory/laboratory-components/LaboratoryFooter'
 import LaboratoryDashboard from './modules/laboratory/laboratory-pages/LaboratoryDashboard'
 import LaboratoryOrders from './modules/laboratory/laboratory-pages/LaboratoryOrders'
 import LaboratoryPatients from './modules/laboratory/laboratory-pages/LaboratoryPatients'
@@ -73,6 +83,13 @@ import LaboratoryWalletEarning from './modules/laboratory/laboratory-pages/Walle
 import LaboratoryWalletWithdraw from './modules/laboratory/laboratory-pages/WalletWithdraw'
 import LaboratoryWalletTransaction from './modules/laboratory/laboratory-pages/WalletTransaction'
 import LaboratorySupport from './modules/laboratory/laboratory-pages/LaboratorySupport'
+import LaboratoryPrivacyPolicy from './modules/laboratory/laboratory-pages/LaboratoryPrivacyPolicy'
+import LaboratoryTermsOfService from './modules/laboratory/laboratory-pages/LaboratoryTermsOfService'
+import LaboratoryLabGuidelines from './modules/laboratory/laboratory-pages/LaboratoryLabGuidelines'
+import LaboratoryFAQ from './modules/laboratory/laboratory-pages/LaboratoryFAQ'
+import LaboratoryHIPAACompliance from './modules/laboratory/laboratory-pages/LaboratoryHIPAACompliance'
+import LaboratoryDataProtection from './modules/laboratory/laboratory-pages/LaboratoryDataProtection'
+import LaboratoryLabAccreditation from './modules/laboratory/laboratory-pages/LaboratoryLabAccreditation'
 import AdminNavbar from './modules/admin/admin-components/AdminNavbar'
 import AdminLogin from './modules/admin/admin-pages/AdminLogin'
 import AdminDashboard from './modules/admin/admin-pages/AdminDashboard'
@@ -95,13 +112,16 @@ import ProtectedRoute from './components/ProtectedRoute'
 function PatientRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/patient/login'
+  const token = getAuthToken('patient')
   
   return (
     <>
       {!isLoginPage && <PatientNavbar />}
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
         <Routes>
-          <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
+          <Route path="/" element={
+            token ? <ProtectedRoute module="patient"><Navigate to="/patient/dashboard" replace /></ProtectedRoute> : <Navigate to="/patient/login" replace />
+          } />
           <Route path="/login" element={<PatientLogin />} />
           <Route path="/dashboard" element={<ProtectedRoute module="patient"><PatientDashboard /></ProtectedRoute>} />
                     <Route path="/doctors" element={<ProtectedRoute module="patient"><PatientDoctors /></ProtectedRoute>} />
@@ -121,6 +141,9 @@ function PatientRoutes() {
           <Route path="/orders" element={<ProtectedRoute module="patient"><PatientOrders /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute module="patient"><PatientHistory /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute module="patient"><PatientSupport /></ProtectedRoute>} />
+          <Route path="*" element={
+            token ? <ProtectedRoute module="patient"><Navigate to="/patient/dashboard" replace /></ProtectedRoute> : <Navigate to="/patient/login" replace />
+          } />
         </Routes>
       </main>
     </>
@@ -130,14 +153,8 @@ function PatientRoutes() {
 function AdminRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/admin/login'
-  // Check token synchronously - but don't show navbar until verified
   const token = getAuthToken('admin')
   const isAuthenticated = !!token && !isLoginPage
-  
-  // If not on login page and no token, redirect to login immediately
-  if (!isLoginPage && !token) {
-    return <Navigate to="/admin/login" replace />
-  }
   
   return (
     <>
@@ -148,6 +165,9 @@ function AdminRoutes() {
           <Route path="/login" element={<AdminLogin />} />
           
           {/* Protected routes - All require authentication */}
+          <Route path="/" element={
+            token ? <ProtectedRoute module="admin"><Navigate to="/admin/dashboard" replace /></ProtectedRoute> : <Navigate to="/admin/login" replace />
+          } />
           <Route path="/dashboard" element={<ProtectedRoute module="admin"><AdminDashboard /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute module="admin"><AdminUsers /></ProtectedRoute>} />
           <Route path="/doctors" element={<ProtectedRoute module="admin"><AdminDoctors /></ProtectedRoute>} />
@@ -156,6 +176,7 @@ function AdminRoutes() {
           <Route path="/inventory" element={<ProtectedRoute module="admin"><AdminInventory /></ProtectedRoute>} />
           <Route path="/laboratories" element={<ProtectedRoute module="admin"><AdminLaboratories /></ProtectedRoute>} />
           <Route path="/wallet" element={<ProtectedRoute module="admin"><AdminWallet /></ProtectedRoute>} />
+          <Route path="/revenue" element={<ProtectedRoute module="admin"><AdminRevenue /></ProtectedRoute>} />
           <Route path="/verification" element={<ProtectedRoute module="admin"><AdminVerification /></ProtectedRoute>} />
           <Route path="/appointments" element={<ProtectedRoute module="admin"><AdminAppointments /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute module="admin"><AdminOrders /></ProtectedRoute>} />
@@ -163,12 +184,9 @@ function AdminRoutes() {
           <Route path="/profile" element={<ProtectedRoute module="admin"><AdminProfile /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute module="admin"><AdminSupport /></ProtectedRoute>} />
           
-          {/* Root and catch-all - redirect based on authentication */}
-          <Route path="/" element={
-            token ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin/login" replace />
-          } />
+          {/* Catch-all - redirect to login if not authenticated */}
           <Route path="*" element={
-            token ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/admin/login" replace />
+            token ? <ProtectedRoute module="admin"><Navigate to="/admin/dashboard" replace /></ProtectedRoute> : <Navigate to="/admin/login" replace />
           } />
         </Routes>
       </main>
@@ -182,28 +200,151 @@ function DoctorRoutes() {
   
   return (
     <>
+      {/* Mobile Navbar - Only visible on mobile/tablet */}
       {!isLoginPage && <DoctorNavbar />}
+      
+      {/* Desktop Header - Only visible on desktop */}
+      {!isLoginPage && <DoctorHeader />}
+      
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
+        <div className="max-w-7xl mx-auto w-full lg:flex-1">
+          <Routes>
+            <Route path="/" element={<Navigate to="/doctor/dashboard" replace />} />
+            <Route path="/login" element={<DoctorLogin />} />
+            <Route path="/dashboard" element={<DoctorDashboard />} />
+            <Route path="/wallet" element={<DoctorWallet />} />
+            <Route path="/wallet/balance" element={<WalletBalance />} />
+            <Route path="/wallet/earning" element={<WalletEarning />} />
+            <Route path="/wallet/withdraw" element={<WalletWithdraw />} />
+            <Route path="/wallet/transaction" element={<WalletTransaction />} />
+            <Route path="/patients" element={<DoctorPatients />} />
+            <Route path="/all-patients" element={<DoctorAllPatients />} />
+            <Route path="/appointments" element={<DoctorAppointments />} />
+            <Route path="/all-consultations" element={<DoctorAllConsultations />} />
+            <Route path="/consultations" element={<DoctorConsultations />} />
+            <Route path="/profile" element={<DoctorProfile />} />
+            <Route path="/support" element={<DoctorSupport />} />
+            <Route path="/faq" element={<DoctorFAQ />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/medical-guidelines" element={<MedicalGuidelines />} />
+            <Route path="/hipaa-compliance" element={<HIPAACompliance />} />
+            <Route path="/data-protection" element={<DataProtection />} />
+            <Route path="*" element={<Navigate to="/doctor/dashboard" replace />} />
+          </Routes>
+        </div>
+      </main>
+      
+      {/* Desktop Footer - Only visible on desktop */}
+      {!isLoginPage && <DoctorFooter />}
+    </>
+  )
+}
+
+function PharmacyRoutes() {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/pharmacy/login'
+  
+  return (
+    <>
+      <PharmacyNavbar />
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
         <Routes>
-          <Route path="/" element={<Navigate to="/doctor/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/pharmacy/dashboard" replace />} />
           <Route path="/login" element={<DoctorLogin />} />
-          <Route path="/dashboard" element={<ProtectedRoute module="doctor"><DoctorDashboard /></ProtectedRoute>} />
-          <Route path="/wallet" element={<ProtectedRoute module="doctor"><DoctorWallet /></ProtectedRoute>} />
-          <Route path="/wallet/balance" element={<ProtectedRoute module="doctor"><WalletBalance /></ProtectedRoute>} />
-          <Route path="/wallet/earning" element={<ProtectedRoute module="doctor"><WalletEarning /></ProtectedRoute>} />
-          <Route path="/wallet/withdraw" element={<ProtectedRoute module="doctor"><WalletWithdraw /></ProtectedRoute>} />
-          <Route path="/wallet/transaction" element={<ProtectedRoute module="doctor"><WalletTransaction /></ProtectedRoute>} />
-          <Route path="/patients" element={<ProtectedRoute module="doctor"><DoctorPatients /></ProtectedRoute>} />
-          <Route path="/all-patients" element={<ProtectedRoute module="doctor"><DoctorAllPatients /></ProtectedRoute>} />
-          <Route path="/appointments" element={<ProtectedRoute module="doctor"><DoctorAppointments /></ProtectedRoute>} />
-          <Route path="/all-consultations" element={<ProtectedRoute module="doctor"><DoctorAllConsultations /></ProtectedRoute>} />
-          <Route path="/consultations" element={<ProtectedRoute module="doctor"><DoctorConsultations /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute module="doctor"><DoctorProfile /></ProtectedRoute>} />
-          <Route path="/support" element={<ProtectedRoute module="doctor"><DoctorSupport /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<PharmacyDashboard />} />
+          <Route path="/list" element={<PharmacyList />} />
+          <Route path="/orders" element={<PharmacyOrders />} />
+          <Route path="/request-orders" element={<PharmacyRequestOrders />} />
+          <Route path="/prescriptions" element={<PharmacyPrescriptions />} />
+          <Route path="/medicines" element={<PharmacyMedicines />} />
+          <Route path="/patients" element={<PharmacyPatients />} />
+          <Route path="/patient-statistics" element={<PharmacyPatientStatistics />} />
+          <Route path="/profile" element={<PharmacyProfile />} />
+          <Route path="/wallet" element={<PharmacyWallet />} />
+          <Route path="/wallet/balance" element={<PharmacyWalletBalance />} />
+          <Route path="/wallet/earning" element={<PharmacyWalletEarning />} />
+          <Route path="/wallet/withdraw" element={<PharmacyWalletWithdraw />} />
+          <Route path="/wallet/transaction" element={<PharmacyWalletTransaction />} />
+          <Route path="/support" element={<PharmacySupport />} />
+          <Route path="*" element={<Navigate to="/pharmacy/dashboard" replace />} />
         </Routes>
       </main>
     </>
   )
+}
+
+function LaboratoryRoutes() {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/laboratory/login'
+  
+  return (
+    <>
+      {/* Mobile Navbar - Only visible on mobile/tablet */}
+      {!isLoginPage && <LaboratoryNavbar />}
+      
+      {/* Desktop Header - Only visible on desktop */}
+      {!isLoginPage && <LaboratoryHeader />}
+      
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
+        <div className="max-w-7xl mx-auto w-full lg:flex-1">
+          <Routes>
+            <Route path="/" element={<Navigate to="/laboratory/dashboard" replace />} />
+            <Route path="/login" element={<DoctorLogin />} />
+            <Route path="/dashboard" element={<LaboratoryDashboard />} />
+            <Route path="/orders" element={<LaboratoryOrders />} />
+            <Route path="/requests" element={<LaboratoryRequests />} />
+            <Route path="/request-orders" element={<LaboratoryRequestOrders />} />
+            <Route path="/available-tests" element={<LaboratoryAvailableTests />} />
+            <Route path="/available-tests/add" element={<LaboratoryAddTest />} />
+            <Route path="/available-tests/edit/:testId" element={<LaboratoryAddTest />} />
+            <Route path="/reports" element={<LaboratoryReports />} />
+            <Route path="/test-reports" element={<LaboratoryTestReports />} />
+            <Route path="/test-reports/add/:orderId" element={<LaboratoryAddReport />} />
+            <Route path="/patients" element={<LaboratoryPatients />} />
+            <Route path="/patients/orders" element={<LaboratoryPatientOrders />} />
+            <Route path="/patient-statistics" element={<LaboratoryPatientStatistics />} />
+            <Route path="/patient-details" element={<LaboratoryPatientDetails />} />
+            <Route path="/profile" element={<LaboratoryProfile />} />
+            <Route path="/wallet" element={<LaboratoryWallet />} />
+            <Route path="/wallet/balance" element={<LaboratoryWalletBalance />} />
+            <Route path="/wallet/earning" element={<LaboratoryWalletEarning />} />
+            <Route path="/wallet/withdraw" element={<LaboratoryWalletWithdraw />} />
+            <Route path="/wallet/transaction" element={<LaboratoryWalletTransaction />} />
+            <Route path="/support" element={<LaboratorySupport />} />
+            <Route path="/privacy-policy" element={<LaboratoryPrivacyPolicy />} />
+            <Route path="/terms-of-service" element={<LaboratoryTermsOfService />} />
+            <Route path="/lab-guidelines" element={<LaboratoryLabGuidelines />} />
+            <Route path="/faq" element={<LaboratoryFAQ />} />
+            <Route path="/hipaa-compliance" element={<LaboratoryHIPAACompliance />} />
+            <Route path="/data-protection" element={<LaboratoryDataProtection />} />
+            <Route path="/lab-accreditation" element={<LaboratoryLabAccreditation />} />
+            <Route path="*" element={<Navigate to="/laboratory/dashboard" replace />} />
+          </Routes>
+        </div>
+      </main>
+      
+      {/* Desktop Footer - Only visible on desktop */}
+      {!isLoginPage && <LaboratoryFooter />}
+    </>
+  )
+}
+
+function DefaultRedirect() {
+  const patientToken = getAuthToken('patient')
+  const adminToken = getAuthToken('admin')
+  
+  // Patient and Admin require authentication
+  if (patientToken) {
+    return <Navigate to="/patient/dashboard" replace />
+  }
+  if (adminToken) {
+    return <Navigate to="/admin/dashboard" replace />
+  }
+  
+  // Doctor, Pharmacy, and Laboratory can be accessed without login
+  // Default to patient login for new users
+  return <Navigate to="/patient/login" replace />
 }
 
 function App() {
@@ -222,103 +363,19 @@ function App() {
             path="/pharmacy/*"
             element={
               <PharmacySidebarProvider>
-                <PharmacyNavbar />
-                <main className="px-4 pb-24 pt-20 sm:px-6">
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/pharmacy/dashboard" replace />} />
-                    <Route path="/login" element={<DoctorLogin />} />
-                    <Route path="/dashboard" element={<ProtectedRoute module="pharmacy"><PharmacyDashboard /></ProtectedRoute>} />
-                    <Route path="/list" element={<ProtectedRoute module="pharmacy"><PharmacyList /></ProtectedRoute>} />
-                    <Route path="/orders" element={<ProtectedRoute module="pharmacy"><PharmacyOrders /></ProtectedRoute>} />
-                    <Route path="/request-orders" element={<ProtectedRoute module="pharmacy"><PharmacyRequestOrders /></ProtectedRoute>} />
-                    <Route path="/prescriptions" element={<ProtectedRoute module="pharmacy"><PharmacyPrescriptions /></ProtectedRoute>} />
-                    <Route path="/medicines" element={<ProtectedRoute module="pharmacy"><PharmacyMedicines /></ProtectedRoute>} />
-                    <Route path="/patients" element={<ProtectedRoute module="pharmacy"><PharmacyPatients /></ProtectedRoute>} />
-                    <Route path="/patient-statistics" element={<ProtectedRoute module="pharmacy"><PharmacyPatientStatistics /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute module="pharmacy"><PharmacyProfile /></ProtectedRoute>} />
-                    <Route path="/wallet" element={<ProtectedRoute module="pharmacy"><PharmacyWallet /></ProtectedRoute>} />
-                    <Route path="/wallet/balance" element={<ProtectedRoute module="pharmacy"><PharmacyWalletBalance /></ProtectedRoute>} />
-                    <Route path="/wallet/earning" element={<ProtectedRoute module="pharmacy"><PharmacyWalletEarning /></ProtectedRoute>} />
-                    <Route path="/wallet/withdraw" element={<ProtectedRoute module="pharmacy"><PharmacyWalletWithdraw /></ProtectedRoute>} />
-                    <Route path="/wallet/transaction" element={<ProtectedRoute module="pharmacy"><PharmacyWalletTransaction /></ProtectedRoute>} />
-                    <Route path="/support" element={<ProtectedRoute module="pharmacy"><PharmacySupport /></ProtectedRoute>} />
-                  </Routes>
-                </main>
+                <PharmacyRoutes />
               </PharmacySidebarProvider>
             }
           />
 
           {/* Laboratory Routes */}
-          <Route
-            path="/laboratory/*"
-            element={
-              <>
-                <LaboratoryNavbar />
-                <main className="px-4 pb-24 pt-20 sm:px-6">
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/laboratory/dashboard" replace />} />
-                    <Route path="/login" element={<DoctorLogin />} />
-                    <Route path="/dashboard" element={<ProtectedRoute module="laboratory"><LaboratoryDashboard /></ProtectedRoute>} />
-                    <Route path="/orders" element={<ProtectedRoute module="laboratory"><LaboratoryOrders /></ProtectedRoute>} />
-                    <Route path="/requests" element={<ProtectedRoute module="laboratory"><LaboratoryRequests /></ProtectedRoute>} />
-                    <Route path="/request-orders" element={<ProtectedRoute module="laboratory"><LaboratoryRequestOrders /></ProtectedRoute>} />
-                    <Route path="/available-tests" element={<ProtectedRoute module="laboratory"><LaboratoryAvailableTests /></ProtectedRoute>} />
-                    <Route path="/available-tests/add" element={<ProtectedRoute module="laboratory"><LaboratoryAddTest /></ProtectedRoute>} />
-                    <Route path="/available-tests/edit/:testId" element={<ProtectedRoute module="laboratory"><LaboratoryAddTest /></ProtectedRoute>} />
-                    <Route path="/reports" element={<ProtectedRoute module="laboratory"><LaboratoryReports /></ProtectedRoute>} />
-                    <Route path="/test-reports" element={<ProtectedRoute module="laboratory"><LaboratoryTestReports /></ProtectedRoute>} />
-                    <Route path="/test-reports/add/:orderId" element={<ProtectedRoute module="laboratory"><LaboratoryAddReport /></ProtectedRoute>} />
-                    <Route path="/patients" element={<ProtectedRoute module="laboratory"><LaboratoryPatients /></ProtectedRoute>} />
-                    <Route path="/patients/orders" element={<ProtectedRoute module="laboratory"><LaboratoryPatientOrders /></ProtectedRoute>} />
-                    <Route path="/patient-statistics" element={<ProtectedRoute module="laboratory"><LaboratoryPatientStatistics /></ProtectedRoute>} />
-                    <Route path="/patient-details" element={<ProtectedRoute module="laboratory"><LaboratoryPatientDetails /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute module="laboratory"><LaboratoryProfile /></ProtectedRoute>} />
-                    <Route path="/wallet" element={<ProtectedRoute module="laboratory"><LaboratoryWallet /></ProtectedRoute>} />
-                    <Route path="/wallet/balance" element={<ProtectedRoute module="laboratory"><LaboratoryWalletBalance /></ProtectedRoute>} />
-                    <Route path="/wallet/earning" element={<ProtectedRoute module="laboratory"><LaboratoryWalletEarning /></ProtectedRoute>} />
-                    <Route path="/wallet/withdraw" element={<ProtectedRoute module="laboratory"><LaboratoryWalletWithdraw /></ProtectedRoute>} />
-                    <Route path="/wallet/transaction" element={<ProtectedRoute module="laboratory"><LaboratoryWalletTransaction /></ProtectedRoute>} />
-                    <Route path="/support" element={<ProtectedRoute module="laboratory"><LaboratorySupport /></ProtectedRoute>} />
-                    
-                  </Routes>
-                </main>
-              </>
-            }
-          />
+          <Route path="/laboratory/*" element={<LaboratoryRoutes />} />
 
           {/* Admin Routes */}
-          <Route
-            path="/admin/*"
-            element={
-              <>
-                <AdminNavbar />
-                <main className="px-4 pb-24 pt-28 sm:px-6 lg:ml-64 transition-all duration-300">
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
-                    <Route path="/login" element={<AdminLogin />} />
-                    <Route path="/dashboard" element={<AdminDashboard />} />
-                    <Route path="/users" element={<AdminUsers />} />
-                    <Route path="/doctors" element={<AdminDoctors />} />
-                    <Route path="/pharmacies" element={<AdminPharmacies />} />
-                    <Route path="/pharmacy-medicines" element={<AdminPharmacyMedicines />} />
-                    <Route path="/inventory" element={<AdminInventory />} />
-                    <Route path="/laboratories" element={<AdminLaboratories />} />
-                    <Route path="/wallet" element={<AdminWallet />} />
-                    <Route path="/revenue" element={<AdminRevenue />} />
-                    <Route path="/verification" element={<AdminVerification />} />
-                    <Route path="/appointments" element={<AdminAppointments />} />
-                    <Route path="/orders" element={<AdminOrders />} />
-                    <Route path="/request" element={<AdminRequests />} />
-                    <Route path="/profile" element={<AdminProfile />} />
-                    <Route path="/support" element={<AdminSupport />} />
-                  </Routes>
-                </main>
-              </>
-            }
-          />
+          <Route path="/admin/*" element={<AdminRoutes />} />
 
-          {/* Default redirect */}
-          <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />
+          {/* Default redirect - check authentication */}
+          <Route path="/" element={<DefaultRedirect />} />
         </Routes>
       </div>
     </Router>

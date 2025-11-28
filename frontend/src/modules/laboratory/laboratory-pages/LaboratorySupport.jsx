@@ -44,16 +44,16 @@ const LaboratorySupport = () => {
   const isFormValid = formData.name && formData.labName && formData.email && formData.contactNumber && formData.note
 
   return (
-    <div className="mx-auto max-w-2xl py-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Support Request</h1>
-          <p className="mt-2 text-sm text-slate-600">Fill out the form below and we'll get back to you soon.</p>
+    <div className="mx-auto max-w-2xl py-6 lg:max-w-xl lg:py-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:rounded-xl lg:p-4">
+        <div className="mb-6 lg:mb-4">
+          <h1 className="text-2xl font-bold text-slate-900 lg:text-xl">Support Request</h1>
+          <p className="mt-2 text-sm text-slate-600 lg:mt-1.5 lg:text-xs">Fill out the form below and we'll get back to you soon.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5 lg:space-y-3.5">
           <div>
-            <label htmlFor="name" className="mb-2 block text-sm font-semibold text-slate-700">
+            <label htmlFor="name" className="mb-2 block text-sm font-semibold text-slate-700 lg:mb-1.5 lg:text-xs">
               Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -63,13 +63,13 @@ const LaboratorySupport = () => {
               value={formData.name}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 lg:px-3 lg:py-2 lg:text-xs"
               placeholder="Enter your full name"
             />
           </div>
 
           <div>
-            <label htmlFor="labName" className="mb-2 block text-sm font-semibold text-slate-700">
+            <label htmlFor="labName" className="mb-2 block text-sm font-semibold text-slate-700 lg:mb-1.5 lg:text-xs">
               Laboratory Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -79,13 +79,13 @@ const LaboratorySupport = () => {
               value={formData.labName}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 lg:px-3 lg:py-2 lg:text-xs"
               placeholder="Enter your laboratory name"
             />
           </div>
 
           <div>
-            <label htmlFor="email" className="mb-2 block text-sm font-semibold text-slate-700">
+            <label htmlFor="email" className="mb-2 block text-sm font-semibold text-slate-700 lg:mb-1.5 lg:text-xs">
               Email <span className="text-red-500">*</span>
             </label>
             <input
@@ -95,13 +95,13 @@ const LaboratorySupport = () => {
               value={formData.email}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 lg:px-3 lg:py-2 lg:text-xs"
               placeholder="Enter your email address"
             />
           </div>
 
           <div>
-            <label htmlFor="contactNumber" className="mb-2 block text-sm font-semibold text-slate-700">
+            <label htmlFor="contactNumber" className="mb-2 block text-sm font-semibold text-slate-700 lg:mb-1.5 lg:text-xs">
               Contact Number <span className="text-red-500">*</span>
             </label>
             <input
@@ -111,13 +111,13 @@ const LaboratorySupport = () => {
               value={formData.contactNumber}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 lg:px-3 lg:py-2 lg:text-xs"
               placeholder="Enter your contact number"
             />
           </div>
 
           <div>
-            <label htmlFor="note" className="mb-2 block text-sm font-semibold text-slate-700">
+            <label htmlFor="note" className="mb-2 block text-sm font-semibold text-slate-700 lg:mb-1.5 lg:text-xs">
               Note/Message <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -127,7 +127,7 @@ const LaboratorySupport = () => {
               onChange={handleChange}
               required
               rows={5}
-              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 lg:px-3 lg:py-2 lg:text-xs lg:rows-4"
               placeholder="Describe your issue or question..."
             />
           </div>
@@ -135,7 +135,7 @@ const LaboratorySupport = () => {
           <button
             type="submit"
             disabled={!isFormValid || isSubmitting}
-            className="w-full rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50 lg:px-3 lg:py-2 lg:text-xs"
           >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">

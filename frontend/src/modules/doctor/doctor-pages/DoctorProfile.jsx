@@ -260,9 +260,161 @@ const DoctorProfile = () => {
   return (
     <>
       <DoctorNavbar />
-      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
-            {/* Profile Header */}
-            <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#11496c] via-[#0d3a52] to-[#11496c] p-6 sm:p-8 shadow-lg">
+      <section className={`flex flex-col gap-4 pb-24 lg:pb-8 ${isDashboardPage ? '-mt-20' : ''} lg:mt-0`}>
+        {/* Desktop Layout: Two Column Grid */}
+        <div className="lg:grid lg:grid-cols-3 lg:gap-4 lg:max-w-5xl lg:mx-auto lg:px-4">
+          {/* Left Column - Profile Header Card (Desktop) */}
+          <div className="lg:col-span-1">
+            {/* Profile Header - Desktop Enhanced */}
+            <div className="hidden lg:block relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#11496c] via-[#0d3a52] to-[#11496c] p-5 shadow-xl">
+              {/* Background Pattern */}
+              <div className="absolute inset-0 opacity-10" style={{
+                backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)',
+                backgroundSize: '20px 20px'
+              }} />
+
+              <div className="relative flex flex-col items-center gap-4">
+                {/* Profile Picture */}
+                <div className="relative">
+                  <div className="relative h-24 w-24">
+                    <img
+                      src={formData.profileImage}
+                      alt={`${formData.firstName} ${formData.lastName}`}
+                      className="h-full w-full rounded-full object-cover ring-4 ring-white/50 shadow-2xl bg-slate-100"
+                      onError={(e) => {
+                        e.target.onerror = null
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=ffffff&color=11496c&size=128&bold=true`
+                      }}
+                    />
+                    {isEditing && (
+                      <button
+                        type="button"
+                        className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#11496c] shadow-xl transition hover:bg-slate-50 hover:scale-110"
+                      >
+                        <IoCameraOutline className="h-5 w-5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Name */}
+                <div className="text-center">
+                  <h1 className="text-xl font-bold text-white mb-1.5">
+                    {formData.firstName} {formData.lastName}
+                  </h1>
+                  <p className="text-sm text-white/90 mb-3">
+                    {formData.email}
+                  </p>
+                  
+                  {/* Specialization & Rating */}
+                  <div className="flex flex-col items-center gap-2 mb-3">
+                    {formData.specialization && (
+                      <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-white border border-white/30">
+                        <IoMedicalOutline className="h-3.5 w-3.5" />
+                        {formData.specialization}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      {formData.gender && (
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-white/20 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-white border border-white/30">
+                          <IoPersonOutline className="h-3 w-3" />
+                          {formData.gender.charAt(0).toUpperCase() + formData.gender.slice(1)}
+                        </span>
+                      )}
+                      {formData.rating > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-white/20 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-white border border-white/30">
+                          <IoStarOutline className="h-3 w-3" />
+                          {formData.rating}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active Status */}
+                <div className="w-full">
+                  <button
+                    type="button"
+                    onClick={handleToggleActive}
+                    className={`w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
+                      formData.isActive
+                        ? 'bg-emerald-500/90 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500 shadow-lg'
+                        : 'bg-slate-500/90 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500 shadow-lg'
+                    }`}
+                  >
+                    {formData.isActive ? (
+                      <>
+                        <IoCheckmarkCircleOutline className="h-5 w-5" />
+                        <span>Active</span>
+                      </>
+                    ) : (
+                      <>
+                        <IoPowerOutline className="h-5 w-5" />
+                        <span>Inactive</span>
+                      </>
+                    )}
+                  </button>
+                  <p className="text-xs text-white/70 text-center mt-2">
+                    {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="w-full flex flex-col gap-2 mt-1">
+                  {isEditing ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleSave}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 hover:scale-105 shadow-lg"
+                      >
+                        <IoCheckmarkCircleOutline className="h-4 w-4" />
+                        Save Changes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancel}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 hover:scale-105"
+                      >
+                        <IoCloseOutline className="h-4 w-4" />
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true)
+                          setActiveSection('personal')
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95"
+                      >
+                        <IoCreateOutline className="h-3.5 w-3.5" />
+                        Edit Profile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to sign out?')) {
+                            localStorage.removeItem('doctorAuthToken')
+                            sessionStorage.removeItem('doctorAuthToken')
+                            window.location.href = '/doctor/login'
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/10 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 active:scale-95"
+                      >
+                        <IoLogOutOutline className="h-3.5 w-3.5" />
+                        Sign Out
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Profile Header - Mobile (Unchanged) */}
+            <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#11496c] via-[#0d3a52] to-[#11496c] p-6 sm:p-8 shadow-lg lg:hidden">
               {/* Background Pattern */}
               <div className="absolute inset-0 opacity-10" style={{
                 backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)',
@@ -398,15 +550,19 @@ const DoctorProfile = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Right Column - Information Sections (Desktop) */}
+          <div className="lg:col-span-2 lg:space-y-4">
 
             {/* Doctor Personal Information */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'personal' ? null : 'personal')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base font-bold text-slate-900">Doctor Personal Information</h2>
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Doctor Personal Information</h2>
                 {(activeSection === 'personal' || isEditing) ? (
                   <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
@@ -515,13 +671,13 @@ const DoctorProfile = () => {
             </div>
 
             {/* Professional Details */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'professional' ? null : 'professional')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base font-bold text-slate-900">Professional Details</h2>
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Professional Details</h2>
                 {(activeSection === 'professional' || isEditing) ? (
                   <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
@@ -816,13 +972,13 @@ const DoctorProfile = () => {
             </div>
 
             {/* Clinic Information */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'clinic' ? null : 'clinic')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base font-bold text-slate-900">Clinic Information</h2>
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Clinic Information</h2>
                 {(activeSection === 'clinic' || isEditing) ? (
                   <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
@@ -913,13 +1069,13 @@ const DoctorProfile = () => {
             </div>
 
             {/* Sessions & Timings */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'timings' ? null : 'timings')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base font-bold text-slate-900">Sessions & Timings</h2>
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Sessions & Timings</h2>
                 {(activeSection === 'timings' || isEditing) ? (
                   <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
@@ -1111,13 +1267,13 @@ const DoctorProfile = () => {
             </div>
 
             {/* KYC & Verification */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'kyc' ? null : 'kyc')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base font-bold text-slate-900">KYC & Verification</h2>
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">KYC & Verification</h2>
                 {activeSection === 'kyc' ? (
                   <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
@@ -1191,13 +1347,13 @@ const DoctorProfile = () => {
             </div>
 
             {/* Digital Signature */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'signature' ? null : 'signature')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base font-bold text-slate-900">Digital Signature</h2>
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Digital Signature</h2>
                 {(activeSection === 'signature' || isEditing) ? (
                   <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
@@ -1343,13 +1499,13 @@ const DoctorProfile = () => {
 
 
             {/* Support History */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
+            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'support' ? null : 'support')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base font-bold text-slate-900">Support History</h2>
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Support History</h2>
                 {activeSection === 'support' ? (
                   <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
@@ -1363,6 +1519,8 @@ const DoctorProfile = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
       </section>
     </>
   )

@@ -16,7 +16,31 @@ const LaboratoryAvailableTests = () => {
 
   // Load tests from localStorage and sync to admin inventory
   useEffect(() => {
-    const savedTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
+    let savedTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
+    
+    // Add default mock data if no tests exist
+    if (savedTests.length === 0) {
+      savedTests = [
+        { id: '1', name: 'Complete Blood Count (CBC)', price: '350' },
+        { id: '2', name: 'Lipid Profile', price: '600' },
+        { id: '3', name: 'Liver Function Test (LFT)', price: '800' },
+        { id: '4', name: 'Kidney Function Test (KFT)', price: '750' },
+        { id: '5', name: 'Thyroid Function Test', price: '900' },
+        { id: '6', name: 'Blood Sugar (Fasting)', price: '200' },
+        { id: '7', name: 'HbA1c Test', price: '500' },
+        { id: '8', name: 'Vitamin D Test', price: '1200' },
+        { id: '9', name: 'Vitamin B12 Test', price: '800' },
+        { id: '10', name: 'Iron Studies', price: '600' },
+        { id: '11', name: 'Serum Creatinine', price: '300' },
+        { id: '12', name: 'Urine Analysis', price: '250' },
+        { id: '13', name: 'ECG (Electrocardiogram)', price: '400' },
+        { id: '14', name: 'Chest X-Ray', price: '500' },
+        { id: '15', name: 'Ultrasound Abdomen', price: '800' },
+        { id: '16', name: 'CT Scan Head', price: '3000' },
+      ]
+      localStorage.setItem('laboratoryAvailableTests', JSON.stringify(savedTests))
+    }
+    
     setTests(savedTests)
     
     // Sync tests to admin inventory on load
@@ -167,25 +191,25 @@ const LaboratoryAvailableTests = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="group relative overflow-hidden rounded-lg border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-emerald-100/60 p-2 text-center shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-emerald-200/40 hover:scale-[1.01] hover:border-emerald-300/80">
-          <div className="absolute -right-2 -top-2 h-8 w-8 rounded-full bg-emerald-200/40 blur-lg transition-opacity group-hover:opacity-100 opacity-70" />
-          <IoFlaskOutline className="relative mx-auto h-4 w-4 text-emerald-600 mb-0.5" />
-          <p className="relative text-base font-bold text-emerald-600">{statistics.totalTests}</p>
-          <p className="relative text-[10px] font-semibold text-emerald-700">Tests</p>
+      <div className="grid grid-cols-2 gap-2 lg:gap-4">
+        <div className="group relative overflow-hidden rounded-lg border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-emerald-100/60 p-2 text-center shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-emerald-200/40 hover:scale-[1.01] hover:border-emerald-300/80 lg:p-6 lg:rounded-xl lg:hover:scale-[1.02] lg:hover:shadow-lg lg:hover:shadow-emerald-200/50">
+          <div className="absolute -right-2 -top-2 h-8 w-8 rounded-full bg-emerald-200/40 blur-lg transition-opacity group-hover:opacity-100 opacity-70 lg:-right-4 lg:-top-4 lg:h-16 lg:w-16" />
+          <IoFlaskOutline className="relative mx-auto h-4 w-4 text-emerald-600 mb-0.5 lg:h-8 lg:w-8 lg:mb-2" />
+          <p className="relative text-base font-bold text-emerald-600 lg:text-4xl lg:mb-1">{statistics.totalTests}</p>
+          <p className="relative text-[10px] font-semibold text-emerald-700 lg:text-sm">Tests</p>
         </div>
-        <div className="group relative overflow-hidden rounded-lg border border-blue-200/60 bg-gradient-to-br from-blue-50 via-blue-50/80 to-blue-100/60 p-2 text-center shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-blue-200/40 hover:scale-[1.01] hover:border-blue-300/80">
-          <div className="absolute -right-2 -top-2 h-8 w-8 rounded-full bg-blue-200/40 blur-lg transition-opacity group-hover:opacity-100 opacity-70" />
-          <IoBagHandleOutline className="relative mx-auto h-4 w-4 text-blue-600 mb-0.5" />
-          <p className="relative text-base font-bold text-blue-600">{formatCurrency(statistics.totalValue)}</p>
-          <p className="relative text-[10px] font-semibold text-blue-700">Total Value</p>
+        <div className="group relative overflow-hidden rounded-lg border border-blue-200/60 bg-gradient-to-br from-blue-50 via-blue-50/80 to-blue-100/60 p-2 text-center shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-blue-200/40 hover:scale-[1.01] hover:border-blue-300/80 lg:p-6 lg:rounded-xl lg:hover:scale-[1.02] lg:hover:shadow-lg lg:hover:shadow-blue-200/50">
+          <div className="absolute -right-2 -top-2 h-8 w-8 rounded-full bg-blue-200/40 blur-lg transition-opacity group-hover:opacity-100 opacity-70 lg:-right-4 lg:-top-4 lg:h-16 lg:w-16" />
+          <IoBagHandleOutline className="relative mx-auto h-4 w-4 text-blue-600 mb-0.5 lg:h-8 lg:w-8 lg:mb-2" />
+          <p className="relative text-base font-bold text-blue-600 lg:text-3xl lg:mb-1">{formatCurrency(statistics.totalValue)}</p>
+          <p className="relative text-[10px] font-semibold text-blue-700 lg:text-sm">Total Value</p>
         </div>
       </div>
 
       {/* Tests List */}
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
         {filteredTests.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center lg:col-span-4">
             <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-400" />
             <p className="mt-4 text-sm font-medium text-slate-600">
               {searchTerm ? 'No tests found' : 'No tests added yet'}
@@ -199,38 +223,44 @@ const LaboratoryAvailableTests = () => {
             return (
               <article
                 key={test.id}
-                className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
+                className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md hover:border-slate-300 lg:shadow-md lg:hover:shadow-xl lg:hover:scale-[1.02] lg:hover:border-[#11496c]/30 lg:transition-all lg:duration-300 lg:cursor-pointer lg:flex lg:flex-col"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#11496c] to-[#0d3a52] text-white">
-                        <IoFlaskOutline className="h-5 w-5" />
+                <div className="flex items-start justify-between gap-3 lg:flex-col lg:gap-3 lg:flex-1">
+                  <div className="flex-1 min-w-0 lg:w-full">
+                    <div className="flex items-start gap-2 lg:flex-col lg:items-center lg:text-center lg:gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#11496c] to-[#0d3a52] text-white lg:h-16 lg:w-16 lg:rounded-xl lg:transition-transform lg:duration-300 lg:group-hover:scale-110">
+                        <IoFlaskOutline className="h-5 w-5 lg:h-8 lg:w-8" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-slate-900 truncate">{test.name}</h3>
-                        <div className="mt-1.5 flex items-center gap-3 text-xs">
-                          <span className="font-semibold text-emerald-600">
+                      <div className="flex-1 min-w-0 lg:w-full">
+                        <h3 className="text-sm font-bold text-slate-900 truncate lg:text-base lg:mb-2">{test.name}</h3>
+                        <div className="mt-1.5 flex items-center gap-3 text-xs lg:justify-center lg:mt-0">
+                          <span className="font-semibold text-emerald-600 lg:text-lg">
                             {formatCurrency(parseFloat(test.price) || 0)}
                           </span>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 lg:mt-auto lg:pt-3 lg:border-t lg:border-slate-200 lg:w-full lg:justify-center">
                     <button
-                      onClick={() => handleEditTest(test)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-all hover:border-[#11496c] hover:bg-[#11496c] hover:text-white active:scale-95"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditTest(test)
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-all hover:border-[#11496c] hover:bg-[#11496c] hover:text-white active:scale-95 lg:h-9 lg:w-9 lg:hover:shadow-md"
                       aria-label="Edit test"
                     >
-                      <IoPencilOutline className="h-4 w-4" />
+                      <IoPencilOutline className="h-4 w-4 lg:h-4 lg:w-4" />
                     </button>
                     <button
-                      onClick={() => handleDeleteTest(test.id)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition-all hover:border-red-500 hover:bg-red-500 hover:text-white active:scale-95"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteTest(test.id)
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition-all hover:border-red-500 hover:bg-red-500 hover:text-white active:scale-95 lg:h-9 lg:w-9 lg:hover:shadow-md"
                       aria-label="Delete test"
                     >
-                      <IoTrashOutline className="h-4 w-4" />
+                      <IoTrashOutline className="h-4 w-4 lg:h-4 lg:w-4" />
                     </button>
                   </div>
                 </div>

@@ -120,6 +120,521 @@ const mockTestRequests = [
     orderId: null,
     collectionType: 'lab', // 'home' or 'lab'
   },
+  {
+    id: 'req-3',
+    requestId: 'test-3023',
+    patientId: 'pat-3',
+    patient: {
+      name: 'Mike Johnson',
+      age: 38,
+      gender: 'male',
+      phone: '+1-555-345-6789',
+      email: 'mike.johnson@example.com',
+      address: {
+        line1: '789 Pine Street',
+        line2: 'Suite 5A',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10003',
+      },
+      image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
+    },
+    status: 'pending',
+    requestDate: '2025-01-13T11:00:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. Robert Chen',
+        qualification: 'MBBS, MD (Internal Medicine)',
+        licenseNumber: 'MD-67890',
+        clinicName: 'City Medical Center',
+        clinicAddress: '789 Health Boulevard, New York, NY 10003',
+        phone: '+1-555-345-6789',
+        email: 'robert.chen@example.com',
+        specialization: 'Internal Medicine',
+      },
+      diagnosis: 'Diabetes management and monitoring',
+      investigations: [
+        { name: 'HbA1c', notes: 'To monitor long-term glucose control' },
+        { name: 'Fasting Blood Sugar', notes: 'To check current glucose levels' },
+      ],
+      medications: [
+        { name: 'Metformin 500mg', dosage: '500mg', frequency: 'Twice daily', duration: '90 days', instructions: 'Take with meals' },
+      ],
+      advice: 'Monitor blood sugar levels regularly. Follow diabetic diet plan.',
+      followUpDate: '2025-02-13',
+    },
+    bill: null,
+    orderId: null,
+    collectionType: 'home',
+  },
+  {
+    id: 'req-4',
+    requestId: 'test-3024',
+    patientId: 'pat-4',
+    patient: {
+      name: 'Emily Brown',
+      age: 28,
+      gender: 'female',
+      phone: '+1-555-456-7890',
+      email: 'emily.brown@example.com',
+      address: {
+        line1: '321 Elm Avenue',
+        line2: '',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10004',
+      },
+      image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
+    },
+    status: 'accepted',
+    requestDate: '2025-01-12T08:30:00.000Z',
+    acceptedDate: '2025-01-12T10:00:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. Lisa Anderson',
+        qualification: 'MBBS, MD (Gynecology)',
+        licenseNumber: 'MD-11111',
+        clinicName: 'Women\'s Health Clinic',
+        clinicAddress: '321 Medical Plaza, New York, NY 10004',
+        phone: '+1-555-456-7890',
+        email: 'lisa.anderson@example.com',
+        specialization: 'Gynecologist',
+      },
+      diagnosis: 'Annual wellness checkup',
+      investigations: [
+        { name: 'Pap Smear', notes: 'Cervical cancer screening' },
+        { name: 'Complete Blood Count', notes: 'General health assessment' },
+      ],
+      medications: [],
+      advice: 'Continue regular checkups. Maintain healthy lifestyle.',
+      followUpDate: '2025-07-12',
+    },
+    bill: null,
+    orderId: null,
+    collectionType: 'lab',
+  },
+  {
+    id: 'req-5',
+    requestId: 'test-3025',
+    patientId: 'pat-5',
+    patient: {
+      name: 'David Wilson',
+      age: 52,
+      gender: 'male',
+      phone: '+1-555-567-8901',
+      email: 'david.wilson@example.com',
+      address: {
+        line1: '654 Maple Drive',
+        line2: 'Apt 12B',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10005',
+      },
+      image: 'https://ui-avatars.com/api/?name=David+Wilson&background=8b5cf6&color=fff&size=160',
+    },
+    status: 'bill_generated',
+    requestDate: '2025-01-11T14:00:00.000Z',
+    acceptedDate: '2025-01-11T15:00:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. James Martinez',
+        qualification: 'MBBS, MD (Cardiology)',
+        licenseNumber: 'MD-22222',
+        clinicName: 'Cardiac Care Center',
+        clinicAddress: '654 Heart Street, New York, NY 10005',
+        phone: '+1-555-567-8901',
+        email: 'james.martinez@example.com',
+        specialization: 'Cardiologist',
+      },
+      diagnosis: 'Cardiac health assessment',
+      investigations: [
+        { name: 'Lipid Profile', notes: 'To assess cardiovascular risk' },
+        { name: 'ECG', notes: 'Heart rhythm analysis' },
+        { name: 'Echocardiogram', notes: 'Heart structure evaluation' },
+      ],
+      medications: [
+        { name: 'Atorvastatin 20mg', dosage: '20mg', frequency: 'Once daily', duration: '30 days', instructions: 'Take at bedtime' },
+      ],
+      advice: 'Reduce salt intake. Exercise regularly. Monitor blood pressure.',
+      followUpDate: '2025-02-11',
+    },
+    bill: {
+      id: 'bill-req-5',
+      requestId: 'test-3025',
+      testsAmount: 2500.0,
+      deliveryCharge: 50.0,
+      additionalCharges: 0,
+      totalAmount: 2550.0,
+      items: [
+        { name: 'Lipid Profile', price: 600.0 },
+        { name: 'ECG', price: 800.0 },
+        { name: 'Echocardiogram', price: 1100.0 },
+      ],
+      generatedDate: '2025-01-11T16:00:00.000Z',
+    },
+    orderId: null,
+    collectionType: 'home',
+  },
+  {
+    id: 'req-6',
+    requestId: 'test-3026',
+    patientId: 'pat-6',
+    patient: {
+      name: 'Jennifer Lee',
+      age: 35,
+      gender: 'female',
+      phone: '+1-555-678-9012',
+      email: 'jennifer.lee@example.com',
+      address: {
+        line1: '987 Cedar Lane',
+        line2: '',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10006',
+      },
+      image: 'https://ui-avatars.com/api/?name=Jennifer+Lee&background=ef4444&color=fff&size=160',
+    },
+    status: 'paid',
+    requestDate: '2025-01-10T09:15:00.000Z',
+    acceptedDate: '2025-01-10T10:00:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. Michael Taylor',
+        qualification: 'MBBS, MD (Endocrinology)',
+        licenseNumber: 'MD-33333',
+        clinicName: 'Endocrine Specialists',
+        clinicAddress: '987 Hormone Avenue, New York, NY 10006',
+        phone: '+1-555-678-9012',
+        email: 'michael.taylor@example.com',
+        specialization: 'Endocrinologist',
+      },
+      diagnosis: 'Thyroid function evaluation',
+      investigations: [
+        { name: 'TSH', notes: 'Thyroid stimulating hormone' },
+        { name: 'T3', notes: 'Triiodothyronine' },
+        { name: 'T4', notes: 'Thyroxine' },
+      ],
+      medications: [
+        { name: 'Levothyroxine 50mcg', dosage: '50mcg', frequency: 'Once daily', duration: '60 days', instructions: 'Take on empty stomach' },
+      ],
+      advice: 'Take medication as prescribed. Follow-up in 6 weeks.',
+      followUpDate: '2025-02-24',
+    },
+    bill: {
+      id: 'bill-req-6',
+      requestId: 'test-3026',
+      testsAmount: 1200.0,
+      deliveryCharge: 0,
+      additionalCharges: 0,
+      totalAmount: 1200.0,
+      items: [
+        { name: 'TSH', price: 400.0 },
+        { name: 'T3', price: 400.0 },
+        { name: 'T4', price: 400.0 },
+      ],
+      generatedDate: '2025-01-10T11:00:00.000Z',
+    },
+    orderId: 'order-3026',
+    collectionType: 'lab',
+  },
+  {
+    id: 'req-7',
+    requestId: 'test-3027',
+    patientId: 'pat-7',
+    patient: {
+      name: 'Robert Garcia',
+      age: 41,
+      gender: 'male',
+      phone: '+1-555-789-0123',
+      email: 'robert.garcia@example.com',
+      address: {
+        line1: '147 Birch Street',
+        line2: 'Unit 8',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10007',
+      },
+      image: 'https://ui-avatars.com/api/?name=Robert+Garcia&background=06b6d4&color=fff&size=160',
+    },
+    status: 'pending',
+    requestDate: '2025-01-09T13:20:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. Amanda White',
+        qualification: 'MBBS, MD (Dermatology)',
+        licenseNumber: 'MD-44444',
+        clinicName: 'Skin Care Clinic',
+        clinicAddress: '147 Beauty Boulevard, New York, NY 10007',
+        phone: '+1-555-789-0123',
+        email: 'amanda.white@example.com',
+        specialization: 'Dermatologist',
+      },
+      diagnosis: 'Skin condition evaluation',
+      investigations: [
+        { name: 'Complete Blood Count', notes: 'To rule out infections' },
+        { name: 'Allergy Panel', notes: 'To identify allergens' },
+      ],
+      medications: [
+        { name: 'Cetirizine 10mg', dosage: '10mg', frequency: 'Once daily', duration: '14 days', instructions: 'Take at night' },
+      ],
+      advice: 'Avoid known allergens. Use gentle skincare products.',
+      followUpDate: '2025-01-23',
+    },
+    bill: null,
+    orderId: null,
+    collectionType: 'home',
+  },
+  {
+    id: 'req-8',
+    requestId: 'test-3028',
+    patientId: 'pat-8',
+    patient: {
+      name: 'Maria Rodriguez',
+      age: 29,
+      gender: 'female',
+      phone: '+1-555-890-1234',
+      email: 'maria.rodriguez@example.com',
+      address: {
+        line1: '258 Spruce Avenue',
+        line2: '',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10008',
+      },
+      image: 'https://ui-avatars.com/api/?name=Maria+Rodriguez&background=14b8a6&color=fff&size=160',
+    },
+    status: 'accepted',
+    requestDate: '2025-01-08T10:45:00.000Z',
+    acceptedDate: '2025-01-08T12:00:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. Christopher Kim',
+        qualification: 'MBBS, MD (Pediatrics)',
+        licenseNumber: 'MD-55555',
+        clinicName: 'Children\'s Health Center',
+        clinicAddress: '258 Kids Street, New York, NY 10008',
+        phone: '+1-555-890-1234',
+        email: 'christopher.kim@example.com',
+        specialization: 'Pediatrician',
+      },
+      diagnosis: 'Routine pediatric checkup',
+      investigations: [
+        { name: 'Complete Blood Count', notes: 'General health screening' },
+        { name: 'Vitamin D', notes: 'To check vitamin levels' },
+      ],
+      medications: [],
+      advice: 'Ensure proper nutrition. Regular exercise and outdoor activities.',
+      followUpDate: null,
+    },
+    bill: null,
+    orderId: null,
+    collectionType: 'lab',
+  },
+  {
+    id: 'req-9',
+    requestId: 'test-3029',
+    patientId: 'pat-9',
+    patient: {
+      name: 'Thomas Anderson',
+      age: 47,
+      gender: 'male',
+      phone: '+1-555-901-2345',
+      email: 'thomas.anderson@example.com',
+      address: {
+        line1: '369 Willow Way',
+        line2: 'Apt 3C',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10009',
+      },
+      image: 'https://ui-avatars.com/api/?name=Thomas+Anderson&background=6366f1&color=fff&size=160',
+    },
+    status: 'pending',
+    requestDate: '2025-01-07T15:30:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. Patricia Moore',
+        qualification: 'MBBS, MD (Orthopedics)',
+        licenseNumber: 'MD-66666',
+        clinicName: 'Bone & Joint Clinic',
+        clinicAddress: '369 Orthopedic Drive, New York, NY 10009',
+        phone: '+1-555-901-2345',
+        email: 'patricia.moore@example.com',
+        specialization: 'Orthopedic Surgeon',
+      },
+      diagnosis: 'Joint pain evaluation',
+      investigations: [
+        { name: 'Rheumatoid Factor', notes: 'To check for arthritis' },
+        { name: 'ESR', notes: 'Erythrocyte sedimentation rate' },
+        { name: 'CRP', notes: 'C-reactive protein' },
+      ],
+      medications: [
+        { name: 'Ibuprofen 400mg', dosage: '400mg', frequency: 'Three times daily', duration: '7 days', instructions: 'Take with food' },
+      ],
+      advice: 'Rest the affected joint. Apply ice packs. Avoid strenuous activities.',
+      followUpDate: '2025-01-21',
+    },
+    bill: null,
+    orderId: null,
+    collectionType: 'home',
+  },
+  {
+    id: 'req-10',
+    requestId: 'test-3030',
+    patientId: 'pat-10',
+    patient: {
+      name: 'Priya Patel',
+      age: 31,
+      gender: 'female',
+      phone: '+1-555-012-3456',
+      email: 'priya.patel@example.com',
+      address: {
+        line1: '741 Ash Boulevard',
+        line2: '',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10010',
+      },
+      image: 'https://ui-avatars.com/api/?name=Priya+Patel&background=a855f7&color=fff&size=160',
+    },
+    status: 'bill_generated',
+    requestDate: '2025-01-06T08:00:00.000Z',
+    acceptedDate: '2025-01-06T09:00:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. Daniel Brown',
+        qualification: 'MBBS, MD (Gastroenterology)',
+        licenseNumber: 'MD-77777',
+        clinicName: 'Digestive Health Center',
+        clinicAddress: '741 Stomach Street, New York, NY 10010',
+        phone: '+1-555-012-3456',
+        email: 'daniel.brown@example.com',
+        specialization: 'Gastroenterologist',
+      },
+      diagnosis: 'Digestive health assessment',
+      investigations: [
+        { name: 'Liver Function Test', notes: 'To assess liver health' },
+        { name: 'Kidney Function Test', notes: 'To check kidney function' },
+        { name: 'Stool Test', notes: 'To check for infections' },
+      ],
+      medications: [
+        { name: 'Omeprazole 20mg', dosage: '20mg', frequency: 'Once daily', duration: '30 days', instructions: 'Take before breakfast' },
+      ],
+      advice: 'Follow a bland diet. Avoid spicy and fatty foods. Stay hydrated.',
+      followUpDate: '2025-02-06',
+    },
+    bill: {
+      id: 'bill-req-10',
+      requestId: 'test-3030',
+      testsAmount: 1800.0,
+      deliveryCharge: 50.0,
+      additionalCharges: 0,
+      totalAmount: 1850.0,
+      items: [
+        { name: 'Liver Function Test', price: 800.0 },
+        { name: 'Kidney Function Test', price: 750.0 },
+        { name: 'Stool Test', price: 250.0 },
+      ],
+      generatedDate: '2025-01-06T10:00:00.000Z',
+    },
+    orderId: null,
+    collectionType: 'home',
+  },
+  {
+    id: 'req-11',
+    requestId: 'test-3031',
+    patientId: 'pat-11',
+    patient: {
+      name: 'James Wilson',
+      age: 44,
+      gender: 'male',
+      phone: '+1-555-123-4569',
+      email: 'james.wilson@example.com',
+      address: {
+        line1: '852 Poplar Drive',
+        line2: 'Suite 15',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10011',
+      },
+      image: 'https://ui-avatars.com/api/?name=James+Wilson&background=f97316&color=fff&size=160',
+    },
+    status: 'accepted',
+    requestDate: '2025-01-05T11:15:00.000Z',
+    acceptedDate: '2025-01-05T13:00:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. Susan Davis',
+        qualification: 'MBBS, MD (Neurology)',
+        licenseNumber: 'MD-88888',
+        clinicName: 'Neurological Center',
+        clinicAddress: '852 Brain Avenue, New York, NY 10011',
+        phone: '+1-555-123-4569',
+        email: 'susan.davis@example.com',
+        specialization: 'Neurologist',
+      },
+      diagnosis: 'Headache evaluation',
+      investigations: [
+        { name: 'MRI Brain', notes: 'To rule out structural abnormalities' },
+        { name: 'Complete Blood Count', notes: 'General health check' },
+      ],
+      medications: [
+        { name: 'Sumatriptan 50mg', dosage: '50mg', frequency: 'As needed', duration: '30 days', instructions: 'Take at onset of headache' },
+      ],
+      advice: 'Maintain regular sleep schedule. Stay hydrated. Avoid triggers.',
+      followUpDate: '2025-02-05',
+    },
+    bill: null,
+    orderId: null,
+    collectionType: 'lab',
+  },
+  {
+    id: 'req-12',
+    requestId: 'test-3032',
+    patientId: 'pat-12',
+    patient: {
+      name: 'Sophia Martinez',
+      age: 26,
+      gender: 'female',
+      phone: '+1-555-234-5670',
+      email: 'sophia.martinez@example.com',
+      address: {
+        line1: '963 Oakwood Lane',
+        line2: '',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10012',
+      },
+      image: 'https://ui-avatars.com/api/?name=Sophia+Martinez&background=ec4899&color=fff&size=160',
+    },
+    status: 'pending',
+    requestDate: '2025-01-04T09:00:00.000Z',
+    prescription: {
+      doctor: {
+        name: 'Dr. Kevin Johnson',
+        qualification: 'MBBS, MD (Pulmonology)',
+        licenseNumber: 'MD-99999',
+        clinicName: 'Respiratory Care Clinic',
+        clinicAddress: '963 Lung Street, New York, NY 10012',
+        phone: '+1-555-234-5670',
+        email: 'kevin.johnson@example.com',
+        specialization: 'Pulmonologist',
+      },
+      diagnosis: 'Respiratory health check',
+      investigations: [
+        { name: 'Chest X-Ray', notes: 'To check lung condition' },
+        { name: 'Spirometry', notes: 'Lung function test' },
+      ],
+      medications: [
+        { name: 'Albuterol Inhaler', dosage: '2 puffs', frequency: 'As needed', duration: '30 days', instructions: 'Use during breathing difficulty' },
+      ],
+      advice: 'Avoid smoking and pollutants. Practice breathing exercises.',
+      followUpDate: '2025-02-04',
+    },
+    bill: null,
+    orderId: null,
+    collectionType: 'home',
+  },
 ]
 
 const formatDateTime = (value) => {
@@ -1094,23 +1609,25 @@ const LaboratoryPatients = () => {
       </div>
 
       {/* Test Requests List */}
-      <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
         {filteredRequests.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 text-center">
+          <p className="lg:col-span-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 text-center">
             No test requests found matching your search.
           </p>
         ) : (
           filteredRequests.map((request) => (
             <article
               key={request.id}
-              className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md sm:p-4"
+              className="group relative overflow-hidden flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#11496c]/30 active:scale-[0.98] lg:hover:scale-[1.02] sm:p-4"
             >
+              {/* Hover Background Effect */}
+              <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
               {/* Patient Information Section */}
-              <div className="flex items-start gap-3 mb-3">
+              <div className="relative flex items-start gap-3 mb-3">
                 <img
                   src={request.patient.image}
                   alt={request.patient.name}
-                  className="h-12 w-12 rounded-lg object-cover bg-slate-100 border border-slate-200"
+                  className="h-12 w-12 rounded-lg object-cover bg-slate-100 border border-slate-200 group-hover:scale-110 group-hover:border-[#11496c] transition-all duration-300"
                   onError={(e) => {
                     e.target.onerror = null
                     e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(request.patient.name)}&background=11496c&color=fff&size=160&bold=true`
@@ -1119,31 +1636,37 @@ const LaboratoryPatients = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
-                      <h3 className="text-base font-bold text-slate-900 mb-0.5">{request.patient.name}</h3>
-                      <p className="text-xs text-slate-600">
+                      <h3 className="text-base font-bold text-slate-900 mb-0.5 group-hover:text-[#11496c] transition-colors duration-300">{request.patient.name}</h3>
+                      <p className="text-xs text-slate-600 group-hover:text-slate-700 transition-colors">
                         {request.patient.age} years, {request.patient.gender}
                       </p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Request ID: {request.requestId}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5 group-hover:text-slate-600 transition-colors">Request ID: {request.requestId}</p>
                     </div>
                     {/* Status and Collection Type Badges - Stacked */}
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       {/* Status Badge - Smaller */}
-                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold transition-all duration-300 group-hover:scale-105 ${
                         request.status === 'pending' 
                           ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' 
                           : request.status === 'accepted'
                           ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                          : request.status === 'bill_generated'
+                          ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                          : request.status === 'paid'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : request.status === 'order_created'
+                          ? 'bg-green-50 text-green-800 border border-green-200'
                           : request.status === 'cancelled'
                           ? 'bg-red-50 text-red-800 border border-red-200'
                           : 'bg-slate-50 text-slate-800 border border-slate-200'
                       }`}>
                         {request.status === 'pending' && <IoTimeOutline className="h-2.5 w-2.5" />}
-                        {request.status === 'accepted' && <IoCheckmarkCircleOutline className="h-2.5 w-2.5" />}
+                        {(request.status === 'accepted' || request.status === 'paid' || request.status === 'order_created') && <IoCheckmarkCircleOutline className="h-2.5 w-2.5" />}
                         {request.status === 'cancelled' && <IoCloseCircleOutline className="h-2.5 w-2.5" />}
                         {getStatusLabel(request.status)}
                       </span>
                       {/* Collection Type Badge - Below Status */}
-                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                      <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold transition-all duration-300 group-hover:scale-105 ${
                         request.collectionType === 'home'
                           ? 'bg-orange-50 text-orange-700 border border-orange-300'
                           : 'bg-blue-50 text-blue-700 border border-blue-300'
@@ -1163,97 +1686,165 @@ const LaboratoryPatients = () => {
                     </div>
                   </div>
                   
-                  {/* Contact Information - Line by Line */}
-                  <div className="space-y-1 mt-2">
-                    <a
-                      href={`tel:${request.patient.phone}`}
-                      className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-[#11496c] transition-colors"
-                    >
-                      <IoCallOutline className="h-3 w-3 text-slate-500 shrink-0" />
-                      <span>{request.patient.phone}</span>
-                    </a>
-                    <a
-                      href={`mailto:${request.patient.email}`}
-                      className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-[#11496c] transition-colors"
-                    >
-                      <IoMailOutline className="h-3 w-3 text-slate-500 shrink-0" />
-                      <span>{request.patient.email}</span>
-                    </a>
-                    {request.patient.address && (
-                      <div className="flex items-start gap-1.5 text-xs text-slate-700">
-                        <IoLocationOutline className="h-3 w-3 text-slate-500 shrink-0 mt-0.5" />
-                        <span>{formatAddress(request.patient.address)}</span>
+                  {/* Contact Information - Line by Line - Always shown */}
+                  <div className="space-y-1 mt-2 lg:mt-1.5">
+                    {request.patient.phone ? (
+                      <a
+                        href={`tel:${request.patient.phone}`}
+                        className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-[#11496c] transition-colors group-hover:translate-x-1 duration-300 lg:text-[10px] lg:gap-1"
+                      >
+                        <IoCallOutline className="h-3 w-3 text-slate-500 shrink-0 group-hover:text-[#11496c] transition-colors lg:h-2.5 lg:w-2.5" />
+                        <span className="line-clamp-1">{request.patient.phone}</span>
+                      </a>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 lg:text-[10px]">
+                        <IoCallOutline className="h-3 w-3 shrink-0 lg:h-2.5 lg:w-2.5" />
+                        <span>No phone number</span>
+                      </div>
+                    )}
+                    {request.patient.email ? (
+                      <a
+                        href={`mailto:${request.patient.email}`}
+                        className="flex items-center gap-1.5 text-xs text-slate-700 hover:text-[#11496c] transition-colors group-hover:translate-x-1 duration-300 lg:text-[10px] lg:gap-1"
+                      >
+                        <IoMailOutline className="h-3 w-3 text-slate-500 shrink-0 group-hover:text-[#11496c] transition-colors lg:h-2.5 lg:w-2.5" />
+                        <span className="line-clamp-1">{request.patient.email}</span>
+                      </a>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 lg:text-[10px]">
+                        <IoMailOutline className="h-3 w-3 shrink-0 lg:h-2.5 lg:w-2.5" />
+                        <span>No email address</span>
+                      </div>
+                    )}
+                    {request.patient.address ? (
+                      <div className="flex items-start gap-1.5 text-xs text-slate-700 group-hover:text-slate-800 transition-colors lg:text-[10px] lg:gap-1">
+                        <IoLocationOutline className="h-3 w-3 text-slate-500 shrink-0 mt-0.5 group-hover:text-[#11496c] transition-colors lg:h-2.5 lg:w-2.5 lg:mt-0" />
+                        <span className="line-clamp-2">{formatAddress(request.patient.address)}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-1.5 text-xs text-slate-400 lg:text-[10px] lg:gap-1">
+                        <IoLocationOutline className="h-3 w-3 shrink-0 mt-0.5 lg:h-2.5 lg:w-2.5 lg:mt-0" />
+                        <span>No address provided</span>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Prescription Details - Light Grey Box - Smaller */}
-              <div className="rounded-lg bg-slate-100 p-3 border border-slate-200">
-                <div className="space-y-1.5">
-                  <p className="text-xs text-slate-800">
-                    <span className="font-semibold">Prescribed by:</span> <span className="font-bold text-slate-900">{request.prescription.doctor.name}</span>
-                  </p>
-                  <p className="text-xs text-slate-700">
-                    <span className="font-semibold">Diagnosis:</span> {request.prescription.diagnosis}
-                  </p>
+              {/* Prescription Details - Light Grey Box - Always shown */}
+              <div className="relative rounded-lg bg-slate-100 p-3 lg:p-2.5 border border-slate-200 group-hover:bg-slate-200 group-hover:border-slate-300 transition-all duration-300">
+                <div className="space-y-1.5 lg:space-y-1">
+                  {request.prescription && request.prescription.doctor ? (
+                    <p className="text-xs text-slate-800 group-hover:text-slate-900 transition-colors lg:text-[10px] lg:leading-tight">
+                      <span className="font-semibold">Prescribed by:</span> <span className="font-bold text-slate-900 group-hover:text-[#11496c] transition-colors">{request.prescription.doctor.name || 'N/A'}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500 lg:text-[10px]">No prescription data</p>
+                  )}
+                  {request.prescription && request.prescription.diagnosis ? (
+                    <p className="text-xs text-slate-700 group-hover:text-slate-800 transition-colors line-clamp-2 lg:text-[10px] lg:leading-tight">
+                      <span className="font-semibold">Diagnosis:</span> {request.prescription.diagnosis}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-500 lg:text-[10px]">No diagnosis available</p>
+                  )}
                   {/* Test Tags - Purple Badges with proper spacing */}
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {request.prescription.investigations.map((inv, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-1 text-[10px] font-semibold text-purple-700 border border-purple-200"
-                      >
-                        <IoFlaskOutline className="h-3 w-3 shrink-0" />
-                        <span>{inv.name}</span>
-                      </span>
-                    ))}
-                  </div>
+                  {request.prescription && request.prescription.investigations && request.prescription.investigations.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 mt-1 lg:gap-1 lg:mt-1">
+                      {request.prescription.investigations.map((inv, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-1 text-[10px] font-semibold text-purple-700 border border-purple-200 group-hover:bg-purple-100 group-hover:border-purple-300 group-hover:scale-105 transition-all duration-300 lg:px-1.5 lg:py-0.5 lg:text-[9px] lg:gap-0.5"
+                        >
+                          <IoFlaskOutline className="h-3 w-3 shrink-0 lg:h-2.5 lg:w-2.5" />
+                          <span className="line-clamp-1">{inv.name || 'Test'}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 mt-1 lg:text-[10px]">No tests specified</p>
+                  )}
                 </div>
               </div>
 
-              {/* Bill Information */}
-              {request.bill && (
-                <div className="rounded-lg bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-4 border-2 border-emerald-200 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-bold text-emerald-800 flex items-center gap-2">
-                      <IoReceiptOutline className="h-4 w-4" />
-                      Bill Generated
-                    </p>
-                    {request.billSent && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-200 px-2 py-1 text-[10px] font-semibold text-emerald-800 border border-emerald-300">
-                        <IoCheckmarkCircleOutline className="h-3 w-3" />
-                        Sent to Patient
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-700">Tests Amount:</span>
-                      <span className="font-semibold text-slate-900">{formatCurrency(request.bill.testsAmount || request.bill.totalAmount)}</span>
+              {/* Bill Information - Always show section, but content based on status */}
+              <div className={`rounded-lg border-2 p-3 lg:p-2.5 transition-all duration-300 ${
+                request.bill 
+                  ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200 shadow-sm' 
+                  : 'bg-slate-50 border-slate-200 border-dashed'
+              }`}>
+                {request.bill ? (
+                  <>
+                    <div className="flex items-center justify-between mb-2 lg:mb-1.5">
+                      <p className="text-sm font-bold text-emerald-800 flex items-center gap-2 lg:text-xs lg:gap-1.5">
+                        <IoReceiptOutline className="h-4 w-4 lg:h-3 lg:w-3" />
+                        Bill Generated
+                      </p>
+                      {request.billSent && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-200 px-2 py-1 text-[10px] font-semibold text-emerald-800 border border-emerald-300 lg:px-1.5 lg:py-0.5 lg:text-[8px] lg:gap-0.5">
+                          <IoCheckmarkCircleOutline className="h-3 w-3 lg:h-2 lg:w-2" />
+                          Sent
+                        </span>
+                      )}
                     </div>
-                    <div className="flex justify-between items-center pt-2 mt-2 border-t-2 border-emerald-300">
-                      <span className="text-base font-bold text-emerald-900">Total:</span>
-                      <span className="text-base font-bold text-emerald-900">{formatCurrency(request.bill.totalAmount)}</span>
+                    <div className="space-y-1.5 lg:space-y-1 text-sm lg:text-xs">
+                      {request.bill.testsAmount !== undefined && request.bill.testsAmount > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-700 lg:text-[10px]">Tests Amount:</span>
+                          <span className="font-semibold text-slate-900 lg:text-[10px]">{formatCurrency(request.bill.testsAmount)}</span>
+                        </div>
+                      )}
+                      {request.bill.deliveryCharge !== undefined && request.bill.deliveryCharge > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-700 lg:text-[10px]">Delivery Charge:</span>
+                          <span className="font-semibold text-slate-900 lg:text-[10px]">{formatCurrency(request.bill.deliveryCharge)}</span>
+                        </div>
+                      )}
+                      {request.bill.additionalCharges !== undefined && request.bill.additionalCharges > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-700 lg:text-[10px]">Additional Charges:</span>
+                          <span className="font-semibold text-slate-900 lg:text-[10px]">{formatCurrency(request.bill.additionalCharges)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-1.5 mt-1.5 border-t-2 border-emerald-300 lg:pt-1 lg:mt-1">
+                        <span className="text-base font-bold text-emerald-900 lg:text-xs">Total:</span>
+                        <span className="text-base font-bold text-emerald-900 lg:text-xs">{formatCurrency(request.bill.totalAmount)}</span>
+                      </div>
                     </div>
+                  </>
+                ) : (
+                  <div className="text-center py-2 lg:py-1">
+                    <p className="text-xs text-slate-500 lg:text-[10px]">No bill generated yet</p>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Order Information */}
-              {request.orderId && (
-                <div className="rounded-lg bg-green-50 p-3 border border-green-200">
-                  <p className="text-xs font-semibold text-green-700">Order Created: {request.orderId}</p>
-                </div>
-              )}
+              {/* Order Information - Always show section, but content based on status */}
+              <div className={`rounded-lg p-3 lg:p-2.5 border transition-all duration-300 ${
+                request.orderId 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-slate-50 border-slate-200 border-dashed'
+              }`}>
+                {request.orderId ? (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5 lg:text-[10px] lg:gap-1">
+                      <IoCheckmarkCircleOutline className="h-3.5 w-3.5 lg:h-3 lg:w-3" />
+                      Order Created: <span className="font-bold">{request.orderId}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-1">
+                    <p className="text-xs text-slate-500 lg:text-[10px]">No order created yet</p>
+                  </div>
+                )}
+              </div>
 
               {/* Action Buttons - PDF View/Download with Text - Smaller */}
-              <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
+              <div className="relative flex items-center gap-2 pt-3 border-t border-slate-200 group-hover:border-[#11496c]/30 transition-colors duration-300">
                 {/* Download Button */}
                 <button
                   onClick={() => handleDownloadPDF(request)}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95 group-hover:scale-105"
                 >
                   <IoDownloadOutline className="h-4 w-4" />
                   <span>Download PDF</span>
@@ -1262,7 +1853,7 @@ const LaboratoryPatients = () => {
                 {/* View Button */}
                 <button
                   onClick={() => handleViewPDF(request)}
-                  className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                  className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-[#11496c] hover:bg-[#11496c] hover:text-white active:scale-95 group-hover:scale-110"
                   aria-label="View PDF"
                 >
                   <IoEyeOutline className="h-4 w-4" />

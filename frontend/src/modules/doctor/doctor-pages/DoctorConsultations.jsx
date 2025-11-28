@@ -2062,13 +2062,13 @@ const DoctorConsultations = () => {
 
                 {/* Vitals & Examination Tab */}
                 {activeTab === 'vitals' && (
-                  <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-6 shadow-md shadow-slate-200/50">
-                    <h3 className="mb-3 sm:mb-4 lg:mb-5 text-sm sm:text-base lg:text-lg font-bold text-slate-900">Vitals & Examination</h3>
-                    <div className="grid gap-2.5 sm:gap-3 lg:gap-4 sm:grid-cols-2">
+                  <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-4 shadow-md shadow-slate-200/50">
+                    <h3 className="mb-3 sm:mb-4 lg:mb-3 text-sm sm:text-base lg:text-base font-bold text-slate-900">Vitals & Examination</h3>
+                    <div className="grid gap-2.5 sm:gap-3 lg:gap-3 sm:grid-cols-2">
                       {/* Blood Pressure */}
-                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-red-50/50 to-slate-50/80 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow">
-                        <label className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-slate-900">
-                          <IoHeartOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600 shrink-0" />
+                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-red-50/50 to-slate-50/80 p-2.5 sm:p-3 lg:p-2.5 hover:shadow-md transition-shadow">
+                        <label className="mb-1.5 sm:mb-2 lg:mb-1.5 flex items-center gap-1.5 sm:gap-2 lg:gap-1.5 text-xs sm:text-sm lg:text-xs font-semibold text-slate-900">
+                          <IoHeartOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-3.5 lg:w-3.5 text-red-600 shrink-0" />
                           Blood Pressure
                         </label>
                         <div className="flex items-center gap-1 sm:gap-2">
@@ -2082,9 +2082,9 @@ const DoctorConsultations = () => {
                               })
                             }
                             placeholder="Systolic"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
-                          <span className="text-xs sm:text-sm text-slate-500">/</span>
+                          <span className="text-xs sm:text-sm lg:text-xs text-slate-500">/</span>
                           <input
                             type="number"
                             value={vitals.bloodPressure.diastolic}
@@ -2095,16 +2095,16 @@ const DoctorConsultations = () => {
                               })
                             }
                             placeholder="Diastolic"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
-                          <span className="text-[10px] sm:text-xs text-slate-500">mmHg</span>
+                          <span className="text-[10px] sm:text-xs lg:text-[10px] text-slate-500">mmHg</span>
                         </div>
                       </div>
 
                       {/* Temperature */}
-                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-orange-50/50 to-slate-50/80 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow">
-                        <label className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-slate-900">
-                          <IoThermometerOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-orange-600 shrink-0" />
+                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-orange-50/50 to-slate-50/80 p-2.5 sm:p-3 lg:p-2.5 hover:shadow-md transition-shadow">
+                        <label className="mb-1.5 sm:mb-2 lg:mb-1.5 flex items-center gap-1.5 sm:gap-2 lg:gap-1.5 text-xs sm:text-sm lg:text-xs font-semibold text-slate-900">
+                          <IoThermometerOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-3.5 lg:w-3.5 text-orange-600 shrink-0" />
                           Temperature
                         </label>
                         <div className="flex items-center gap-1 sm:gap-2">
@@ -2114,16 +2114,16 @@ const DoctorConsultations = () => {
                             onChange={(e) => setVitals({ ...vitals, temperature: e.target.value })}
                             placeholder="98.6"
                             step="0.1"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
-                          <span className="text-[10px] sm:text-xs text-slate-500">°F</span>
+                          <span className="text-[10px] sm:text-xs lg:text-[10px] text-slate-500">°F</span>
                         </div>
                       </div>
 
                       {/* Pulse */}
-                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-red-50/50 to-slate-50/80 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow">
-                        <label className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-slate-900">
-                          <IoPulseOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600 shrink-0" />
+                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-red-50/50 to-slate-50/80 p-2.5 sm:p-3 lg:p-2.5 hover:shadow-md transition-shadow">
+                        <label className="mb-1.5 sm:mb-2 lg:mb-1.5 flex items-center gap-1.5 sm:gap-2 lg:gap-1.5 text-xs sm:text-sm lg:text-xs font-semibold text-slate-900">
+                          <IoPulseOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-3.5 lg:w-3.5 text-red-600 shrink-0" />
                           Pulse Rate
                         </label>
                         <div className="flex items-center gap-1 sm:gap-2">
@@ -2132,16 +2132,16 @@ const DoctorConsultations = () => {
                             value={vitals.pulse}
                             onChange={(e) => setVitals({ ...vitals, pulse: e.target.value })}
                             placeholder="72"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
-                          <span className="text-[10px] sm:text-xs text-slate-500">bpm</span>
+                          <span className="text-[10px] sm:text-xs lg:text-[10px] text-slate-500">bpm</span>
                         </div>
                       </div>
 
                       {/* Respiratory Rate */}
-                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-[rgba(17,73,108,0.05)] to-slate-50/80 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow">
-                        <label className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-slate-900">
-                          <IoBodyOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#11496c] shrink-0" />
+                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-[rgba(17,73,108,0.05)] to-slate-50/80 p-2.5 sm:p-3 lg:p-2.5 hover:shadow-md transition-shadow">
+                        <label className="mb-1.5 sm:mb-2 lg:mb-1.5 flex items-center gap-1.5 sm:gap-2 lg:gap-1.5 text-xs sm:text-sm lg:text-xs font-semibold text-slate-900">
+                          <IoBodyOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-3.5 lg:w-3.5 text-[#11496c] shrink-0" />
                           Respiratory Rate
                         </label>
                         <div className="flex items-center gap-1 sm:gap-2">
@@ -2150,16 +2150,16 @@ const DoctorConsultations = () => {
                             value={vitals.respiratoryRate}
                             onChange={(e) => setVitals({ ...vitals, respiratoryRate: e.target.value })}
                             placeholder="16"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
-                          <span className="text-[10px] sm:text-xs text-slate-500">/min</span>
+                          <span className="text-[10px] sm:text-xs lg:text-[10px] text-slate-500">/min</span>
                         </div>
                       </div>
 
                       {/* Oxygen Saturation */}
-                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-[rgba(17,73,108,0.05)] to-slate-50/80 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow">
-                        <label className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-slate-900">
-                          <IoWaterOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#11496c] shrink-0" />
+                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-[rgba(17,73,108,0.05)] to-slate-50/80 p-2.5 sm:p-3 lg:p-2.5 hover:shadow-md transition-shadow">
+                        <label className="mb-1.5 sm:mb-2 lg:mb-1.5 flex items-center gap-1.5 sm:gap-2 lg:gap-1.5 text-xs sm:text-sm lg:text-xs font-semibold text-slate-900">
+                          <IoWaterOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-3.5 lg:w-3.5 text-[#11496c] shrink-0" />
                           SpO2
                         </label>
                         <div className="flex items-center gap-1 sm:gap-2">
@@ -2169,16 +2169,16 @@ const DoctorConsultations = () => {
                             onChange={(e) => setVitals({ ...vitals, oxygenSaturation: e.target.value })}
                             placeholder="98"
                             max="100"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
-                          <span className="text-[10px] sm:text-xs text-slate-500">%</span>
+                          <span className="text-[10px] sm:text-xs lg:text-[10px] text-slate-500">%</span>
                         </div>
                       </div>
 
                       {/* Weight */}
-                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow">
-                        <label className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-slate-900">
-                          <IoBodyOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-600 shrink-0" />
+                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-2.5 sm:p-3 lg:p-2.5 hover:shadow-md transition-shadow">
+                        <label className="mb-1.5 sm:mb-2 lg:mb-1.5 flex items-center gap-1.5 sm:gap-2 lg:gap-1.5 text-xs sm:text-sm lg:text-xs font-semibold text-slate-900">
+                          <IoBodyOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-3.5 lg:w-3.5 text-slate-600 shrink-0" />
                           Weight
                         </label>
                         <div className="flex items-center gap-1 sm:gap-2">
@@ -2205,16 +2205,16 @@ const DoctorConsultations = () => {
                             placeholder="70"
                             min="0"
                             step="0.1"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
-                          <span className="text-[10px] sm:text-xs text-slate-500">kg</span>
+                          <span className="text-[10px] sm:text-xs lg:text-[10px] text-slate-500">kg</span>
                         </div>
                       </div>
 
                       {/* Height */}
-                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow">
-                        <label className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-slate-900">
-                          <IoBodyOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-600 shrink-0" />
+                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-2.5 sm:p-3 lg:p-2.5 hover:shadow-md transition-shadow">
+                        <label className="mb-1.5 sm:mb-2 lg:mb-1.5 flex items-center gap-1.5 sm:gap-2 lg:gap-1.5 text-xs sm:text-sm lg:text-xs font-semibold text-slate-900">
+                          <IoBodyOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-3.5 lg:w-3.5 text-slate-600 shrink-0" />
                           Height
                         </label>
                         <div className="flex items-center gap-1 sm:gap-2">
@@ -2241,16 +2241,16 @@ const DoctorConsultations = () => {
                             placeholder="170"
                             min="0"
                             step="0.1"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
-                          <span className="text-[10px] sm:text-xs text-slate-500">cm</span>
+                          <span className="text-[10px] sm:text-xs lg:text-[10px] text-slate-500">cm</span>
                         </div>
                       </div>
 
                       {/* BMI */}
-                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-2.5 sm:p-3 lg:p-4 hover:shadow-md transition-shadow">
-                        <label className="mb-1.5 sm:mb-2 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-slate-900">
-                          <IoBodyOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-600 shrink-0" />
+                      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-2.5 sm:p-3 lg:p-2.5 hover:shadow-md transition-shadow">
+                        <label className="mb-1.5 sm:mb-2 lg:mb-1.5 flex items-center gap-1.5 sm:gap-2 lg:gap-1.5 text-xs sm:text-sm lg:text-xs font-semibold text-slate-900">
+                          <IoBodyOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-3.5 lg:w-3.5 text-slate-600 shrink-0" />
                           BMI
                         </label>
                         <div className="flex items-center gap-1 sm:gap-2">
@@ -2328,10 +2328,10 @@ const DoctorConsultations = () => {
 
                 {/* Prescription Tab */}
                 {activeTab === 'prescription' && (
-                  <div className="space-y-3 sm:space-y-4 lg:space-y-5" data-prescription-section>
+                  <div className="space-y-3 sm:space-y-4 lg:space-y-4" data-prescription-section>
                     {/* Shared Lab Reports from Patient */}
                     {sharedLabReports && sharedLabReports.length > 0 && (
-                      <div className="rounded-xl sm:rounded-2xl border-2 border-blue-200 bg-blue-50 p-3 sm:p-4 lg:p-6 shadow-md mb-4">
+                      <div className="rounded-xl sm:rounded-2xl border-2 border-blue-200 bg-blue-50 p-3 sm:p-4 lg:p-4 shadow-md mb-4">
                         <div className="mb-3 sm:mb-4 flex items-center gap-2">
                           <IoFlaskOutline className="h-5 w-5 sm:h-6 sm:w-6 text-blue-700" />
                           <h3 className="text-sm sm:text-base lg:text-lg font-bold text-blue-900">
@@ -2424,7 +2424,7 @@ const DoctorConsultations = () => {
 
                     {/* Shared Prescriptions from Other Doctors */}
                     {selectedConsultation?.sharedPrescriptions && selectedConsultation.sharedPrescriptions.length > 0 && (
-                      <div className="rounded-xl sm:rounded-2xl border-2 border-amber-200 bg-amber-50 p-3 sm:p-4 lg:p-6 shadow-md">
+                      <div className="rounded-xl sm:rounded-2xl border-2 border-amber-200 bg-amber-50 p-3 sm:p-4 lg:p-4 shadow-md">
                         <div className="mb-3 sm:mb-4 flex items-center gap-2">
                           <IoDocumentTextOutline className="h-5 w-5 sm:h-6 sm:w-6 text-amber-700" />
                           <h3 className="text-sm sm:text-base lg:text-lg font-bold text-amber-900">
@@ -2801,12 +2801,12 @@ const DoctorConsultations = () => {
 
                 {/* Saved Prescriptions Tab */}
                 {activeTab === 'saved' && (
-                  <div className="space-y-4">
+                  <div className="space-y-4 lg:space-y-3">
                     {viewingPrescription ? (
                       /* Full Page View Prescription */
                       <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
                         {/* Header */}
-                        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 py-4">
+                        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-4 py-4 lg:py-3">
                           <div className="flex items-center gap-3">
                             <button
                               type="button"
@@ -3073,8 +3073,8 @@ const DoctorConsultations = () => {
 
                 {/* History Tab */}
                 {activeTab === 'history' && (
-                  <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 shadow-md shadow-slate-200/50">
-                    <h3 className="mb-4 sm:mb-5 text-base sm:text-lg font-bold text-slate-900">Patient Medical History</h3>
+                  <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 lg:p-4 shadow-md shadow-slate-200/50">
+                    <h3 className="mb-4 sm:mb-5 lg:mb-3 text-base sm:text-lg lg:text-base font-bold text-slate-900">Patient Medical History</h3>
                     {patientHistory ? (
                     <div className="space-y-6">
                       {/* Personal Info */}
