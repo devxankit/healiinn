@@ -168,6 +168,24 @@ const LaboratoryRequestOrders = () => {
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
       
+      // Create notification for admin
+      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
+      const request = allRequests.find(r => r.id === requestId)
+      const labInfo = request?.adminResponse?.lab || request?.adminResponse?.labs?.[0] || {}
+      adminNotifications.unshift({
+        id: `notif-${Date.now()}`,
+        type: 'laboratory_rejected',
+        title: 'Laboratory Order Rejected',
+        message: `Laboratory ${labInfo?.labName || 'Laboratory'} has rejected the order for patient ${request?.patientName || 'Patient'}. Order ID: ${requestId}`,
+        requestId: requestId,
+        patientName: request?.patientName || 'Patient',
+        laboratoryName: labInfo?.labName || 'Laboratory',
+        orderType: 'laboratory',
+        createdAt: new Date().toISOString(),
+        read: false,
+      })
+      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
+      
       // Update patient requests
       const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
       const updatedPatientRequests = patientRequests.map(req => {
@@ -257,6 +275,24 @@ const LaboratoryRequestOrders = () => {
         return req
       })
       localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      
+      // Create notification for admin
+      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
+      const request = allRequests.find(r => r.id === requestId)
+      const labInfo = request?.adminResponse?.lab || request?.adminResponse?.labs?.[0] || {}
+      adminNotifications.unshift({
+        id: `notif-${Date.now()}`,
+        type: 'laboratory_accepted',
+        title: 'Laboratory Order Accepted',
+        message: `Laboratory ${labInfo?.labName || 'Laboratory'} has accepted the order for patient ${request?.patientName || 'Patient'}. Order ID: ${requestId}`,
+        requestId: requestId,
+        patientName: request?.patientName || 'Patient',
+        laboratoryName: labInfo?.labName || 'Laboratory',
+        orderType: 'laboratory',
+        createdAt: new Date().toISOString(),
+        read: false,
+      })
+      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
       
       // Update patient requests
       const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
