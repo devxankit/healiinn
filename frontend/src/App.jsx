@@ -85,6 +85,7 @@ import AdminInventory from './modules/admin/admin-pages/AdminInventory'
 import AdminVerification from './modules/admin/admin-pages/AdminVerification'
 import AdminProfile from './modules/admin/admin-pages/AdminProfile'
 import AdminWallet from './modules/admin/admin-pages/AdminWallet'
+import AdminRevenue from './modules/admin/admin-pages/AdminRevenue'
 import AdminSupport from './modules/admin/admin-pages/AdminSupport'
 import AdminAppointments from './modules/admin/admin-pages/AdminAppointments'
 import AdminOrders from './modules/admin/admin-pages/AdminOrders'
@@ -286,7 +287,35 @@ function App() {
           />
 
           {/* Admin Routes */}
-          <Route path="/admin/*" element={<AdminRoutes />} />
+          <Route
+            path="/admin/*"
+            element={
+              <>
+                <AdminNavbar />
+                <main className="px-4 pb-24 pt-28 sm:px-6 lg:ml-64 transition-all duration-300">
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+                    <Route path="/login" element={<AdminLogin />} />
+                    <Route path="/dashboard" element={<AdminDashboard />} />
+                    <Route path="/users" element={<AdminUsers />} />
+                    <Route path="/doctors" element={<AdminDoctors />} />
+                    <Route path="/pharmacies" element={<AdminPharmacies />} />
+                    <Route path="/pharmacy-medicines" element={<AdminPharmacyMedicines />} />
+                    <Route path="/inventory" element={<AdminInventory />} />
+                    <Route path="/laboratories" element={<AdminLaboratories />} />
+                    <Route path="/wallet" element={<AdminWallet />} />
+                    <Route path="/revenue" element={<AdminRevenue />} />
+                    <Route path="/verification" element={<AdminVerification />} />
+                    <Route path="/appointments" element={<AdminAppointments />} />
+                    <Route path="/orders" element={<AdminOrders />} />
+                    <Route path="/request" element={<AdminRequests />} />
+                    <Route path="/profile" element={<AdminProfile />} />
+                    <Route path="/support" element={<AdminSupport />} />
+                  </Routes>
+                </main>
+              </>
+            }
+          />
 
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/patient/dashboard" replace />} />

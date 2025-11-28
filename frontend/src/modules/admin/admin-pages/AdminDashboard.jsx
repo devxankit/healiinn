@@ -467,38 +467,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate()
   const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(mockStats.todayAppointments)
   const [doctorAppointmentsOverview, setDoctorAppointmentsOverview] = useState([])
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  
-  // Check authentication immediately - redirect if no token
-  // This check happens before any rendering
-  useEffect(() => {
-    const token = getAuthToken('admin')
-    if (!token) {
-      // Force immediate redirect - clear ALL tokens first
-      if (typeof window !== 'undefined') {
-        // Clear ALL possible admin token variations
-        localStorage.removeItem('adminAuthToken')
-        localStorage.removeItem('adminAccessToken')
-        localStorage.removeItem('adminRefreshToken')
-        localStorage.removeItem('adminProfile')
-        
-        sessionStorage.removeItem('adminAuthToken')
-        sessionStorage.removeItem('adminAccessToken')
-        sessionStorage.removeItem('adminRefreshToken')
-        sessionStorage.removeItem('adminProfile')
-        
-        // Redirect immediately - use replace to prevent back navigation
-        if (window.location.pathname !== '/admin/login') {
-          window.location.replace('/admin/login')
-        }
-      }
-      return
-    }
-    
-    // Token exists - allow rendering
-    setIsAuthenticated(true)
-  }, [])
-  
+
   // Load real appointment count and doctor overview from localStorage
   // This MUST be called before any conditional returns to follow React Hooks rules
   useEffect(() => {
@@ -578,11 +547,6 @@ const AdminDashboard = () => {
     const interval = setInterval(loadAppointments, 2000)
     return () => clearInterval(interval)
   }, [])
-  
-  // Final check - don't render anything if not authenticated (after all hooks)
-  if (!isAuthenticated) {
-    return null
-  }
 
   const usersChange = ((mockStats.thisMonthUsers - mockStats.lastMonthUsers) / mockStats.lastMonthUsers) * 100
   const revenueChange = ((mockStats.thisMonthRevenue - mockStats.lastMonthRevenue) / mockStats.lastMonthRevenue) * 100
@@ -730,7 +694,10 @@ const AdminDashboard = () => {
           </article>
 
           {/* Total Revenue */}
-          <article className="relative overflow-hidden rounded-xl border border-emerald-100 bg-white p-3 sm:p-4 shadow-sm">
+          <article
+            onClick={() => navigate('/admin/revenue')}
+            className="relative overflow-hidden rounded-xl border border-emerald-100 bg-white p-3 sm:p-4 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+          >
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1">Total Revenue</p>
@@ -912,6 +879,104 @@ const AdminDashboard = () => {
             })}
           </div>
         </section>
+
+        {/* Payment Status Notifications */}
+        {(pendingPaymentCount > 0 || confirmedPaymentCount > 0 || paymentNotifications.length > 0) && (
+          <section aria-labelledby="payment-status-title" className="space-y-3 sm:space-y-4">
+            <header className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 id="payment-status-title" className="text-base sm:text-lg font-semibold text-slate-900">
+                  Payment Status
+                </h2>
+                {(pendingPaymentCount > 0 || confirmedPaymentCount > 0) && (
+                  <span className="flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)] px-2 text-xs font-medium text-[#11496c]">
+                    {pendingPaymentCount + confirmedPaymentCount}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => navigate('/admin/requests')}
+                className="text-xs font-semibold text-[#11496c] hover:text-[#0d3a52] transition-colors"
+              >
+                View All
+              </button>
+            </header>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Pending Payments */}
+              {pendingPaymentCount > 0 && (
+                <article
+                  onClick={() => navigate('/admin/requests?filter=pending_payment')}
+                  className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-amber-700 mb-1">Pending Payments</p>
+                      <p className="text-2xl font-bold text-amber-900">{pendingPaymentCount}</p>
+                      <p className="text-[10px] text-amber-600 mt-1">Waiting for patient payment</p>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-white">
+                      <IoTimeOutline className="h-6 w-6" />
+                    </div>
+                  </div>
+                </article>
+              )}
+
+              {/* Confirmed Payments - Ready for Assignment */}
+              {confirmedPaymentCount > 0 && (
+                <article
+                  onClick={() => navigate('/admin/requests?filter=payment_confirmed')}
+                  className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 mb-1">Payment Confirmed</p>
+                      <p className="text-2xl font-bold text-emerald-900">{confirmedPaymentCount}</p>
+                      <p className="text-[10px] text-emerald-600 mt-1">Ready to assign orders</p>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white">
+                      <IoCheckmarkCircleOutline className="h-6 w-6" />
+                    </div>
+                  </div>
+                </article>
+              )}
+            </div>
+
+            {/* Payment Notifications */}
+            {paymentNotifications.length > 0 && (
+              <div className="space-y-2">
+                {paymentNotifications.map((notification) => (
+                  <article
+                    key={notification.id}
+                    onClick={() => {
+                      // Mark as read
+                      const notifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
+                      const updated = notifications.map(n => 
+                        n.id === notification.id ? { ...n, read: true } : n
+                      )
+                      localStorage.setItem('adminNotifications', JSON.stringify(updated))
+                      navigate('/admin/requests')
+                    }}
+                    className="rounded-xl border border-emerald-200 bg-white p-3 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 shrink-0">
+                        <IoCheckmarkCircleOutline className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-slate-900">{notification.title}</h3>
+                        <p className="mt-0.5 text-xs text-slate-600">{notification.message}</p>
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          {new Date(notification.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Recent Activities & Pending Verifications Grid */}
         <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">

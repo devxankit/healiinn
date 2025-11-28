@@ -1055,8 +1055,57 @@ const PatientPrescriptions = () => {
     },
   ]
 
-  // Calculate lab reports count from mockLabReports
-  const labReportsCount = mockLabReports.length
+  // Load lab reports from localStorage (from laboratory) and merge with mock data
+  const [labReports, setLabReports] = useState([])
+  
+  useEffect(() => {
+    const loadLabReports = () => {
+      try {
+        const patientId = 'pat-current' // In real app, get from auth
+        
+        // Load from patientLabReports
+        const patientLabReportsKey = `patientLabReports_${patientId}`
+        const reportsFromStorage = JSON.parse(localStorage.getItem(patientLabReportsKey) || '[]')
+        
+        // Also load from sharedLabReports for backward compatibility
+        const sharedReportsKey = `sharedLabReports_${patientId}`
+        const sharedReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
+        
+        // Merge all reports
+        const allReports = [...reportsFromStorage, ...sharedReports, ...mockLabReports]
+        
+        // Deduplicate based on id or orderId
+        const uniqueReports = allReports.filter((report, idx, self) => {
+          const firstIndex = self.findIndex(r => {
+            if (r.id && report.id && r.id === report.id) return true
+            if (r.orderId && report.orderId && r.orderId === report.orderId) return true
+            return false
+          })
+          return idx === firstIndex
+        })
+        
+        // Sort by date (newest first)
+        uniqueReports.sort((a, b) => {
+          const dateA = new Date(a.date || a.sharedAt || 0)
+          const dateB = new Date(b.date || b.sharedAt || 0)
+          return dateB - dateA
+        })
+        
+        setLabReports(uniqueReports)
+      } catch (error) {
+        console.error('Error loading lab reports:', error)
+        setLabReports(mockLabReports)
+      }
+    }
+    
+    loadLabReports()
+    // Refresh every 2 seconds to get new reports
+    const interval = setInterval(loadLabReports, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Calculate lab reports count
+  const labReportsCount = labReports.length
 
   // Check if patient has appointment with a doctor
   const checkPatientHasAppointment = (doctorId) => {
@@ -1096,9 +1145,15 @@ const PatientPrescriptions = () => {
   }
 
   const handleViewLabReportClick = (report) => {
-    // Open the lab-uploaded PDF in a new tab
+    // Check if PDF is available
     if (report.pdfFileUrl && report.pdfFileUrl !== '#') {
+      // If it's a base64 data URL, open directly
+      if (report.pdfFileUrl.startsWith('data:')) {
       window.open(report.pdfFileUrl, '_blank')
+      } else {
+        // For other URLs, open in new tab
+        window.open(report.pdfFileUrl, '_blank')
+      }
     } else {
       // Fallback: show modal if PDF not available
       setSelectedLabReport(report)
@@ -1588,15 +1643,15 @@ const PatientPrescriptions = () => {
           <p className="text-xs text-slate-600">Share reports with your doctors</p>
         </div>
 
-        {mockLabReports.length === 0 ? (
+        {labReports.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-400" />
             <p className="mt-4 text-sm font-medium text-slate-600">No lab reports found</p>
-            <p className="mt-1 text-xs text-slate-500">Lab reports will appear here</p>
+            <p className="mt-1 text-xs text-slate-500">Lab reports will appear here when laboratory shares them</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {mockLabReports.map((report) => (
+            {labReports.map((report) => (
               <article
                 key={report.id}
                 className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md flex flex-col min-h-[180px]"

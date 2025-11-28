@@ -259,7 +259,7 @@ const PharmacyDashboard = () => {
           </header>
 
       {/* Stats Cards Grid */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         {/* Total Orders */}
         <article
           onClick={() => navigate('/pharmacy/orders')}
@@ -275,6 +275,23 @@ const PharmacyDashboard = () => {
             </div>
           </div>
           <p className="text-[10px] text-slate-600 leading-tight">This month</p>
+        </article>
+
+        {/* Prescription Card */}
+        <article
+          onClick={() => navigate('/pharmacy/prescriptions')}
+          className="relative overflow-hidden rounded-xl border border-teal-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-teal-700 leading-tight mb-1">Prescription</p>
+              <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.pendingPrescriptions}</p>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-white">
+              <IoDocumentTextOutline className="text-base" aria-hidden="true" />
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-600 leading-tight">Active</p>
         </article>
 
         {/* Available Medicines */}

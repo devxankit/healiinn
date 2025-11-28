@@ -31,6 +31,48 @@ const LaboratoryAddTest = () => {
     }
   }, [testId, navigate])
 
+  // Helper function to sync tests to admin inventory
+  const syncTestsToAdminInventory = () => {
+    const laboratoryTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
+    const labId = localStorage.getItem('labId') || sessionStorage.getItem('labId') || 'lab-1'
+    const labName = localStorage.getItem('labName') || sessionStorage.getItem('labName') || 'Laboratory'
+    
+    // Get or create allLabAvailability
+    let allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
+    
+    // Find or create lab entry
+    let labIndex = allLabAvailability.findIndex(lab => lab.labId === labId)
+    
+    // Convert laboratory tests to admin inventory format
+    const testsForAdmin = laboratoryTests.map(test => ({
+      name: test.name,
+      price: parseFloat(test.price) || 0,
+    }))
+    
+    if (labIndex >= 0) {
+      // Update existing lab's tests
+      allLabAvailability[labIndex].tests = testsForAdmin
+      // Ensure status is approved and active
+      allLabAvailability[labIndex].status = allLabAvailability[labIndex].status || 'approved'
+      allLabAvailability[labIndex].isActive = allLabAvailability[labIndex].isActive !== false
+    } else {
+      // Create new lab entry
+      allLabAvailability.push({
+        labId: labId,
+        labName: labName,
+        status: 'approved',
+        isActive: true,
+        phone: localStorage.getItem('labPhone') || '+91 00000 00000',
+        email: localStorage.getItem('labEmail') || 'lab@example.com',
+        address: localStorage.getItem('labAddress') || 'Address not provided',
+        rating: 4.5,
+        tests: testsForAdmin,
+      })
+    }
+    
+    localStorage.setItem('allLabAvailability', JSON.stringify(allLabAvailability))
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
     
@@ -54,6 +96,10 @@ const LaboratoryAddTest = () => {
           : test
       )
       localStorage.setItem('laboratoryAvailableTests', JSON.stringify(updatedTests))
+      
+      // Sync to admin inventory
+      syncTestsToAdminInventory()
+      
       alert('Test updated successfully!')
     } else {
       // Add new test
@@ -65,6 +111,10 @@ const LaboratoryAddTest = () => {
         updatedAt: new Date().toISOString(),
       }
       localStorage.setItem('laboratoryAvailableTests', JSON.stringify([...tests, newTest]))
+      
+      // Sync to admin inventory
+      syncTestsToAdminInventory()
+      
       alert('Test added successfully!')
     }
 

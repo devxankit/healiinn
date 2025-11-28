@@ -22,6 +22,14 @@ const AdminInventory = () => {
   useEffect(() => {
     loadPharmacyInventory()
     loadLaboratoryInventory()
+    
+    // Refresh inventory every 2 seconds to get latest tests from laboratories
+    const interval = setInterval(() => {
+      loadPharmacyInventory()
+      loadLaboratoryInventory()
+    }, 2000)
+    
+    return () => clearInterval(interval)
   }, [])
 
   const loadPharmacyInventory = () => {

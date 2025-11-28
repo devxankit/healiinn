@@ -14,16 +14,93 @@ const LaboratoryAvailableTests = () => {
   const [tests, setTests] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
 
-  // Load tests from localStorage
+  // Load tests from localStorage and sync to admin inventory
   useEffect(() => {
     const savedTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
     setTests(savedTests)
+    
+    // Sync tests to admin inventory on load
+    if (savedTests.length > 0) {
+      const labId = localStorage.getItem('labId') || sessionStorage.getItem('labId') || 'lab-1'
+      const labName = localStorage.getItem('labName') || sessionStorage.getItem('labName') || 'Laboratory'
+      
+      let allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
+      let labIndex = allLabAvailability.findIndex(lab => lab.labId === labId)
+      
+      const testsForAdmin = savedTests.map(test => ({
+        name: test.name,
+        price: parseFloat(test.price) || 0,
+      }))
+      
+      if (labIndex >= 0) {
+        allLabAvailability[labIndex].tests = testsForAdmin
+        allLabAvailability[labIndex].status = allLabAvailability[labIndex].status || 'approved'
+        allLabAvailability[labIndex].isActive = allLabAvailability[labIndex].isActive !== false
+      } else {
+        allLabAvailability.push({
+          labId: labId,
+          labName: labName,
+          status: 'approved',
+          isActive: true,
+          phone: localStorage.getItem('labPhone') || '+91 00000 00000',
+          email: localStorage.getItem('labEmail') || 'lab@example.com',
+          address: localStorage.getItem('labAddress') || 'Address not provided',
+          rating: 4.5,
+          tests: testsForAdmin,
+        })
+      }
+      
+      localStorage.setItem('allLabAvailability', JSON.stringify(allLabAvailability))
+    }
   }, [])
+
+  // Helper function to sync tests to admin inventory
+  const syncTestsToAdminInventory = (testsToSync) => {
+    const labId = localStorage.getItem('labId') || sessionStorage.getItem('labId') || 'lab-1'
+    const labName = localStorage.getItem('labName') || sessionStorage.getItem('labName') || 'Laboratory'
+    
+    // Get or create allLabAvailability
+    let allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
+    
+    // Find or create lab entry
+    let labIndex = allLabAvailability.findIndex(lab => lab.labId === labId)
+    
+    // Convert laboratory tests to admin inventory format
+    const testsForAdmin = testsToSync.map(test => ({
+      name: test.name,
+      price: parseFloat(test.price) || 0,
+    }))
+    
+    if (labIndex >= 0) {
+      // Update existing lab's tests
+      allLabAvailability[labIndex].tests = testsForAdmin
+      // Ensure status is approved and active
+      allLabAvailability[labIndex].status = allLabAvailability[labIndex].status || 'approved'
+      allLabAvailability[labIndex].isActive = allLabAvailability[labIndex].isActive !== false
+    } else {
+      // Create new lab entry
+      allLabAvailability.push({
+        labId: labId,
+        labName: labName,
+        status: 'approved',
+        isActive: true,
+        phone: localStorage.getItem('labPhone') || '+91 00000 00000',
+        email: localStorage.getItem('labEmail') || 'lab@example.com',
+        address: localStorage.getItem('labAddress') || 'Address not provided',
+        rating: 4.5,
+        tests: testsForAdmin,
+      })
+    }
+    
+    localStorage.setItem('allLabAvailability', JSON.stringify(allLabAvailability))
+  }
 
   // Save tests to localStorage
   const saveTests = (updatedTests) => {
     localStorage.setItem('laboratoryAvailableTests', JSON.stringify(updatedTests))
     setTests(updatedTests)
+    // Sync to admin inventory
+    syncTestsToAdminInventory(updatedTests)
   }
 
   const handleAddTest = () => {
