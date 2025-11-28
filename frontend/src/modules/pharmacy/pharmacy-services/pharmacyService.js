@@ -1,6 +1,10 @@
 // Pharmacy service utilities for API calls
+import { ApiClient, storeTokens, clearTokens } from '../../../utils/apiClient'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
+// Create pharmacy-specific API client
+const apiClient = new ApiClient('pharmacy')
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
 
 /**
  * Get authentication token from storage
@@ -141,29 +145,106 @@ export const getPharmacyPatients = async (filters = {}) => {
 }
 
 /**
- * Login pharmacy
+ * Pharmacy signup
+ * @param {object} signupData - Signup data
+ * @returns {Promise<object>} Response data with pharmacy
+ */
+export const signupPharmacy = async (signupData) => {
+  try {
+    const data = await apiClient.post('/pharmacies/auth/signup', signupData)
+    return data
+  } catch (error) {
+    console.error('Error signing up:', error)
+    throw error
+  }
+}
+
+/**
+ * Request login OTP
+ * @param {string} phone - Phone number
+ * @returns {Promise<object>} Response data
+ */
+export const requestLoginOtp = async (phone) => {
+  try {
+    const data = await apiClient.post('/pharmacies/auth/login/otp', { phone })
+    return data
+  } catch (error) {
+    console.error('Error requesting OTP:', error)
+    throw error
+  }
+}
+
+/**
+ * Verify OTP and login
+ * @param {object} credentials - Login credentials (phone, otp)
+ * @returns {Promise<object>} Response data with pharmacy and tokens
  */
 export const loginPharmacy = async (credentials) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/pharmacy/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Login failed: ${response.statusText}`)
-    }
-
-    const data = await response.json()
+    const data = await apiClient.post('/pharmacies/auth/login', credentials)
     return data
   } catch (error) {
     console.error('Error logging in:', error)
     throw error
   }
 }
+
+/**
+ * Store pharmacy tokens after login
+ * @param {object} tokens - Tokens object (accessToken, refreshToken)
+ * @param {boolean} remember - Whether to use localStorage
+ */
+export const storePharmacyTokens = (tokens, remember = true) => {
+  storeTokens('pharmacy', tokens, remember)
+}
+
+/**
+ * Clear pharmacy tokens on logout
+ */
+export const clearPharmacyTokens = () => {
+  clearTokens('pharmacy')
+}
+
+/**
+ * Get pharmacy profile
+ * @returns {Promise<object>} Pharmacy profile data
+ */
+export const getPharmacyProfile = async () => {
+  try {
+    return await apiClient.get('/pharmacies/auth/me')
+  } catch (error) {
+    console.error('Error fetching pharmacy profile:', error)
+    throw error
+  }
+}
+
+/**
+ * Update pharmacy profile
+ * @param {object} profileData - Profile data to update
+ * @returns {Promise<object>} Updated profile data
+ */
+export const updatePharmacyProfile = async (profileData) => {
+  try {
+    return await apiClient.put('/pharmacies/auth/me', profileData)
+  } catch (error) {
+    console.error('Error updating pharmacy profile:', error)
+    throw error
+  }
+}
+
+/**
+ * Pharmacy logout
+ * @returns {Promise<object>} Response data
+ */
+export const logoutPharmacy = async () => {
+  try {
+    return await apiClient.post('/pharmacies/auth/logout')
+  } catch (error) {
+    console.error('Error logging out:', error)
+    throw error
+  }
+}
+
 
 export default {
   fetchPharmacies,

@@ -8,7 +8,6 @@ import {
   IoLocationOutline,
   IoCalendarOutline,
   IoMedicalOutline,
-  IoLockClosedOutline,
   IoLogOutOutline,
   IoCreateOutline,
   IoCheckmarkCircleOutline,
@@ -1342,67 +1341,6 @@ const DoctorProfile = () => {
               )}
             </div>
 
-            {/* Change Password */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
-              <button
-                type="button"
-                onClick={() => setActiveSection(activeSection === 'password' ? null : 'password')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 hover:bg-slate-50/50 transition-colors"
-              >
-                <h2 className="text-sm sm:text-base font-bold text-slate-900">Change Password</h2>
-                {activeSection === 'password' ? (
-                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
-                ) : (
-                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
-                )}
-              </button>
-
-              {activeSection === 'password' && (
-                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-3 sm:space-y-4 pt-4 sm:pt-5">
-                  <div>
-                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                      Current Password
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="Enter current password"
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                      New Password
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="Enter new password"
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                      Confirm New Password
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="Confirm new password"
-                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      console.log('Change Password submitted')
-                      alert('Password change functionality will be implemented')
-                    }}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95"
-                  >
-                    <IoLockClosedOutline className="h-4 w-4" />
-                    Update Password
-                  </button>
-                </div>
-              )}
-            </div>
 
             {/* Support History */}
             <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">

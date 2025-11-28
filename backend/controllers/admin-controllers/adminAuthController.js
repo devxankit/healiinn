@@ -1,6 +1,6 @@
 const Admin = require('../../models/Admin');
 const asyncHandler = require('../../middleware/asyncHandler');
-const { createAccessToken, createRefreshToken } = require('../../utils/tokenService');
+const { createAccessToken, createRefreshToken, verifyRefreshToken, blacklistToken, decodeToken } = require('../../utils/tokenService');
 const {
   requestPasswordReset,
   verifyPasswordResetOtp,
@@ -20,23 +20,121 @@ const buildAuthResponse = (admin) => {
 exports.registerAdmin = asyncHandler(async (req, res) => {
   const { name, email, phone, password, registrationCode, isSuperAdmin } = req.body;
 
-  if (!name || !email || !password) {
+  // Required fields validation
+  if (!name || !name.trim()) {
     return res.status(400).json({
       success: false,
-      message: 'Name, email, and password are required.',
+      message: 'Name is required.',
     });
   }
 
-  const existingAdmin = await Admin.findOne({ email });
+  if (!email || !email.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email is required.',
+    });
+  }
+
+  if (!password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password is required.',
+    });
+  }
+
+  // Name validation
+  const trimmedName = name.trim();
+  if (trimmedName.length < 2) {
+    return res.status(400).json({
+      success: false,
+      message: 'Name must be at least 2 characters long.',
+    });
+  }
+  if (trimmedName.length > 50) {
+    return res.status(400).json({
+      success: false,
+      message: 'Name must not exceed 50 characters.',
+    });
+  }
+  if (!/^[a-zA-Z\s'-]+$/.test(trimmedName)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Name can only contain letters, spaces, hyphens, and apostrophes.',
+    });
+  }
+
+  // Email validation
+  const trimmedEmail = email.trim().toLowerCase();
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(trimmedEmail)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please enter a valid email address.',
+    });
+  }
+  if (trimmedEmail.length > 100) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email must not exceed 100 characters.',
+    });
+  }
+
+  // Phone validation (optional but if provided, must be valid)
+  if (phone) {
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(phone.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number must be exactly 10 digits.',
+      });
+    }
+  }
+
+  // Password validation
+  if (password.length < 8) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password must be at least 8 characters long.',
+    });
+  }
+  if (password.length > 128) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password must not exceed 128 characters.',
+    });
+  }
+  
+  // Password strength validation
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  
+  if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number.',
+    });
+  }
+
+  // Check if any admin already exists (single admin system)
+  const adminCount = await Admin.countDocuments();
+  if (adminCount > 0) {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin registration is disabled. Only one admin account is allowed. Please use login instead.',
+    });
+  }
+
+  const existingAdmin = await Admin.findOne({ email: trimmedEmail });
 
   if (existingAdmin) {
     return res.status(400).json({ success: false, message: 'Email already registered.' });
   }
 
+  // Registration code validation
   const configuredCode = process.env.ADMIN_REGISTRATION_CODE;
-
   if (configuredCode) {
-    if (!registrationCode || registrationCode !== configuredCode) {
+    if (!registrationCode || registrationCode.trim() !== configuredCode.trim()) {
       return res.status(403).json({
         success: false,
         message: 'Invalid admin registration code.',
@@ -47,9 +145,9 @@ exports.registerAdmin = asyncHandler(async (req, res) => {
   }
 
   const admin = await Admin.create({
-    name,
-    email,
-    phone,
+    name: trimmedName,
+    email: trimmedEmail,
+    phone: phone ? phone.trim() : undefined,
     password,
     isSuperAdmin: Boolean(isSuperAdmin),
   });
@@ -66,14 +164,43 @@ exports.registerAdmin = asyncHandler(async (req, res) => {
   });
 });
 
+// Check if admin exists (for frontend to disable signup)
+exports.checkAdminExists = asyncHandler(async (req, res) => {
+  const adminCount = await Admin.countDocuments();
+  return res.status(200).json({
+    success: true,
+    data: {
+      adminExists: adminCount > 0,
+      canRegister: adminCount === 0,
+    },
+  });
+});
+
 exports.loginAdmin = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Email and password are required.' });
+  // Validation
+  if (!email || !email.trim()) {
+    return res.status(400).json({ success: false, message: 'Email is required.' });
   }
 
-  const admin = await Admin.findOne({ email });
+  if (!password) {
+    return res.status(400).json({ success: false, message: 'Password is required.' });
+  }
+
+  // Email format validation
+  const trimmedEmail = email.trim().toLowerCase();
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(trimmedEmail)) {
+    return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+  }
+
+  // Password length validation
+  if (password.length < 8) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
+  }
+
+  const admin = await Admin.findOne({ email: trimmedEmail });
 
   if (!admin) {
     return res.status(401).json({ success: false, message: 'Invalid credentials.' });
@@ -127,8 +254,103 @@ exports.updateAdminProfile = asyncHandler(async (req, res) => {
 });
 
 exports.logoutAdmin = asyncHandler(async (req, res) => {
+  const accessToken = req.headers.authorization?.split(' ')[1] || req.cookies?.token;
+  const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
+
+  if (accessToken) {
+    try {
+      const decoded = decodeToken(accessToken);
+      if (decoded && decoded.id && decoded.role) {
+        await blacklistToken(accessToken, 'access', decoded.id, decoded.role, 'logout');
+      }
+    } catch (error) {
+      console.log('Error blacklisting access token:', error.message);
+    }
+  }
+
+  if (refreshToken) {
+    try {
+      const decoded = decodeToken(refreshToken);
+      if (decoded && decoded.id && decoded.role) {
+        await blacklistToken(refreshToken, 'refresh', decoded.id, decoded.role, 'logout');
+      }
+    } catch (error) {
+      console.log('Error blacklisting refresh token:', error.message);
+    }
+  }
+
   res.clearCookie('token');
-  return res.status(200).json({ success: true, message: 'Logout successful.' });
+  res.clearCookie('refreshToken');
+  return res.status(200).json({ success: true, message: 'Logout successful. All tokens have been revoked.' });
+});
+
+exports.refreshToken = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({
+      success: false,
+      message: 'Refresh token is required.',
+    });
+  }
+
+  try {
+    const decoded = await verifyRefreshToken(refreshToken);
+    const admin = await Admin.findById(decoded.id);
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(admin, 'isActive') && admin.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is inactive.',
+      });
+    }
+
+    try {
+      await blacklistToken(refreshToken, 'refresh', decoded.id, decoded.role, 'refresh');
+    } catch (error) {
+      console.log('Error blacklisting old refresh token:', error.message);
+    }
+
+    const payload = { id: admin._id, role: ROLES.ADMIN, isSuperAdmin: admin.isSuperAdmin };
+    const newAccessToken = createAccessToken(payload);
+    const newRefreshToken = createRefreshToken(payload);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Tokens refreshed successfully.',
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      },
+    });
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token has expired. Please login again.',
+      });
+    }
+    if (error.name === 'TokenRevokedError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token has been revoked. Please login again.',
+      });
+    }
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token. Please login again.',
+      });
+    }
+    throw error;
+  }
 });
 
 exports.getAdminById = asyncHandler(async (req, res) => {

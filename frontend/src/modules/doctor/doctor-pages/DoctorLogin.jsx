@@ -17,9 +17,29 @@ import {
   IoTimeOutline,
   IoDocumentTextOutline,
 } from 'react-icons/io5'
+import { useToast } from '../../../contexts/ToastContext'
+import {
+  requestLoginOtp as requestDoctorOtp,
+  loginDoctor,
+  signupDoctor,
+  storeDoctorTokens,
+} from '../doctor-services/doctorService'
+import {
+  requestLoginOtp as requestPharmacyOtp,
+  loginPharmacy,
+  signupPharmacy,
+  storePharmacyTokens,
+} from '../../pharmacy/pharmacy-services/pharmacyService'
+import {
+  requestLoginOtp as requestLaboratoryOtp,
+  loginLaboratory,
+  signupLaboratory,
+  storeLaboratoryTokens,
+} from '../../laboratory/laboratory-services/laboratoryService'
 
 const DoctorLogin = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [selectedModule, setSelectedModule] = useState('doctor') // 'doctor' | 'pharmacy' | 'laboratory'
   const [mode, setMode] = useState('login') // 'login' | 'signup'
   
@@ -38,9 +58,6 @@ const DoctorLogin = () => {
   const [signupStep, setSignupStep] = useState(1)
   const totalSignupSteps = 3 // Steps: 1=Basic Info, 2=Professional/Details, 3=Additional Info
   
-  // Signup form password visibility states
-  const [showSignupPassword, setShowSignupPassword] = useState(false)
-  const [showSignupConfirm, setShowSignupConfirm] = useState(false)
   
   // Refs for module buttons to measure their positions and widths
   const doctorButtonRef = useRef(null)
@@ -57,8 +74,6 @@ const DoctorLogin = () => {
     lastName: '',
     email: '',
     phone: '',
-    password: '',
-    confirmPassword: '',
     specialization: '',
     gender: '',
     licenseNumber: '',
@@ -90,8 +105,6 @@ const DoctorLogin = () => {
     ownerName: '',
     email: '',
     phone: '',
-    password: '',
-    confirmPassword: '',
     licenseNumber: '',
     gstNumber: '',
     address: {
@@ -120,8 +133,6 @@ const DoctorLogin = () => {
     ownerName: '',
     email: '',
     phone: '',
-    password: '',
-    confirmPassword: '',
     licenseNumber: '',
     certifications: [],
     address: {
@@ -230,8 +241,6 @@ const DoctorLogin = () => {
     setOtpSent(false)
     setOtpTimer(0)
     setSignupStep(1)
-    setShowSignupPassword(false)
-    setShowSignupConfirm(false)
   }
   
   // Get current signup data based on selected module
@@ -251,30 +260,20 @@ const DoctorLogin = () => {
     if (signupStep === 1) {
       // Step 1 validation - Basic info (varies by module)
       if (selectedModule === 'doctor') {
-        if (!currentData.firstName || !currentData.email || !currentData.phone || !currentData.password || !currentData.confirmPassword) {
-          window.alert('Please fill in all required fields in Step 1')
+        if (!currentData.firstName || !currentData.email || !currentData.phone) {
+          toast.error('Please fill in all required fields in Step 1')
           return
         }
       } else if (selectedModule === 'pharmacy') {
-        if (!currentData.pharmacyName || !currentData.email || !currentData.phone || !currentData.password || !currentData.confirmPassword) {
-          window.alert('Please fill in all required fields in Step 1')
+        if (!currentData.pharmacyName || !currentData.email || !currentData.phone) {
+          toast.error('Please fill in all required fields in Step 1')
           return
         }
       } else if (selectedModule === 'laboratory') {
-        if (!currentData.labName || !currentData.email || !currentData.phone || !currentData.password || !currentData.confirmPassword) {
-          window.alert('Please fill in all required fields in Step 1')
+        if (!currentData.labName || !currentData.email || !currentData.phone) {
+          toast.error('Please fill in all required fields in Step 1')
           return
         }
-      }
-      
-      // Common password validation
-      if (currentData.password !== currentData.confirmPassword) {
-        window.alert('Passwords do not match')
-        return
-      }
-      if (currentData.password.length < 8) {
-        window.alert('Password must be at least 8 characters long')
-        return
       }
     }
     
@@ -357,53 +356,32 @@ const DoctorLogin = () => {
     const loginData = getCurrentLoginData()
     
     if (!loginData.phone || loginData.phone.length < 10) {
-      window.alert('Please enter a valid mobile number')
+      toast.error('Please enter a valid mobile number')
       return
     }
     
     setIsSendingOtp(true)
     
     try {
-      const endpoints = {
-        doctor: '/api/doctors/auth/send-otp',
-        pharmacy: '/api/pharmacy/auth/send-otp',
-        laboratory: '/api/laboratory/auth/send-otp',
+      let response
+      if (selectedModule === 'doctor') {
+        response = await requestDoctorOtp(loginData.phone)
+      } else if (selectedModule === 'pharmacy') {
+        response = await requestPharmacyOtp(loginData.phone)
+      } else if (selectedModule === 'laboratory') {
+        response = await requestLaboratoryOtp(loginData.phone)
       }
       
-      try {
-        const response = await fetch(endpoints[selectedModule], {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ phone: loginData.phone }),
-        })
-        
-        if (!response.ok) {
-          // Simulate OTP sending for frontend testing
-          console.log('Backend not available, simulating OTP send')
-          setOtpSent(true)
-          setOtpTimer(60) // 60 seconds timer
-          setIsSendingOtp(false)
-          return
-        }
-        
-        const data = await response.json()
-        if (data.success || response.ok) {
-          setOtpSent(true)
-          setOtpTimer(60) // 60 seconds timer
-        } else {
-          window.alert(data.message || 'Failed to send OTP. Please try again.')
-        }
-      } catch (error) {
-        // Simulate OTP sending for frontend testing
-        console.log('Backend not available, simulating OTP send:', error.message)
+      if (response && response.success) {
         setOtpSent(true)
-        setOtpTimer(60)
+        setOtpTimer(60) // 60 seconds timer
+        toast.success('OTP sent to your mobile number')
+      } else {
+        toast.error(response?.message || 'Failed to send OTP. Please try again.')
       }
     } catch (error) {
       console.error('Send OTP error:', error)
-      window.alert('An error occurred. Please try again.')
+      toast.error(error.message || 'An error occurred. Please try again.')
     } finally {
       setIsSendingOtp(false)
     }
@@ -432,20 +410,13 @@ const DoctorLogin = () => {
     
     // Verify OTP
     if (!loginData.otp || loginData.otp.length !== 6) {
-      window.alert('Please enter the 6-digit OTP')
+      toast.error('Please enter the 6-digit OTP')
       return
     }
 
     setIsSubmitting(true)
     
     try {
-      // API endpoints based on module
-      const endpoints = {
-        doctor: '/api/doctors/auth/verify-otp',
-        pharmacy: '/api/pharmacy/auth/verify-otp',
-        laboratory: '/api/laboratory/auth/verify-otp',
-      }
-
       // Dashboard routes for each module
       const dashboardRoutes = {
         doctor: '/doctor/dashboard',
@@ -453,68 +424,41 @@ const DoctorLogin = () => {
         laboratory: '/laboratory/dashboard',
       }
 
-      // Helper function to simulate login (for frontend testing without backend)
-      const simulateLogin = () => {
-        const tokenKey = `${selectedModule}AuthToken`
-        const refreshTokenKey = `${selectedModule}RefreshToken`
-        const testToken = `test-token-for-${selectedModule}-frontend-testing`
-        const testRefreshToken = `test-refresh-token-for-${selectedModule}-frontend-testing`
-
-        if (loginData.remember) {
-          localStorage.setItem(tokenKey, testToken)
-          localStorage.setItem(refreshTokenKey, testRefreshToken)
-        } else {
-          sessionStorage.setItem(tokenKey, testToken)
-          sessionStorage.setItem(refreshTokenKey, testRefreshToken)
+      let response
+      if (selectedModule === 'doctor') {
+        response = await loginDoctor({ phone: loginData.phone, otp: loginData.otp })
+        if (response.success && response.data?.tokens) {
+          storeDoctorTokens(response.data.tokens, loginData.remember)
         }
-
-        // Redirect to appropriate dashboard
-        navigate(dashboardRoutes[selectedModule], { replace: true })
+      } else if (selectedModule === 'pharmacy') {
+        response = await loginPharmacy({ phone: loginData.phone, otp: loginData.otp })
+        if (response.success && response.data?.tokens) {
+          storePharmacyTokens(response.data.tokens, loginData.remember)
+        }
+      } else if (selectedModule === 'laboratory') {
+        response = await loginLaboratory({ phone: loginData.phone, otp: loginData.otp })
+        if (response.success && response.data?.tokens) {
+          storeLaboratoryTokens(response.data.tokens, loginData.remember)
+        }
       }
 
-      try {
-        const response = await fetch(endpoints[selectedModule], {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            phone: loginData.phone,
-            otp: loginData.otp,
-          }),
-        })
-
-        // If API is not available (404 or other errors), simulate login for frontend testing
-        if (!response.ok) {
-          // Simulate login for all modules when backend is not available
-          simulateLogin()
-          return
-        }
-
-        const data = await response.json()
-
-        // Store tokens from backend response
-        if (data.data?.tokens) {
-          if (loginData.remember) {
-            localStorage.setItem(`${selectedModule}AuthToken`, data.data.tokens.accessToken)
-            localStorage.setItem(`${selectedModule}RefreshToken`, data.data.tokens.refreshToken)
-          } else {
-            sessionStorage.setItem(`${selectedModule}AuthToken`, data.data.tokens.accessToken)
-            sessionStorage.setItem(`${selectedModule}RefreshToken`, data.data.tokens.refreshToken)
-          }
-        }
-
-        // Redirect to appropriate dashboard
-        navigate(dashboardRoutes[selectedModule], { replace: true })
-      } catch (fetchError) {
-        // If network error or other fetch issues, simulate login for frontend testing
-        // This handles cases where backend is not running or network is unavailable
-        console.log('Backend not available, simulating login for frontend testing:', fetchError.message)
-        simulateLogin()
+      if (response && response.success && response.data?.tokens) {
+        toast.success('Login successful! Redirecting...')
+        setTimeout(() => {
+          navigate(dashboardRoutes[selectedModule], { replace: true })
+        }, 500)
+      } else {
+        toast.error(response?.message || 'Login failed. Please try again.')
+        setIsSubmitting(false)
       }
     } catch (error) {
       console.error('Login error:', error)
-      window.alert('An error occurred. Please try again.')
+      // Check if it's an approval error
+      if (error.message && error.message.includes('approval')) {
+        toast.error(error.message)
+      } else {
+        toast.error(error.message || 'An error occurred. Please try again.')
+      }
       setIsSubmitting(false)
     }
   }
@@ -641,17 +585,31 @@ const DoctorLogin = () => {
     if (isSubmitting) return
 
     if (!doctorSignupData.termsAccepted) {
-      window.alert('Please accept the terms to continue.')
+      toast.error('Please accept the terms to continue.')
       return
     }
 
-    if (doctorSignupData.password !== doctorSignupData.confirmPassword) {
-      window.alert('Passwords do not match. Please re-enter and try again.')
+    if (!doctorSignupData.firstName || !doctorSignupData.email || !doctorSignupData.phone || !doctorSignupData.specialization || !doctorSignupData.gender || !doctorSignupData.licenseNumber) {
+      toast.error('Please fill in all required fields.')
       return
     }
 
-    if (!doctorSignupData.firstName || !doctorSignupData.email || !doctorSignupData.phone || !doctorSignupData.password || !doctorSignupData.specialization || !doctorSignupData.gender || !doctorSignupData.licenseNumber) {
-      window.alert('Please fill in all required fields.')
+    // Validate firstName
+    if (doctorSignupData.firstName.trim().length < 2) {
+      toast.error('First name must be at least 2 characters')
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(doctorSignupData.email.trim())) {
+      toast.error('Please enter a valid email address')
+      return
+    }
+
+    // Validate phone
+    if (doctorSignupData.phone.length !== 10) {
+      toast.error('Please enter a valid 10-digit mobile number')
       return
     }
 
@@ -663,7 +621,6 @@ const DoctorLogin = () => {
         lastName: doctorSignupData.lastName || '',
         email: doctorSignupData.email,
         phone: doctorSignupData.phone,
-        password: doctorSignupData.password,
         specialization: doctorSignupData.specialization,
         gender: doctorSignupData.gender,
         licenseNumber: doctorSignupData.licenseNumber,
@@ -682,29 +639,20 @@ const DoctorLogin = () => {
           : undefined,
       }
 
-      const response = await fetch('/api/doctors/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
+      const response = await signupDoctor(payload)
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        window.alert(data.message || 'Signup failed. Please try again.')
+      if (response.success) {
+        toast.success('Registration submitted successfully! Please wait for admin approval.')
+        setDoctorSignupData(initialDoctorSignupState)
+        setSignupStep(1)
+        setMode('login')
+      } else {
+        toast.error(response.message || 'Signup failed. Please try again.')
         setIsSubmitting(false)
-        return
       }
-
-      window.alert('Registration submitted successfully! Please wait for admin approval.')
-      setIsSubmitting(false)
-      // Optionally reset form or redirect
-      setDoctorSignupData(initialDoctorSignupState)
     } catch (error) {
       console.error('Signup error:', error)
-      window.alert('An error occurred. Please try again.')
+      toast.error(error.message || 'An error occurred. Please try again.')
       setIsSubmitting(false)
     }
   }
@@ -793,17 +741,31 @@ const DoctorLogin = () => {
     if (isSubmitting) return
 
     if (!pharmacySignupData.termsAccepted) {
-      window.alert('Please accept the terms to continue.')
+      toast.error('Please accept the terms to continue.')
       return
     }
 
-    if (pharmacySignupData.password !== pharmacySignupData.confirmPassword) {
-      window.alert('Passwords do not match. Please re-enter and try again.')
+    if (!pharmacySignupData.pharmacyName || !pharmacySignupData.email || !pharmacySignupData.phone || !pharmacySignupData.licenseNumber) {
+      toast.error('Please fill in all required fields.')
       return
     }
 
-    if (!pharmacySignupData.pharmacyName || !pharmacySignupData.email || !pharmacySignupData.phone || !pharmacySignupData.password || !pharmacySignupData.licenseNumber) {
-      window.alert('Please fill in all required fields.')
+    // Validate pharmacyName
+    if (pharmacySignupData.pharmacyName.trim().length < 2) {
+      toast.error('Pharmacy name must be at least 2 characters')
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(pharmacySignupData.email.trim())) {
+      toast.error('Please enter a valid email address')
+      return
+    }
+
+    // Validate phone
+    if (pharmacySignupData.phone.length !== 10) {
+      toast.error('Please enter a valid 10-digit mobile number')
       return
     }
 
@@ -815,7 +777,6 @@ const DoctorLogin = () => {
         ownerName: pharmacySignupData.ownerName || undefined,
         email: pharmacySignupData.email,
         phone: pharmacySignupData.phone,
-        password: pharmacySignupData.password,
         licenseNumber: pharmacySignupData.licenseNumber,
         gstNumber: pharmacySignupData.gstNumber || undefined,
         address: Object.values(pharmacySignupData.address).some((val) => val) ? pharmacySignupData.address : undefined,
@@ -825,28 +786,20 @@ const DoctorLogin = () => {
         contactPerson: Object.values(pharmacySignupData.contactPerson).some((val) => val) ? pharmacySignupData.contactPerson : undefined,
       }
 
-      const response = await fetch('/api/pharmacy/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
+      const response = await signupPharmacy(payload)
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        window.alert(data.message || 'Signup failed. Please try again.')
+      if (response.success) {
+        toast.success('Registration submitted successfully! Please wait for admin approval.')
+        setPharmacySignupData(initialPharmacySignupState)
+        setSignupStep(1)
+        setMode('login')
+      } else {
+        toast.error(response.message || 'Signup failed. Please try again.')
         setIsSubmitting(false)
-        return
       }
-
-      window.alert('Registration submitted successfully! Please wait for admin approval.')
-      setIsSubmitting(false)
-      setPharmacySignupData(initialPharmacySignupState)
     } catch (error) {
       console.error('Signup error:', error)
-      window.alert('An error occurred. Please try again.')
+      toast.error(error.message || 'An error occurred. Please try again.')
       setIsSubmitting(false)
     }
   }
@@ -966,6 +919,36 @@ const DoctorLogin = () => {
       return
     }
 
+    // Limit text fields
+    if (name === 'labName' || name === 'ownerName') {
+      const trimmedValue = value.trim().slice(0, 100)
+      setLaboratorySignupData((prev) => ({
+        ...prev,
+        [name]: trimmedValue,
+      }))
+      return
+    }
+
+    // Limit email
+    if (name === 'email') {
+      const trimmedValue = value.trim().slice(0, 100)
+      setLaboratorySignupData((prev) => ({
+        ...prev,
+        [name]: trimmedValue,
+      }))
+      return
+    }
+
+    // Limit license number
+    if (name === 'licenseNumber') {
+      const trimmedValue = value.trim().slice(0, 50)
+      setLaboratorySignupData((prev) => ({
+        ...prev,
+        [name]: trimmedValue,
+      }))
+      return
+    }
+
     setLaboratorySignupData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
@@ -991,17 +974,31 @@ const DoctorLogin = () => {
     if (isSubmitting) return
 
     if (!laboratorySignupData.termsAccepted) {
-      window.alert('Please accept the terms to continue.')
+      toast.error('Please accept the terms to continue.')
       return
     }
 
-    if (laboratorySignupData.password !== laboratorySignupData.confirmPassword) {
-      window.alert('Passwords do not match. Please re-enter and try again.')
+    if (!laboratorySignupData.labName || !laboratorySignupData.email || !laboratorySignupData.phone || !laboratorySignupData.licenseNumber) {
+      toast.error('Please fill in all required fields.')
       return
     }
 
-    if (!laboratorySignupData.labName || !laboratorySignupData.email || !laboratorySignupData.phone || !laboratorySignupData.password || !laboratorySignupData.licenseNumber) {
-      window.alert('Please fill in all required fields.')
+    // Validate labName
+    if (laboratorySignupData.labName.trim().length < 2) {
+      toast.error('Laboratory name must be at least 2 characters')
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(laboratorySignupData.email.trim())) {
+      toast.error('Please enter a valid email address')
+      return
+    }
+
+    // Validate phone
+    if (laboratorySignupData.phone.length !== 10) {
+      toast.error('Please enter a valid 10-digit mobile number')
       return
     }
 
@@ -1013,7 +1010,6 @@ const DoctorLogin = () => {
         ownerName: laboratorySignupData.ownerName || undefined,
         email: laboratorySignupData.email,
         phone: laboratorySignupData.phone,
-        password: laboratorySignupData.password,
         licenseNumber: laboratorySignupData.licenseNumber,
         certifications: laboratorySignupData.certifications.length > 0 ? laboratorySignupData.certifications : undefined,
         address: Object.values(laboratorySignupData.address).some((val) => val) ? laboratorySignupData.address : undefined,
@@ -1025,28 +1021,20 @@ const DoctorLogin = () => {
           : undefined,
       }
 
-      const response = await fetch('/api/laboratory/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
+      const response = await signupLaboratory(payload)
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        window.alert(data.message || 'Signup failed. Please try again.')
+      if (response.success) {
+        toast.success('Registration submitted successfully! Please wait for admin approval.')
+        setLaboratorySignupData(initialLaboratorySignupState)
+        setSignupStep(1)
+        setMode('login')
+      } else {
+        toast.error(response.message || 'Signup failed. Please try again.')
         setIsSubmitting(false)
-        return
       }
-
-      window.alert('Registration submitted successfully! Please wait for admin approval.')
-      setIsSubmitting(false)
-      setLaboratorySignupData(initialLaboratorySignupState)
     } catch (error) {
       console.error('Signup error:', error)
-      window.alert('An error occurred. Please try again.')
+      toast.error(error.message || 'An error occurred. Please try again.')
       setIsSubmitting(false)
     }
   }
@@ -1413,10 +1401,13 @@ const DoctorLogin = () => {
                       <input
                         id="firstName"
                         name="firstName"
+                        type="text"
                         value={doctorSignupData.firstName}
                         onChange={handleDoctorSignupChange}
                         required
                         placeholder="John"
+                        maxLength={50}
+                        minLength={2}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -1429,9 +1420,11 @@ const DoctorLogin = () => {
                     <input
                       id="lastName"
                       name="lastName"
+                      type="text"
                       value={doctorSignupData.lastName}
                       onChange={handleDoctorSignupChange}
                       placeholder="Doe"
+                      maxLength={50}
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                       style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                     />
@@ -1453,6 +1446,7 @@ const DoctorLogin = () => {
                         autoComplete="email"
                         required
                         placeholder="you@example.com"
+                        maxLength={100}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -1469,8 +1463,10 @@ const DoctorLogin = () => {
                       <input
                         id="doctor-phone"
                         name="phone"
+                        type="tel"
                         value={doctorSignupData.phone}
                         onChange={handleDoctorSignupChange}
+                        autoComplete="tel"
                         required
                         placeholder="9876543210"
                         maxLength={10}
@@ -1482,68 +1478,6 @@ const DoctorLogin = () => {
                   </div>
                 </section>
 
-                {/* Password Section */}
-                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="doctor-password" className="text-sm font-semibold text-slate-700">
-                      Password <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="doctor-password"
-                        name="password"
-                        type={showSignupPassword ? 'text' : 'password'}
-                        value={doctorSignupData.password}
-                        onChange={handleDoctorSignupChange}
-                        minLength={8}
-                        required
-                        placeholder="Create a secure password"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSignupPassword((prev) => !prev)}
-                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                        aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showSignupPassword ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="doctor-confirmPassword" className="text-sm font-semibold text-slate-700">
-                      Confirm Password <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="doctor-confirmPassword"
-                        name="confirmPassword"
-                        type={showSignupConfirm ? 'text' : 'password'}
-                        value={doctorSignupData.confirmPassword}
-                        onChange={handleDoctorSignupChange}
-                        required
-                        placeholder="Re-enter your password"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSignupConfirm((prev) => !prev)}
-                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                        aria-label={showSignupConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
-                      >
-                        {showSignupConfirm ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </section>
                   </motion.div>
                 )}
 
@@ -1572,10 +1506,12 @@ const DoctorLogin = () => {
                       <input
                         id="specialization"
                         name="specialization"
+                        type="text"
                         value={doctorSignupData.specialization}
                         onChange={handleDoctorSignupChange}
                         required
                         placeholder="Cardiology, General Medicine, etc."
+                        maxLength={100}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -1612,10 +1548,12 @@ const DoctorLogin = () => {
                       <input
                         id="licenseNumber"
                         name="licenseNumber"
+                        type="text"
                         value={doctorSignupData.licenseNumber}
                         onChange={handleDoctorSignupChange}
                         required
                         placeholder="Enter your medical license number"
+                        maxLength={50}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -2109,10 +2047,13 @@ const DoctorLogin = () => {
                       <input
                         id="pharmacyName"
                         name="pharmacyName"
+                        type="text"
                         value={pharmacySignupData.pharmacyName}
                         onChange={handlePharmacySignupChange}
                         required
                         placeholder="ABC Pharmacy"
+                        maxLength={100}
+                        minLength={2}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -2154,6 +2095,7 @@ const DoctorLogin = () => {
                         autoComplete="email"
                         required
                         placeholder="pharmacy@example.com"
+                        maxLength={100}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -2170,8 +2112,10 @@ const DoctorLogin = () => {
                       <input
                         id="pharmacy-phone"
                         name="phone"
+                        type="tel"
                         value={pharmacySignupData.phone}
                         onChange={handlePharmacySignupChange}
+                        autoComplete="tel"
                         required
                         placeholder="9876543210"
                         maxLength={10}
@@ -2183,68 +2127,6 @@ const DoctorLogin = () => {
                   </div>
                 </section>
 
-                {/* Password Section */}
-                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="pharmacy-password" className="text-sm font-semibold text-slate-700">
-                      Password <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="pharmacy-password"
-                        name="password"
-                        type={showSignupPassword ? 'text' : 'password'}
-                        value={pharmacySignupData.password}
-                        onChange={handlePharmacySignupChange}
-                        minLength={8}
-                        required
-                        placeholder="Create a secure password"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSignupPassword((prev) => !prev)}
-                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                        aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showSignupPassword ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="pharmacy-confirmPassword" className="text-sm font-semibold text-slate-700">
-                      Confirm Password <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="pharmacy-confirmPassword"
-                        name="confirmPassword"
-                        type={showSignupConfirm ? 'text' : 'password'}
-                        value={pharmacySignupData.confirmPassword}
-                        onChange={handlePharmacySignupChange}
-                        required
-                        placeholder="Re-enter your password"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSignupConfirm((prev) => !prev)}
-                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                        aria-label={showSignupConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
-                      >
-                        {showSignupConfirm ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </section>
                   </motion.div>
                 )}
 
@@ -2273,10 +2155,12 @@ const DoctorLogin = () => {
                       <input
                         id="pharmacy-licenseNumber"
                         name="licenseNumber"
+                        type="text"
                         value={pharmacySignupData.licenseNumber}
                         onChange={handlePharmacySignupChange}
                         required
                         placeholder="Enter your pharmacy license number"
+                        maxLength={50}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -2704,10 +2588,13 @@ const DoctorLogin = () => {
                       <input
                         id="labName"
                         name="labName"
+                        type="text"
                         value={laboratorySignupData.labName}
                         onChange={handleLaboratorySignupChange}
                         required
                         placeholder="ABC Diagnostic Laboratory"
+                        maxLength={100}
+                        minLength={2}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -2749,6 +2636,7 @@ const DoctorLogin = () => {
                         autoComplete="email"
                         required
                         placeholder="lab@example.com"
+                        maxLength={100}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />
@@ -2765,8 +2653,10 @@ const DoctorLogin = () => {
                       <input
                         id="lab-phone"
                         name="phone"
+                        type="tel"
                         value={laboratorySignupData.phone}
                         onChange={handleLaboratorySignupChange}
+                        autoComplete="tel"
                         required
                         placeholder="9876543210"
                         maxLength={10}
@@ -2778,68 +2668,6 @@ const DoctorLogin = () => {
                   </div>
                 </section>
 
-                {/* Password Section */}
-                <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="lab-password" className="text-sm font-semibold text-slate-700">
-                      Password <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="lab-password"
-                        name="password"
-                        type={showSignupPassword ? 'text' : 'password'}
-                        value={laboratorySignupData.password}
-                        onChange={handleLaboratorySignupChange}
-                        minLength={8}
-                        required
-                        placeholder="Create a secure password"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSignupPassword((prev) => !prev)}
-                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                        aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showSignupPassword ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="lab-confirmPassword" className="text-sm font-semibold text-slate-700">
-                      Confirm Password <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                        <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                      <input
-                        id="lab-confirmPassword"
-                        name="confirmPassword"
-                        type={showSignupConfirm ? 'text' : 'password'}
-                        value={laboratorySignupData.confirmPassword}
-                        onChange={handleLaboratorySignupChange}
-                        required
-                        placeholder="Re-enter your password"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                        style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSignupConfirm((prev) => !prev)}
-                        className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                        aria-label={showSignupConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
-                      >
-                        {showSignupConfirm ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </section>
                   </motion.div>
                 )}
 
@@ -2868,10 +2696,12 @@ const DoctorLogin = () => {
                       <input
                         id="lab-licenseNumber"
                         name="licenseNumber"
+                        type="text"
                         value={laboratorySignupData.licenseNumber}
                         onChange={handleLaboratorySignupChange}
                         required
                         placeholder="Enter your laboratory license number"
+                        maxLength={50}
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
                         style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                       />

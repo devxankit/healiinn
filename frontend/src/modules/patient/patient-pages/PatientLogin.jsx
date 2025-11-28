@@ -8,39 +8,26 @@ import {
   IoPersonOutline,
   IoCalendarClearOutline,
   IoMailOutline,
-  IoLockClosedOutline,
-  IoEyeOutline,
-  IoEyeOffOutline,
 } from 'react-icons/io5'
+import { useToast } from '../../../contexts/ToastContext'
+import {
+  requestLoginOtp as requestOtp,
+  loginPatient,
+  signupPatient,
+  storePatientTokens,
+} from '../patient-services/patientService'
 
 const initialSignupState = {
   firstName: '',
   lastName: '',
   email: '',
   phone: '',
-  password: '',
-  confirmPassword: '',
-  dateOfBirth: '',
-  gender: '',
-  bloodGroup: '',
-  address: {
-    line1: '',
-    line2: '',
-    city: '',
-    state: '',
-    postalCode: '',
-    country: '',
-  },
-  emergencyContact: {
-    name: '',
-    phone: '',
-    relation: '',
-  },
   termsAccepted: false,
 }
 
 const PatientLogin = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [mode, setMode] = useState('login')
   const [loginData, setLoginData] = useState({ phone: '', otp: '', remember: true })
   const [signupData, setSignupData] = useState(initialSignupState)
@@ -52,10 +39,10 @@ const PatientLogin = () => {
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   
   // Signup form states
-  const [showSignupPassword, setShowSignupPassword] = useState(false)
-  const [showSignupConfirm, setShowSignupConfirm] = useState(false)
-  const [signupStep, setSignupStep] = useState(1) // 1, 2, or 3
-  const totalSignupSteps = 3
+  const [signupOtpSent, setSignupOtpSent] = useState(false)
+  const [signupOtpTimer, setSignupOtpTimer] = useState(0)
+  const [signupOtp, setSignupOtp] = useState('')
+  const signupOtpInputRefs = useRef([])
   
   // OTP input refs
   const otpInputRefs = useRef([])
@@ -75,38 +62,20 @@ const PatientLogin = () => {
     setIsSubmitting(false)
     setOtpSent(false)
     setOtpTimer(0)
-    setShowSignupPassword(false)
-    setShowSignupConfirm(false)
-    setSignupStep(1)
+    setSignupOtpSent(false)
+    setSignupOtpTimer(0)
+    setSignupOtp('')
+    setSignupData(initialSignupState)
     setLoginData({ phone: '', otp: '', remember: true })
   }
   
-  const handleNextStep = () => {
-    // Validate current step before proceeding
-    if (signupStep === 1) {
-      if (!signupData.firstName || !signupData.phone || !signupData.email || !signupData.password || !signupData.confirmPassword) {
-        window.alert('Please fill in all required fields in Step 1')
-        return
-      }
-      if (signupData.password !== signupData.confirmPassword) {
-        window.alert('Passwords do not match')
-        return
-      }
-      if (signupData.password.length < 8) {
-        window.alert('Password must be at least 8 characters long')
-        return
-      }
+  // Signup OTP timer countdown
+  useEffect(() => {
+    if (signupOtpTimer > 0) {
+      const timer = setTimeout(() => setSignupOtpTimer(signupOtpTimer - 1), 1000)
+      return () => clearTimeout(timer)
     }
-    if (signupStep < totalSignupSteps) {
-      setSignupStep(signupStep + 1)
-    }
-  }
-  
-  const handlePreviousStep = () => {
-    if (signupStep > 1) {
-      setSignupStep(signupStep - 1)
-    }
-  }
+  }, [signupOtpTimer])
 
   const handleLoginChange = (event) => {
     const { name, value, type, checked } = event.target
@@ -170,47 +139,20 @@ const PatientLogin = () => {
   // Send OTP function
   const handleSendOtp = async () => {
     if (!loginData.phone || loginData.phone.length < 10) {
-      window.alert('Please enter a valid mobile number')
+      toast.error('Please enter a valid mobile number')
       return
     }
     
     setIsSendingOtp(true)
     
     try {
-      try {
-        const response = await fetch('/api/patients/auth/send-otp', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ phone: loginData.phone }),
-        })
-        
-        if (!response.ok) {
-          // Simulate OTP sending for frontend testing
-          console.log('Backend not available, simulating OTP send')
-          setOtpSent(true)
-          setOtpTimer(60) // 60 seconds timer
-          setIsSendingOtp(false)
-          return
-        }
-        
-        const data = await response.json()
-        if (data.success || response.ok) {
-          setOtpSent(true)
-          setOtpTimer(60) // 60 seconds timer
-        } else {
-          window.alert(data.message || 'Failed to send OTP. Please try again.')
-        }
-      } catch (error) {
-        // Simulate OTP sending for frontend testing
-        console.log('Backend not available, simulating OTP send:', error.message)
-        setOtpSent(true)
-        setOtpTimer(60)
-      }
+      await requestOtp(loginData.phone)
+      setOtpSent(true)
+      setOtpTimer(60) // 60 seconds timer
+      toast.success('OTP sent to your mobile number')
     } catch (error) {
       console.error('Send OTP error:', error)
-      window.alert('An error occurred. Please try again.')
+      toast.error(error.message || 'Failed to send OTP. Please try again.')
     } finally {
       setIsSendingOtp(false)
     }
@@ -235,59 +177,76 @@ const PatientLogin = () => {
       return
     }
 
-    // Restrict phone fields to 10 digits only
-    if (name === 'phone' || name === 'emergencyContact.phone') {
+    // Restrict phone to 10 digits only
+    if (name === 'phone') {
       const numericValue = value.replace(/\D/g, '').slice(0, 10)
-      setSignupData((prev) => {
-        if (name === 'phone') {
-          return {
-            ...prev,
-            phone: numericValue,
-          }
-        }
-        if (name.startsWith('emergencyContact.')) {
-          const key = name.split('.')[1]
-          return {
-            ...prev,
-            emergencyContact: {
-              ...prev.emergencyContact,
-              [key]: numericValue,
-            },
-          }
-        }
-        return prev
-      })
+      setSignupData((prev) => ({
+        ...prev,
+        phone: numericValue,
+      }))
       return
     }
 
-    setSignupData((prev) => {
-      if (name.startsWith('address.')) {
-        const key = name.split('.')[1]
-        return {
-          ...prev,
-          address: {
-            ...prev.address,
-            [key]: value,
-          },
-        }
-      }
-
-      if (name.startsWith('emergencyContact.')) {
-        const key = name.split('.')[1]
-        return {
-          ...prev,
-          emergencyContact: {
-            ...prev.emergencyContact,
-            [key]: value,
-          },
-        }
-      }
-
-      return {
+    // Limit name fields
+    if (name === 'firstName' || name === 'lastName') {
+      const trimmedValue = value.trim().slice(0, 50)
+      setSignupData((prev) => ({
         ...prev,
-        [name]: type === 'checkbox' ? checked : value,
+        [name]: trimmedValue,
+      }))
+      return
+    }
+
+    // Limit email
+    if (name === 'email') {
+      const trimmedValue = value.trim().slice(0, 100)
+      setSignupData((prev) => ({
+        ...prev,
+        [name]: trimmedValue,
+      }))
+      return
+    }
+
+    setSignupData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }))
+  }
+
+  // Handle signup OTP input change
+  const handleSignupOtpChange = (index, value) => {
+    if (!/^\d*$/.test(value)) return // Only allow digits
+    
+    const otpArray = (signupOtp || '').split('').slice(0, 6)
+    otpArray[index] = value.slice(-1) // Take only last character
+    const newOtp = otpArray.join('').padEnd(6, ' ').slice(0, 6).replace(/\s/g, '')
+    
+    setSignupOtp(newOtp)
+    
+    // Auto-focus next input
+    if (value && index < 5 && signupOtpInputRefs.current[index + 1]) {
+      signupOtpInputRefs.current[index + 1].focus()
+    }
+  }
+
+  // Handle signup OTP paste
+  const handleSignupOtpPaste = (e) => {
+    e.preventDefault()
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (pastedData.length === 6) {
+      setSignupOtp(pastedData)
+      // Focus last input
+      if (signupOtpInputRefs.current[5]) {
+        signupOtpInputRefs.current[5].focus()
       }
-    })
+    }
+  }
+
+  // Handle signup OTP key down (backspace navigation)
+  const handleSignupOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+      signupOtpInputRefs.current[index - 1]?.focus()
+    }
   }
 
   const handleLoginSubmit = async (event) => {
@@ -302,101 +261,144 @@ const PatientLogin = () => {
     
     // Verify OTP
     if (!loginData.otp || loginData.otp.length !== 6) {
-      window.alert('Please enter the 6-digit OTP')
+      toast.error('Please enter the 6-digit OTP')
       return
     }
 
     setIsSubmitting(true)
     
     try {
-      try {
-        const response = await fetch('/api/patients/auth/verify-otp', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            phone: loginData.phone,
-            otp: loginData.otp,
-          }),
-        })
+      const response = await loginPatient({
+        phone: loginData.phone,
+        otp: loginData.otp,
+      })
 
-        // If API is not available, simulate login for frontend testing
-        if (!response.ok) {
-          const tokenKey = 'patientAuthToken'
-          const refreshTokenKey = 'patientRefreshToken'
-          const testToken = 'test-token-for-patient-frontend-testing'
-          const testRefreshToken = 'test-refresh-token-for-patient-frontend-testing'
-
-          if (loginData.remember) {
-            localStorage.setItem(tokenKey, testToken)
-            localStorage.setItem(refreshTokenKey, testRefreshToken)
-          } else {
-            sessionStorage.setItem(tokenKey, testToken)
-            sessionStorage.setItem(refreshTokenKey, testRefreshToken)
-          }
-
+      if (response.success && response.data?.tokens) {
+        storePatientTokens(response.data.tokens, loginData.remember)
+        toast.success('Login successful! Redirecting...')
+        setTimeout(() => {
           navigate('/patient/dashboard', { replace: true })
-          return
-        }
-
-        const data = await response.json()
-
-        // Store tokens from backend response
-        if (data.data?.tokens) {
-          if (loginData.remember) {
-            localStorage.setItem('patientAuthToken', data.data.tokens.accessToken)
-            localStorage.setItem('patientRefreshToken', data.data.tokens.refreshToken)
-          } else {
-            sessionStorage.setItem('patientAuthToken', data.data.tokens.accessToken)
-            sessionStorage.setItem('patientRefreshToken', data.data.tokens.refreshToken)
-          }
-        }
-
-        navigate('/patient/dashboard', { replace: true })
-      } catch (fetchError) {
-        // Simulate login for frontend testing
-        console.log('Backend not available, simulating login for frontend testing:', fetchError.message)
-        const tokenKey = 'patientAuthToken'
-        const refreshTokenKey = 'patientRefreshToken'
-        const testToken = 'test-token-for-patient-frontend-testing'
-        const testRefreshToken = 'test-refresh-token-for-patient-frontend-testing'
-
-        if (loginData.remember) {
-          localStorage.setItem(tokenKey, testToken)
-          localStorage.setItem(refreshTokenKey, testRefreshToken)
-        } else {
-          sessionStorage.setItem(tokenKey, testToken)
-          sessionStorage.setItem(refreshTokenKey, testRefreshToken)
-        }
-
-        navigate('/patient/dashboard', { replace: true })
+        }, 500)
+      } else {
+        toast.error(response.message || 'Login failed. Please try again.')
+        setIsSubmitting(false)
       }
     } catch (error) {
       console.error('Login error:', error)
-      window.alert('An error occurred. Please try again.')
+      toast.error(error.message || 'An error occurred. Please try again.')
       setIsSubmitting(false)
     }
   }
 
-  const handleSignupSubmit = (event) => {
+  const handleSignupSubmit = async (event) => {
     event.preventDefault()
     if (isSubmitting) return
 
-    if (!signupData.termsAccepted) {
-      window.alert('Please accept the terms to continue.')
+    // If OTP not sent, create account and send OTP
+    if (!signupOtpSent) {
+      if (!signupData.termsAccepted) {
+        toast.error('Please accept the terms to continue.')
+        return
+      }
+
+    // Validate required fields
+    if (!signupData.firstName || !signupData.email || !signupData.phone) {
+      toast.error('Please fill in all required fields')
       return
     }
 
-    if (signupData.password !== signupData.confirmPassword) {
-      window.alert('Passwords do not match. Please re-enter and try again.')
+    // Validate firstName
+    if (signupData.firstName.trim().length < 2) {
+      toast.error('First name must be at least 2 characters')
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(signupData.email.trim())) {
+      toast.error('Please enter a valid email address')
+      return
+    }
+
+    // Validate phone
+    if (signupData.phone.length !== 10) {
+      toast.error('Please enter a valid 10-digit mobile number')
+      return
+    }
+
+      setIsSubmitting(true)
+      
+      try {
+        const response = await signupPatient({
+          firstName: signupData.firstName,
+          lastName: signupData.lastName || '',
+          email: signupData.email,
+          phone: signupData.phone,
+        })
+        
+        if (response.success) {
+          setSignupOtpSent(true)
+          setSignupOtpTimer(60) // 60 seconds timer
+          toast.success('Account created! OTP sent to your mobile number')
+          setIsSubmitting(false)
+        } else {
+          toast.error(response.message || 'Signup failed. Please try again.')
+          setIsSubmitting(false)
+        }
+      } catch (error) {
+        console.error('Signup error:', error)
+        toast.error(error.message || 'An error occurred. Please try again.')
+        setIsSubmitting(false)
+      }
+      return
+    }
+
+    // Verify OTP and complete signup
+    if (!signupOtp || signupOtp.length !== 6) {
+      toast.error('Please enter the 6-digit OTP')
       return
     }
 
     setIsSubmitting(true)
-    window.setTimeout(() => {
+    
+    try {
+      const response = await loginPatient({
+        phone: signupData.phone,
+        otp: signupOtp,
+      })
+
+      if (response.success && response.data?.tokens) {
+        storePatientTokens(response.data.tokens, true)
+        toast.success('Account verified successfully! Redirecting...')
+        setTimeout(() => {
+          navigate('/patient/dashboard', { replace: true })
+        }, 500)
+      } else {
+        toast.error(response.message || 'OTP verification failed. Please try again.')
+        setIsSubmitting(false)
+      }
+    } catch (error) {
+      console.error('OTP verification error:', error)
+      toast.error(error.message || 'An error occurred. Please try again.')
       setIsSubmitting(false)
-    }, 1500)
+    }
+  }
+
+  // Resend signup OTP
+  const handleResendSignupOtp = async () => {
+    setSignupOtpTimer(0)
+    setSignupOtpSent(false)
+    setSignupOtp('')
+    
+    try {
+      await requestOtp(signupData.phone)
+      setSignupOtpSent(true)
+      setSignupOtpTimer(60)
+      toast.success('OTP resent to your mobile number')
+    } catch (error) {
+      console.error('Resend OTP error:', error)
+      toast.error(error.message || 'Failed to resend OTP. Please try again.')
+    }
   }
 
   return (
@@ -615,74 +617,21 @@ const PatientLogin = () => {
                 </p>
               </motion.form>
             ) : (
-              <motion.div
+              <motion.form
                 key="signup"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
                 className="flex flex-col gap-5 sm:gap-6"
+                onSubmit={handleSignupSubmit}
               >
-                {/* Enhanced Step Indicator */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-center gap-2 mb-3">
-                    {[1, 2, 3].map((step) => (
-                      <div key={step} className="flex items-center">
-                        <div
-                          className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold transition-all duration-300 shadow-sm ${
-                            signupStep === step
-                              ? 'bg-[#11496c] text-white scale-110 shadow-md shadow-[#11496c]/30'
-                              : signupStep > step
-                              ? 'bg-[#11496c] text-white'
-                              : 'bg-slate-200 text-slate-500'
-                          }`}
-                        >
-                          {signupStep > step ? (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            step
-                          )}
-                        </div>
-                        {step < 3 && (
-                          <div
-                            className={`h-1.5 w-12 sm:w-16 rounded-full transition-all duration-300 ${
-                              signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
-                            }`}
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-slate-700">
-                      Step {signupStep} of {totalSignupSteps}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {signupStep === 1 && 'Basic Information'}
-                      {signupStep === 2 && 'Personal Details'}
-                      {signupStep === 3 && 'Address & Emergency Contact'}
-                    </p>
-                  </div>
-                </div>
-
-                <form onSubmit={handleSignupSubmit} className="flex flex-col gap-5 sm:gap-6">
-                {/* Step 1: Basic Information */}
-                {signupStep === 1 && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-5"
-                  >
-                    <div className="mb-6 pb-4 border-b border-slate-200">
-                      <h3 className="text-xl font-bold text-slate-900 mb-1">Basic Information</h3>
-                      <p className="text-xs text-slate-500">Let's start with your essential details</p>
-                    </div>
+                {/* Basic Information Form - Show if OTP not sent */}
+                {!signupOtpSent && (
+                  <>
                     <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                       <div className="flex flex-col gap-1.5">
-                        <label htmlFor="firstName" className="text-sm font-semibold text-slate-700">
+                        <label htmlFor="signup-firstName" className="text-sm font-semibold text-slate-700">
                           First Name <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
@@ -690,32 +639,39 @@ const PatientLogin = () => {
                             <IoPersonOutline className="h-5 w-5" aria-hidden="true" />
                           </span>
                           <input
-                            id="firstName"
+                            id="signup-firstName"
                             name="firstName"
+                            type="text"
                             value={signupData.firstName}
                             onChange={handleSignupChange}
                             required
                             placeholder="Jane"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            maxLength={50}
+                            minLength={2}
+                            disabled={isSubmitting}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 disabled:bg-slate-50 disabled:cursor-not-allowed"
                             style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                           />
                         </div>
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        <label htmlFor="lastName" className="text-sm font-semibold text-slate-700">
+                        <label htmlFor="signup-lastName" className="text-sm font-semibold text-slate-700">
                           Last Name
                         </label>
                         <input
-                          id="lastName"
+                          id="signup-lastName"
                           name="lastName"
+                          type="text"
                           value={signupData.lastName}
                           onChange={handleSignupChange}
                           placeholder="Doe"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                          maxLength={50}
+                          disabled={isSubmitting}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 disabled:bg-slate-50 disabled:cursor-not-allowed"
                           style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                         />
                       </div>
-                      <div className="flex flex-col gap-1.5">
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
                         <label htmlFor="signup-email" className="text-sm font-semibold text-slate-700">
                           Email Address <span className="text-red-500">*</span>
                         </label>
@@ -732,328 +688,37 @@ const PatientLogin = () => {
                             autoComplete="email"
                             required
                             placeholder="you@example.com"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            maxLength={100}
+                            disabled={isSubmitting}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 disabled:bg-slate-50 disabled:cursor-not-allowed"
                             style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                           />
                         </div>
                       </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="phone" className="text-sm font-semibold text-slate-700">
-                          Phone Number <span className="text-red-500">*</span>
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <label htmlFor="signup-phone" className="text-sm font-semibold text-slate-700">
+                          Mobile Number <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
                           <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
                             <IoCallOutline className="h-5 w-5" aria-hidden="true" />
                           </span>
                           <input
-                            id="phone"
+                            id="signup-phone"
                             name="phone"
+                            type="tel"
                             value={signupData.phone}
                             onChange={handleSignupChange}
+                            autoComplete="tel"
                             required
                             placeholder="9876543210"
                             maxLength={10}
                             inputMode="numeric"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                            disabled={isSubmitting}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-base text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 disabled:bg-slate-50 disabled:cursor-not-allowed"
                             style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
                           />
                         </div>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="signup-password" className="text-sm font-semibold text-slate-700">
-                          Password <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                            <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                          </span>
-                          <input
-                            id="signup-password"
-                            name="password"
-                            type={showSignupPassword ? 'text' : 'password'}
-                            value={signupData.password}
-                            onChange={handleSignupChange}
-                            minLength={8}
-                            required
-                            placeholder="Create a secure password"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowSignupPassword((prev) => !prev)}
-                            className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                            aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-                          >
-                            {showSignupPassword ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="confirmPassword" className="text-sm font-semibold text-slate-700">
-                          Confirm Password <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                            <IoLockClosedOutline className="h-5 w-5" aria-hidden="true" />
-                          </span>
-                          <input
-                            id="confirmPassword"
-                            name="confirmPassword"
-                            type={showSignupConfirm ? 'text' : 'password'}
-                            value={signupData.confirmPassword}
-                            onChange={handleSignupChange}
-                            required
-                            placeholder="Re-enter your password"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowSignupConfirm((prev) => !prev)}
-                            className="absolute inset-y-0 right-3 flex items-center text-[#11496c]"
-                            aria-label={showSignupConfirm ? 'Hide confirmation password' : 'Show confirmation password'}
-                          >
-                            {showSignupConfirm ? <IoEyeOffOutline className="h-4 w-4" /> : <IoEyeOutline className="h-4 w-4" />}
-                          </button>
-                        </div>
-                      </div>
-                    </section>
-                  </motion.div>
-                )}
-
-                {/* Step 2: Personal Details */}
-                {signupStep === 2 && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-5"
-                  >
-                    <div className="mb-6 pb-4 border-b border-slate-200">
-                      <h3 className="text-xl font-bold text-slate-900 mb-1">Personal Details</h3>
-                      <p className="text-xs text-slate-500">Help us personalize your experience</p>
-                    </div>
-                    <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="dateOfBirth" className="text-sm font-semibold text-slate-700">
-                          Date of Birth
-                        </label>
-                        <div className="relative">
-                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                            <IoCalendarClearOutline className="h-5 w-5" aria-hidden="true" />
-                          </span>
-                          <input
-                            id="dateOfBirth"
-                            name="dateOfBirth"
-                            type="date"
-                            value={signupData.dateOfBirth}
-                            onChange={handleSignupChange}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="gender" className="text-sm font-semibold text-slate-700">
-                          Gender
-                        </label>
-                        <select
-                          id="gender"
-                          name="gender"
-                          value={signupData.gender}
-                          onChange={handleSignupChange}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                        >
-                          <option value="">Select one</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                          <option value="other">Other</option>
-                          <option value="prefer_not_to_say">Prefer not to say</option>
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="bloodGroup" className="text-sm font-semibold text-slate-700">
-                          Blood Group
-                        </label>
-                        <select
-                          id="bloodGroup"
-                          name="bloodGroup"
-                          value={signupData.bloodGroup}
-                          onChange={handleSignupChange}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                        >
-                          <option value="">Select blood group</option>
-                          <option value="A+">A+</option>
-                          <option value="A-">A-</option>
-                          <option value="B+">B+</option>
-                          <option value="B-">B-</option>
-                          <option value="AB+">AB+</option>
-                          <option value="AB-">AB-</option>
-                          <option value="O+">O+</option>
-                          <option value="O-">O-</option>
-                          <option value="UNKNOWN">Unknown</option>
-                        </select>
-                      </div>
-                    </section>
-                  </motion.div>
-                )}
-
-                {/* Step 3: Address & Emergency Contact */}
-                {signupStep === 3 && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-5"
-                  >
-                    <div className="mb-6 pb-4 border-b border-slate-200">
-                      <h3 className="text-xl font-bold text-slate-900 mb-1">Address & Emergency Contact</h3>
-                      <p className="text-xs text-slate-500">Almost there! Just a few more details</p>
-                    </div>
-                    <section className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-                      <div className="flex flex-col gap-1.5 sm:col-span-2">
-                        <label htmlFor="address.line1" className="text-sm font-semibold text-slate-700">
-                          Address Line 1
-                        </label>
-                        <div className="relative">
-                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                            <IoLocationOutline className="h-5 w-5" aria-hidden="true" />
-                          </span>
-                          <input
-                            id="address.line1"
-                            name="address.line1"
-                            value={signupData.address.line1}
-                            onChange={handleSignupChange}
-                            placeholder="123 Wellness Street"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="address.line2" className="text-sm font-semibold text-slate-700">
-                          Address Line 2 (optional)
-                        </label>
-                        <input
-                          id="address.line2"
-                          name="address.line2"
-                          value={signupData.address.line2}
-                          onChange={handleSignupChange}
-                          placeholder="Apartment or suite"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="address.city" className="text-sm font-semibold text-slate-700">
-                          City
-                        </label>
-                        <input
-                          id="address.city"
-                          name="address.city"
-                          value={signupData.address.city}
-                          onChange={handleSignupChange}
-                          placeholder="Mumbai"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="address.state" className="text-sm font-semibold text-slate-700">
-                          State
-                        </label>
-                        <input
-                          id="address.state"
-                          name="address.state"
-                          value={signupData.address.state}
-                          onChange={handleSignupChange}
-                          placeholder="Maharashtra"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="address.postalCode" className="text-sm font-semibold text-slate-700">
-                          Postal Code
-                        </label>
-                        <input
-                          id="address.postalCode"
-                          name="address.postalCode"
-                          value={signupData.address.postalCode}
-                          onChange={handleSignupChange}
-                          placeholder="400001"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="address.country" className="text-sm font-semibold text-slate-700">
-                          Country
-                        </label>
-                        <input
-                          id="address.country"
-                          name="address.country"
-                          value={signupData.address.country}
-                          onChange={handleSignupChange}
-                          placeholder="India"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                        />
-                      </div>
-                    </section>
-
-                    <section className="grid gap-3 sm:gap-4 sm:grid-cols-3">
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="emergencyContact.name" className="text-sm font-semibold text-slate-700">
-                          Emergency Contact Name
-                        </label>
-                        <input
-                          id="emergencyContact.name"
-                          name="emergencyContact.name"
-                          value={signupData.emergencyContact.name}
-                          onChange={handleSignupChange}
-                          placeholder="Rahul Sharma"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="emergencyContact.phone" className="text-sm font-semibold text-slate-700">
-                          Emergency Phone
-                        </label>
-                        <div className="relative">
-                          <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
-                            <IoCallOutline className="h-5 w-5" aria-hidden="true" />
-                          </span>
-                          <input
-                            id="emergencyContact.phone"
-                            name="emergencyContact.phone"
-                            value={signupData.emergencyContact.phone}
-                            onChange={handleSignupChange}
-                            placeholder="9876543100"
-                            maxLength={10}
-                            inputMode="numeric"
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="emergencyContact.relation" className="text-sm font-semibold text-slate-700">
-                          Relationship
-                        </label>
-                        <input
-                          id="emergencyContact.relation"
-                          name="emergencyContact.relation"
-                          value={signupData.emergencyContact.relation}
-                          onChange={handleSignupChange}
-                          placeholder="Spouse"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                          style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
-                        />
                       </div>
                     </section>
 
@@ -1063,7 +728,8 @@ const PatientLogin = () => {
                         name="termsAccepted"
                         checked={signupData.termsAccepted}
                         onChange={handleSignupChange}
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                        disabled={isSubmitting}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] disabled:cursor-not-allowed"
                       />
                       <span>
                         I have read and agree to Healiinn's{' '}
@@ -1077,61 +743,122 @@ const PatientLogin = () => {
                         .
                       </span>
                     </label>
-                  </motion.div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !signupData.termsAccepted}
+                      className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Creating Account...
+                        </>
+                      ) : (
+                        <>
+                          Create Account & Send OTP
+                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
+                  </>
                 )}
 
-                {/* Navigation Buttons */}
-                <div className="flex flex-col gap-3 mt-8">
-                  <div className="flex gap-3">
-                    {signupStep > 1 && (
-                      <button
-                        type="button"
-                        onClick={handlePreviousStep}
-                        className="flex h-12 flex-1 items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
-                      >
-                        Previous
-                      </button>
-                    )}
-                    {signupStep < totalSignupSteps ? (
-                      <button
-                        type="button"
-                        onClick={handleNextStep}
-                        className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 ${
-                          signupStep > 1 ? 'flex-1' : 'w-full'
-                        }`}
-                        style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
-                      >
-                        Next
-                        <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
-                      </button>
-                    ) : (
-                      <button
-                        type="submit"
-                        disabled={isSubmitting || !signupData.termsAccepted}
-                        className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${
-                          signupStep > 1 ? 'flex-1' : 'w-full'
-                        }`}
-                        style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Submitting...
-                          </>
-                        ) : (
-                          <>
-                            Complete Signup
-                            <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                </form>
+                {/* OTP Verification - Show after OTP is sent */}
+                {signupOtpSent && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-5"
+                  >
+                    <div className="text-center mb-4">
+                      <h3 className="text-lg font-bold text-slate-900 mb-2">Verify Your Mobile Number</h3>
+                      <p className="text-sm text-slate-600">
+                        We've sent a 6-digit OTP to <span className="font-semibold text-slate-900">{signupData.phone}</span>
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-semibold text-slate-700 text-center">
+                        Enter OTP
+                      </label>
+                      <div className="flex gap-2 justify-center" onPaste={handleSignupOtpPaste}>
+                        {[0, 1, 2, 3, 4, 5].map((index) => (
+                          <input
+                            key={index}
+                            ref={(el) => {
+                              signupOtpInputRefs.current[index] = el
+                            }}
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={signupOtp[index] || ''}
+                            onChange={(e) => handleSignupOtpChange(index, e.target.value)}
+                            onKeyDown={(e) => handleSignupOtpKeyDown(index, e)}
+                            disabled={isSubmitting}
+                            className="w-12 h-12 text-center text-lg font-semibold rounded-xl border-2 border-slate-200 bg-white text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:ring-2 focus:ring-[#11496c]/20 disabled:bg-slate-50 disabled:cursor-not-allowed"
+                            style={{ '--tw-ring-color': 'rgba(17, 73, 108, 0.2)' }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-600">
+                          {signupOtpTimer > 0 ? (
+                            `Resend OTP in ${signupOtpTimer}s`
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleResendSignupOtp}
+                              disabled={isSubmitting}
+                              className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Resend OTP
+                            </button>
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSignupOtpSent(false)
+                            setSignupOtpTimer(0)
+                            setSignupOtp('')
+                          }}
+                          disabled={isSubmitting}
+                          className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Change Number
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || signupOtp.length !== 6}
+                      className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Verifying...
+                        </>
+                      ) : (
+                        <>
+                          Verify & Complete Signup
+                          <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                        </>
+                      )}
+                    </button>
+                  </motion.div>
+                )}
 
                 <p className="text-center text-sm text-slate-600">
                   Already have an account?{' '}
@@ -1143,7 +870,7 @@ const PatientLogin = () => {
                     Sign in instead
                   </button>
                 </p>
-              </motion.div>
+              </motion.form>
             )}
             </AnimatePresence>
         </div>

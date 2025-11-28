@@ -9,7 +9,7 @@ const doctorSchema = new mongoose.Schema(
     lastName: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, required: true, unique: true, trim: true },
-    password: { type: String, required: true, minlength: 8 },
+    password: { type: String, minlength: 8 },
     specialization: { type: String, required: true, trim: true },
     gender: { type: String,required: true, enum: ['male', 'female', 'other', 'prefer_not_to_say'] },
     licenseNumber: { type: String, required: true, trim: true, unique: true },
@@ -153,7 +153,7 @@ const doctorSchema = new mongoose.Schema(
 );
 
 doctorSchema.pre('save', async function encryptPassword(next) {
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     return next();
   }
 

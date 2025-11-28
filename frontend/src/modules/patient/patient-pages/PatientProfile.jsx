@@ -8,7 +8,6 @@ import {
   IoPulseOutline,
   IoMedicalOutline,
   IoWarningOutline,
-  IoLockClosedOutline,
   IoNotificationsOutline,
   IoShieldCheckmarkOutline,
   IoLogOutOutline,
@@ -702,71 +701,6 @@ const PatientProfile = () => {
           )}
         </div>
 
-        {/* Change Password */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setActiveSection(activeSection === 'password' ? null : 'password')}
-            className="w-full flex items-center justify-between p-4 sm:p-5 hover:bg-slate-50/50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
-                <IoLockClosedOutline className="h-5 w-5 text-[#11496c]" />
-              </div>
-              <h2 className="text-base sm:text-lg font-semibold text-slate-900">Change Password</h2>
-            </div>
-            {activeSection === 'password' ? (
-              <IoChevronUpOutline className="h-5 w-5 text-slate-400" />
-            ) : (
-              <IoChevronDownOutline className="h-5 w-5 text-slate-400" />
-            )}
-          </button>
-
-          {activeSection === 'password' && (
-            <div className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-4 border-t border-slate-100">
-              <div>
-                <label className="mb-2 block text-xs font-semibold text-slate-700">
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="Enter current password"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold text-slate-700">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="Enter new password"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold text-slate-700">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="Confirm new password"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  alert('Password change functionality will be implemented')
-                }}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
-              >
-                <IoLockClosedOutline className="h-4 w-4" />
-                Update Password
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Support History */}
         <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">

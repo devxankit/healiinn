@@ -9,7 +9,7 @@ const pharmacySchema = new mongoose.Schema(
     ownerName: { type: String, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, required: true, unique: true, trim: true },
-    password: { type: String, required: true, minlength: 8 },
+    password: { type: String, minlength: 8 },
     licenseNumber: { type: String, required: true, trim: true, unique: true },
     gstNumber: { type: String, trim: true },
     address: {
@@ -92,7 +92,7 @@ const pharmacySchema = new mongoose.Schema(
 );
 
 pharmacySchema.pre('save', async function encryptPassword(next) {
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     return next();
   }
 

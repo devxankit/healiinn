@@ -6,11 +6,8 @@ const {
   getPatientProfile,
   updatePatientProfile,
   logoutPatient,
-  patientForgotPassword,
-  patientVerifyOtp,
-  patientResetPassword,
+  refreshToken,
   getPatientById,
-  changePassword,
 } = require('../../controllers/patient-controllers/patientAuthController');
 const { protect } = require('../../middleware/authMiddleware');
 const { ROLES } = require('../../utils/constants');
@@ -23,13 +20,10 @@ const router = express.Router();
 router.post('/signup', sanitizeInput, authRateLimiter, registerPatient);
 router.post('/login/otp', sanitizeInput, otpRateLimiter, requestLoginOtp);
 router.post('/login', sanitizeInput, authRateLimiter, loginPatient);
-router.post('/forgot-password', sanitizeInput, passwordResetRateLimiter, patientForgotPassword);
-router.post('/verify-otp', sanitizeInput, otpRateLimiter, patientVerifyOtp);
-router.post('/reset-password', sanitizeInput, passwordResetRateLimiter, patientResetPassword);
 
+router.post('/refresh-token', sanitizeInput, refreshToken);
 router.get('/me', protect(ROLES.PATIENT), getPatientProfile);
 router.put('/me', protect(ROLES.PATIENT), sanitizeInput, updatePatientProfile);
-router.put('/change-password', protect(ROLES.PATIENT), sanitizeInput, changePassword);
 router.post('/logout', protect(ROLES.PATIENT), logoutPatient);
 router.get('/profile/:id', protect(ROLES.PATIENT, ROLES.ADMIN), getPatientById);
 

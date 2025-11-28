@@ -6,9 +6,7 @@ const {
   getDoctorProfile,
   updateDoctorProfile,
   logoutDoctor,
-  doctorForgotPassword,
-  doctorVerifyOtp,
-  doctorResetPassword,
+  refreshToken,
   getDoctorById,
 } = require('../../controllers/doctor-controllers/doctorAuthController');
 const { protect } = require('../../middleware/authMiddleware');
@@ -22,10 +20,8 @@ const router = express.Router();
 router.post('/signup', sanitizeInput, authRateLimiter, registerDoctor);
 router.post('/login/otp', sanitizeInput, otpRateLimiter, requestLoginOtp);
 router.post('/login', sanitizeInput, authRateLimiter, loginDoctor);
-router.post('/forgot-password', sanitizeInput, passwordResetRateLimiter, doctorForgotPassword);
-router.post('/verify-otp', sanitizeInput, otpRateLimiter, doctorVerifyOtp);
-router.post('/reset-password', sanitizeInput, passwordResetRateLimiter, doctorResetPassword);
 
+router.post('/refresh-token', sanitizeInput, refreshToken);
 router.get('/me', protect(ROLES.DOCTOR), getDoctorProfile);
 router.put('/me', protect(ROLES.DOCTOR), sanitizeInput, updateDoctorProfile);
 router.post('/logout', protect(ROLES.DOCTOR), logoutDoctor);

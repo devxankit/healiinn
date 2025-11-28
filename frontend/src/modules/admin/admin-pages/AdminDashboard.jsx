@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   IoPeopleOutline,
   IoMedicalOutline,
@@ -466,9 +467,46 @@ const AdminDashboard = () => {
   const navigate = useNavigate()
   const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(mockStats.todayAppointments)
   const [doctorAppointmentsOverview, setDoctorAppointmentsOverview] = useState([])
-
-  // Load real appointment count and doctor overview from localStorage
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  
+  // Check authentication immediately - redirect if no token
+  // This check happens before any rendering
   useEffect(() => {
+    const token = getAuthToken('admin')
+    if (!token) {
+      // Force immediate redirect - clear ALL tokens first
+      if (typeof window !== 'undefined') {
+        // Clear ALL possible admin token variations
+        localStorage.removeItem('adminAuthToken')
+        localStorage.removeItem('adminAccessToken')
+        localStorage.removeItem('adminRefreshToken')
+        localStorage.removeItem('adminProfile')
+        
+        sessionStorage.removeItem('adminAuthToken')
+        sessionStorage.removeItem('adminAccessToken')
+        sessionStorage.removeItem('adminRefreshToken')
+        sessionStorage.removeItem('adminProfile')
+        
+        // Redirect immediately - use replace to prevent back navigation
+        if (window.location.pathname !== '/admin/login') {
+          window.location.replace('/admin/login')
+        }
+      }
+      return
+    }
+    
+    // Token exists - allow rendering
+    setIsAuthenticated(true)
+  }, [])
+  
+  // Load real appointment count and doctor overview from localStorage
+  // This MUST be called before any conditional returns to follow React Hooks rules
+  useEffect(() => {
+    // Check token before loading
+    const token = getAuthToken('admin')
+    if (!token) {
+      return
+    }
     const loadAppointments = () => {
       try {
         const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
@@ -540,6 +578,11 @@ const AdminDashboard = () => {
     const interval = setInterval(loadAppointments, 2000)
     return () => clearInterval(interval)
   }, [])
+  
+  // Final check - don't render anything if not authenticated (after all hooks)
+  if (!isAuthenticated) {
+    return null
+  }
 
   const usersChange = ((mockStats.thisMonthUsers - mockStats.lastMonthUsers) / mockStats.lastMonthUsers) * 100
   const revenueChange = ((mockStats.thisMonthRevenue - mockStats.lastMonthRevenue) / mockStats.lastMonthRevenue) * 100
