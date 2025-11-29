@@ -108,6 +108,9 @@ import AdminAppointments from './modules/admin/admin-pages/AdminAppointments'
 import AdminOrders from './modules/admin/admin-pages/AdminOrders'
 import AdminRequests from './modules/admin/admin-pages/AdminRequests'
 import ProtectedRoute from './components/ProtectedRoute'
+import WebNavbar from './modules/website/web-components/WebNavbar'
+import Home from './modules/website/web-pages/Home'
+import WebOnBoarding from './modules/website/web-pages/WebOnBoarding'
 
 function PatientRoutes() {
   const location = useLocation()
@@ -330,11 +333,24 @@ function LaboratoryRoutes() {
   )
 }
 
+function WebsiteRoutes() {
+  return (
+    <>
+      <WebNavbar />
+      <main>
+        <Routes>
+          <Route path="/" element={<Home />} />
+        </Routes>
+      </main>
+    </>
+  )
+}
+
 function DefaultRedirect() {
   const patientToken = getAuthToken('patient')
   const adminToken = getAuthToken('admin')
   
-  // Patient and Admin require authentication
+  // If authenticated, redirect to respective dashboard
   if (patientToken) {
     return <Navigate to="/patient/dashboard" replace />
   }
@@ -342,9 +358,15 @@ function DefaultRedirect() {
     return <Navigate to="/admin/dashboard" replace />
   }
   
-  // Doctor, Pharmacy, and Laboratory can be accessed without login
-  // Default to patient login for new users
-  return <Navigate to="/patient/login" replace />
+  // Default to landing page for unauthenticated users
+  return (
+    <>
+      <WebNavbar />
+      <main>
+        <Home />
+      </main>
+    </>
+  )
 }
 
 function App() {
@@ -374,7 +396,13 @@ function App() {
           {/* Admin Routes */}
           <Route path="/admin/*" element={<AdminRoutes />} />
 
-          {/* Default redirect - check authentication */}
+          {/* Website Routes - Landing Page */}
+          <Route path="/website/*" element={<WebsiteRoutes />} />
+
+          {/* Onboarding Route - No Navbar */}
+          <Route path="/onboarding" element={<WebOnBoarding />} />
+
+          {/* Default route - show landing page or redirect if authenticated */}
           <Route path="/" element={<DefaultRedirect />} />
         </Routes>
       </div>
