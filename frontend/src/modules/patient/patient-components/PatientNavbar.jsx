@@ -61,12 +61,19 @@ const PatientNavbar = () => {
     setIsSidebarOpen(false)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleSidebarClose()
-    localStorage.removeItem('patientAuthToken')
-    localStorage.removeItem('patientRefreshToken')
-    sessionStorage.removeItem('patientAuthToken')
-    sessionStorage.removeItem('patientRefreshToken')
+    try {
+      // Import logout function from patientService
+      const { logoutPatient } = await import('../patient-services/patientService')
+      await logoutPatient()
+    } catch (error) {
+      console.error('Error during logout:', error)
+      // Clear tokens manually if API call fails
+      const { clearPatientTokens } = await import('../patient-services/patientService')
+      clearPatientTokens()
+    }
+    // Navigate to login page
     navigate('/patient/login', { replace: true })
   }
 

@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { getPatientProfile, updatePatientProfile } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -21,40 +24,136 @@ import {
   IoTimeOutline,
 } from 'react-icons/io5'
 
-const mockPatientData = {
-  firstName: 'John',
-  lastName: 'Doe',
-  email: 'john.doe@example.com',
-  phone: '+1-555-123-4567',
-  dateOfBirth: '1990-05-15',
-  gender: 'male',
-  bloodGroup: 'O+',
-  profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-  address: {
-    line1: '123 Main Street',
-    line2: 'Apt 4B',
-    city: 'New York',
-    state: 'NY',
-    postalCode: '10001',
-    country: 'USA',
-  },
-  emergencyContact: {
-    name: 'Jane Doe',
-    phone: '+1-555-987-6543',
-    relation: 'Spouse',
-  },
-  medicalHistory: [
-    { condition: 'Hypertension', diagnosedAt: '2020-03-15', notes: 'Controlled with medication' },
-    { condition: 'Type 2 Diabetes', diagnosedAt: '2018-06-20', notes: 'Well managed' },
-  ],
-  allergies: ['Penicillin', 'Peanuts'],
-}
+// Mock data removed - using real backend data now
 
 const PatientProfile = () => {
+  const toast = useToast()
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
-  const [formData, setFormData] = useState(mockPatientData)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef(null)
+  
+  // Initialize with empty/default data
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    dateOfBirth: '',
+    gender: '',
+    bloodGroup: '',
+    profileImage: '',
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: '',
+    },
+    emergencyContact: {
+      name: '',
+      phone: '',
+      relation: '',
+    },
+    medicalHistory: [],
+    allergies: [],
+  })
+
+  // Fetch patient profile from backend
+  useEffect(() => {
+    const fetchPatientProfile = async () => {
+      const token = getAuthToken('patient')
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        
+        // Try to load from cache first for faster initial render
+        const storage = localStorage.getItem('patientAuthToken') ? localStorage : sessionStorage
+        const cachedProfile = JSON.parse(storage.getItem('patientProfile') || '{}')
+        if (Object.keys(cachedProfile).length > 0) {
+          // Set initial form data from cache
+          const cachedData = {
+            firstName: cachedProfile.firstName || '',
+            lastName: cachedProfile.lastName || '',
+            email: cachedProfile.email || '',
+            phone: cachedProfile.phone || '',
+            dateOfBirth: cachedProfile.dateOfBirth || '',
+            gender: cachedProfile.gender || '',
+            bloodGroup: cachedProfile.bloodGroup || '',
+            profileImage: cachedProfile.profileImage || '',
+            address: cachedProfile.address || {
+              line1: '',
+              line2: '',
+              city: '',
+              state: '',
+              postalCode: '',
+              country: '',
+            },
+            emergencyContact: cachedProfile.emergencyContact || {
+              name: '',
+              phone: '',
+              relation: '',
+            },
+            medicalHistory: Array.isArray(cachedProfile.medicalHistory) ? cachedProfile.medicalHistory : [],
+            allergies: Array.isArray(cachedProfile.allergies) ? cachedProfile.allergies : [],
+          }
+          setFormData(cachedData)
+        }
+
+        // Then fetch fresh data from backend
+        const response = await getPatientProfile()
+        if (response.success && response.data) {
+          const patient = response.data.patient || response.data
+          
+          // Transform backend data to frontend format
+          const transformedData = {
+            firstName: patient.firstName || '',
+            lastName: patient.lastName || '',
+            email: patient.email || '',
+            phone: patient.phone || '',
+            dateOfBirth: patient.dateOfBirth || '',
+            gender: patient.gender || '',
+            bloodGroup: patient.bloodGroup || '',
+            profileImage: patient.profileImage || '',
+            address: patient.address || {
+              line1: '',
+              line2: '',
+              city: '',
+              state: '',
+              postalCode: '',
+              country: '',
+            },
+            emergencyContact: patient.emergencyContact || {
+              name: '',
+              phone: '',
+              relation: '',
+            },
+            medicalHistory: Array.isArray(patient.medicalHistory) ? patient.medicalHistory : [],
+            allergies: Array.isArray(patient.allergies) ? patient.allergies : [],
+          }
+          
+          setFormData(transformedData)
+          
+          // Update cache
+          const storage = localStorage.getItem('patientAuthToken') ? localStorage : sessionStorage
+          storage.setItem('patientProfile', JSON.stringify(patient))
+        }
+      } catch (error) {
+        console.error('Error fetching patient profile:', error)
+        toast.error('Failed to load profile data. Please refresh the page.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPatientProfile()
+  }, [toast])
 
   const formatDate = (dateString) => {
     if (!dateString) return '—'
@@ -97,14 +196,90 @@ const PatientProfile = () => {
     }
   }
 
-  const handleSave = () => {
-    console.log('Saving profile:', formData)
-    setIsEditing(false)
-    setActiveSection(null)
+  const handleSave = async () => {
+    const token = getAuthToken('patient')
+    if (!token) {
+      toast.error('Please login to save profile')
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      
+      // Prepare data for backend (match backend expected format)
+      const updateData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
+        bloodGroup: formData.bloodGroup,
+        profileImage: formData.profileImage,
+        address: formData.address,
+        emergencyContact: formData.emergencyContact,
+        medicalHistory: formData.medicalHistory,
+        allergies: formData.allergies,
+      }
+
+      const response = await updatePatientProfile(updateData)
+      
+      if (response.success) {
+        // Update cache
+        const storage = localStorage.getItem('patientAuthToken') ? localStorage : sessionStorage
+        storage.setItem('patientProfile', JSON.stringify(response.data?.patient || response.data))
+        
+        toast.success('Profile updated successfully!')
+        setIsEditing(false)
+        setActiveSection(null)
+      } else {
+        toast.error(response.message || 'Failed to update profile')
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error)
+      toast.error(error.message || 'Failed to update profile. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleCancel = () => {
-    setFormData(mockPatientData)
+  const handleCancel = async () => {
+    // Reload original data from backend
+    try {
+      const response = await getPatientProfile()
+      if (response.success && response.data) {
+        const patient = response.data.patient || response.data
+        const transformedData = {
+          firstName: patient.firstName || '',
+          lastName: patient.lastName || '',
+          email: patient.email || '',
+          phone: patient.phone || '',
+          dateOfBirth: patient.dateOfBirth || '',
+          gender: patient.gender || '',
+          bloodGroup: patient.bloodGroup || '',
+          profileImage: patient.profileImage || '',
+          address: patient.address || {
+            line1: '',
+            line2: '',
+            city: '',
+            state: '',
+            postalCode: '',
+            country: '',
+          },
+          emergencyContact: patient.emergencyContact || {
+            name: '',
+            phone: '',
+            relation: '',
+          },
+          medicalHistory: Array.isArray(patient.medicalHistory) ? patient.medicalHistory : [],
+          allergies: Array.isArray(patient.allergies) ? patient.allergies : [],
+        }
+        setFormData(transformedData)
+      }
+    } catch (error) {
+      console.error('Error reloading profile:', error)
+      toast.error('Failed to reload profile data')
+    }
     setIsEditing(false)
     setActiveSection(null)
   }
@@ -114,13 +289,13 @@ const PatientProfile = () => {
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert('Please select an image file')
+        toast.warning('Please select an image file')
         return
       }
       
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB')
+        toast.warning('Image size should be less than 5MB')
         return
       }
 
@@ -131,17 +306,10 @@ const PatientProfile = () => {
           ...prev,
           profileImage: reader.result,
         }))
-        // Save to localStorage
-        try {
-          const patientProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
-          patientProfile.profileImage = reader.result
-          localStorage.setItem('patientProfile', JSON.stringify(patientProfile))
-        } catch (error) {
-          console.error('Error saving profile image:', error)
-        }
+        // Profile image will be saved when user clicks Save button
       }
       reader.onerror = () => {
-        alert('Error reading image file')
+        toast.error('Error reading image file')
       }
       reader.readAsDataURL(file)
     }
@@ -155,20 +323,21 @@ const PatientProfile = () => {
     fileInputRef.current?.click()
   }
 
-  // Load profile image from localStorage on mount
-  useEffect(() => {
-    try {
-      const savedProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
-      if (savedProfile.profileImage) {
-        setFormData((prev) => ({
-          ...prev,
-          profileImage: savedProfile.profileImage,
-        }))
-      }
-    } catch (error) {
-      console.error('Error loading profile image:', error)
-    }
-  }, [])
+  // Profile image loading is now handled in the main fetchPatientProfile useEffect
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <section className="flex flex-col gap-4 pb-4">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
+            <p className="mt-4 text-sm text-slate-600">Loading profile...</p>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="flex flex-col gap-4 pb-4">
@@ -190,12 +359,12 @@ const PatientProfile = () => {
                   aria-label="Upload profile picture"
                 />
                 <img
-                  src={formData.profileImage}
+                  src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Patient')}&background=11496c&color=fff&size=128&bold=true`}
                   alt={`${formData.firstName} ${formData.lastName}`}
                   className="h-full w-full rounded-full object-cover ring-4 ring-white/20 shadow-xl bg-white/10"
                   onError={(e) => {
                     e.target.onerror = null
-                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=11496c&color=fff&size=128&bold=true`
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Patient')}&background=11496c&color=fff&size=128&bold=true`
                   }}
                 />
                 {isEditing && (
@@ -214,7 +383,9 @@ const PatientProfile = () => {
             {/* Profile Info */}
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">
-                {formData.firstName} {formData.lastName}
+                {formData.firstName || formData.lastName 
+                  ? `${formData.firstName || ''} ${formData.lastName || ''}`.trim()
+                  : 'Patient'}
               </h1>
               <p className="text-sm sm:text-base text-white/90 mb-3">{formData.email}</p>
               
@@ -237,10 +408,20 @@ const PatientProfile = () => {
                   <button
                     type="button"
                     onClick={handleSave}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-white text-[#11496c] px-4 py-2.5 text-sm font-semibold shadow-lg transition-all hover:bg-white/90 active:scale-95"
+                    disabled={isSaving}
+                    className="flex items-center justify-center gap-2 rounded-lg bg-white text-[#11496c] px-4 py-2.5 text-sm font-semibold shadow-lg transition-all hover:bg-white/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <IoCheckmarkCircleOutline className="h-4 w-4" />
-                    Save
+                    {isSaving ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#11496c] border-r-transparent"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <IoCheckmarkCircleOutline className="h-4 w-4" />
+                        Save
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -266,12 +447,19 @@ const PatientProfile = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (window.confirm('Are you sure you want to sign out?')) {
-                        localStorage.removeItem('patientAuthToken')
-                        localStorage.removeItem('patientRefreshToken')
-                        sessionStorage.removeItem('patientAuthToken')
-                        sessionStorage.removeItem('patientRefreshToken')
+                        try {
+                          // Import logout function from patientService
+                          const { logoutPatient } = await import('../patient-services/patientService')
+                          await logoutPatient()
+                        } catch (error) {
+                          console.error('Error during logout:', error)
+                          // Clear tokens manually if API call fails
+                          const { clearPatientTokens } = await import('../patient-services/patientService')
+                          clearPatientTokens()
+                        }
+                        // Navigate to login page
                         window.location.href = '/patient/login'
                       }
                     }}

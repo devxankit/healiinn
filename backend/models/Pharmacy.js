@@ -23,7 +23,7 @@ const pharmacySchema = new mongoose.Schema(
         type: {
           type: String,
           enum: ['Point'],
-          default: 'Point',
+          // Removed default - location is optional, only set if coordinates are provided
         },
         coordinates: {
           type: [Number],
@@ -90,6 +90,25 @@ const pharmacySchema = new mongoose.Schema(
     },
   }
 );
+
+// Pre-save hook to remove invalid location objects (with only type but no coordinates)
+pharmacySchema.pre('save', function removeInvalidLocation(next) {
+  if (this.address && this.address.location) {
+    const loc = this.address.location;
+    if (!loc.coordinates || 
+        !Array.isArray(loc.coordinates) || 
+        loc.coordinates.length !== 2 ||
+        !Number.isFinite(loc.coordinates[0]) ||
+        !Number.isFinite(loc.coordinates[1])) {
+      // Remove invalid location
+      this.address.location = undefined;
+      if (this.address.locationSource) {
+        this.address.locationSource = undefined;
+      }
+    }
+  }
+  next();
+});
 
 pharmacySchema.pre('save', async function encryptPassword(next) {
   if (!this.isModified('password') || !this.password) {

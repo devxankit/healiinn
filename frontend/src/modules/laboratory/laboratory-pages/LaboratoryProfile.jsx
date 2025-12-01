@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import LaboratoryNavbar from '../laboratory-components/LaboratoryNavbar'
+import { getLaboratoryProfile, updateLaboratoryProfile } from '../laboratory-services/laboratoryService'
+import { useToast } from '../../../contexts/ToastContext'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -26,67 +29,156 @@ import {
   IoStarOutline,
 } from 'react-icons/io5'
 
-const mockLaboratoryData = {
-  laboratoryName: 'MediLab Diagnostics',
-  ownerName: 'Dr. James Wilson',
-  email: 'info@medilab.com',
-  phone: '+1-555-214-0098',
-  licenseNumber: 'LAB-45287',
-  profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-  bio: 'Your trusted diagnostic laboratory providing accurate and timely test results.',
-  bloodGroup: 'O+',
-  gender: 'Male',
-  address: {
-    line1: '123 Medical Street',
-    line2: 'Suite 210',
-    city: 'Springfield',
-    state: 'IL',
-    postalCode: '62701',
-    country: 'USA',
-  },
-  contactPerson: {
-    name: 'Lauren Patel',
-    phone: '+1-555-211-0800',
-    email: 'lauren.patel@medilab.com',
-  },
-  timings: [
-    { day: 'Monday', startTime: '08:00', endTime: '20:00', isOpen: true },
-    { day: 'Tuesday', startTime: '08:00', endTime: '20:00', isOpen: true },
-    { day: 'Wednesday', startTime: '08:00', endTime: '20:00', isOpen: true },
-    { day: 'Thursday', startTime: '08:00', endTime: '20:00', isOpen: true },
-    { day: 'Friday', startTime: '08:00', endTime: '20:00', isOpen: true },
-    { day: 'Saturday', startTime: '09:00', endTime: '18:00', isOpen: true },
-    { day: 'Sunday', startTime: '10:00', endTime: '16:00', isOpen: true },
-  ],
-  services: ['Blood Tests', 'Urine Tests', 'X-Ray', 'Ultrasound', 'ECG'],
-  serviceRadius: 10,
-  responseTimeMinutes: 45,
-  documents: {
-    license: 'https://example.com/license.pdf',
-    identityProof: 'https://example.com/id.pdf',
-  },
-  status: 'approved',
-  rating: 4.9,
-  isActive: true,
-}
+// Mock data removed - using real backend data now
 
 const LaboratoryProfile = () => {
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
-  const [formData, setFormData] = useState(() => {
-    const saved = localStorage.getItem('laboratoryProfile')
-    if (saved) {
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const isDashboardPage = location.pathname === '/laboratory/dashboard'
+  
+  // Initialize with empty/default data
+  const [formData, setFormData] = useState({
+    labName: '',
+    ownerName: '',
+    email: '',
+    phone: '',
+    licenseNumber: '',
+    gstNumber: '',
+    profileImage: '',
+    bio: '',
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: '',
+    },
+    contactPerson: {
+      name: '',
+      phone: '',
+      email: '',
+    },
+    timings: [],
+    testsOffered: [],
+    serviceRadiusKm: 0,
+    responseTimeMinutes: 0,
+    documents: {},
+    status: 'pending',
+    rating: 0,
+    isActive: true,
+  })
+
+  // Fetch laboratory profile from backend
+  useEffect(() => {
+    const fetchLaboratoryProfile = async () => {
+      const token = getAuthToken('laboratory')
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
+
       try {
-        return { ...mockLaboratoryData, ...JSON.parse(saved) }
-      } catch (e) {
-        return mockLaboratoryData
+        setIsLoading(true)
+        
+        // Try to load from cache first for faster initial render
+        const storage = localStorage.getItem('laboratoryAuthToken') ? localStorage : sessionStorage
+        const cachedProfile = JSON.parse(storage.getItem('laboratoryProfile') || '{}')
+        if (Object.keys(cachedProfile).length > 0) {
+          // Set initial form data from cache
+          const cachedData = {
+            labName: cachedProfile.labName || '',
+            ownerName: cachedProfile.ownerName || '',
+            email: cachedProfile.email || '',
+            phone: cachedProfile.phone || '',
+            licenseNumber: cachedProfile.licenseNumber || '',
+            gstNumber: cachedProfile.gstNumber || '',
+            profileImage: cachedProfile.profileImage || cachedProfile.documents?.profileImage || '',
+            bio: cachedProfile.bio || '',
+            address: cachedProfile.address || {
+              line1: '',
+              line2: '',
+              city: '',
+              state: '',
+              postalCode: '',
+              country: '',
+            },
+            contactPerson: cachedProfile.contactPerson || {
+              name: '',
+              phone: '',
+              email: '',
+            },
+            timings: Array.isArray(cachedProfile.timings) ? cachedProfile.timings : [],
+            testsOffered: Array.isArray(cachedProfile.testsOffered) ? cachedProfile.testsOffered : [],
+            serviceRadiusKm: cachedProfile.serviceRadiusKm || 0,
+            responseTimeMinutes: cachedProfile.responseTimeMinutes || 0,
+            documents: cachedProfile.documents || {},
+            status: cachedProfile.status || 'pending',
+            rating: cachedProfile.rating || 0,
+            isActive: cachedProfile.isActive !== undefined ? cachedProfile.isActive : true,
+          }
+          setFormData(cachedData)
+        }
+
+        // Then fetch fresh data from backend
+        const response = await getLaboratoryProfile()
+        if (response.success && response.data) {
+          const laboratory = response.data.laboratory || response.data
+          
+          // Transform backend data to frontend format
+          const transformedData = {
+            labName: laboratory.labName || '',
+            ownerName: laboratory.ownerName || '',
+            email: laboratory.email || '',
+            phone: laboratory.phone || '',
+            licenseNumber: laboratory.licenseNumber || '',
+            gstNumber: laboratory.gstNumber || '',
+            profileImage: laboratory.profileImage || laboratory.documents?.profileImage || '',
+            bio: laboratory.bio || '',
+            address: laboratory.address || {
+              line1: '',
+              line2: '',
+              city: '',
+              state: '',
+              postalCode: '',
+              country: '',
+            },
+            contactPerson: laboratory.contactPerson || {
+              name: '',
+              phone: '',
+              email: '',
+            },
+            timings: Array.isArray(laboratory.timings) ? laboratory.timings : [],
+            testsOffered: Array.isArray(laboratory.testsOffered) ? laboratory.testsOffered : [],
+            serviceRadiusKm: laboratory.serviceRadiusKm || 0,
+            responseTimeMinutes: laboratory.responseTimeMinutes || 0,
+            documents: laboratory.documents || {},
+            status: laboratory.status || 'pending',
+            rating: laboratory.rating || 0,
+            isActive: laboratory.isActive !== undefined ? laboratory.isActive : true,
+          }
+          
+          setFormData(transformedData)
+          
+          // Update cache
+          const storage = localStorage.getItem('laboratoryAuthToken') ? localStorage : sessionStorage
+          storage.setItem('laboratoryProfile', JSON.stringify(laboratory))
+        }
+      } catch (error) {
+        console.error('Error fetching laboratory profile:', error)
+        toast.error('Failed to load profile data. Please refresh the page.')
+      } finally {
+        setIsLoading(false)
       }
     }
-    return mockLaboratoryData
-  })
-  const isDashboardPage = location.pathname === '/laboratory/dashboard'
+
+    fetchLaboratoryProfile()
+  }, [toast])
 
   const handleLogout = () => {
     localStorage.removeItem('laboratoryAuthToken')
@@ -147,34 +239,148 @@ const LaboratoryProfile = () => {
     })
   }
 
-  const handleSave = () => {
-    console.log('Saving profile:', formData)
-    setIsEditing(false)
-    setActiveSection(null)
-    alert('Profile updated successfully!')
+  const handleSave = async () => {
+    const token = getAuthToken('laboratory')
+    if (!token) {
+      toast.error('Please login to save profile')
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      
+      // Prepare data for backend (match backend expected format)
+      const updateData = {
+        labName: formData.labName,
+        ownerName: formData.ownerName,
+        email: formData.email,
+        phone: formData.phone,
+        licenseNumber: formData.licenseNumber,
+        gstNumber: formData.gstNumber,
+        profileImage: formData.profileImage,
+        bio: formData.bio,
+        address: formData.address,
+        contactPerson: formData.contactPerson,
+        timings: formData.timings,
+        testsOffered: formData.testsOffered,
+        serviceRadiusKm: formData.serviceRadiusKm,
+        responseTimeMinutes: formData.responseTimeMinutes,
+        documents: formData.documents,
+        isActive: formData.isActive,
+      }
+
+      const response = await updateLaboratoryProfile(updateData)
+      
+      if (response.success) {
+        // Update cache
+        const storage = localStorage.getItem('laboratoryAuthToken') ? localStorage : sessionStorage
+        storage.setItem('laboratoryProfile', JSON.stringify(response.data?.laboratory || response.data))
+        
+        toast.success('Profile updated successfully!')
+        setIsEditing(false)
+        setActiveSection(null)
+      } else {
+        toast.error(response.message || 'Failed to update profile')
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error)
+      toast.error(error.message || 'Failed to update profile. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleCancel = () => {
-    setFormData(mockLaboratoryData)
+  const handleCancel = async () => {
+    // Reload original data from backend
+    try {
+      const response = await getLaboratoryProfile()
+      if (response.success && response.data) {
+        const laboratory = response.data.laboratory || response.data
+        const transformedData = {
+          labName: laboratory.labName || '',
+          ownerName: laboratory.ownerName || '',
+          email: laboratory.email || '',
+          phone: laboratory.phone || '',
+          licenseNumber: laboratory.licenseNumber || '',
+          gstNumber: laboratory.gstNumber || '',
+          profileImage: laboratory.profileImage || laboratory.documents?.profileImage || '',
+          bio: laboratory.bio || '',
+          address: laboratory.address || {
+            line1: '',
+            line2: '',
+            city: '',
+            state: '',
+            postalCode: '',
+            country: '',
+          },
+          contactPerson: laboratory.contactPerson || {
+            name: '',
+            phone: '',
+            email: '',
+          },
+          timings: Array.isArray(laboratory.timings) ? laboratory.timings : [],
+          testsOffered: Array.isArray(laboratory.testsOffered) ? laboratory.testsOffered : [],
+          serviceRadiusKm: laboratory.serviceRadiusKm || 0,
+          responseTimeMinutes: laboratory.responseTimeMinutes || 0,
+          documents: laboratory.documents || {},
+          status: laboratory.status || 'pending',
+          rating: laboratory.rating || 0,
+          isActive: laboratory.isActive !== undefined ? laboratory.isActive : true,
+        }
+        setFormData(transformedData)
+      }
+    } catch (error) {
+      console.error('Error reloading profile:', error)
+      toast.error('Failed to reload profile data')
+    }
     setIsEditing(false)
     setActiveSection(null)
   }
 
-  const handleToggleActive = () => {
+  const handleToggleActive = async () => {
     const newActiveStatus = !formData.isActive
     const updatedFormData = { ...formData, isActive: newActiveStatus }
     setFormData(updatedFormData)
-    localStorage.setItem('laboratoryProfile', JSON.stringify(updatedFormData))
     
-    if (newActiveStatus) {
-      alert('Your profile is now active and visible to patients.')
-    } else {
-      alert('Your profile is now inactive and will not be visible to patients.')
+    try {
+      const response = await updateLaboratoryProfile({ isActive: newActiveStatus })
+      if (response.success) {
+        const storage = localStorage.getItem('laboratoryAuthToken') ? localStorage : sessionStorage
+        storage.setItem('laboratoryProfile', JSON.stringify(response.data?.laboratory || response.data))
+        
+        if (newActiveStatus) {
+          toast.success('Your profile is now active and visible to patients.')
+        } else {
+          toast.success('Your profile is now inactive and will not be visible to patients.')
+        }
+      }
+    } catch (error) {
+      console.error('Error updating active status:', error)
+      toast.error('Failed to update profile status')
+      // Revert on error
+      setFormData({ ...formData, isActive: !newActiveStatus })
     }
   }
 
   const toggleSection = (section) => {
     setActiveSection(activeSection === section ? null : section)
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <>
+        <LaboratoryNavbar />
+        <section className={`flex flex-col gap-4 pb-24 lg:pb-8 ${isDashboardPage ? '-mt-20' : ''} lg:mt-0`}>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
+              <p className="mt-4 text-sm text-slate-600">Loading profile...</p>
+            </div>
+          </div>
+        </section>
+      </>
+    )
   }
 
   return (
@@ -198,12 +404,12 @@ const LaboratoryProfile = () => {
                 <div className="relative">
                   <div className="relative h-24 w-24">
                     <img
-                      src={formData.profileImage}
-                      alt={formData.laboratoryName}
+                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`}
+                      alt={formData.labName || 'Laboratory'}
                       className="h-full w-full rounded-full object-cover ring-4 ring-white/50 shadow-2xl bg-slate-100"
                       onError={(e) => {
                         e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.laboratoryName)}&background=ffffff&color=11496c&size=128&bold=true`
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`
                       }}
                     />
                     {isEditing && (
@@ -220,7 +426,7 @@ const LaboratoryProfile = () => {
                 {/* Name */}
                 <div className="text-center">
                   <h1 className="text-xl font-bold text-white mb-1.5">
-                    {formData.laboratoryName}
+                    {formData.labName || 'Laboratory'}
                   </h1>
                   <p className="text-sm text-white/90 mb-3">
                     {formData.email}
@@ -286,10 +492,20 @@ const LaboratoryProfile = () => {
                       <button
                         type="button"
                         onClick={handleSave}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 hover:scale-105 shadow-lg"
+                        disabled={isSaving}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <IoCheckmarkCircleOutline className="h-4 w-4" />
-                        Save Changes
+                        {isSaving ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <IoCheckmarkCircleOutline className="h-4 w-4" />
+                            Save Changes
+                          </>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -340,12 +556,12 @@ const LaboratoryProfile = () => {
                 <div className="relative">
                   <div className="relative h-24 w-24 sm:h-28 sm:w-28">
                     <img
-                      src={formData.profileImage}
-                      alt={formData.laboratoryName}
+                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`}
+                      alt={formData.labName || 'Laboratory'}
                       className="h-full w-full rounded-full object-cover ring-2 ring-white/50 shadow-lg bg-slate-100"
                       onError={(e) => {
                         e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.laboratoryName)}&background=ffffff&color=11496c&size=128&bold=true`
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`
                       }}
                     />
                     {isEditing && (
@@ -361,7 +577,7 @@ const LaboratoryProfile = () => {
 
                 {/* Name - Centered */}
                 <h1 className="text-xl sm:text-2xl font-bold text-white text-center">
-                  {formData.laboratoryName}
+                  {formData.labName || 'Laboratory'}
                 </h1>
 
                 {/* Email - Centered */}
@@ -426,10 +642,20 @@ const LaboratoryProfile = () => {
                       <button
                         type="button"
                         onClick={handleSave}
-                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/20 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95"
+                        disabled={isSaving}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/20 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <IoCheckmarkCircleOutline className="h-4 w-4" />
-                        Save
+                        {isSaving ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <IoCheckmarkCircleOutline className="h-4 w-4" />
+                            Save
+                          </>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -495,12 +721,12 @@ const LaboratoryProfile = () => {
                       {isEditing ? (
                         <input
                           type="text"
-                          value={formData.laboratoryName}
-                          onChange={(e) => handleInputChange('laboratoryName', e.target.value)}
+                          value={formData.labName}
+                          onChange={(e) => handleInputChange('labName', e.target.value)}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                         />
                       ) : (
-                        <p className="text-sm text-slate-900">{formData.laboratoryName}</p>
+                        <p className="text-sm text-slate-900">{formData.labName || 'Not set'}</p>
                       )}
                     </div>
                     <div>
@@ -742,17 +968,21 @@ const LaboratoryProfile = () => {
                 <div className="px-3 sm:px-5 lg:px-4 pb-4 sm:pb-5 lg:pb-4 border-t border-slate-100">
                   <div className="pt-3 sm:pt-4 lg:pt-3 space-y-3">
                     <div>
-                      <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Available Services</label>
+                      <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Available Tests</label>
                 <div className="flex flex-wrap gap-2">
-                  {formData.services.map((service) => (
-                    <span
-                      key={service}
-                      className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.1)] px-3 py-1 text-xs font-medium text-[#11496c]"
-                    >
-                      <IoFlaskOutline className="h-3 w-3" />
-                      {service}
-                    </span>
-                  ))}
+                  {formData.testsOffered && Array.isArray(formData.testsOffered) && formData.testsOffered.length > 0 ? (
+                    formData.testsOffered.map((test, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.1)] px-3 py-1 text-xs font-medium text-[#11496c]"
+                      >
+                        <IoFlaskOutline className="h-3 w-3" />
+                        {typeof test === 'string' ? test : (test.testName || test.name || 'Test')}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500 italic">No tests added yet</p>
+                  )}
                 </div>
                     </div>
                   </div>
@@ -762,13 +992,13 @@ const LaboratoryProfile = () => {
                       {isEditing ? (
                         <input
                           type="number"
-                          value={formData.serviceRadius}
-                          onChange={(e) => handleInputChange('serviceRadius', parseFloat(e.target.value) || 0)}
+                          value={formData.serviceRadiusKm}
+                          onChange={(e) => handleInputChange('serviceRadiusKm', parseFloat(e.target.value) || 0)}
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                           min="0"
                         />
                       ) : (
-                        <p className="text-sm text-slate-900">{formData.serviceRadius} km</p>
+                        <p className="text-sm text-slate-900">{formData.serviceRadiusKm || 0} km</p>
                       )}
                     </div>
                     <div>

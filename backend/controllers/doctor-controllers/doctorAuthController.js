@@ -102,7 +102,23 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'License number already registered.' });
   }
 
-  const clinicPayload = clinicDetails ? { ...clinicDetails } : {};
+  let clinicPayload = clinicDetails ? { ...clinicDetails } : {};
+
+  // Remove incomplete location objects (with only type but no coordinates)
+  // Since we're not using GPS/map API, location should only be set if coordinates are explicitly provided
+  if (clinicPayload.location) {
+    const hasValidCoordinates = 
+      clinicPayload.location.coordinates && 
+      Array.isArray(clinicPayload.location.coordinates) && 
+      clinicPayload.location.coordinates.length === 2 &&
+      Number.isFinite(clinicPayload.location.coordinates[0]) &&
+      Number.isFinite(clinicPayload.location.coordinates[1]);
+    
+    if (!hasValidCoordinates) {
+      delete clinicPayload.location;
+      delete clinicPayload.locationSource;
+    }
+  }
 
   const rawClinicAddressInput =
     clinicAddress !== undefined ? clinicAddress : clinicPayload.address;
@@ -161,15 +177,29 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
   if (legacyLocation.provided) {
     clinicGeoPoint = legacyLocation.point;
     clinicLocationProvided = true;
-  } else if (addressLocationProvided) {
-    clinicGeoPoint = addressDerivedLocation;
-    clinicLocationProvided = true;
+  } else if (addressLocationProvided && addressDerivedLocation) {
+    // Only use address-derived location if it has valid coordinates
+    if (addressDerivedLocation.coordinates && 
+        Array.isArray(addressDerivedLocation.coordinates) && 
+        addressDerivedLocation.coordinates.length === 2) {
+      clinicGeoPoint = addressDerivedLocation;
+      clinicLocationProvided = true;
+    }
   }
 
-  if (clinicGeoPoint) {
+  // Only set location if we have valid coordinates
+  // Since we're not using GPS/map API, skip location if coordinates are not explicitly provided
+  if (clinicGeoPoint && 
+      clinicGeoPoint.coordinates && 
+      Array.isArray(clinicGeoPoint.coordinates) && 
+      clinicGeoPoint.coordinates.length === 2 &&
+      Number.isFinite(clinicGeoPoint.coordinates[0]) &&
+      Number.isFinite(clinicGeoPoint.coordinates[1])) {
     clinicPayload.location = clinicGeoPoint;
-  } else if (clinicLocationProvided) {
+  } else {
+    // Ensure location is completely removed if invalid or missing
     delete clinicPayload.location;
+    delete clinicPayload.locationSource;
   }
 
   let locationSourceValue;
@@ -228,6 +258,52 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     }
   }
 
+  // Final validation: Ensure location has valid coordinates before saving
+  // Since we're not using GPS/map API, completely remove location if coordinates are missing
+  if (clinicPayload.location) {
+    const hasValidCoordinates = 
+      clinicPayload.location.coordinates && 
+      Array.isArray(clinicPayload.location.coordinates) && 
+      clinicPayload.location.coordinates.length === 2 &&
+      Number.isFinite(clinicPayload.location.coordinates[0]) &&
+      Number.isFinite(clinicPayload.location.coordinates[1]) &&
+      clinicPayload.location.type === 'Point';
+    
+    if (!hasValidCoordinates) {
+      delete clinicPayload.location;
+      delete clinicPayload.locationSource;
+    }
+  }
+
+  // Final cleanup: Remove location completely if it doesn't have valid coordinates
+  // This is critical since we're not using GPS/map API - location should only exist with valid coordinates
+  if (clinicPayload && clinicPayload.location) {
+    if (!clinicPayload.location.coordinates || 
+        !Array.isArray(clinicPayload.location.coordinates) || 
+        clinicPayload.location.coordinates.length !== 2 ||
+        !Number.isFinite(clinicPayload.location.coordinates[0]) ||
+        !Number.isFinite(clinicPayload.location.coordinates[1])) {
+      delete clinicPayload.location;
+      delete clinicPayload.locationSource;
+    }
+  }
+
+  // Clean up empty clinicDetails object
+  if (clinicPayload && Object.keys(clinicPayload).length === 0) {
+    clinicPayload = undefined;
+  }
+
+  // Ensure clinicDetails.location is completely removed if invalid
+  const finalClinicDetails = clinicPayload ? { ...clinicPayload } : undefined;
+  if (finalClinicDetails && finalClinicDetails.location) {
+    if (!finalClinicDetails.location.coordinates || 
+        !Array.isArray(finalClinicDetails.location.coordinates) || 
+        finalClinicDetails.location.coordinates.length !== 2) {
+      delete finalClinicDetails.location;
+      delete finalClinicDetails.locationSource;
+    }
+  }
+
   const doctor = await Doctor.create({
     firstName: resolvedName.firstName,
     lastName: resolvedName.lastName || '',
@@ -240,7 +316,7 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     education,
     languages,
     consultationModes,
-    clinicDetails: clinicPayload,
+    clinicDetails: finalClinicDetails,
     bio,
     documents,
     consultationFee: consultationFee !== undefined ? Number(consultationFee) : undefined,

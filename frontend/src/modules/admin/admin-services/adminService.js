@@ -114,17 +114,7 @@ export const getUserById = async (userId) => {
  */
 export const updateUserStatus = async (userId, status) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/status`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ status }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to update user status: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch(`/admin/users/${userId}/status`, { status })
   } catch (error) {
     console.error('Error updating user status:', error)
     throw error
@@ -136,16 +126,7 @@ export const updateUserStatus = async (userId, status) => {
  */
 export const deleteUser = async (userId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete user: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.delete(`/admin/users/${userId}`)
   } catch (error) {
     console.error('Error deleting user:', error)
     throw error
@@ -157,25 +138,7 @@ export const deleteUser = async (userId) => {
  */
 export const getDoctors = async (filters = {}) => {
   try {
-    const queryParams = new URLSearchParams()
-    if (filters.search) queryParams.append('search', filters.search)
-    if (filters.status) queryParams.append('status', filters.status)
-    if (filters.specialty) queryParams.append('specialty', filters.specialty)
-    if (filters.page) queryParams.append('page', filters.page)
-    if (filters.limit) queryParams.append('limit', filters.limit)
-    if (filters.sortBy) queryParams.append('sortBy', filters.sortBy)
-    if (filters.sortOrder) queryParams.append('sortOrder', filters.sortOrder)
-
-    const response = await fetch(`${API_BASE_URL}/admin/doctors?${queryParams}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch doctors: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/doctors', filters)
   } catch (error) {
     console.error('Error fetching doctors:', error)
     throw error
@@ -187,16 +150,7 @@ export const getDoctors = async (filters = {}) => {
  */
 export const getDoctorById = async (doctorId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/doctors/${doctorId}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch doctor: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get(`/admin/doctors/${doctorId}`)
   } catch (error) {
     console.error('Error fetching doctor:', error)
     throw error
@@ -208,17 +162,7 @@ export const getDoctorById = async (doctorId) => {
  */
 export const verifyDoctor = async (doctorId, verificationData = {}) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/doctors/${doctorId}/verify`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(verificationData),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to verify doctor: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch(`/admin/doctors/${doctorId}/verify`, verificationData)
   } catch (error) {
     console.error('Error verifying doctor:', error)
     throw error
@@ -230,17 +174,7 @@ export const verifyDoctor = async (doctorId, verificationData = {}) => {
  */
 export const rejectDoctor = async (doctorId, reason) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/doctors/${doctorId}/reject`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ reason }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to reject doctor: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch(`/admin/doctors/${doctorId}/reject`, { reason })
   } catch (error) {
     console.error('Error rejecting doctor:', error)
     throw error
@@ -252,24 +186,7 @@ export const rejectDoctor = async (doctorId, reason) => {
  */
 export const getPharmacies = async (filters = {}) => {
   try {
-    const queryParams = new URLSearchParams()
-    if (filters.search) queryParams.append('search', filters.search)
-    if (filters.status) queryParams.append('status', filters.status)
-    if (filters.page) queryParams.append('page', filters.page)
-    if (filters.limit) queryParams.append('limit', filters.limit)
-    if (filters.sortBy) queryParams.append('sortBy', filters.sortBy)
-    if (filters.sortOrder) queryParams.append('sortOrder', filters.sortOrder)
-
-    const response = await fetch(`${API_BASE_URL}/admin/pharmacies?${queryParams}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch pharmacies: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/pharmacies', filters)
   } catch (error) {
     console.error('Error fetching pharmacies:', error)
     throw error
@@ -281,16 +198,7 @@ export const getPharmacies = async (filters = {}) => {
  */
 export const getPharmacyById = async (pharmacyId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/pharmacies/${pharmacyId}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch pharmacy: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get(`/admin/pharmacies/${pharmacyId}`)
   } catch (error) {
     console.error('Error fetching pharmacy:', error)
     throw error
@@ -302,17 +210,7 @@ export const getPharmacyById = async (pharmacyId) => {
  */
 export const verifyPharmacy = async (pharmacyId, verificationData = {}) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/pharmacies/${pharmacyId}/verify`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(verificationData),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to verify pharmacy: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch(`/admin/pharmacies/${pharmacyId}/verify`, verificationData)
   } catch (error) {
     console.error('Error verifying pharmacy:', error)
     throw error
@@ -324,17 +222,7 @@ export const verifyPharmacy = async (pharmacyId, verificationData = {}) => {
  */
 export const rejectPharmacy = async (pharmacyId, reason) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/pharmacies/${pharmacyId}/reject`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ reason }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to reject pharmacy: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch(`/admin/pharmacies/${pharmacyId}/reject`, { reason })
   } catch (error) {
     console.error('Error rejecting pharmacy:', error)
     throw error
@@ -346,24 +234,7 @@ export const rejectPharmacy = async (pharmacyId, reason) => {
  */
 export const getLaboratories = async (filters = {}) => {
   try {
-    const queryParams = new URLSearchParams()
-    if (filters.search) queryParams.append('search', filters.search)
-    if (filters.status) queryParams.append('status', filters.status)
-    if (filters.page) queryParams.append('page', filters.page)
-    if (filters.limit) queryParams.append('limit', filters.limit)
-    if (filters.sortBy) queryParams.append('sortBy', filters.sortBy)
-    if (filters.sortOrder) queryParams.append('sortOrder', filters.sortOrder)
-
-    const response = await fetch(`${API_BASE_URL}/admin/laboratories?${queryParams}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch laboratories: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/laboratories', filters)
   } catch (error) {
     console.error('Error fetching laboratories:', error)
     throw error
@@ -375,16 +246,7 @@ export const getLaboratories = async (filters = {}) => {
  */
 export const getLaboratoryById = async (laboratoryId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/laboratories/${laboratoryId}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch laboratory: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get(`/admin/laboratories/${laboratoryId}`)
   } catch (error) {
     console.error('Error fetching laboratory:', error)
     throw error
@@ -396,17 +258,7 @@ export const getLaboratoryById = async (laboratoryId) => {
  */
 export const verifyLaboratory = async (laboratoryId, verificationData = {}) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/laboratories/${laboratoryId}/verify`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(verificationData),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to verify laboratory: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch(`/admin/laboratories/${laboratoryId}/verify`, verificationData)
   } catch (error) {
     console.error('Error verifying laboratory:', error)
     throw error
@@ -418,17 +270,7 @@ export const verifyLaboratory = async (laboratoryId, verificationData = {}) => {
  */
 export const rejectLaboratory = async (laboratoryId, reason) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/laboratories/${laboratoryId}/reject`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ reason }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to reject laboratory: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch(`/admin/laboratories/${laboratoryId}/reject`, { reason })
   } catch (error) {
     console.error('Error rejecting laboratory:', error)
     throw error
@@ -464,21 +306,7 @@ export const getRecentActivities = async (limit = 10) => {
  */
 export const getPendingVerifications = async (filters = {}) => {
   try {
-    const queryParams = new URLSearchParams()
-    if (filters.type) queryParams.append('type', filters.type)
-    if (filters.page) queryParams.append('page', filters.page)
-    if (filters.limit) queryParams.append('limit', filters.limit)
-
-    const response = await fetch(`${API_BASE_URL}/admin/verifications/pending?${queryParams}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch pending verifications: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/verifications/pending', filters)
   } catch (error) {
     console.error('Error fetching pending verifications:', error)
     throw error
@@ -514,18 +342,7 @@ export const updateAdminProfile = async (profileData) => {
  */
 export const updateAdminPassword = async (passwordData) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/profile/password`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(passwordData),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || `Failed to update password: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch('/admin/auth/me/password', passwordData)
   } catch (error) {
     console.error('Error updating password:', error)
     throw error

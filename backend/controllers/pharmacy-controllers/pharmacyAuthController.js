@@ -110,11 +110,15 @@ exports.registerPharmacy = asyncHandler(async (req, res) => {
       ? { ...(normalizedAddress || {}) }
       : normalizedAddress;
 
-  if (pharmacyLocation) {
+  // Only set location if we have valid coordinates
+  if (pharmacyLocation && pharmacyLocation.coordinates && Array.isArray(pharmacyLocation.coordinates) && pharmacyLocation.coordinates.length === 2) {
     addressPayload = addressPayload || {};
     addressPayload.location = pharmacyLocation;
   } else if (shouldClearLocation && addressPayload) {
     addressPayload.location = undefined;
+  } else if (addressPayload) {
+    // Ensure location is deleted if invalid
+    delete addressPayload.location;
   }
 
   let locationSourceValue;
@@ -152,6 +156,23 @@ exports.registerPharmacy = asyncHandler(async (req, res) => {
       addressPayload.locationSource = locationSourceValue;
     } else {
       addressPayload.locationSource = undefined;
+    }
+  }
+
+  // Final validation: Ensure location has valid coordinates before saving
+  // Since we're not using GPS/map API, completely remove location if coordinates are missing
+  if (addressPayload && addressPayload.location) {
+    const hasValidCoordinates = 
+      addressPayload.location.coordinates && 
+      Array.isArray(addressPayload.location.coordinates) && 
+      addressPayload.location.coordinates.length === 2 &&
+      Number.isFinite(addressPayload.location.coordinates[0]) &&
+      Number.isFinite(addressPayload.location.coordinates[1]) &&
+      addressPayload.location.type === 'Point';
+    
+    if (!hasValidCoordinates) {
+      delete addressPayload.location;
+      delete addressPayload.locationSource;
     }
   }
 

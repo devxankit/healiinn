@@ -19,6 +19,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
  */
 const getAuthToken = (module = 'admin') => {
   // Try localStorage first, then sessionStorage
+  // Check all possible token keys
   return (
     localStorage.getItem(`${module}AuthToken`) ||
     localStorage.getItem(`${module}AccessToken`) ||

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoDocumentTextOutline,
   IoCheckmarkCircleOutline,
@@ -31,6 +32,7 @@ const formatDate = (dateString) => {
 
 const LaboratoryTestReports = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   // Mock confirmed orders (orders that are confirmed/ready/completed)
   const [confirmedOrders, setConfirmedOrders] = useState([
     {
@@ -218,7 +220,7 @@ const LaboratoryTestReports = () => {
 
   const handleShareReport = async (order) => {
     if (!order.hasReport) {
-      alert('Please add report first before sharing')
+      toast.warning('Please add report first before sharing')
       return
     }
 
@@ -300,10 +302,10 @@ const LaboratoryTestReports = () => {
         )
       )
       
-      alert(`Test report shared with ${order.patientName} and Admin successfully!`)
+      toast.success(`Test report shared with ${order.patientName} and Admin successfully!`)
     } catch (error) {
       console.error('Error sharing report:', error)
-      alert('Failed to share report. Please try again.')
+      toast.error('Failed to share report. Please try again.')
     } finally {
       setIsSending(false)
     }
@@ -314,13 +316,13 @@ const LaboratoryTestReports = () => {
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file)
     } else {
-      alert('Please select a PDF file')
+      toast.warning('Please select a PDF file')
     }
   }
 
   const handleSaveReport = async () => {
     if (!selectedFile) {
-      alert('Please select a PDF file')
+      toast.warning('Please select a PDF file')
       return
     }
 
@@ -373,12 +375,12 @@ const LaboratoryTestReports = () => {
         setSelectedFile(null)
         setUploadStatus(null)
         setUploadProgress(0)
-        alert('Report added successfully!')
+        toast.success('Report added successfully!')
       }, 1500)
     } catch (error) {
       setUploadStatus('error')
       setUploadProgress(0)
-      alert('Failed to add report. Please try again.')
+      toast.error('Failed to add report. Please try again.')
     } finally {
       setIsSending(false)
     }

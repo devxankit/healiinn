@@ -9,8 +9,10 @@ require('dotenv').config();
 
 const connectDB = require('./config/db');
 const rateLimiter = require('./middleware/rateLimiter');
+const { initializeSocket } = require('./config/socket');
 
 const app = express();
+const path = require('path');
 
 // Middleware
 app.use(helmet()); // Security headers (includes XSS protection)
@@ -24,6 +26,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-enc
 app.use(cookieParser()); // Parse cookies
 app.use(rateLimiter); // General rate limiting
 
+// Serve static files from upload directory
+app.use('/uploads', express.static(path.join(__dirname, 'upload'), {
+  maxAge: '1y', // Cache for 1 year
+  etag: true,
+}));
+
 // Connect to database
 connectDB();
 
@@ -33,6 +41,76 @@ app.use('/api/doctors/auth', require('./routes/doctor-routes/auth.routes'));
 app.use('/api/laboratories/auth', require('./routes/laboratory-routes/auth.routes'));
 app.use('/api/pharmacies/auth', require('./routes/pharmacy-routes/auth.routes'));
 app.use('/api/admin/auth', require('./routes/admin-routes/auth.routes'));
+
+// Patient Routes (Profile is handled in auth.routes.js)
+app.use('/api/patients/appointments', require('./routes/patient-routes/appointment.routes'));
+app.use('/api/patients/consultations', require('./routes/patient-routes/consultation.routes'));
+app.use('/api/patients/doctors', require('./routes/patient-routes/doctor.routes'));
+app.use('/api/patients', require('./routes/patient-routes/prescription.routes'));
+app.use('/api/patients/orders', require('./routes/patient-routes/order.routes'));
+app.use('/api/patients/transactions', require('./routes/patient-routes/transaction.routes'));
+app.use('/api/patients/history', require('./routes/patient-routes/history.routes'));
+app.use('/api/patients/requests', require('./routes/patient-routes/request.routes'));
+app.use('/api/patients/reviews', require('./routes/patient-routes/review.routes'));
+app.use('/api/patients/support', require('./routes/patient-routes/support.routes'));
+app.use('/api/patients/notifications', require('./routes/patient-routes/notification.routes'));
+
+// Doctor Routes (Profile is handled in auth.routes.js)
+app.use('/api/doctors/dashboard', require('./routes/doctor-routes/dashboard.routes'));
+app.use('/api/doctors/patients', require('./routes/doctor-routes/patient.routes'));
+app.use('/api/doctors/consultations', require('./routes/doctor-routes/consultation.routes'));
+app.use('/api/doctors/prescriptions', require('./routes/doctor-routes/prescription.routes'));
+app.use('/api/doctors/appointments', require('./routes/doctor-routes/appointment.routes'));
+app.use('/api/doctors/sessions', require('./routes/doctor-routes/session.routes'));
+app.use('/api/doctors/queue', require('./routes/doctor-routes/queue.routes'));
+app.use('/api/doctors/availability', require('./routes/doctor-routes/availability.routes'));
+app.use('/api/doctors/reviews', require('./routes/doctor-routes/review.routes'));
+app.use('/api/doctors/wallet', require('./routes/doctor-routes/wallet.routes'));
+app.use('/api/doctors/support', require('./routes/doctor-routes/support.routes'));
+app.use('/api/doctors/notifications', require('./routes/doctor-routes/notification.routes'));
+
+// Pharmacy Routes (Profile is handled in auth.routes.js)
+app.use('/api/pharmacy/dashboard', require('./routes/pharmacy-routes/dashboard.routes'));
+app.use('/api/pharmacy/orders', require('./routes/pharmacy-routes/order.routes'));
+app.use('/api/pharmacy/medicines', require('./routes/pharmacy-routes/medicine.routes'));
+app.use('/api/pharmacy/patients', require('./routes/pharmacy-routes/patient.routes'));
+app.use('/api/pharmacy/request-orders', require('./routes/pharmacy-routes/request-order.routes'));
+app.use('/api/pharmacy/prescriptions', require('./routes/pharmacy-routes/prescription.routes'));
+app.use('/api/pharmacy/services', require('./routes/pharmacy-routes/service.routes'));
+app.use('/api/pharmacy/wallet', require('./routes/pharmacy-routes/wallet.routes'));
+app.use('/api/pharmacy/support', require('./routes/pharmacy-routes/support.routes'));
+app.use('/api/pharmacy/notifications', require('./routes/pharmacy-routes/notification.routes'));
+
+// Laboratory Routes (Profile is handled in auth.routes.js)
+app.use('/api/laboratory/dashboard', require('./routes/laboratory-routes/dashboard.routes'));
+app.use('/api/labs/leads', require('./routes/laboratory-routes/order.routes'));
+app.use('/api/laboratory/tests', require('./routes/laboratory-routes/test.routes'));
+app.use('/api/laboratory/reports', require('./routes/laboratory-routes/report.routes'));
+app.use('/api/laboratory/patients', require('./routes/laboratory-routes/patient.routes'));
+app.use('/api/laboratory/request-orders', require('./routes/laboratory-routes/request-order.routes'));
+app.use('/api/laboratory/requests', require('./routes/laboratory-routes/requests.routes'));
+app.use('/api/laboratory/wallet', require('./routes/laboratory-routes/wallet.routes'));
+app.use('/api/laboratory/support', require('./routes/laboratory-routes/support.routes'));
+app.use('/api/laboratory/notifications', require('./routes/laboratory-routes/notification.routes'));
+
+// Admin Routes
+app.use('/api/admin', require('./routes/admin-routes/providers.routes'));
+app.use('/api/admin', require('./routes/admin-routes/users.routes'));
+app.use('/api/admin/dashboard', require('./routes/admin-routes/dashboard.routes'));
+app.use('/api/admin/requests', require('./routes/admin-routes/request.routes'));
+app.use('/api/admin/appointments', require('./routes/admin-routes/appointment.routes'));
+app.use('/api/admin/orders', require('./routes/admin-routes/order.routes'));
+app.use('/api/admin/inventory', require('./routes/admin-routes/inventory.routes'));
+app.use('/api/admin/wallet', require('./routes/admin-routes/wallet.routes'));
+app.use('/api/admin/settings', require('./routes/admin-routes/settings.routes'));
+app.use('/api/admin/support', require('./routes/admin-routes/support.routes'));
+app.use('/api/admin/verifications', require('./routes/admin-routes/verification.routes'));
+app.use('/api/admin/pharmacy-medicines', require('./routes/admin-routes/pharmacy-medicines.routes'));
+
+// Public Routes (Discovery)
+app.use('/api/pharmacies', require('./routes/patient-routes/pharmacy-discovery.routes'));
+app.use('/api/hospitals', require('./routes/patient-routes/hospital.routes'));
+app.use('/api/specialties', require('./routes/patient-routes/specialty.routes'));
 
 app.get('/', (req, res) => {
   res.json({ 
@@ -50,8 +128,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes will be added here
-// Example: app.use('/api/v1/auth', require('./routes/v1/auth.routes'));
+// All API routes are configured above
 
 // 404 handler
 app.use((req, res) => {
@@ -74,6 +151,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 const server = http.createServer(app);
+
+// Initialize Socket.IO for real-time updates
+initializeSocket(server);
 
 // Listen on all network interfaces (0.0.0.0) to allow network access
 server.listen(PORT, '0.0.0.0', () => {

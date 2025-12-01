@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoCalendarOutline,
   IoSearchOutline,
@@ -261,6 +262,7 @@ const getStatusColor = (status) => {
 
 const DoctorAppointments = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [appointments, setAppointments] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPeriod, setFilterPeriod] = useState('all') // 'today', 'monthly', 'yearly', 'all'
@@ -454,7 +456,7 @@ const DoctorAppointments = () => {
 
   const handleConfirmCancel = () => {
     if (!appointmentToCancel || !cancelReason.trim()) {
-      alert('Please provide a reason for cancellation')
+      toast.warning('Please provide a reason for cancellation')
       return
     }
 
@@ -503,7 +505,7 @@ const DoctorAppointments = () => {
     setAppointmentToCancel(null)
     setCancelReason('')
     
-    alert(`Appointment with ${appointmentToCancel.patientName} has been cancelled. Patient will be notified and can reschedule.`)
+    toast.success(`Appointment with ${appointmentToCancel.patientName} has been cancelled. Patient will be notified and can reschedule.`)
   }
 
   const handleCloseCancelModal = () => {

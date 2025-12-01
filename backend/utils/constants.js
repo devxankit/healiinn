@@ -15,6 +15,7 @@ const APPROVAL_STATUS = {
 const SESSION_STATUS = {
   SCHEDULED: 'scheduled',
   LIVE: 'live',
+  PAUSED: 'paused',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
 };

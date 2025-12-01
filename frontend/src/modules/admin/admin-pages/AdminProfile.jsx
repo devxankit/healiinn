@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -9,23 +9,85 @@ import {
   IoCloseOutline,
   IoCameraOutline,
 } from 'react-icons/io5'
-
-const mockAdminData = {
-  firstName: 'Admin',
-  lastName: 'User',
-  email: 'admin@healiinn.com',
-  phone: '+91 98765 43210',
-  profileImage: null,
-}
+import { getAdminProfile, updateAdminProfile, updateAdminPassword } from '../admin-services/adminService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const AdminProfile = () => {
+  const toast = useToast()
   const [isEditing, setIsEditing] = useState(false)
-  const [formData, setFormData] = useState(mockAdminData)
+  const [isLoading, setIsLoading] = useState(true)
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    profileImage: null,
+  })
+  const [originalData, setOriginalData] = useState(null)
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+
+  // Fetch admin profile data on component mount
+  useEffect(() => {
+    const fetchAdminProfile = async () => {
+      try {
+        setIsLoading(true)
+        // First try to get from localStorage/sessionStorage (stored during login)
+        const storage = localStorage.getItem('adminProfile') || sessionStorage.getItem('adminProfile')
+        if (storage) {
+          try {
+            const cachedProfile = JSON.parse(storage)
+            setFormData({
+              firstName: cachedProfile.name?.split(' ')[0] || cachedProfile.firstName || '',
+              lastName: cachedProfile.name?.split(' ').slice(1).join(' ') || cachedProfile.lastName || '',
+              email: cachedProfile.email || '',
+              phone: cachedProfile.phone || '',
+              profileImage: cachedProfile.profileImage || null,
+            })
+            setOriginalData({
+              firstName: cachedProfile.name?.split(' ')[0] || cachedProfile.firstName || '',
+              lastName: cachedProfile.name?.split(' ').slice(1).join(' ') || cachedProfile.lastName || '',
+              email: cachedProfile.email || '',
+              phone: cachedProfile.phone || '',
+              profileImage: cachedProfile.profileImage || null,
+            })
+          } catch (e) {
+            console.error('Error parsing cached profile:', e)
+          }
+        }
+
+        // Then fetch fresh data from backend
+        const response = await getAdminProfile()
+        if (response.success && response.data) {
+          const admin = response.data.admin || response.data
+          const profileData = {
+            firstName: admin.name?.split(' ')[0] || admin.firstName || '',
+            lastName: admin.name?.split(' ').slice(1).join(' ') || admin.lastName || '',
+            email: admin.email || '',
+            phone: admin.phone || '',
+            profileImage: admin.profileImage || null,
+          }
+          setFormData(profileData)
+          setOriginalData(profileData)
+          
+          // Update cached profile
+          const storageType = localStorage.getItem('adminAuthToken') ? localStorage : sessionStorage
+          storageType.setItem('adminProfile', JSON.stringify(admin))
+        }
+      } catch (error) {
+        console.error('Error fetching admin profile:', error)
+        toast.error('Failed to load profile data. Please refresh the page.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchAdminProfile()
+  }, [toast])
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -41,28 +103,86 @@ const AdminProfile = () => {
     }))
   }
 
-  const handleSave = () => {
-    console.log('Saving profile:', formData)
-    setIsEditing(false)
-    alert('Profile updated successfully!')
+  const handleSave = async () => {
+    try {
+      const updateData = {
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        phone: formData.phone,
+      }
+
+      const response = await updateAdminProfile(updateData)
+      
+      if (response.success) {
+        setOriginalData({ ...formData })
+        setIsEditing(false)
+        toast.success('Profile updated successfully!')
+        
+        // Update cached profile
+        const storage = localStorage.getItem('adminAuthToken') ? localStorage : sessionStorage
+        const cachedProfile = JSON.parse(storage.getItem('adminProfile') || '{}')
+        storage.setItem('adminProfile', JSON.stringify({
+          ...cachedProfile,
+          ...updateData,
+        }))
+      } else {
+        toast.error(response.message || 'Failed to update profile')
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error)
+      toast.error(error.message || 'Failed to update profile. Please try again.')
+    }
   }
 
-  const handlePasswordUpdate = () => {
+  const handlePasswordUpdate = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('New passwords do not match')
+      toast.error('New passwords do not match')
       return
     }
     if (passwordData.newPassword.length < 8) {
-      alert('Password must be at least 8 characters long')
+      toast.error('Password must be at least 8 characters long')
       return
     }
-    console.log('Updating password')
-    setPasswordData({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    })
-    alert('Password updated successfully!')
+    if (!passwordData.currentPassword) {
+      toast.error('Please enter your current password')
+      return
+    }
+
+    try {
+      setIsUpdatingPassword(true)
+      const response = await updateAdminPassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      })
+
+      if (response.success) {
+        setPasswordData({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        })
+        toast.success('Password updated successfully!')
+      } else {
+        toast.error(response.message || 'Failed to update password')
+      }
+    } catch (error) {
+      console.error('Error updating password:', error)
+      toast.error(error.message || 'Failed to update password. Please try again.')
+    } finally {
+      setIsUpdatingPassword(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <section className="flex flex-col gap-3 pb-20 pt-0">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#11496c] border-r-transparent"></div>
+            <p className="mt-4 text-sm text-slate-600">Loading profile...</p>
+          </div>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -207,7 +327,9 @@ const AdminProfile = () => {
             <button
               onClick={() => {
                 setIsEditing(false)
-                setFormData(mockAdminData)
+                if (originalData) {
+                  setFormData({ ...originalData })
+                }
               }}
               className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50"
             >
@@ -272,10 +394,20 @@ const AdminProfile = () => {
           </div>
           <button
             onClick={handlePasswordUpdate}
-            className="flex items-center gap-2 rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#0d3a54]"
+            disabled={isUpdatingPassword}
+            className="flex items-center gap-2 rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#0d3a54] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <IoCheckmarkCircleOutline className="h-4 w-4" />
-            Update Password
+            {isUpdatingPassword ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                Updating...
+              </>
+            ) : (
+              <>
+                <IoCheckmarkCircleOutline className="h-4 w-4" />
+                Update Password
+              </>
+            )}
           </button>
         </div>
       </section>

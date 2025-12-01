@@ -32,7 +32,7 @@ const doctorSchema = new mongoose.Schema(
         type: {
           type: String,
           enum: ['Point'],
-          default: 'Point',
+          // Removed default - location is optional, only set if coordinates are provided
         },
         coordinates: {
           type: [Number],
@@ -51,6 +51,12 @@ const doctorSchema = new mongoose.Schema(
     },
     bio: { type: String, trim: true },
     consultationFee: { type: Number, min: 0 },
+    averageConsultationMinutes: {
+      type: Number,
+      min: 5,
+      max: 120,
+      default: 20, // Default 20 minutes per consultation
+    },
     availableTimings: [{ type: String, trim: true }],
     availability: [
       {
@@ -151,6 +157,25 @@ const doctorSchema = new mongoose.Schema(
     },
   }
 );
+
+// Pre-save hook to remove invalid location objects (with only type but no coordinates)
+doctorSchema.pre('save', function removeInvalidLocation(next) {
+  if (this.clinicDetails && this.clinicDetails.location) {
+    const loc = this.clinicDetails.location;
+    if (!loc.coordinates || 
+        !Array.isArray(loc.coordinates) || 
+        loc.coordinates.length !== 2 ||
+        !Number.isFinite(loc.coordinates[0]) ||
+        !Number.isFinite(loc.coordinates[1])) {
+      // Remove invalid location
+      this.clinicDetails.location = undefined;
+      if (this.clinicDetails.locationSource) {
+        this.clinicDetails.locationSource = undefined;
+      }
+    }
+  }
+  next();
+});
 
 doctorSchema.pre('save', async function encryptPassword(next) {
   if (!this.isModified('password') || !this.password) {

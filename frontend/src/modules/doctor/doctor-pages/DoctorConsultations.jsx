@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import jsPDF from 'jspdf'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoDocumentTextOutline,
   IoSearchOutline,
@@ -164,6 +165,7 @@ const formatDate = (dateString) => {
 const DoctorConsultations = () => {
   const location = useLocation()
   const navigate = useNavigate()
+  const toast = useToast()
   const [searchParams] = useSearchParams()
   const filterParam = searchParams.get('filter') || 'all'
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
@@ -577,7 +579,7 @@ const DoctorConsultations = () => {
   const handleDownloadLabReport = async (report) => {
     const pdfUrl = report.pdfFileUrl || report.downloadUrl
     if (!pdfUrl || pdfUrl === '#') {
-      alert('PDF report is not available yet. The lab will share the report PDF once it is ready.')
+      toast.info('PDF report is not available yet. The lab will share the report PDF once it is ready.')
       return
     }
 
@@ -1736,12 +1738,12 @@ const DoctorConsultations = () => {
 
   const handleSavePrescription = async () => {
     if (!diagnosis) {
-      alert('Please enter a diagnosis')
+      toast.warning('Please enter a diagnosis')
       return
     }
 
     if (medications.length === 0) {
-      alert('Please add at least one medication')
+      toast.warning('Please add at least one medication')
       return
     }
 
@@ -1799,7 +1801,7 @@ const DoctorConsultations = () => {
         console.error('Error updating patient prescriptions:', error)
       }
       
-      alert('Prescription updated successfully!')
+      toast.success('Prescription updated successfully!')
     } else {
       // Add new prescription
       setSavedPrescriptions((prev) => [prescriptionData, ...prev])
@@ -1814,7 +1816,7 @@ const DoctorConsultations = () => {
         console.error('Error saving patient prescriptions:', error)
       }
       
-      alert('Prescription saved successfully!')
+      toast.success('Prescription saved successfully!')
     }
     
     // Update consultation status in both consultations list and selectedConsultation
@@ -2296,7 +2298,7 @@ const DoctorConsultations = () => {
                               existingHistory.vitalsRecords.unshift(vitalsData)
                               localStorage.setItem(historyKey, JSON.stringify(existingHistory))
                               
-                              alert('Vitals added to patient history successfully!')
+                              toast.success('Vitals added to patient history successfully!')
                               
                               // Reset vitals form
                               setVitals({
@@ -2311,10 +2313,10 @@ const DoctorConsultations = () => {
                               })
                             } catch (error) {
                               console.error('Error saving vitals to history:', error)
-                              alert('Error saving vitals. Please try again.')
+                              toast.error('Error saving vitals. Please try again.')
                             }
                           } else {
-                            alert('Please select a patient first')
+                            toast.warning('Please select a patient first')
                           }
                         }}
                         className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"

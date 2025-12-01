@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoPeopleOutline,
   IoSearchOutline,
@@ -716,6 +717,7 @@ const getStatusLabel = (status) => {
 
 const LaboratoryPatients = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [testRequests, setTestRequests] = useState(mockTestRequests)
   const [selectedRequest, setSelectedRequest] = useState(null)
@@ -829,13 +831,13 @@ const LaboratoryPatients = () => {
     )
 
     handleCloseBillGenerator()
-    alert(`Bill generated successfully! Total: ${formatCurrency(totalAmount)}`)
+    toast.success(`Bill generated successfully! Total: ${formatCurrency(totalAmount)}`)
   }
 
   const handleSendBillToPatient = async (requestId) => {
     const request = testRequests.find((r) => r.id === requestId)
     if (!request || !request.bill) {
-      alert('Bill not found. Please generate bill first.')
+      toast.warning('Bill not found. Please generate bill first.')
       return
     }
 
@@ -856,9 +858,9 @@ const LaboratoryPatients = () => {
         )
       )
       
-      alert(`Bill sent to ${request.patient.name} successfully!`)
+      toast.success(`Bill sent to ${request.patient.name} successfully!`)
     } catch (error) {
-      alert('Failed to send bill. Please try again.')
+      toast.error('Failed to send bill. Please try again.')
     } finally {
       setIsProcessing(false)
     }
@@ -932,9 +934,9 @@ const LaboratoryPatients = () => {
       )
       
       handleCloseBillGenerator()
-      alert(`Bill generated and shared with ${billRequest.patient.name} successfully!`)
+      toast.success(`Bill generated and shared with ${billRequest.patient.name} successfully!`)
     } catch (error) {
-      alert('Failed to generate and share bill. Please try again.')
+      toast.error('Failed to generate and share bill. Please try again.')
     } finally {
       setIsProcessing(false)
     }
@@ -958,9 +960,9 @@ const LaboratoryPatients = () => {
         handleCreateOrder(requestId)
       }, 500)
       
-      alert(`Payment confirmed! Order will be created.`)
+      toast.success(`Payment confirmed! Order will be created.`)
     } catch (error) {
-      alert('Failed to mark as paid. Please try again.')
+      toast.error('Failed to mark as paid. Please try again.')
     } finally {
       setIsProcessing(false)
     }
@@ -980,7 +982,7 @@ const LaboratoryPatients = () => {
       )
     )
 
-    alert(`Order created: ${orderId}`)
+    toast.success(`Order created: ${orderId}`)
     // Navigate to orders page
     navigate('/laboratory/orders')
   }

@@ -4,6 +4,7 @@ const {
   loginAdmin,
   getAdminProfile,
   updateAdminProfile,
+  updateAdminPassword,
   logoutAdmin,
   refreshToken,
   checkAdminExists,
@@ -32,6 +33,7 @@ router.post('/reset-password', sanitizeInput, passwordResetRateLimiter, adminRes
 router.post('/refresh-token', sanitizeInput, refreshToken);
 router.get('/me', protect(ROLES.ADMIN), getAdminProfile);
 router.put('/me', protect(ROLES.ADMIN), sanitizeInput, updateAdminProfile);
+router.patch('/me/password', protect(ROLES.ADMIN), sanitizeInput, updateAdminPassword);
 router.post('/logout', protect(ROLES.ADMIN), logoutAdmin);
 router.get('/profile/:id', protect(ROLES.ADMIN), getAdminById);
 

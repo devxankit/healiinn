@@ -98,9 +98,20 @@ export const updatePatientProfile = async (profileData) => {
  */
 export const logoutPatient = async () => {
   try {
-    return await apiClient.post('/patients/auth/logout')
+    // Call backend logout API to blacklist tokens
+    await apiClient.post('/patients/auth/logout').catch((error) => {
+      // Even if backend call fails, we still clear tokens on frontend
+      console.error('Error calling logout API:', error)
+    })
+    
+    // Clear all tokens from storage
+    clearPatientTokens()
+    
+    return { success: true, message: 'Logout successful' }
   } catch (error) {
     console.error('Error logging out:', error)
+    // Clear tokens even if there's an error
+    clearPatientTokens()
     throw error
   }
 }

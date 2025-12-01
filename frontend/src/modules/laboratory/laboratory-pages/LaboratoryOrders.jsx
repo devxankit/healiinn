@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoBagHandleOutline,
   IoCheckmarkCircleOutline,
@@ -258,6 +259,7 @@ const formatCurrency = (value) => {
 }
 
 const LaboratoryOrders = () => {
+  const toast = useToast()
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -361,7 +363,7 @@ const LaboratoryOrders = () => {
   const handleStatusUpdate = async (orderId, newStatus) => {
     const order = orders.find(o => o.id === orderId || o._id === orderId)
     if (!order) {
-      alert('Order not found')
+      toast.error('Order not found')
       return
     }
 
@@ -397,10 +399,10 @@ const LaboratoryOrders = () => {
       // })
       
       await new Promise((resolve) => setTimeout(resolve, 1000))
-      alert(`✅ Order status updated to "${statusLabel}"!\n\n📱 Notification sent to ${patientName}`)
+      toast.success(`Order status updated to "${statusLabel}"! Notification sent to ${patientName}`)
     } catch (error) {
       console.error('Error updating order status:', error)
-      alert('Failed to update order status. Please try again.')
+      toast.error('Failed to update order status. Please try again.')
     }
   }
 

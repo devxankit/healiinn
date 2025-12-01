@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoShieldCheckmarkOutline,
   IoNotificationsOutline,
@@ -10,6 +11,7 @@ import {
 } from 'react-icons/io5'
 
 const AdminSettings = () => {
+  const toast = useToast()
   const [settings, setSettings] = useState({
     emailNotifications: true,
     smsNotifications: false,
@@ -32,7 +34,7 @@ const AdminSettings = () => {
     // Save settings logic here
     console.log('Saving settings:', settings)
     // Show success message
-    alert('Settings saved successfully!')
+    toast.success('Settings saved successfully!')
   }
 
   return (

@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { getAuthToken } from '../../../utils/apiClient'
+import { getDashboardStats, getPendingVerifications, getUsers, getDoctors, getPharmacies, getLaboratories } from '../admin-services/adminService'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoPeopleOutline,
   IoMedicalOutline,
@@ -24,23 +26,20 @@ import {
   IoBagHandleOutline,
 } from 'react-icons/io5'
 
-const mockStats = {
-  totalUsers: 1250,
-  totalDoctors: 156,
-  totalPharmacies: 42,
-  totalLaboratories: 28,
-  totalConsultations: 3420,
-  totalOrders: 1250,
-  todayAppointments: 48,
-  totalRevenue: 1250000,
-  pendingVerifications: 12,
-  thisMonthUsers: 125,
-  lastMonthUsers: 98,
-  thisMonthRevenue: 125000,
-  lastMonthRevenue: 108000,
-  thisMonthConsultations: 342,
-  lastMonthConsultations: 298,
-  todayVerifications: 5,
+const defaultStats = {
+  totalUsers: 0,
+  totalDoctors: 0,
+  totalPharmacies: 0,
+  totalLaboratories: 0,
+  totalOrders: 0,
+  totalRevenue: 0,
+  pendingVerifications: 0,
+  thisMonthUsers: 0,
+  lastMonthUsers: 0,
+  thisMonthRevenue: 0,
+  lastMonthRevenue: 0,
+  thisMonthConsultations: 0,
+  lastMonthConsultations: 0,
 }
 
 // Chart data
@@ -71,52 +70,6 @@ const consultationsData = [
   { month: 'Dec', consultations: 342 },
 ]
 
-const todayVerifications = [
-  {
-    id: 'ver-today-1',
-    type: 'doctor',
-    name: 'Dr. Amit Patel',
-    image: 'https://ui-avatars.com/api/?name=Dr+Amit+Patel&background=10b981&color=fff&size=128&bold=true',
-    specialty: 'Cardiologist',
-    submittedAt: '2025-01-15',
-    time: '09:00 AM',
-    status: 'pending',
-    email: 'amit.patel@example.com',
-  },
-  {
-    id: 'ver-today-2',
-    type: 'pharmacy',
-    name: 'City Pharmacy',
-    image: 'https://ui-avatars.com/api/?name=City+Pharmacy&background=8b5cf6&color=fff&size=128&bold=true',
-    owner: 'Priya Sharma',
-    submittedAt: '2025-01-15',
-    time: '10:30 AM',
-    status: 'pending',
-    email: 'citypharmacy@example.com',
-  },
-  {
-    id: 'ver-today-3',
-    type: 'laboratory',
-    name: 'Test Lab Services',
-    image: 'https://ui-avatars.com/api/?name=Test+Lab&background=f59e0b&color=fff&size=128&bold=true',
-    owner: 'Dr. Anjali Mehta',
-    submittedAt: '2025-01-15',
-    time: '02:00 PM',
-    status: 'pending',
-    email: 'testlab@example.com',
-  },
-  {
-    id: 'ver-today-4',
-    type: 'doctor',
-    name: 'Dr. Sneha Reddy',
-    image: 'https://ui-avatars.com/api/?name=Dr+Sneha+Reddy&background=ec4899&color=fff&size=128&bold=true',
-    specialty: 'Dermatologist',
-    submittedAt: '2025-01-15',
-    time: '03:30 PM',
-    status: 'pending',
-    email: 'sneha.reddy@example.com',
-  },
-]
 
 const recentActivities = [
   {
@@ -465,11 +418,192 @@ const getActivityIcon = (type) => {
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
-  const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(mockStats.todayAppointments)
+  const toast = useToast()
+  const [stats, setStats] = useState(defaultStats)
+  const [isLoadingStats, setIsLoadingStats] = useState(true)
+  const [todayVerifications, setTodayVerifications] = useState([])
+  const [isLoadingVerifications, setIsLoadingVerifications] = useState(true)
+  const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(0)
   const [doctorAppointmentsOverview, setDoctorAppointmentsOverview] = useState([])
   const [pendingPaymentCount, setPendingPaymentCount] = useState(0)
   const [confirmedPaymentCount, setConfirmedPaymentCount] = useState(0)
   const [paymentNotifications, setPaymentNotifications] = useState([])
+
+  // Fetch dashboard stats from backend
+  useEffect(() => {
+    const token = getAuthToken('admin')
+    if (!token) {
+      return
+    }
+
+    const fetchDashboardStats = async () => {
+      try {
+        setIsLoadingStats(true)
+        
+        // Try to get stats from dashboard endpoint first
+        let dashboardData = null
+        try {
+          const dashboardResponse = await getDashboardStats()
+          if (dashboardResponse.success && dashboardResponse.data) {
+            dashboardData = dashboardResponse.data
+          }
+        } catch (error) {
+          console.log('Dashboard stats endpoint not available, fetching from individual endpoints')
+        }
+
+        // If dashboard endpoint doesn't exist, fetch from individual endpoints
+        if (!dashboardData) {
+          const [usersResponse, doctorsResponse, pharmaciesResponse, laboratoriesResponse, verificationsResponse] = await Promise.allSettled([
+            getUsers({ limit: 1 }),
+            getDoctors({ limit: 1 }),
+            getPharmacies({ limit: 1 }),
+            getLaboratories({ limit: 1 }),
+            getPendingVerifications({ limit: 1 }),
+          ])
+
+          // Extract total from pagination or items array
+          const totalUsers = usersResponse.status === 'fulfilled' && usersResponse.value?.success
+            ? (usersResponse.value.data?.pagination?.total || usersResponse.value.data?.items?.length || 0)
+            : 0
+          
+          const totalDoctors = doctorsResponse.status === 'fulfilled' && doctorsResponse.value?.success
+            ? (doctorsResponse.value.data?.pagination?.total || doctorsResponse.value.data?.items?.length || 0)
+            : 0
+          
+          const totalPharmacies = pharmaciesResponse.status === 'fulfilled' && pharmaciesResponse.value?.success
+            ? (pharmaciesResponse.value.data?.pagination?.total || pharmaciesResponse.value.data?.items?.length || 0)
+            : 0
+          
+          const totalLaboratories = laboratoriesResponse.status === 'fulfilled' && laboratoriesResponse.value?.success
+            ? (laboratoriesResponse.value.data?.pagination?.total || laboratoriesResponse.value.data?.items?.length || 0)
+            : 0
+          
+          // Get pending verifications count from all providers
+          let pendingVerifications = 0
+          if (doctorsResponse.status === 'fulfilled' && doctorsResponse.value?.success) {
+            const doctors = doctorsResponse.value.data?.items || doctorsResponse.value.data || []
+            if (Array.isArray(doctors)) {
+              pendingVerifications += doctors.filter(d => d.status === 'pending').length
+            }
+          }
+          if (pharmaciesResponse.status === 'fulfilled' && pharmaciesResponse.value?.success) {
+            const pharmacies = pharmaciesResponse.value.data?.items || pharmaciesResponse.value.data || []
+            if (Array.isArray(pharmacies)) {
+              pendingVerifications += pharmacies.filter(p => p.status === 'pending').length
+            }
+          }
+          if (laboratoriesResponse.status === 'fulfilled' && laboratoriesResponse.value?.success) {
+            const laboratories = laboratoriesResponse.value.data?.items || laboratoriesResponse.value.data || []
+            if (Array.isArray(laboratories)) {
+              pendingVerifications += laboratories.filter(l => l.status === 'pending').length
+            }
+          }
+
+          setStats({
+            totalUsers,
+            totalDoctors,
+            totalPharmacies,
+            totalLaboratories,
+            totalOrders: dashboardData?.totalOrders || 0,
+            totalRevenue: dashboardData?.totalRevenue || 0,
+            pendingVerifications,
+            thisMonthUsers: dashboardData?.thisMonthUsers || dashboardData?.thisMonthPatients || 0,
+            lastMonthUsers: dashboardData?.lastMonthUsers || dashboardData?.lastMonthPatients || 0,
+            thisMonthRevenue: dashboardData?.thisMonthRevenue || 0,
+            lastMonthRevenue: dashboardData?.lastMonthRevenue || 0,
+          })
+        } else {
+          // Use dashboard endpoint data
+          setStats({
+            totalUsers: dashboardData.totalPatients || dashboardData.totalUsers || 0,
+            totalDoctors: dashboardData.totalDoctors || 0,
+            totalPharmacies: dashboardData.totalPharmacies || 0,
+            totalLaboratories: dashboardData.totalLaboratories || 0,
+            totalOrders: dashboardData.totalOrders || 0,
+            totalRevenue: dashboardData.totalRevenue || 0,
+            pendingVerifications: dashboardData.pendingVerifications || 0,
+            thisMonthUsers: dashboardData.thisMonthUsers || dashboardData.thisMonthPatients || 0,
+            lastMonthUsers: dashboardData.lastMonthUsers || dashboardData.lastMonthPatients || 0,
+            thisMonthRevenue: dashboardData.thisMonthRevenue || 0,
+            lastMonthRevenue: dashboardData.lastMonthRevenue || 0,
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error)
+        // Keep default stats on error
+      } finally {
+        setIsLoadingStats(false)
+      }
+    }
+
+    fetchDashboardStats()
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchDashboardStats, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Fetch pending verifications from backend
+  useEffect(() => {
+    const token = getAuthToken('admin')
+    if (!token) {
+      return
+    }
+
+    const fetchVerifications = async () => {
+      try {
+        setIsLoadingVerifications(true)
+        const response = await getPendingVerifications({ limit: 10 })
+        
+        if (response.success && response.data) {
+          const verifications = Array.isArray(response.data) ? response.data : (response.data.verifications || [])
+          
+          // Filter today's verifications
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          
+          const todayVerifs = verifications
+            .filter((ver) => {
+              const submittedDate = new Date(ver.submittedAt || ver.createdAt)
+              submittedDate.setHours(0, 0, 0, 0)
+              return submittedDate.getTime() === today.getTime() && ver.status === 'pending'
+            })
+            .map((ver) => {
+              const submittedDate = new Date(ver.submittedAt || ver.createdAt)
+              const timeStr = submittedDate.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+              })
+              
+              return {
+                id: ver._id || ver.id,
+                type: ver.type || ver.role || 'doctor',
+                name: ver.name || ver.doctorName || ver.pharmacyName || ver.labName || 'Unknown',
+                email: ver.email || '',
+                specialty: ver.specialty || ver.specialization || '',
+                owner: ver.ownerName || ver.owner || '',
+                submittedAt: ver.submittedAt || ver.createdAt,
+                time: timeStr,
+                status: ver.status || 'pending',
+                image: ver.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(ver.name || ver.doctorName || ver.pharmacyName || ver.labName || 'User')}&background=${ver.type === 'doctor' ? '10b981' : ver.type === 'pharmacy' ? '8b5cf6' : 'f59e0b'}&color=fff&size=128&bold=true`,
+              }
+            })
+          
+          setTodayVerifications(todayVerifs)
+        }
+      } catch (error) {
+        console.error('Error fetching verifications:', error)
+        setTodayVerifications([])
+      } finally {
+        setIsLoadingVerifications(false)
+      }
+    }
+
+    fetchVerifications()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchVerifications, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Load real appointment count and doctor overview from localStorage
   // This MUST be called before any conditional returns to follow React Hooks rules
@@ -494,7 +628,7 @@ const AdminDashboard = () => {
           return aptDate >= today && aptDate < tomorrow
         })
         
-        setTodayAppointmentsCount(todayApts.length || mockStats.todayAppointments)
+        setTodayAppointmentsCount(todayApts.length || 0)
         
         // Create doctor aggregation for overview
         const doctorMap = new Map()
@@ -540,7 +674,7 @@ const AdminDashboard = () => {
         setDoctorAppointmentsOverview(doctors)
       } catch (error) {
         console.error('Error loading appointments:', error)
-        setTodayAppointmentsCount(mockStats.todayAppointments)
+        setTodayAppointmentsCount(0)
         setDoctorAppointmentsOverview([])
       }
     }
@@ -597,9 +731,15 @@ const AdminDashboard = () => {
     }
   }, [])
 
-  const usersChange = ((mockStats.thisMonthUsers - mockStats.lastMonthUsers) / mockStats.lastMonthUsers) * 100
-  const revenueChange = ((mockStats.thisMonthRevenue - mockStats.lastMonthRevenue) / mockStats.lastMonthRevenue) * 100
-  const consultationsChange = ((mockStats.thisMonthConsultations - mockStats.lastMonthConsultations) / mockStats.lastMonthConsultations) * 100
+  const usersChange = stats.lastMonthUsers > 0 
+    ? ((stats.thisMonthUsers - stats.lastMonthUsers) / stats.lastMonthUsers) * 100 
+    : 0
+  const revenueChange = stats.lastMonthRevenue > 0 
+    ? ((stats.thisMonthRevenue - stats.lastMonthRevenue) / stats.lastMonthRevenue) * 100 
+    : 0
+  const consultationsChange = stats.lastMonthConsultations > 0 
+    ? ((stats.thisMonthConsultations - stats.lastMonthConsultations) / stats.lastMonthConsultations) * 100 
+    : 0
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -629,7 +769,9 @@ const AdminDashboard = () => {
             <div className="flex items-start justify-between mb-1.5">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-0.5">Total Patients</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">{mockStats.totalUsers.toLocaleString()}</p>
+                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                  {isLoadingStats ? '...' : stats.totalUsers.toLocaleString()}
+                </p>
               </div>
               <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-[#11496c] text-white shrink-0">
                 <IoPeopleOutline className="text-base sm:text-lg" aria-hidden="true" />
@@ -659,7 +801,9 @@ const AdminDashboard = () => {
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1">Total Doctors</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">{mockStats.totalDoctors}</p>
+                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                  {isLoadingStats ? '...' : stats.totalDoctors}
+                </p>
               </div>
               <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-emerald-500 text-white shrink-0">
                 <IoMedicalOutline className="text-base sm:text-lg" aria-hidden="true" />
@@ -676,7 +820,9 @@ const AdminDashboard = () => {
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Pharmacies</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">{mockStats.totalPharmacies}</p>
+                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                  {isLoadingStats ? '...' : stats.totalPharmacies}
+                </p>
               </div>
               <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-purple-500 text-white shrink-0">
                 <IoBusinessOutline className="text-base sm:text-lg" aria-hidden="true" />
@@ -693,7 +839,9 @@ const AdminDashboard = () => {
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-amber-700 leading-tight mb-1">Laboratories</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">{mockStats.totalLaboratories}</p>
+                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                  {isLoadingStats ? '...' : stats.totalLaboratories}
+                </p>
               </div>
               <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-amber-500 text-white shrink-0">
                 <IoFlaskOutline className="text-base sm:text-lg" aria-hidden="true" />
@@ -710,7 +858,9 @@ const AdminDashboard = () => {
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-blue-700 leading-tight mb-1">Orders</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">{mockStats.totalOrders.toLocaleString()}</p>
+                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                  {isLoadingStats ? '...' : stats.totalOrders.toLocaleString()}
+                </p>
               </div>
               <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-blue-500 text-white shrink-0">
                 <IoBagHandleOutline className="text-base sm:text-lg" aria-hidden="true" />
@@ -744,7 +894,9 @@ const AdminDashboard = () => {
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1">Total Revenue</p>
-                <p className="text-base sm:text-lg font-bold text-slate-900 leading-none">{formatCurrency(mockStats.totalRevenue)}</p>
+                <p className="text-base sm:text-lg font-bold text-slate-900 leading-none">
+                  {isLoadingStats ? '...' : formatCurrency(stats.totalRevenue)}
+                </p>
                 <div className="flex items-center gap-1 mt-1 text-[9px] sm:text-[10px] flex-wrap">
                   {revenueChange >= 0 ? (
                     <>
@@ -774,7 +926,9 @@ const AdminDashboard = () => {
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-orange-700 leading-tight mb-1">Verifications</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">{mockStats.pendingVerifications}</p>
+                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                  {isLoadingStats ? '...' : stats.pendingVerifications}
+                </p>
               </div>
               <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-orange-500 text-white shrink-0">
                 <IoNotificationsOutline className="text-base sm:text-lg" aria-hidden="true" />
@@ -865,8 +1019,20 @@ const AdminDashboard = () => {
             </div>
           </header>
 
-          <div className="space-y-2 sm:space-y-3">
-            {todayVerifications.map((verification) => {
+          {isLoadingVerifications ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
+                <p className="mt-2 text-sm text-slate-600">Loading verifications...</p>
+              </div>
+            </div>
+          ) : todayVerifications.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+              <p className="text-sm text-slate-600">No verifications pending for today</p>
+            </div>
+          ) : (
+            <div className="space-y-2 sm:space-y-3">
+              {todayVerifications.map((verification) => {
               const VerificationIcon = getActivityIcon(verification.type)
               return (
                 <article
@@ -920,7 +1086,8 @@ const AdminDashboard = () => {
                 </article>
               )
             })}
-          </div>
+            </div>
+          )}
         </section>
 
         {/* Payment Status Notifications */}
@@ -1149,7 +1316,9 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">This Month Revenue</p>
-                  <p className="mt-1 text-xl sm:text-2xl font-bold text-slate-900">{formatCurrency(mockStats.thisMonthRevenue)}</p>
+                  <p className="mt-1 text-xl sm:text-2xl font-bold text-slate-900">
+                    {isLoadingStats ? '...' : formatCurrency(stats.thisMonthRevenue)}
+                  </p>
                   <div className="mt-1 flex items-center gap-1 text-[10px] sm:text-xs flex-wrap">
                     {revenueChange >= 0 ? (
                       <>
@@ -1175,7 +1344,9 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">This Month Consultations</p>
-                  <p className="mt-1 text-xl sm:text-2xl font-bold text-slate-900">{mockStats.thisMonthConsultations}</p>
+                  <p className="mt-1 text-xl sm:text-2xl font-bold text-slate-900">
+                    {isLoadingStats ? '...' : stats.thisMonthConsultations || 0}
+                  </p>
                   <div className="mt-1 flex items-center gap-1 text-[10px] sm:text-xs flex-wrap">
                     {consultationsChange >= 0 ? (
                       <>
@@ -1235,10 +1406,10 @@ const AdminDashboard = () => {
               <p className="mt-1 text-[10px] sm:text-xs text-slate-600">By user type</p>
             </header>
             <UserDistributionChart 
-              patients={mockStats.totalUsers - mockStats.totalDoctors - mockStats.totalPharmacies - mockStats.totalLaboratories}
-              doctors={mockStats.totalDoctors}
-              pharmacies={mockStats.totalPharmacies}
-              laboratories={mockStats.totalLaboratories}
+              patients={isLoadingStats ? 0 : Math.max(0, stats.totalUsers - stats.totalDoctors - stats.totalPharmacies - stats.totalLaboratories)}
+              doctors={isLoadingStats ? 0 : stats.totalDoctors}
+              pharmacies={isLoadingStats ? 0 : stats.totalPharmacies}
+              laboratories={isLoadingStats ? 0 : stats.totalLaboratories}
             />
           </section>
         </div>

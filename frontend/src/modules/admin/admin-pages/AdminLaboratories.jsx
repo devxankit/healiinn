@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   IoSearchOutline,
   IoFilterOutline,
@@ -15,61 +15,146 @@ import {
   IoTrashOutline,
   IoCloseOutline,
 } from 'react-icons/io5'
+import { useToast } from '../../../contexts/ToastContext'
+import {
+  getLaboratories,
+  verifyLaboratory,
+  rejectLaboratory,
+} from '../admin-services/adminService'
 
-const mockLaboratories = [
-  {
-    id: 'lab-1',
-    name: 'HealthLab Diagnostics',
-    ownerName: 'Dr. Vikram Singh',
-    email: 'healthlab@example.com',
-    phone: '+91 98765 43210',
-    address: '123 Medical Center, Bangalore, Karnataka',
-    licenseNumber: 'LAB-12345',
-    status: 'verified',
-    registeredAt: '2024-12-10',
-    totalTests: 456,
-  },
-  {
-    id: 'lab-2',
-    name: 'Test Lab Services',
-    ownerName: 'Dr. Anjali Mehta',
-    email: 'testlab@example.com',
-    phone: '+91 98765 43211',
-    address: '456 Science Park, Hyderabad, Telangana',
-    licenseNumber: 'LAB-12346',
-    status: 'pending',
-    registeredAt: '2025-01-08',
-    totalTests: 0,
-  },
-  {
-    id: 'lab-3',
-    name: 'Precision Diagnostics',
-    ownerName: 'Dr. Ramesh Kumar',
-    email: 'precision@example.com',
-    phone: '+91 98765 43212',
-    address: '789 Health Street, Chennai, Tamil Nadu',
-    licenseNumber: 'LAB-12347',
-    status: 'verified',
-    registeredAt: '2024-11-25',
-    totalTests: 312,
-  },
-]
+// Mock data removed - using real API now
 
 const AdminLaboratories = () => {
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [laboratories, setLaboratories] = useState(mockLaboratories)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [editingLab, setEditingLab] = useState(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    ownerName: '',
-    email: '',
-    phone: '',
-    address: '',
-    licenseNumber: '',
-    status: 'pending',
-  })
+  const [laboratories, setLaboratories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [processingId, setProcessingId] = useState(null)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectingLabId, setRejectingLabId] = useState(null)
+  const [rejectionReason, setRejectionReason] = useState('')
+
+  const [allLaboratories, setAllLaboratories] = useState([]) // Store all laboratories for stats
+
+  const loadLaboratories = async () => {
+    try {
+      setLoading(true)
+      
+      // First, load ALL laboratories for stats (no filters)
+      const allLabsResponse = await getLaboratories({ page: 1, limit: 1000 })
+      if (allLabsResponse.success && allLabsResponse.data) {
+        const allTransformed = (allLabsResponse.data.items || []).map(lab => ({
+          id: lab._id || lab.id,
+          name: lab.labName || '',
+          ownerName: lab.ownerName || '',
+          email: lab.email || '',
+          phone: lab.phone || '',
+          address: lab.address ? `${lab.address.line1 || ''}, ${lab.address.city || ''}, ${lab.address.state || ''}`.trim() : '',
+          licenseNumber: lab.licenseNumber || '',
+          status: lab.status === 'approved' ? 'verified' : lab.status || 'pending',
+          registeredAt: lab.createdAt || new Date().toISOString(),
+          totalTests: 0, // TODO: Add when tests API is ready
+          rejectionReason: lab.rejectionReason || '',
+        }))
+        setAllLaboratories(allTransformed)
+      }
+      
+      // Then, load filtered laboratories for display
+      const filters = {
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: searchTerm || undefined,
+        page: 1,
+        limit: 100,
+      }
+      const response = await getLaboratories(filters)
+      
+      if (response.success && response.data) {
+        const transformedLabs = (response.data.items || []).map(lab => ({
+          id: lab._id || lab.id,
+          name: lab.labName || '',
+          ownerName: lab.ownerName || '',
+          email: lab.email || '',
+          phone: lab.phone || '',
+          address: lab.address ? `${lab.address.line1 || ''}, ${lab.address.city || ''}, ${lab.address.state || ''}`.trim() : '',
+          licenseNumber: lab.licenseNumber || '',
+          status: lab.status === 'approved' ? 'verified' : lab.status || 'pending',
+          registeredAt: lab.createdAt || new Date().toISOString(),
+          totalTests: 0, // TODO: Add when tests API is ready
+          rejectionReason: lab.rejectionReason || '',
+        }))
+        setLaboratories(transformedLabs)
+      }
+    } catch (error) {
+      console.error('Error loading laboratories:', error)
+      toast.error(error.message || 'Failed to load laboratories')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load laboratories from API
+  useEffect(() => {
+    loadLaboratories()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter])
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadLaboratories()
+    }, 500)
+    return () => clearTimeout(timeoutId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm])
+
+  const handleApprove = async (labId) => {
+    try {
+      setProcessingId(labId)
+      const response = await verifyLaboratory(labId)
+      
+      if (response.success) {
+        toast.success('Laboratory approved successfully')
+        await loadLaboratories()
+      }
+    } catch (error) {
+      console.error('Error approving laboratory:', error)
+      toast.error(error.message || 'Failed to approve laboratory')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleRejectClick = (labId) => {
+    setRejectingLabId(labId)
+    setRejectionReason('')
+    setShowRejectModal(true)
+  }
+
+  const handleReject = async () => {
+    if (!rejectingLabId) return
+    if (!rejectionReason.trim()) {
+      toast.warning('Please provide a reason for rejection.')
+      return
+    }
+
+    try {
+      setProcessingId(rejectingLabId)
+      const response = await rejectLaboratory(rejectingLabId, rejectionReason.trim())
+      
+      if (response.success) {
+        toast.success('Laboratory rejected successfully')
+        await loadLaboratories()
+        setShowRejectModal(false)
+        setRejectingLabId(null)
+        setRejectionReason('')
+      }
+    } catch (error) {
+      console.error('Error rejecting laboratory:', error)
+      toast.error(error.message || 'Failed to reject laboratory')
+    } finally {
+      setProcessingId(null)
+    }
+  }
 
   const filteredLaboratories = laboratories.filter((lab) => {
     const matchesSearch =
@@ -78,9 +163,7 @@ const AdminLaboratories = () => {
       lab.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lab.address.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = statusFilter === 'all' || lab.status === statusFilter
-    
-    return matchesSearch && matchesStatus
+    return matchesSearch
   })
 
   const formatDate = (dateString) => {
@@ -120,78 +203,7 @@ const AdminLaboratories = () => {
     }
   }
 
-  // CRUD Operations
-  const handleCreate = () => {
-    setEditingLab(null)
-    setFormData({
-      name: '',
-      ownerName: '',
-      email: '',
-      phone: '',
-      address: '',
-      licenseNumber: '',
-      status: 'pending',
-    })
-    setShowEditModal(true)
-  }
-
-  const handleEdit = (lab) => {
-    setEditingLab(lab)
-    setFormData({
-      name: lab.name,
-      ownerName: lab.ownerName,
-      email: lab.email,
-      phone: lab.phone,
-      address: lab.address,
-      licenseNumber: lab.licenseNumber,
-      status: lab.status,
-    })
-    setShowEditModal(true)
-  }
-
-  const handleSave = () => {
-    if (editingLab) {
-      // Update existing laboratory
-      setLaboratories(laboratories.map(l => 
-        l.id === editingLab.id 
-          ? { ...l, ...formData }
-          : l
-      ))
-    } else {
-      // Create new laboratory
-      const newLab = {
-        id: `lab-${Date.now()}`,
-        ...formData,
-        totalTests: 0,
-        registeredAt: new Date().toISOString().split('T')[0],
-      }
-      setLaboratories([...laboratories, newLab])
-    }
-    setShowEditModal(false)
-    setEditingLab(null)
-    setFormData({
-      name: '',
-      ownerName: '',
-      email: '',
-      phone: '',
-      address: '',
-      licenseNumber: '',
-      status: 'pending',
-    })
-  }
-
-  const handleDelete = (labId) => {
-    if (window.confirm('Are you sure you want to delete this laboratory?')) {
-      setLaboratories(laboratories.filter(l => l.id !== labId))
-    }
-  }
-
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value,
-    }))
-  }
+  // CRUD Operations - Removed unused functions (edit/delete not needed for approval workflow)
 
   return (
     <section className="flex flex-col gap-2 pb-20 pt-0">
@@ -226,7 +238,7 @@ const AdminLaboratories = () => {
           }`}
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Laboratories</p>
-          <p className="mt-0.5 text-2xl font-bold text-slate-900">{laboratories.length}</p>
+          <p className="mt-0.5 text-2xl font-bold text-slate-900">{allLaboratories.length}</p>
         </button>
         <button
           onClick={() => setStatusFilter('verified')}
@@ -236,7 +248,7 @@ const AdminLaboratories = () => {
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verified</p>
           <p className="mt-1 text-2xl font-bold text-emerald-600">
-            {laboratories.filter((l) => l.status === 'verified').length}
+            {allLaboratories.filter((l) => l.status === 'verified' || l.status === 'approved').length}
           </p>
         </button>
         <button
@@ -247,20 +259,24 @@ const AdminLaboratories = () => {
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending</p>
           <p className="mt-1 text-2xl font-bold text-amber-600">
-            {laboratories.filter((l) => l.status === 'pending').length}
+            {allLaboratories.filter((l) => l.status === 'pending').length}
           </p>
         </button>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Tests</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
-            {laboratories.reduce((sum, l) => sum + l.totalTests, 0)}
+            {allLaboratories.reduce((sum, l) => sum + l.totalTests, 0)}
           </p>
         </div>
       </div>
 
       {/* Laboratories List */}
       <div className="space-y-2">
-        {filteredLaboratories.length === 0 ? (
+        {loading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+            <p className="text-slate-600">Loading laboratories...</p>
+          </div>
+        ) : filteredLaboratories.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No laboratories found</p>
           </div>
@@ -297,24 +313,34 @@ const AdminLaboratories = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-start gap-2">
+                    <div className="flex shrink-0 items-start gap-2 flex-col">
                       {getStatusBadge(lab.status)}
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(lab)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[#11496c] hover:bg-[rgba(17,73,108,0.1)] transition-colors"
-                        aria-label="Edit laboratory"
-                      >
-                        <IoCreateOutline className="h-5 w-5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(lab.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-                        aria-label="Delete laboratory"
-                      >
-                        <IoTrashOutline className="h-5 w-5" />
-                      </button>
+                      {lab.status === 'pending' && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={() => handleApprove(lab.id)}
+                            disabled={processingId === lab.id}
+                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
+                          >
+                            {processingId === lab.id ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRejectClick(lab.id)}
+                            disabled={processingId === lab.id}
+                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                      {lab.status === 'rejected' && lab.rejectionReason && (
+                        <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-2 max-w-xs">
+                          <p className="text-xs font-semibold text-red-700 mb-1">Rejection Reason:</p>
+                          <p className="text-xs text-red-600">{lab.rejectionReason}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
@@ -328,27 +354,27 @@ const AdminLaboratories = () => {
         )}
       </div>
 
-      {/* Edit/Create Modal */}
-      {showEditModal && (
-        <div 
+      {/* Reject Laboratory Modal */}
+      {showRejectModal && (
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={() => {
-            setShowEditModal(false)
-            setEditingLab(null)
+            setShowRejectModal(false)
+            setRejectingLabId(null)
+            setRejectionReason('')
           }}
         >
-          <div 
-            className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-xl"
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <h2 className="text-lg font-semibold text-slate-900">
-                {editingLab ? 'Edit Laboratory' : 'Add New Laboratory'}
-              </h2>
+              <h2 className="text-lg font-semibold text-slate-900">Reject Laboratory</h2>
               <button
                 onClick={() => {
-                  setShowEditModal(false)
-                  setEditingLab(null)
+                  setShowRejectModal(false)
+                  setRejectingLabId(null)
+                  setRejectionReason('')
                 }}
                 className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
@@ -356,116 +382,44 @@ const AdminLaboratories = () => {
               </button>
             </div>
 
-            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Laboratory Name *
+                <p className="text-sm text-slate-600 mb-3">
+                  Please provide a reason for rejecting this laboratory. This reason will be visible to the laboratory.
+                </p>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Rejection Reason *
                 </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                  placeholder="HealthLab Diagnostics"
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Enter the reason for rejection..."
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 resize-none"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Owner Name *
-                </label>
-                <input
-                  type="text"
-                  value={formData.ownerName}
-                  onChange={(e) => handleInputChange('ownerName', e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                  placeholder="Dr. Vikram Singh"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                  placeholder="lab@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Phone *
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                  placeholder="+91 98765 43210"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Address *
-                </label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange('address', e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                  placeholder="123 Medical Center, Bangalore, Karnataka"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  License Number *
-                </label>
-                <input
-                  type="text"
-                  value={formData.licenseNumber}
-                  onChange={(e) => handleInputChange('licenseNumber', e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                  placeholder="LAB-12345"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Status *
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => handleInputChange('status', e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="verified">Verified</option>
-                  <option value="rejected">Rejected</option>
-                </select>
+                {!rejectionReason.trim() && (
+                  <p className="mt-1 text-xs text-red-600">Reason is required</p>
+                )}
               </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
               <button
                 onClick={() => {
-                  setShowEditModal(false)
-                  setEditingLab(null)
+                  setShowRejectModal(false)
+                  setRejectingLabId(null)
+                  setRejectionReason('')
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSave}
-                className="rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0e3a52]"
+                onClick={handleReject}
+                disabled={!rejectionReason.trim() || processingId === rejectingLabId}
+                className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
               >
-                {editingLab ? 'Update' : 'Create'}
+                {processingId === rejectingLabId ? 'Processing...' : 'Confirm Reject'}
               </button>
             </div>
           </div>

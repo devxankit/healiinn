@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoDocumentTextOutline,
   IoCalendarOutline,
@@ -45,6 +46,7 @@ const formatDateTime = (dateString) => {
 
 const LaboratoryRequestOrders = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [requests, setRequests] = useState([])
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [filter, setFilter] = useState('all') // all, pending, completed
@@ -403,10 +405,10 @@ const LaboratoryRequestOrders = () => {
       setRequests(updatedRequestsState)
       
       loadRequests()
-      alert('Order rejected successfully. Admin and patient have been notified.')
+      toast.success('Order rejected successfully. Admin and patient have been notified.')
     } catch (error) {
       console.error('Error rejecting order:', error)
-      alert('Error rejecting order. Please try again.')
+      toast.error('Error rejecting order. Please try again.')
     }
   }
 
@@ -509,10 +511,10 @@ const LaboratoryRequestOrders = () => {
       setRequests(updatedRequestsState)
       
       loadRequests()
-      alert('Order accepted successfully!')
+      toast.success('Order accepted successfully!')
     } catch (error) {
       console.error('Error accepting order:', error)
-      alert('Error accepting order. Please try again.')
+      toast.error('Error accepting order. Please try again.')
     }
   }
 
@@ -605,10 +607,10 @@ const LaboratoryRequestOrders = () => {
       localStorage.setItem('adminOrders', JSON.stringify(updatedAdminOrders))
       
       loadRequests()
-      alert('Order confirmed successfully!')
+      toast.success('Order confirmed successfully!')
     } catch (error) {
       console.error('Error confirming order:', error)
-      alert('Error confirming order. Please try again.')
+      toast.error('Error confirming order. Please try again.')
     }
   }
 

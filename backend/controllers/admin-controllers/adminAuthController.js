@@ -253,6 +253,78 @@ exports.updateAdminProfile = asyncHandler(async (req, res) => {
   });
 });
 
+exports.updateAdminPassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Current password is required.',
+    });
+  }
+
+  if (!newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password is required.',
+    });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password must be at least 8 characters long.',
+    });
+  }
+
+  if (newPassword.length > 128) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password must not exceed 128 characters.',
+    });
+  }
+
+  // Password strength validation
+  const hasUpperCase = /[A-Z]/.test(newPassword);
+  const hasLowerCase = /[a-z]/.test(newPassword);
+  const hasNumber = /[0-9]/.test(newPassword);
+
+  if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password must contain at least one uppercase letter, one lowercase letter, and one number.',
+    });
+  }
+
+  const admin = await Admin.findById(req.auth.id);
+
+  if (!admin) {
+    return res.status(404).json({
+      success: false,
+      message: 'Admin not found.',
+    });
+  }
+
+  // Verify current password
+  const isCurrentPasswordValid = await admin.comparePassword(currentPassword);
+
+  if (!isCurrentPasswordValid) {
+    return res.status(401).json({
+      success: false,
+      message: 'Current password is incorrect.',
+    });
+  }
+
+  // Update password
+  admin.password = newPassword;
+  await admin.save();
+
+  return res.status(200).json({
+    success: true,
+    message: 'Password updated successfully.',
+  });
+});
+
 exports.logoutAdmin = asyncHandler(async (req, res) => {
   const accessToken = req.headers.authorization?.split(' ')[1] || req.cookies?.token;
   const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;

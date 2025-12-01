@@ -16,6 +16,7 @@ import {
   IoLanguageOutline,
   IoTimeOutline,
   IoDocumentTextOutline,
+  IoVideocamOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
 import {
@@ -352,7 +353,10 @@ const DoctorLogin = () => {
   const handleSendOtp = async () => {
     const loginData = getCurrentLoginData()
     
-    if (!loginData.phone || loginData.phone.length < 10) {
+    // Clean phone number (remove spaces, dashes, etc.)
+    const cleanPhone = loginData.phone.replace(/\D/g, '')
+    
+    if (!cleanPhone || cleanPhone.length < 10) {
       toast.error('Please enter a valid mobile number')
       return
     }
@@ -362,23 +366,26 @@ const DoctorLogin = () => {
     try {
       let response
       if (selectedModule === 'doctor') {
-        response = await requestDoctorOtp(loginData.phone)
+        response = await requestDoctorOtp(cleanPhone)
       } else if (selectedModule === 'pharmacy') {
-        response = await requestPharmacyOtp(loginData.phone)
+        response = await requestPharmacyOtp(cleanPhone)
       } else if (selectedModule === 'laboratory') {
-        response = await requestLaboratoryOtp(loginData.phone)
+        response = await requestLaboratoryOtp(cleanPhone)
       }
       
       if (response && response.success) {
         setOtpSent(true)
         setOtpTimer(60) // 60 seconds timer
+        // Update phone in state with cleaned version
+        setCurrentLoginData({ ...loginData, phone: cleanPhone })
         toast.success('OTP sent to your mobile number')
       } else {
         toast.error(response?.message || 'Failed to send OTP. Please try again.')
       }
     } catch (error) {
       console.error('Send OTP error:', error)
-      toast.error(error.message || 'An error occurred. Please try again.')
+      const errorMessage = error.response?.data?.message || error.message || 'An error occurred. Please try again.'
+      toast.error(errorMessage)
     } finally {
       setIsSendingOtp(false)
     }
@@ -881,12 +888,12 @@ const DoctorLogin = () => {
       return
     }
 
-    // Limit text fields
+    // Limit text fields (allow spaces while typing, only limit length)
     if (name === 'labName' || name === 'ownerName') {
-      const trimmedValue = value.trim().slice(0, 100)
+      const limitedValue = value.slice(0, 100)
       setLaboratorySignupData((prev) => ({
         ...prev,
-        [name]: trimmedValue,
+        [name]: limitedValue,
       }))
       return
     }
@@ -1595,7 +1602,20 @@ const DoctorLogin = () => {
                         onChange={handleDoctorSignupChange}
                         className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
                       />
+                      <IoPersonOutline className="h-5 w-5 text-slate-600" />
                       <span className="text-sm text-slate-700 capitalize">In Person</span>
+                    </label>
+                    <label className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 cursor-pointer hover:bg-slate-100 transition">
+                      <input
+                        type="checkbox"
+                        name="consultationModes"
+                        value="video"
+                        checked={doctorSignupData.consultationModes.includes('video')}
+                        onChange={handleDoctorSignupChange}
+                        className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                      />
+                      <IoVideocamOutline className="h-5 w-5 text-slate-600" />
+                      <span className="text-sm text-slate-700 capitalize">Video Call</span>
                     </label>
                   </div>
                 </section>

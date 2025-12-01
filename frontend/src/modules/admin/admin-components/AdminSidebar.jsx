@@ -61,8 +61,8 @@ const AdminSidebar = ({ isOpen, onClose, onLogout }) => {
         className={sidebarClasses}
         aria-hidden={isLoginPage}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-6 border-b border-white/20">
+        {/* Header - Fixed at top */}
+        <div className="flex-shrink-0 flex items-center justify-between px-6 py-6 border-b border-white/20">
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold text-white">Healiinn</h1>
             <p className="mt-1 text-sm text-white/70">Admin Dashboard</p>
@@ -78,8 +78,8 @@ const AdminSidebar = ({ isOpen, onClose, onLogout }) => {
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        {/* Navigation - Scrollable */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden space-y-1 px-3 py-4 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30">
           {sidebarNavItems.map(({ id, label, to, Icon }) => {
             const isActive = location.pathname === to || (id === 'overview' && location.pathname === '/admin/dashboard')
             return (
@@ -93,15 +93,15 @@ const AdminSidebar = ({ isOpen, onClose, onLogout }) => {
                     : 'text-white/80 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                {Icon && <Icon className="h-5 w-5" aria-hidden="true" />}
+                {Icon && <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />}
                 <span>{label}</span>
               </NavLink>
             )
           })}
         </nav>
 
-        {/* Logout */}
-        <div className="border-t border-white/20 px-3 py-4">
+        {/* Logout - Fixed at bottom */}
+        <div className="flex-shrink-0 border-t border-white/20 px-3 py-4 bg-[#11496c]">
           <button
             type="button"
             onClick={() => {
@@ -110,7 +110,7 @@ const AdminSidebar = ({ isOpen, onClose, onLogout }) => {
             }}
             className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
           >
-            <IoLogOutOutline className="h-5 w-5" aria-hidden="true" />
+            <IoLogOutOutline className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
             <span>Logout</span>
           </button>
         </div>

@@ -18,14 +18,25 @@ const ProtectedRoute = ({ children, module, redirectTo = null }) => {
   if (!token) {
     const loginPath = redirectTo || `/${module}/login`
     
-    // Clear any stale tokens
+    // Clear any stale tokens to ensure clean state
     if (typeof window !== 'undefined') {
+      // Clear all possible token variations
       localStorage.removeItem(`${module}AuthToken`)
       localStorage.removeItem(`${module}AccessToken`)
       localStorage.removeItem(`${module}RefreshToken`)
       sessionStorage.removeItem(`${module}AuthToken`)
       sessionStorage.removeItem(`${module}AccessToken`)
       sessionStorage.removeItem(`${module}RefreshToken`)
+      
+      // Force a page reload to clear any cached state
+      // This ensures that even if tokens were in memory, they're cleared
+      if (window.location.pathname.includes(`/${module}/dashboard`) || 
+          window.location.pathname.includes(`/${module}/profile`) ||
+          window.location.pathname.startsWith(`/${module}/`) && 
+          !window.location.pathname.includes(`/${module}/login`) &&
+          !window.location.pathname.includes(`/${module}/signup`)) {
+        // Only redirect, don't reload - React Router will handle navigation
+      }
     }
     
     // Redirect to login page

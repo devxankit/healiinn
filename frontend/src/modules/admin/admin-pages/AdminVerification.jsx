@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import {
   IoSearchOutline,
   IoFilterOutline,
@@ -17,162 +16,204 @@ import {
   IoEyeOutline,
   IoCloseOutline,
 } from 'react-icons/io5'
+import { useToast } from '../../../contexts/ToastContext'
+import {
+  getPendingVerifications,
+  getDoctors,
+  getPharmacies,
+  getLaboratories,
+  verifyDoctor,
+  rejectDoctor,
+  verifyPharmacy,
+  rejectPharmacy,
+  verifyLaboratory,
+  rejectLaboratory,
+} from '../admin-services/adminService'
 
-// Mock data for verification requests
-const mockVerifications = [
-  {
-    id: '1',
-    type: 'doctor',
-    name: 'Dr. Sarah Johnson',
-    email: 'sarah.johnson@example.com',
-    phone: '+1 234-567-8900',
-    specialty: 'Cardiology',
-    clinic: 'Heart Care Clinic',
-    location: 'New York, NY',
-    status: 'pending',
-    submittedAt: '2024-01-15T10:30:00Z',
-    documents: ['License', 'Degree', 'ID'],
-  },
-  {
-    id: '2',
-    type: 'pharmacy',
-    name: 'MediCare Pharmacy',
-    ownerName: 'John Smith',
-    email: 'john.smith@example.com',
-    phone: '+1 234-567-8901',
-    address: '123 Main St, Los Angeles, CA',
-    licenseNumber: 'PH-12345',
-    status: 'pending',
-    submittedAt: '2024-01-14T14:20:00Z',
-    documents: ['License', 'Business Registration'],
-  },
-  {
-    id: '3',
-    type: 'laboratory',
-    name: 'HealthLab Diagnostics',
-    ownerName: 'Emily Davis',
-    email: 'emily.davis@example.com',
-    phone: '+1 234-567-8902',
-    address: '456 Oak Ave, Chicago, IL',
-    licenseNumber: 'LAB-67890',
-    status: 'pending',
-    submittedAt: '2024-01-13T09:15:00Z',
-    documents: ['License', 'Accreditation'],
-  },
-  {
-    id: '4',
-    type: 'doctor',
-    name: 'Dr. Michael Brown',
-    email: 'michael.brown@example.com',
-    phone: '+1 234-567-8903',
-    specialty: 'Pediatrics',
-    clinic: 'Children\'s Hospital',
-    location: 'Boston, MA',
-    status: 'pending',
-    submittedAt: '2024-01-12T16:45:00Z',
-    documents: ['License', 'Degree', 'ID'],
-  },
-  {
-    id: '5',
-    type: 'pharmacy',
-    name: 'QuickMed Pharmacy',
-    ownerName: 'Robert Wilson',
-    email: 'robert.wilson@example.com',
-    phone: '+1 234-567-8904',
-    address: '789 Pine St, Miami, FL',
-    licenseNumber: 'PH-54321',
-    status: 'pending',
-    submittedAt: '2024-01-11T11:30:00Z',
-    documents: ['License', 'Business Registration'],
-  },
-  {
-    id: '6',
-    type: 'doctor',
-    name: 'Dr. James Wilson',
-    email: 'james.wilson@example.com',
-    phone: '+1 234-567-8905',
-    specialty: 'Dermatology',
-    clinic: 'Skin Care Clinic',
-    location: 'Seattle, WA',
-    status: 'approved',
-    submittedAt: '2024-01-10T08:00:00Z',
-    approvedAt: '2024-01-12T10:00:00Z',
-    documents: ['License', 'Degree', 'ID'],
-  },
-  {
-    id: '7',
-    type: 'pharmacy',
-    name: 'City Pharmacy',
-    ownerName: 'Lisa Anderson',
-    email: 'lisa.anderson@example.com',
-    phone: '+1 234-567-8906',
-    address: '321 Elm St, Denver, CO',
-    licenseNumber: 'PH-98765',
-    status: 'approved',
-    submittedAt: '2024-01-09T12:00:00Z',
-    approvedAt: '2024-01-11T14:00:00Z',
-    documents: ['License', 'Business Registration'],
-  },
-  {
-    id: '8',
-    type: 'laboratory',
-    name: 'TestLab Services',
-    ownerName: 'David Martinez',
-    email: 'david.martinez@example.com',
-    phone: '+1 234-567-8907',
-    address: '654 Maple Ave, Phoenix, AZ',
-    licenseNumber: 'LAB-11111',
-    status: 'approved',
-    submittedAt: '2024-01-08T09:30:00Z',
-    approvedAt: '2024-01-10T11:00:00Z',
-    documents: ['License', 'Accreditation'],
-  },
-  {
-    id: '9',
-    type: 'doctor',
-    name: 'Dr. Jennifer Lee',
-    email: 'jennifer.lee@example.com',
-    phone: '+1 234-567-8908',
-    specialty: 'Orthopedics',
-    clinic: 'Bone & Joint Clinic',
-    location: 'Portland, OR',
-    status: 'rejected',
-    submittedAt: '2024-01-07T15:00:00Z',
-    rejectedAt: '2024-01-09T16:00:00Z',
-    rejectionReason: 'Incomplete documentation',
-    documents: ['License', 'Degree'],
-  },
-  {
-    id: '10',
-    type: 'pharmacy',
-    name: 'Wellness Pharmacy',
-    ownerName: 'Mark Thompson',
-    email: 'mark.thompson@example.com',
-    phone: '+1 234-567-8909',
-    address: '987 Cedar Blvd, Austin, TX',
-    licenseNumber: 'PH-22222',
-    status: 'rejected',
-    submittedAt: '2024-01-06T10:00:00Z',
-    rejectedAt: '2024-01-08T12:00:00Z',
-    rejectionReason: 'License expired',
-    documents: ['License', 'Business Registration'],
-  },
-  {
-    id: '11',
-    type: 'laboratory',
-    name: 'Precision Labs',
-    ownerName: 'Susan White',
-    email: 'susan.white@example.com',
-    phone: '+1 234-567-8910',
-    address: '147 Birch St, Nashville, TN',
-    licenseNumber: 'LAB-33333',
-    status: 'rejected',
-    submittedAt: '2024-01-05T11:00:00Z',
-    rejectedAt: '2024-01-07T13:00:00Z',
-    rejectionReason: 'Missing accreditation certificate',
-    documents: ['License'],
-  },
-]
+// Helper to transform backend data to frontend format
+const transformVerification = (item, type) => {
+  if (type === 'doctor') {
+    // Build full address string
+    const addressParts = []
+    if (item.clinicDetails?.address) {
+      const addr = item.clinicDetails.address
+      if (addr.line1) addressParts.push(addr.line1)
+      if (addr.line2) addressParts.push(addr.line2)
+      if (addr.city) addressParts.push(addr.city)
+      if (addr.state) addressParts.push(addr.state)
+      if (addr.postalCode) addressParts.push(addr.postalCode)
+      if (addr.country) addressParts.push(addr.country)
+    }
+    const fullAddress = addressParts.join(', ')
+
+    // Build location string (city, state)
+    const location = item.clinicDetails?.address 
+      ? `${item.clinicDetails.address.city || ''}, ${item.clinicDetails.address.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '')
+      : ''
+
+    // Format education array
+    const educationList = item.education && Array.isArray(item.education) && item.education.length > 0
+      ? item.education.map(edu => {
+          const parts = []
+          if (edu.institution) parts.push(edu.institution)
+          if (edu.degree) parts.push(edu.degree)
+          if (edu.year) parts.push(`(${edu.year})`)
+          return parts.join(' - ')
+        })
+      : []
+
+    // Format consultation modes
+    const consultationModesList = item.consultationModes && Array.isArray(item.consultationModes) && item.consultationModes.length > 0
+      ? item.consultationModes.map(mode => {
+          if (mode === 'in_person') return 'In Person'
+          if (mode === 'video') return 'Video Call'
+          if (mode === 'audio') return 'Audio Call'
+          if (mode === 'chat') return 'Chat'
+          return mode
+        })
+      : []
+
+    return {
+      id: item._id || item.id,
+      type: 'doctor',
+      name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'N/A',
+      firstName: item.firstName || '',
+      lastName: item.lastName || '',
+      email: item.email || '',
+      phone: item.phone || '',
+      gender: item.gender || '',
+      specialty: item.specialization || '',
+      licenseNumber: item.licenseNumber || '',
+      experienceYears: item.experienceYears || null,
+      qualification: item.qualification || '',
+      bio: item.bio || '',
+      consultationFee: item.consultationFee || null,
+      languages: item.languages && Array.isArray(item.languages) ? item.languages : [],
+      consultationModes: consultationModesList,
+      education: educationList,
+      clinic: item.clinicDetails?.name || '',
+      location: location,
+      fullAddress: fullAddress,
+      address: item.clinicDetails?.address || null,
+      status: item.status || 'pending',
+      submittedAt: item.createdAt || new Date().toISOString(),
+      documents: item.documents 
+        ? Object.keys(item.documents)
+            .filter(key => item.documents[key] && item.documents[key] !== '')
+            .map(key => {
+              // Format document names nicely
+              if (key === 'license') return 'License'
+              if (key === 'identityProof') return 'Identity Proof'
+              if (key === 'profileImage') return 'Profile Image'
+              if (key === 'gstCertificate') return 'GST Certificate'
+              // Capitalize first letter
+              return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()
+            })
+        : [],
+      rejectionReason: item.rejectionReason || '',
+      approvedAt: item.approvedAt || null,
+      rejectedAt: item.status === 'rejected' ? item.updatedAt : null,
+    }
+  } else if (type === 'pharmacy') {
+    // Build full address string
+    const addressParts = []
+    if (item.address) {
+      const addr = item.address
+      if (addr.line1) addressParts.push(addr.line1)
+      if (addr.line2) addressParts.push(addr.line2)
+      if (addr.city) addressParts.push(addr.city)
+      if (addr.state) addressParts.push(addr.state)
+      if (addr.postalCode) addressParts.push(addr.postalCode)
+      if (addr.country) addressParts.push(addr.country)
+    }
+    const fullAddress = addressParts.join(', ')
+
+    return {
+      id: item._id || item.id,
+      type: 'pharmacy',
+      name: item.pharmacyName || '',
+      ownerName: item.ownerName || '',
+      email: item.email || '',
+      phone: item.phone || '',
+      licenseNumber: item.licenseNumber || '',
+      gstNumber: item.gstNumber || '',
+      fullAddress: fullAddress,
+      address: item.address || null,
+      timings: item.timings && Array.isArray(item.timings) ? item.timings : [],
+      contactPerson: item.contactPerson || null,
+      deliveryOptions: item.deliveryOptions && Array.isArray(item.deliveryOptions) ? item.deliveryOptions : [],
+      serviceRadiusKm: item.serviceRadiusKm || null,
+      status: item.status || 'pending',
+      submittedAt: item.createdAt || new Date().toISOString(),
+      documents: item.documents 
+        ? Object.keys(item.documents)
+            .filter(key => item.documents[key] && item.documents[key] !== '')
+            .map(key => {
+              // Format document names nicely
+              if (key === 'license') return 'License'
+              if (key === 'identityProof') return 'Identity Proof'
+              if (key === 'profileImage') return 'Profile Image'
+              if (key === 'gstCertificate') return 'GST Certificate'
+              // Capitalize first letter
+              return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()
+            })
+        : [],
+      rejectionReason: item.rejectionReason || '',
+      approvedAt: item.approvedAt || null,
+      rejectedAt: item.status === 'rejected' ? item.updatedAt : null,
+    }
+  } else if (type === 'laboratory') {
+    // Build full address string
+    const addressParts = []
+    if (item.address) {
+      const addr = item.address
+      if (addr.line1) addressParts.push(addr.line1)
+      if (addr.line2) addressParts.push(addr.line2)
+      if (addr.city) addressParts.push(addr.city)
+      if (addr.state) addressParts.push(addr.state)
+      if (addr.postalCode) addressParts.push(addr.postalCode)
+      if (addr.country) addressParts.push(addr.country)
+    }
+    const fullAddress = addressParts.join(', ')
+
+    return {
+      id: item._id || item.id,
+      type: 'laboratory',
+      name: item.labName || '',
+      ownerName: item.ownerName || '',
+      email: item.email || '',
+      phone: item.phone || '',
+      licenseNumber: item.licenseNumber || '',
+      gstNumber: item.gstNumber || '',
+      fullAddress: fullAddress,
+      address: item.address || null,
+      timings: item.timings && Array.isArray(item.timings) ? item.timings : [],
+      contactPerson: item.contactPerson || null,
+      testsOffered: item.testsOffered && Array.isArray(item.testsOffered) ? item.testsOffered : [],
+      status: item.status || 'pending',
+      submittedAt: item.createdAt || new Date().toISOString(),
+      documents: item.documents 
+        ? Object.keys(item.documents)
+            .filter(key => item.documents[key] && item.documents[key] !== '')
+            .map(key => {
+              // Format document names nicely
+              if (key === 'license') return 'License'
+              if (key === 'identityProof') return 'Identity Proof'
+              if (key === 'profileImage') return 'Profile Image'
+              if (key === 'gstCertificate') return 'GST Certificate'
+              // Capitalize first letter
+              return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()
+            })
+        : [],
+      rejectionReason: item.rejectionReason || '',
+      approvedAt: item.approvedAt || null,
+      rejectedAt: item.status === 'rejected' ? item.updatedAt : null,
+    }
+  }
+  return null
+}
+
+// Mock data removed - using real API now
 
 const formatDate = (dateString) => {
   const date = new Date(dateString)
@@ -212,15 +253,77 @@ const getTypeColor = (type) => {
 }
 
 const AdminVerification = () => {
-  const navigate = useNavigate()
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [verifications, setVerifications] = useState(mockVerifications)
+  const [verifications, setVerifications] = useState([])
   const [viewingVerification, setViewingVerification] = useState(null)
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectingVerificationId, setRejectingVerificationId] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [processingId, setProcessingId] = useState(null)
+
+  // Load verifications from API
+  useEffect(() => {
+    loadVerifications()
+  }, [])
+
+  const loadVerifications = async () => {
+    try {
+      setLoading(true)
+      
+      // Fetch all doctors, pharmacies, and laboratories (not just pending)
+      const [doctorsResponse, pharmaciesResponse, laboratoriesResponse] = await Promise.allSettled([
+        getDoctors({ limit: 1000 }), // Get all doctors
+        getPharmacies({ limit: 1000 }), // Get all pharmacies
+        getLaboratories({ limit: 1000 }), // Get all laboratories
+      ])
+      
+      const allVerifications = []
+      
+      // Transform doctors
+      if (doctorsResponse.status === 'fulfilled' && doctorsResponse.value?.success) {
+        const doctors = doctorsResponse.value.data?.items || doctorsResponse.value.data || []
+        if (Array.isArray(doctors)) {
+          doctors.forEach(doctor => {
+            const transformed = transformVerification(doctor, 'doctor')
+            if (transformed) allVerifications.push(transformed)
+          })
+        }
+      }
+      
+      // Transform pharmacies
+      if (pharmaciesResponse.status === 'fulfilled' && pharmaciesResponse.value?.success) {
+        const pharmacies = pharmaciesResponse.value.data?.items || pharmaciesResponse.value.data || []
+        if (Array.isArray(pharmacies)) {
+          pharmacies.forEach(pharmacy => {
+            const transformed = transformVerification(pharmacy, 'pharmacy')
+            if (transformed) allVerifications.push(transformed)
+          })
+        }
+      }
+      
+      // Transform laboratories
+      if (laboratoriesResponse.status === 'fulfilled' && laboratoriesResponse.value?.success) {
+        const laboratories = laboratoriesResponse.value.data?.items || laboratoriesResponse.value.data || []
+        if (Array.isArray(laboratories)) {
+          laboratories.forEach(lab => {
+            const transformed = transformVerification(lab, 'laboratory')
+            if (transformed) allVerifications.push(transformed)
+          })
+        }
+      }
+      
+      setVerifications(allVerifications)
+    } catch (error) {
+      console.error('Error loading verifications:', error)
+      toast.error(error.message || 'Failed to load verifications')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredVerifications = verifications.filter((verification) => {
     const matchesSearch =
@@ -233,15 +336,36 @@ const AdminVerification = () => {
   })
 
   const handleApprove = async (id) => {
-    const updated = verifications.map((v) =>
-      v.id === id ? { ...v, status: 'approved', approvedAt: new Date().toISOString() } : v
-    )
-    setVerifications(updated)
-    if (viewingVerification?.id === id) {
-      setViewingVerification(updated.find((v) => v.id === id))
+    const verification = verifications.find(v => v.id === id)
+    if (!verification) return
+
+    try {
+      setProcessingId(id)
+      let response
+
+      if (verification.type === 'doctor') {
+        response = await verifyDoctor(id)
+      } else if (verification.type === 'pharmacy') {
+        response = await verifyPharmacy(id)
+      } else if (verification.type === 'laboratory') {
+        response = await verifyLaboratory(id)
+      } else {
+        throw new Error('Invalid verification type')
+      }
+
+      if (response.success) {
+        toast.success(`${verification.type.charAt(0).toUpperCase() + verification.type.slice(1)} approved successfully`)
+        await loadVerifications() // Reload to get updated data
+        if (viewingVerification?.id === id) {
+          setViewingVerification(null)
+        }
+      }
+    } catch (error) {
+      console.error('Error approving verification:', error)
+      toast.error(error.message || 'Failed to approve verification')
+    } finally {
+      setProcessingId(null)
     }
-    // In real app, make API call
-    console.log('Approved verification:', id)
   }
 
   const handleRejectClick = (id) => {
@@ -253,31 +377,45 @@ const AdminVerification = () => {
   const handleReject = async () => {
     if (!rejectingVerificationId) return
     if (!rejectionReason.trim()) {
-      alert('Please provide a reason for rejection.')
+      toast.warning('Please provide a reason for rejection.')
       return
     }
 
-    const updated = verifications.map((v) =>
-      v.id === rejectingVerificationId
-        ? {
-            ...v,
-            status: 'rejected',
-            rejectedAt: new Date().toISOString(),
-            rejectionReason: rejectionReason.trim(),
-          }
-        : v
-    )
-    setVerifications(updated)
-    if (viewingVerification?.id === rejectingVerificationId) {
-      setViewingVerification(updated.find((v) => v.id === rejectingVerificationId))
-    }
-    // In real app, make API call
-    console.log('Rejected verification:', rejectingVerificationId, 'Reason:', rejectionReason)
+    const verification = verifications.find(v => v.id === rejectingVerificationId)
+    if (!verification) return
 
-    // Close modal
-    setShowRejectModal(false)
-    setRejectingVerificationId(null)
-    setRejectionReason('')
+    try {
+      setProcessingId(rejectingVerificationId)
+      let response
+
+      if (verification.type === 'doctor') {
+        response = await rejectDoctor(rejectingVerificationId, rejectionReason.trim())
+      } else if (verification.type === 'pharmacy') {
+        response = await rejectPharmacy(rejectingVerificationId, rejectionReason.trim())
+      } else if (verification.type === 'laboratory') {
+        response = await rejectLaboratory(rejectingVerificationId, rejectionReason.trim())
+      } else {
+        throw new Error('Invalid verification type')
+      }
+
+      if (response.success) {
+        toast.success(`${verification.type.charAt(0).toUpperCase() + verification.type.slice(1)} rejected successfully`)
+        await loadVerifications() // Reload to get updated data
+        if (viewingVerification?.id === rejectingVerificationId) {
+          setViewingVerification(null)
+        }
+      }
+
+      // Close modal
+      setShowRejectModal(false)
+      setRejectingVerificationId(null)
+      setRejectionReason('')
+    } catch (error) {
+      console.error('Error rejecting verification:', error)
+      toast.error(error.message || 'Failed to reject verification')
+    } finally {
+      setProcessingId(null)
+    }
   }
 
   const stats = {
@@ -500,7 +638,11 @@ const AdminVerification = () => {
 
       {/* Verifications List */}
       <div className="space-y-2">
-        {filteredVerifications.length === 0 ? (
+        {loading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+            <p className="text-slate-600">Loading verifications...</p>
+          </div>
+        ) : filteredVerifications.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No verification requests found</p>
           </div>
@@ -531,7 +673,7 @@ const AdminVerification = () => {
                           {verification.clinic && (
                             <div className="flex items-center gap-2">
                               <IoLocationOutline className="h-4 w-4 shrink-0" />
-                              <span>{verification.clinic}, {verification.location}</span>
+                              <span>{verification.clinic}{verification.location ? `, ${verification.location}` : ''}</span>
                             </div>
                           )}
                           {verification.ownerName && (
@@ -540,7 +682,13 @@ const AdminVerification = () => {
                               <span>Owner: {verification.ownerName}</span>
                             </div>
                           )}
-                          {verification.address && (
+                          {verification.fullAddress && (
+                            <div className="flex items-center gap-2">
+                              <IoLocationOutline className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{verification.fullAddress}</span>
+                            </div>
+                          )}
+                          {!verification.fullAddress && verification.address && (
                             <div className="flex items-center gap-2">
                               <IoLocationOutline className="h-4 w-4 shrink-0" />
                               <span className="truncate">{verification.address}</span>
@@ -557,6 +705,21 @@ const AdminVerification = () => {
                           {verification.licenseNumber && (
                             <div className="text-xs text-slate-500">
                               License: {verification.licenseNumber}
+                            </div>
+                          )}
+                          {verification.gstNumber && (
+                            <div className="text-xs text-slate-500">
+                              GST: {verification.gstNumber}
+                            </div>
+                          )}
+                          {verification.experienceYears !== null && verification.experienceYears !== undefined && (
+                            <div className="text-xs text-slate-500">
+                              Experience: {verification.experienceYears} years
+                            </div>
+                          )}
+                          {verification.consultationFee !== null && verification.consultationFee !== undefined && (
+                            <div className="text-xs text-slate-500">
+                              Consultation Fee: ₹{verification.consultationFee}
                             </div>
                           )}
                         </div>
@@ -588,13 +751,15 @@ const AdminVerification = () => {
                             <>
                               <button
                                 onClick={() => handleApprove(verification.id)}
-                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                                disabled={processingId === verification.id}
+                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
                               >
-                                Approve
+                                {processingId === verification.id ? 'Processing...' : 'Approve'}
                               </button>
                               <button
                                 onClick={() => handleRejectClick(verification.id)}
-                                className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                                disabled={processingId === verification.id}
+                                className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
                               >
                                 Reject
                               </button>
@@ -661,6 +826,18 @@ const AdminVerification = () => {
                     <p className="text-xs text-slate-500">Type</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900 capitalize">{viewingVerification.type}</p>
                   </div>
+                  {viewingVerification.ownerName && (
+                    <div>
+                      <p className="text-xs text-slate-500">Owner Name</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.ownerName}</p>
+                    </div>
+                  )}
+                  {viewingVerification.gender && (
+                    <div>
+                      <p className="text-xs text-slate-500">Gender</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900 capitalize">{viewingVerification.gender}</p>
+                    </div>
+                  )}
                   <div className="sm:col-span-2">
                     <p className="text-xs text-slate-500">Email</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.email}</p>
@@ -669,21 +846,25 @@ const AdminVerification = () => {
                     <p className="text-xs text-slate-500">Phone</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.phone}</p>
                   </div>
-                  {viewingVerification.ownerName && (
+                  {viewingVerification.licenseNumber && (
                     <div>
-                      <p className="text-xs text-slate-500">Owner Name</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.ownerName}</p>
+                      <p className="text-xs text-slate-500">License Number</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.licenseNumber}</p>
+                    </div>
+                  )}
+                  {viewingVerification.gstNumber && (
+                    <div>
+                      <p className="text-xs text-slate-500">GST Number</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.gstNumber}</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Type-specific Info */}
-              {(viewingVerification.specialty || viewingVerification.clinic || viewingVerification.address) && (
+              {/* Doctor-specific Professional Details */}
+              {viewingVerification.type === 'doctor' && (
                 <div>
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">
-                    {viewingVerification.type === 'doctor' ? 'Professional Details' : 'Business Details'}
-                  </h3>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Professional Details</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {viewingVerification.specialty && (
                       <div>
@@ -691,9 +872,27 @@ const AdminVerification = () => {
                         <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.specialty}</p>
                       </div>
                     )}
+                    {viewingVerification.experienceYears !== null && viewingVerification.experienceYears !== undefined && (
+                      <div>
+                        <p className="text-xs text-slate-500">Experience</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.experienceYears} years</p>
+                      </div>
+                    )}
+                    {viewingVerification.qualification && (
+                      <div>
+                        <p className="text-xs text-slate-500">Qualification</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.qualification}</p>
+                      </div>
+                    )}
+                    {viewingVerification.consultationFee !== null && viewingVerification.consultationFee !== undefined && (
+                      <div>
+                        <p className="text-xs text-slate-500">Consultation Fee</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">₹{viewingVerification.consultationFee}</p>
+                      </div>
+                    )}
                     {viewingVerification.clinic && (
                       <div>
-                        <p className="text-xs text-slate-500">Clinic</p>
+                        <p className="text-xs text-slate-500">Clinic Name</p>
                         <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.clinic}</p>
                       </div>
                     )}
@@ -703,24 +902,135 @@ const AdminVerification = () => {
                         <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.location}</p>
                       </div>
                     )}
-                    {viewingVerification.address && (
+                    {viewingVerification.fullAddress && (
                       <div className="sm:col-span-2">
-                        <p className="text-xs text-slate-500">Address</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.address}</p>
+                        <p className="text-xs text-slate-500">Full Address</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.fullAddress}</p>
                       </div>
                     )}
-                    {viewingVerification.licenseNumber && (
-                      <div>
-                        <p className="text-xs text-slate-500">License Number</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.licenseNumber}</p>
+                    {viewingVerification.languages && viewingVerification.languages.length > 0 && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">Languages Spoken</p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {viewingVerification.languages.map((lang, idx) => (
+                            <span key={idx} className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                              {lang}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {viewingVerification.consultationModes && viewingVerification.consultationModes.length > 0 && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">Consultation Modes</p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {viewingVerification.consultationModes.map((mode, idx) => (
+                            <span key={idx} className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                              {mode}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {viewingVerification.bio && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">Bio</p>
+                        <p className="mt-1 text-sm text-slate-900">{viewingVerification.bio}</p>
                       </div>
                     )}
                   </div>
                 </div>
               )}
 
+              {/* Pharmacy/Laboratory Business Details */}
+              {(viewingVerification.type === 'pharmacy' || viewingVerification.type === 'laboratory') && (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Business Details</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {viewingVerification.fullAddress && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">Full Address</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.fullAddress}</p>
+                      </div>
+                    )}
+                    {viewingVerification.timings && viewingVerification.timings.length > 0 && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">Timings</p>
+                        <div className="mt-1 space-y-1">
+                          {viewingVerification.timings.map((timing, idx) => (
+                            <p key={idx} className="text-sm text-slate-900">{timing}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {viewingVerification.contactPerson && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">Contact Person</p>
+                        <div className="mt-1 space-y-1">
+                          {viewingVerification.contactPerson.name && (
+                            <p className="text-sm font-semibold text-slate-900">Name: {viewingVerification.contactPerson.name}</p>
+                          )}
+                          {viewingVerification.contactPerson.phone && (
+                            <p className="text-sm text-slate-900">Phone: {viewingVerification.contactPerson.phone}</p>
+                          )}
+                          {viewingVerification.contactPerson.email && (
+                            <p className="text-sm text-slate-900">Email: {viewingVerification.contactPerson.email}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {viewingVerification.type === 'pharmacy' && viewingVerification.deliveryOptions && viewingVerification.deliveryOptions.length > 0 && (
+                      <div>
+                        <p className="text-xs text-slate-500">Delivery Options</p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {viewingVerification.deliveryOptions.map((option, idx) => (
+                            <span key={idx} className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700 capitalize">
+                              {option}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {viewingVerification.type === 'pharmacy' && viewingVerification.serviceRadiusKm !== null && viewingVerification.serviceRadiusKm !== undefined && (
+                      <div>
+                        <p className="text-xs text-slate-500">Service Radius</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.serviceRadiusKm} km</p>
+                      </div>
+                    )}
+                    {viewingVerification.type === 'laboratory' && viewingVerification.testsOffered && viewingVerification.testsOffered.length > 0 && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">Tests Offered</p>
+                        <div className="mt-1 space-y-1">
+                          {viewingVerification.testsOffered.map((test, idx) => (
+                            <div key={idx} className="text-sm text-slate-900">
+                              <span className="font-semibold">{test.testName || test}</span>
+                              {test.price && <span className="text-slate-600 ml-2">₹{test.price}</span>}
+                              {test.description && <p className="text-xs text-slate-500 mt-0.5">{test.description}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Education (Doctor only) */}
+              {viewingVerification.type === 'doctor' && viewingVerification.education && viewingVerification.education.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Education</h3>
+                  <div className="space-y-2">
+                    {viewingVerification.education.map((edu, idx) => (
+                      <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <p className="text-sm font-semibold text-slate-900">{edu}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Documents */}
-              {viewingVerification.documents && (
+              {viewingVerification.documents && viewingVerification.documents.length > 0 ? (
                 <div>
                   <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Submitted Documents</h3>
                   <div className="space-y-2">
@@ -729,11 +1039,16 @@ const AdminVerification = () => {
                         key={index}
                         className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
                       >
-                        <span className="text-sm text-slate-700">{doc}</span>
+                        <span className="text-sm font-medium text-slate-700">{doc}</span>
                         <button className="text-xs font-medium text-[#11496c] hover:underline">View</button>
                       </div>
                     ))}
                   </div>
+                </div>
+              ) : (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Submitted Documents</h3>
+                  <p className="text-sm text-slate-500 italic">No documents submitted</p>
                 </div>
               )}
 
@@ -813,9 +1128,10 @@ const AdminVerification = () => {
                     handleApprove(viewingVerification.id)
                     setViewingVerification(null)
                   }}
-                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                  disabled={processingId === viewingVerification.id}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
                 >
-                  Approve
+                  {processingId === viewingVerification.id ? 'Processing...' : 'Approve'}
                 </button>
               </div>
             )}
@@ -885,10 +1201,10 @@ const AdminVerification = () => {
               </button>
               <button
                 onClick={handleReject}
-                disabled={!rejectionReason.trim()}
+                disabled={!rejectionReason.trim() || processingId === rejectingVerificationId}
                 className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
               >
-                Confirm Reject
+                {processingId === rejectingVerificationId ? 'Processing...' : 'Confirm Reject'}
               </button>
             </div>
           </div>

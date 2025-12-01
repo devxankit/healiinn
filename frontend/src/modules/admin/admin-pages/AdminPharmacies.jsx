@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   IoSearchOutline,
   IoFilterOutline,
@@ -15,52 +15,28 @@ import {
   IoTrashOutline,
   IoCloseOutline,
 } from 'react-icons/io5'
+import { useToast } from '../../../contexts/ToastContext'
+import {
+  getPharmacies,
+  getPharmacyById,
+  verifyPharmacy,
+  rejectPharmacy,
+} from '../admin-services/adminService'
 
-const mockPharmacies = [
-  {
-    id: 'pharm-1',
-    name: 'MediCare Pharmacy',
-    ownerName: 'Rajesh Patel',
-    email: 'medicare@example.com',
-    phone: '+91 98765 43210',
-    address: '123 Main Street, Pune, Maharashtra',
-    licenseNumber: 'PH-12345',
-    status: 'verified',
-    registeredAt: '2024-12-15',
-    totalOrders: 245,
-  },
-  {
-    id: 'pharm-2',
-    name: 'City Pharmacy',
-    ownerName: 'Priya Sharma',
-    email: 'citypharmacy@example.com',
-    phone: '+91 98765 43211',
-    address: '456 Market Road, Mumbai, Maharashtra',
-    licenseNumber: 'PH-12346',
-    status: 'pending',
-    registeredAt: '2025-01-10',
-    totalOrders: 0,
-  },
-  {
-    id: 'pharm-3',
-    name: 'Health Plus Pharmacy',
-    ownerName: 'Amit Kumar',
-    email: 'healthplus@example.com',
-    phone: '+91 98765 43212',
-    address: '789 Health Avenue, Delhi, NCR',
-    licenseNumber: 'PH-12347',
-    status: 'verified',
-    registeredAt: '2024-11-20',
-    totalOrders: 189,
-  },
-]
+// Mock data removed - using real API now
 
 const AdminPharmacies = () => {
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [pharmacies, setPharmacies] = useState(mockPharmacies)
+  const [pharmacies, setPharmacies] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [processingId, setProcessingId] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingPharmacy, setEditingPharmacy] = useState(null)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectingPharmacyId, setRejectingPharmacyId] = useState(null)
+  const [rejectionReason, setRejectionReason] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     ownerName: '',
@@ -71,6 +47,125 @@ const AdminPharmacies = () => {
     status: 'pending',
   })
 
+  // Load pharmacies from API
+  useEffect(() => {
+    loadPharmacies()
+  }, [statusFilter])
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadPharmacies()
+    }, 500)
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm])
+
+  const [allPharmacies, setAllPharmacies] = useState([]) // Store all pharmacies for stats
+
+  const loadPharmacies = async () => {
+    try {
+      setLoading(true)
+      
+      // First, load ALL pharmacies for stats (no filters)
+      const allPharmaciesResponse = await getPharmacies({ page: 1, limit: 1000 })
+      if (allPharmaciesResponse.success && allPharmaciesResponse.data) {
+        const allTransformed = (allPharmaciesResponse.data.items || []).map(pharmacy => ({
+          id: pharmacy._id || pharmacy.id,
+          name: pharmacy.pharmacyName || '',
+          ownerName: pharmacy.ownerName || '',
+          email: pharmacy.email || '',
+          phone: pharmacy.phone || '',
+          address: pharmacy.address ? `${pharmacy.address.line1 || ''}, ${pharmacy.address.city || ''}, ${pharmacy.address.state || ''}`.trim() : '',
+          licenseNumber: pharmacy.licenseNumber || '',
+          status: pharmacy.status === 'approved' ? 'verified' : pharmacy.status || 'pending',
+          registeredAt: pharmacy.createdAt || new Date().toISOString(),
+          totalOrders: 0, // TODO: Add when orders API is ready
+          rejectionReason: pharmacy.rejectionReason || '',
+        }))
+        setAllPharmacies(allTransformed)
+      }
+      
+      // Then, load filtered pharmacies for display
+      const filters = {
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: searchTerm || undefined,
+        page: 1,
+        limit: 100,
+      }
+      const response = await getPharmacies(filters)
+      
+      if (response.success && response.data) {
+        const transformedPharmacies = (response.data.items || []).map(pharmacy => ({
+          id: pharmacy._id || pharmacy.id,
+          name: pharmacy.pharmacyName || '',
+          ownerName: pharmacy.ownerName || '',
+          email: pharmacy.email || '',
+          phone: pharmacy.phone || '',
+          address: pharmacy.address ? `${pharmacy.address.line1 || ''}, ${pharmacy.address.city || ''}, ${pharmacy.address.state || ''}`.trim() : '',
+          licenseNumber: pharmacy.licenseNumber || '',
+          status: pharmacy.status === 'approved' ? 'verified' : pharmacy.status || 'pending',
+          registeredAt: pharmacy.createdAt || new Date().toISOString(),
+          totalOrders: 0, // TODO: Add when orders API is ready
+          rejectionReason: pharmacy.rejectionReason || '',
+        }))
+        setPharmacies(transformedPharmacies)
+      }
+    } catch (error) {
+      console.error('Error loading pharmacies:', error)
+      toast.error(error.message || 'Failed to load pharmacies')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleApprove = async (pharmacyId) => {
+    try {
+      setProcessingId(pharmacyId)
+      const response = await verifyPharmacy(pharmacyId)
+      
+      if (response.success) {
+        toast.success('Pharmacy approved successfully')
+        await loadPharmacies()
+      }
+    } catch (error) {
+      console.error('Error approving pharmacy:', error)
+      toast.error(error.message || 'Failed to approve pharmacy')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleRejectClick = (pharmacyId) => {
+    setRejectingPharmacyId(pharmacyId)
+    setRejectionReason('')
+    setShowRejectModal(true)
+  }
+
+  const handleReject = async () => {
+    if (!rejectingPharmacyId) return
+    if (!rejectionReason.trim()) {
+      toast.warning('Please provide a reason for rejection.')
+      return
+    }
+
+    try {
+      setProcessingId(rejectingPharmacyId)
+      const response = await rejectPharmacy(rejectingPharmacyId, rejectionReason.trim())
+      
+      if (response.success) {
+        toast.success('Pharmacy rejected successfully')
+        await loadPharmacies()
+        setShowRejectModal(false)
+        setRejectingPharmacyId(null)
+        setRejectionReason('')
+      }
+    } catch (error) {
+      console.error('Error rejecting pharmacy:', error)
+      toast.error(error.message || 'Failed to reject pharmacy')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
   const filteredPharmacies = pharmacies.filter((pharmacy) => {
     const matchesSearch =
       pharmacy.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -78,9 +173,7 @@ const AdminPharmacies = () => {
       pharmacy.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pharmacy.address.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = statusFilter === 'all' || pharmacy.status === statusFilter
-    
-    return matchesSearch && matchesStatus
+    return matchesSearch
   })
 
   const formatDate = (dateString) => {
@@ -226,7 +319,7 @@ const AdminPharmacies = () => {
           }`}
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Pharmacies</p>
-          <p className="mt-0.5 text-2xl font-bold text-slate-900">{pharmacies.length}</p>
+          <p className="mt-0.5 text-2xl font-bold text-slate-900">{allPharmacies.length}</p>
         </button>
         <button
           onClick={() => setStatusFilter('verified')}
@@ -236,7 +329,7 @@ const AdminPharmacies = () => {
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verified</p>
           <p className="mt-1 text-2xl font-bold text-emerald-600">
-            {pharmacies.filter((p) => p.status === 'verified').length}
+            {allPharmacies.filter((p) => p.status === 'verified' || p.status === 'approved').length}
           </p>
         </button>
         <button
@@ -247,20 +340,24 @@ const AdminPharmacies = () => {
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending</p>
           <p className="mt-1 text-2xl font-bold text-amber-600">
-            {pharmacies.filter((p) => p.status === 'pending').length}
+            {allPharmacies.filter((p) => p.status === 'pending').length}
           </p>
         </button>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Orders</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
-            {pharmacies.reduce((sum, p) => sum + p.totalOrders, 0)}
+            {allPharmacies.reduce((sum, p) => sum + p.totalOrders, 0)}
           </p>
         </div>
       </div>
 
       {/* Pharmacies List */}
       <div className="space-y-2">
-        {filteredPharmacies.length === 0 ? (
+        {loading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+            <p className="text-slate-600">Loading pharmacies...</p>
+          </div>
+        ) : filteredPharmacies.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No pharmacies found</p>
           </div>
@@ -297,24 +394,34 @@ const AdminPharmacies = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-start gap-2">
+                    <div className="flex shrink-0 items-start gap-2 flex-col">
                       {getStatusBadge(pharmacy.status)}
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(pharmacy)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[#11496c] hover:bg-[rgba(17,73,108,0.1)] transition-colors"
-                        aria-label="Edit pharmacy"
-                      >
-                        <IoCreateOutline className="h-5 w-5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(pharmacy.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-                        aria-label="Delete pharmacy"
-                      >
-                        <IoTrashOutline className="h-5 w-5" />
-                      </button>
+                      {pharmacy.status === 'pending' && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={() => handleApprove(pharmacy.id)}
+                            disabled={processingId === pharmacy.id}
+                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
+                          >
+                            {processingId === pharmacy.id ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRejectClick(pharmacy.id)}
+                            disabled={processingId === pharmacy.id}
+                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                      {pharmacy.status === 'rejected' && pharmacy.rejectionReason && (
+                        <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-2 max-w-xs">
+                          <p className="text-xs font-semibold text-red-700 mb-1">Rejection Reason:</p>
+                          <p className="text-xs text-red-600">{pharmacy.rejectionReason}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
@@ -466,6 +573,78 @@ const AdminPharmacies = () => {
                 className="rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0e3a52]"
               >
                 {editingPharmacy ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Pharmacy Modal */}
+      {showRejectModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => {
+            setShowRejectModal(false)
+            setRejectingPharmacyId(null)
+            setRejectionReason('')
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h2 className="text-lg font-semibold text-slate-900">Reject Pharmacy</h2>
+              <button
+                onClick={() => {
+                  setShowRejectModal(false)
+                  setRejectingPharmacyId(null)
+                  setRejectionReason('')
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <IoCloseOutline className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm text-slate-600 mb-3">
+                  Please provide a reason for rejecting this pharmacy. This reason will be visible to the pharmacy.
+                </p>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Rejection Reason *
+                </label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Enter the reason for rejection..."
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 resize-none"
+                />
+                {!rejectionReason.trim() && (
+                  <p className="mt-1 text-xs text-red-600">Reason is required</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+              <button
+                onClick={() => {
+                  setShowRejectModal(false)
+                  setRejectingPharmacyId(null)
+                  setRejectionReason('')
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectionReason.trim() || processingId === rejectingPharmacyId}
+                className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
+              >
+                {processingId === rejectingPharmacyId ? 'Processing...' : 'Confirm Reject'}
               </button>
             </div>
           </div>

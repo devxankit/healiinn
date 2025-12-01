@@ -2,20 +2,29 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { IoNotificationsOutline, IoPersonCircleOutline, IoMenuOutline, IoCloseOutline } from 'react-icons/io5'
 import { useState, useRef, useEffect } from 'react'
 import AdminSidebar from './AdminSidebar'
+import { logoutAdmin } from '../admin-services/adminService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const AdminNavbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const profileRef = useRef(null)
   
   const isLoginPage = location.pathname === '/admin/login'
 
-  const handleLogout = () => {
-    localStorage.removeItem('adminAuthToken')
-    sessionStorage.removeItem('adminAuthToken')
-    navigate('/admin/login', { replace: true })
+  const handleLogout = async () => {
+    try {
+      await logoutAdmin()
+      toast.success('Logged out successfully')
+      navigate('/admin/login', { replace: true })
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if API call fails, clear tokens and redirect
+      navigate('/admin/login', { replace: true })
+    }
   }
 
   const handleProfileClick = () => {

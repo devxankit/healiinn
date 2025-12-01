@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getPharmacyProfile, updatePharmacyProfile } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -14,62 +17,160 @@ import {
   IoChevronUpOutline,
   IoDocumentTextOutline,
   IoTimeOutline,
-  IoBagHandleOutline,
-  IoHomeOutline,
   IoShieldCheckmarkOutline,
   IoHelpCircleOutline,
   IoLogOutOutline,
   IoPulseOutline,
 } from 'react-icons/io5'
 
-const mockPharmacyData = {
-  pharmacyName: 'John Doe',
-  ownerName: 'John Doe',
-  email: 'john.doe@example.com',
-  phone: '+1-555-214-0098',
-  licenseNumber: 'RX-45287',
-  profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-  bio: 'Your trusted neighborhood pharmacy providing quality medications and personalized care.',
-  address: {
-    line1: '123 Market Street',
-    line2: 'Suite 210',
-    city: 'Springfield',
-    state: 'IL',
-    postalCode: '62701',
-    country: 'USA',
-  },
-  contactPerson: {
-    name: 'Lauren Patel',
-    phone: '+1-555-211-0800',
-    email: 'lauren.patel@rxcare.com',
-  },
-  timings: [
-    { day: 'Monday', startTime: '08:00', endTime: '21:00', isOpen: true },
-    { day: 'Tuesday', startTime: '08:00', endTime: '21:00', isOpen: true },
-    { day: 'Wednesday', startTime: '08:00', endTime: '21:00', isOpen: true },
-    { day: 'Thursday', startTime: '08:00', endTime: '21:00', isOpen: true },
-    { day: 'Friday', startTime: '08:00', endTime: '21:00', isOpen: true },
-    { day: 'Saturday', startTime: '09:00', endTime: '18:00', isOpen: true },
-    { day: 'Sunday', startTime: '10:00', endTime: '16:00', isOpen: true },
-  ],
-  deliveryOptions: ['pickup', 'delivery'],
-  serviceRadius: 8,
-  responseTimeMinutes: 35,
-  documents: {
-    license: 'https://example.com/license.pdf',
-    identityProof: 'https://example.com/id.pdf',
-  },
-  status: 'approved',
-  rating: 4.8,
-  bloodGroup: 'O+',
-  gender: 'Male',
-}
+// Mock data removed - using real backend data now
 
 const PharmacyProfile = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
-  const [formData, setFormData] = useState(mockPharmacyData)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  
+  // Initialize with empty/default data
+  const [formData, setFormData] = useState({
+    pharmacyName: '',
+    ownerName: '',
+    email: '',
+    phone: '',
+    licenseNumber: '',
+    gstNumber: '',
+    profileImage: '',
+    bio: '',
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: '',
+    },
+    contactPerson: {
+      name: '',
+      phone: '',
+      email: '',
+    },
+    timings: [],
+    deliveryOptions: [],
+    serviceRadiusKm: 0,
+    responseTimeMinutes: 0,
+    documents: {},
+    status: 'pending',
+    rating: 0,
+    isActive: true,
+  })
+
+  // Fetch pharmacy profile from backend
+  useEffect(() => {
+    const fetchPharmacyProfile = async () => {
+      const token = getAuthToken('pharmacy')
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        
+        // Try to load from cache first for faster initial render
+        const storage = localStorage.getItem('pharmacyAuthToken') ? localStorage : sessionStorage
+        const cachedProfile = JSON.parse(storage.getItem('pharmacyProfile') || '{}')
+        if (Object.keys(cachedProfile).length > 0) {
+          // Set initial form data from cache
+          const cachedData = {
+            pharmacyName: cachedProfile.pharmacyName || '',
+            ownerName: cachedProfile.ownerName || '',
+            email: cachedProfile.email || '',
+            phone: cachedProfile.phone || '',
+            licenseNumber: cachedProfile.licenseNumber || '',
+            gstNumber: cachedProfile.gstNumber || '',
+            profileImage: cachedProfile.profileImage || cachedProfile.documents?.profileImage || '',
+            bio: cachedProfile.bio || '',
+            address: cachedProfile.address || {
+              line1: '',
+              line2: '',
+              city: '',
+              state: '',
+              postalCode: '',
+              country: '',
+            },
+            contactPerson: cachedProfile.contactPerson || {
+              name: '',
+              phone: '',
+              email: '',
+            },
+            timings: Array.isArray(cachedProfile.timings) ? cachedProfile.timings : [],
+            deliveryOptions: Array.isArray(cachedProfile.deliveryOptions) ? cachedProfile.deliveryOptions : [],
+            serviceRadiusKm: cachedProfile.serviceRadiusKm || 0,
+            responseTimeMinutes: cachedProfile.responseTimeMinutes || 0,
+            documents: cachedProfile.documents || {},
+            status: cachedProfile.status || 'pending',
+            rating: cachedProfile.rating || 0,
+            isActive: cachedProfile.isActive !== undefined ? cachedProfile.isActive : true,
+          }
+          setFormData(cachedData)
+        }
+
+        // Then fetch fresh data from backend
+        const response = await getPharmacyProfile()
+        if (response.success && response.data) {
+          const pharmacy = response.data.pharmacy || response.data
+          
+          // Transform backend data to frontend format
+          const transformedData = {
+            pharmacyName: pharmacy.pharmacyName || '',
+            ownerName: pharmacy.ownerName || '',
+            email: pharmacy.email || '',
+            phone: pharmacy.phone || '',
+            licenseNumber: pharmacy.licenseNumber || '',
+            gstNumber: pharmacy.gstNumber || '',
+            profileImage: pharmacy.profileImage || pharmacy.documents?.profileImage || '',
+            bio: pharmacy.bio || '',
+            address: pharmacy.address || {
+              line1: '',
+              line2: '',
+              city: '',
+              state: '',
+              postalCode: '',
+              country: '',
+            },
+            contactPerson: pharmacy.contactPerson || {
+              name: '',
+              phone: '',
+              email: '',
+            },
+            timings: Array.isArray(pharmacy.timings) ? pharmacy.timings : [],
+            deliveryOptions: Array.isArray(pharmacy.deliveryOptions) ? pharmacy.deliveryOptions : [],
+            serviceRadiusKm: pharmacy.serviceRadiusKm || 0,
+            responseTimeMinutes: pharmacy.responseTimeMinutes || 0,
+            documents: pharmacy.documents || {},
+            status: pharmacy.status || 'pending',
+            rating: pharmacy.rating || 0,
+            isActive: pharmacy.isActive !== undefined ? pharmacy.isActive : true,
+          }
+          
+          setFormData(transformedData)
+          
+          // Update cache
+          const storage = localStorage.getItem('pharmacyAuthToken') ? localStorage : sessionStorage
+          storage.setItem('pharmacyProfile', JSON.stringify(pharmacy))
+        }
+      } catch (error) {
+        console.error('Error fetching pharmacy profile:', error)
+        toast.error('Failed to load profile data. Please refresh the page.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPharmacyProfile()
+  }, [toast])
 
   const formatAddress = (address) => {
     if (!address) return '—'
@@ -124,30 +225,120 @@ const PharmacyProfile = () => {
     })
   }
 
-  const handleDeliveryOptionToggle = (option) => {
-    setFormData((prev) => ({
-      ...prev,
-      deliveryOptions: prev.deliveryOptions.includes(option)
-        ? prev.deliveryOptions.filter((o) => o !== option)
-        : [...prev.deliveryOptions, option],
-    }))
+  const handleSave = async () => {
+    const token = getAuthToken('pharmacy')
+    if (!token) {
+      toast.error('Please login to save profile')
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      
+      // Prepare data for backend (match backend expected format)
+      const updateData = {
+        pharmacyName: formData.pharmacyName,
+        ownerName: formData.ownerName,
+        email: formData.email,
+        phone: formData.phone,
+        licenseNumber: formData.licenseNumber,
+        gstNumber: formData.gstNumber,
+        profileImage: formData.profileImage,
+        bio: formData.bio,
+        address: formData.address,
+        contactPerson: formData.contactPerson,
+        timings: formData.timings,
+        deliveryOptions: formData.deliveryOptions,
+        serviceRadiusKm: formData.serviceRadiusKm,
+        responseTimeMinutes: formData.responseTimeMinutes,
+        documents: formData.documents,
+        isActive: formData.isActive,
+      }
+
+      const response = await updatePharmacyProfile(updateData)
+      
+      if (response.success) {
+        // Update cache
+        const storage = localStorage.getItem('pharmacyAuthToken') ? localStorage : sessionStorage
+        storage.setItem('pharmacyProfile', JSON.stringify(response.data?.pharmacy || response.data))
+        
+        toast.success('Profile updated successfully!')
+        setIsEditing(false)
+        setActiveSection(null)
+      } else {
+        toast.error(response.message || 'Failed to update profile')
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error)
+      toast.error(error.message || 'Failed to update profile. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleSave = () => {
-    console.log('Saving profile:', formData)
-    setIsEditing(false)
-    setActiveSection(null)
-    alert('Profile updated successfully!')
-  }
-
-  const handleCancel = () => {
-    setFormData(mockPharmacyData)
+  const handleCancel = async () => {
+    // Reload original data from backend
+    try {
+      const response = await getPharmacyProfile()
+      if (response.success && response.data) {
+        const pharmacy = response.data.pharmacy || response.data
+        const transformedData = {
+          pharmacyName: pharmacy.pharmacyName || '',
+          ownerName: pharmacy.ownerName || '',
+          email: pharmacy.email || '',
+          phone: pharmacy.phone || '',
+          licenseNumber: pharmacy.licenseNumber || '',
+          gstNumber: pharmacy.gstNumber || '',
+          profileImage: pharmacy.profileImage || pharmacy.documents?.profileImage || '',
+          bio: pharmacy.bio || '',
+          address: pharmacy.address || {
+            line1: '',
+            line2: '',
+            city: '',
+            state: '',
+            postalCode: '',
+            country: '',
+          },
+          contactPerson: pharmacy.contactPerson || {
+            name: '',
+            phone: '',
+            email: '',
+          },
+          timings: Array.isArray(pharmacy.timings) ? pharmacy.timings : [],
+          deliveryOptions: Array.isArray(pharmacy.deliveryOptions) ? pharmacy.deliveryOptions : [],
+          serviceRadiusKm: pharmacy.serviceRadiusKm || 0,
+          responseTimeMinutes: pharmacy.responseTimeMinutes || 0,
+          documents: pharmacy.documents || {},
+          status: pharmacy.status || 'pending',
+          rating: pharmacy.rating || 0,
+          isActive: pharmacy.isActive !== undefined ? pharmacy.isActive : true,
+        }
+        setFormData(transformedData)
+      }
+    } catch (error) {
+      console.error('Error reloading profile:', error)
+      toast.error('Failed to reload profile data')
+    }
     setIsEditing(false)
     setActiveSection(null)
   }
 
   const toggleSection = (section) => {
     setActiveSection(activeSection === section ? null : section)
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <section className="flex flex-col gap-6 pb-4">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
+            <p className="mt-4 text-sm text-slate-600">Loading profile...</p>
+          </div>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -169,12 +360,12 @@ const PharmacyProfile = () => {
           {/* Profile Picture */}
           <div className="relative mb-4">
             <img
-              src={formData.profileImage}
-              alt={formData.pharmacyName}
+              src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.pharmacyName || 'Pharmacy')}&background=3b82f6&color=fff&size=128&bold=true`}
+              alt={formData.pharmacyName || 'Pharmacy'}
               className="h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover ring-4 ring-white/20 shadow-xl bg-slate-100"
               onError={(e) => {
                 e.target.onerror = null
-                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.pharmacyName)}&background=3b82f6&color=fff&size=128&bold=true`
+                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.pharmacyName || 'Pharmacy')}&background=3b82f6&color=fff&size=128&bold=true`
               }}
             />
             {isEditing && (
@@ -189,7 +380,7 @@ const PharmacyProfile = () => {
 
           {/* Name */}
           <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-            {formData.pharmacyName}
+            {formData.pharmacyName || 'Pharmacy'}
           </h1>
 
           {/* Email */}
@@ -246,9 +437,17 @@ const PharmacyProfile = () => {
           </button>
           <button
             onClick={handleSave}
-            className="rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
+            disabled={isSaving}
+            className="rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Save Changes
+            {isSaving ? (
+              <>
+                <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent mr-2"></div>
+                Saving...
+              </>
+            ) : (
+              'Save Changes'
+            )}
           </button>
         </div>
       )}
@@ -283,7 +482,7 @@ const PharmacyProfile = () => {
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
                 ) : (
-                  <p className="text-sm text-slate-900">{formData.pharmacyName}</p>
+                  <p className="text-sm text-slate-900">{formData.pharmacyName || 'Not set'}</p>
                 )}
               </div>
               <div>
@@ -521,110 +720,6 @@ const PharmacyProfile = () => {
                   </div>
                 </div>
               ))}
-            </div>
-          )}
-        </article>
-
-        {/* Services & Delivery */}
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <button
-            onClick={() => toggleSection('services')}
-            className="flex w-full items-center justify-between"
-          >
-            <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-              <IoBagHandleOutline className="h-5 w-5 text-slate-600" />
-              Services & Delivery
-            </h3>
-            {activeSection === 'services' ? (
-              <IoChevronUpOutline className="h-5 w-5 text-slate-400" />
-            ) : (
-              <IoChevronDownOutline className="h-5 w-5 text-slate-400" />
-            )}
-          </button>
-          {activeSection === 'services' && (
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Delivery Options</label>
-                {isEditing ? (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDeliveryOptionToggle('pickup')}
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-all active:scale-95 ${
-                        formData.deliveryOptions.includes('pickup')
-                          ? 'border-[#11496c] bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)]'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      <IoBagHandleOutline className="h-4 w-4" />
-                      Pickup
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeliveryOptionToggle('delivery')}
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-all active:scale-95 ${
-                        formData.deliveryOptions.includes('delivery')
-                          ? 'border-[#11496c] bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)]'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      <IoHomeOutline className="h-4 w-4" />
-                      Delivery
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {formData.deliveryOptions.map((option) => (
-                      <span
-                        key={option}
-                        className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.1)] px-3 py-1 text-xs font-medium text-[#11496c]"
-                      >
-                        {option === 'pickup' ? (
-                          <>
-                            <IoBagHandleOutline className="h-3 w-3" />
-                            Pickup Available
-                          </>
-                        ) : (
-                          <>
-                            <IoHomeOutline className="h-3 w-3" />
-                            Home Delivery
-                          </>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {formData.deliveryOptions.includes('delivery') && (
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Service Radius (km)</label>
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      value={formData.serviceRadius}
-                      onChange={(e) => handleInputChange('serviceRadius', parseFloat(e.target.value) || 0)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                      min="0"
-                    />
-                  ) : (
-                    <p className="text-sm text-slate-900">{formData.serviceRadius} km</p>
-                  )}
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Average Response Time (minutes)</label>
-                {isEditing ? (
-                  <input
-                    type="number"
-                    value={formData.responseTimeMinutes}
-                    onChange={(e) => handleInputChange('responseTimeMinutes', parseFloat(e.target.value) || 0)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    min="0"
-                  />
-                ) : (
-                  <p className="text-sm text-slate-900">~{formData.responseTimeMinutes} minutes</p>
-                )}
-              </div>
             </div>
           )}
         </article>

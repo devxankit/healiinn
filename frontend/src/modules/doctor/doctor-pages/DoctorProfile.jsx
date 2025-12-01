@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
+import { getDoctorProfile, updateDoctorProfile } from '../doctor-services/doctorService'
+import { useToast } from '../../../contexts/ToastContext'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -27,86 +30,183 @@ import {
   IoHelpCircleOutline,
   IoImageOutline,
   IoPowerOutline,
+  IoVideocamOutline,
 } from 'react-icons/io5'
 
-const mockDoctorData = {
-  firstName: 'Dr. Sarah',
-  lastName: 'Mitchell',
-  email: 'sarah.mitchell@example.com',
-  phone: '+1-555-123-4567',
-  gender: 'female',
-  profileImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-  specialization: 'Cardiology',
-  licenseNumber: 'MD-12345',
-  experienceYears: 10,
-  qualification: 'MBBS, MD (Cardiology)',
-  bio: 'Experienced cardiologist with expertise in preventive cardiology and heart disease management.',
-  consultationFee: 1500,
-  education: [
-    { institution: 'Harvard Medical School', degree: 'MD', year: 2014 },
-    { institution: 'Johns Hopkins Hospital', degree: 'Residency', year: 2018 },
-  ],
-  languages: ['English', 'Spanish', 'French'],
-  consultationModes: ['in_person'],
-  clinicDetails: {
-    name: 'Heart Care Clinic',
-    address: {
-      line1: '123 Medical Center Drive',
-      line2: 'Suite 200',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10001',
-      country: 'USA',
-    },
-  },
-  availableTimings: ['09:00 AM - 12:00 PM', '02:00 PM - 05:00 PM'],
-  availability: [
-    { day: 'Monday', startTime: '09:00', endTime: '17:00' },
-    { day: 'Wednesday', startTime: '09:00', endTime: '17:00' },
-    { day: 'Friday', startTime: '09:00', endTime: '17:00' },
-  ],
-  averageConsultationMinutes: 20, // Default 20 minutes per patient
-  documents: {
-    license: 'https://example.com/license.pdf',
-    identityProof: 'https://example.com/id.pdf',
-  },
-  digitalSignature: {
-    imageUrl: '',
-    uploadedAt: null,
-  },
-  status: 'approved',
-  rating: 4.8,
-  isActive: true, // Profile visibility to patients
-  letterhead: {
-    logo: '',
-    clinicName: '',
-    tagline: '',
-    primaryColor: '#3b82f6',
-    secondaryColor: '#8b5cf6',
-  },
-}
+// Mock data removed - using real backend data now
 
 const DoctorProfile = () => {
   const location = useLocation()
+  const toast = useToast()
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
   
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   
-  // Load profile from localStorage or use mock data
-  const [formData, setFormData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('doctorProfile')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        // Ensure isActive is set (default true if not present)
-        return { ...mockDoctorData, ...parsed, isActive: parsed.isActive !== undefined ? parsed.isActive : true }
-      }
-    } catch (error) {
-      console.error('Error loading doctor profile:', error)
-    }
-    return { ...mockDoctorData, isActive: true }
+  // Initialize with empty/default data
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    gender: '',
+    profileImage: '',
+    specialization: '',
+    licenseNumber: '',
+    experienceYears: 0,
+    qualification: '',
+    bio: '',
+    consultationFee: 0,
+    education: [],
+    languages: [],
+    consultationModes: [],
+    clinicDetails: {
+      name: '',
+      address: {
+        line1: '',
+        line2: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        country: '',
+      },
+    },
+    availableTimings: [],
+    availability: [],
+    averageConsultationMinutes: 20,
+    documents: {},
+    digitalSignature: {
+      imageUrl: '',
+      uploadedAt: null,
+    },
+    status: 'pending',
+    rating: 0,
+    isActive: true,
   })
+
+  // Fetch doctor profile from backend
+  useEffect(() => {
+    const fetchDoctorProfile = async () => {
+      const token = getAuthToken('doctor')
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        
+        // Try to load from cache first for faster initial render
+        const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
+        const cachedProfile = JSON.parse(storage.getItem('doctorProfile') || '{}')
+        if (Object.keys(cachedProfile).length > 0) {
+          // Set initial form data from cache
+          const cachedData = {
+            firstName: cachedProfile.firstName || '',
+            lastName: cachedProfile.lastName || '',
+            email: cachedProfile.email || '',
+            phone: cachedProfile.phone || '',
+            gender: cachedProfile.gender || '',
+            profileImage: cachedProfile.profileImage || cachedProfile.documents?.profileImage || '',
+            specialization: cachedProfile.specialization || '',
+            licenseNumber: cachedProfile.licenseNumber || '',
+            experienceYears: cachedProfile.experienceYears || 0,
+            qualification: cachedProfile.qualification || '',
+            bio: cachedProfile.bio || '',
+            consultationFee: cachedProfile.consultationFee || 0,
+            education: Array.isArray(cachedProfile.education) ? cachedProfile.education : [],
+            languages: Array.isArray(cachedProfile.languages) ? cachedProfile.languages : [],
+            consultationModes: Array.isArray(cachedProfile.consultationModes) ? cachedProfile.consultationModes : [],
+            clinicDetails: cachedProfile.clinicDetails || {
+              name: '',
+              address: {
+                line1: '',
+                line2: '',
+                city: '',
+                state: '',
+                postalCode: '',
+                country: '',
+              },
+            },
+            availableTimings: Array.isArray(cachedProfile.availableTimings) ? cachedProfile.availableTimings : [],
+            availability: Array.isArray(cachedProfile.availability) ? cachedProfile.availability : [],
+            averageConsultationMinutes: cachedProfile.averageConsultationMinutes || 20,
+            documents: cachedProfile.documents || {},
+            digitalSignature: cachedProfile.digitalSignature || {
+              imageUrl: '',
+              uploadedAt: null,
+            },
+            status: cachedProfile.status || 'pending',
+            rating: cachedProfile.rating || 0,
+            isActive: cachedProfile.isActive !== undefined ? cachedProfile.isActive : true,
+          }
+          setFormData(cachedData)
+        }
+
+        // Then fetch fresh data from backend
+        const response = await getDoctorProfile()
+        if (response.success && response.data) {
+          const doctor = response.data.doctor || response.data
+          
+          // Transform backend data to frontend format
+          const transformedData = {
+            firstName: doctor.firstName || '',
+            lastName: doctor.lastName || '',
+            email: doctor.email || '',
+            phone: doctor.phone || '',
+            gender: doctor.gender || '',
+            profileImage: doctor.profileImage || doctor.documents?.profileImage || '',
+            specialization: doctor.specialization || '',
+            licenseNumber: doctor.licenseNumber || '',
+            experienceYears: doctor.experienceYears || 0,
+            qualification: doctor.qualification || '',
+            bio: doctor.bio || '',
+            consultationFee: doctor.consultationFee || 0,
+            education: Array.isArray(doctor.education) ? doctor.education : [],
+            languages: Array.isArray(doctor.languages) ? doctor.languages : [],
+            consultationModes: Array.isArray(doctor.consultationModes) ? doctor.consultationModes : [],
+            clinicDetails: doctor.clinicDetails || {
+              name: '',
+              address: {
+                line1: '',
+                line2: '',
+                city: '',
+                state: '',
+                postalCode: '',
+                country: '',
+              },
+            },
+            availableTimings: Array.isArray(doctor.availableTimings) ? doctor.availableTimings : [],
+            availability: Array.isArray(doctor.availability) ? doctor.availability : [],
+            averageConsultationMinutes: doctor.averageConsultationMinutes || 20,
+            documents: doctor.documents || {},
+            digitalSignature: doctor.digitalSignature || {
+              imageUrl: '',
+              uploadedAt: null,
+            },
+            status: doctor.status || 'pending',
+            rating: doctor.rating || 0,
+            isActive: doctor.isActive !== undefined ? doctor.isActive : true,
+          }
+          
+          setFormData(transformedData)
+          
+          // Update cache
+          const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
+          storage.setItem('doctorProfile', JSON.stringify(doctor))
+        }
+      } catch (error) {
+        console.error('Error fetching doctor profile:', error)
+        toast.error('Failed to load profile data. Please refresh the page.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchDoctorProfile()
+  }, [toast])
 
   const formatDate = (dateString) => {
     if (!dateString) return '—'
@@ -191,13 +291,13 @@ const DoctorProfile = () => {
     if (file) {
       // Check if file is an image
       if (!file.type.startsWith('image/')) {
-        alert('Please select an image file')
+        toast.warning('Please select an image file')
         return
       }
       
       // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB')
+        toast.warning('Image size should be less than 5MB')
         return
       }
 
@@ -225,15 +325,62 @@ const DoctorProfile = () => {
     }))
   }
 
-  const handleSave = () => {
-    console.log('Saving profile:', formData)
-    // Save to localStorage so it can be used in PDF generation
-    localStorage.setItem('doctorProfile', JSON.stringify(formData))
-    // Also save isActive status separately for easy access
-    localStorage.setItem('doctorProfileActive', JSON.stringify(formData.isActive))
-    // TODO: Send digitalSignature.digitalSignature.imageUrl to backend
-    setIsEditing(false)
-    setActiveSection(null)
+  const handleSave = async () => {
+    const token = getAuthToken('doctor')
+    if (!token) {
+      toast.error('Please login to save profile')
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      
+      // Prepare data for backend (match backend expected format)
+      const updateData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        gender: formData.gender,
+        profileImage: formData.profileImage,
+        specialization: formData.specialization,
+        licenseNumber: formData.licenseNumber,
+        experienceYears: formData.experienceYears,
+        qualification: formData.qualification,
+        bio: formData.bio,
+        consultationFee: formData.consultationFee,
+        education: formData.education,
+        languages: formData.languages,
+        consultationModes: formData.consultationModes,
+        clinicDetails: formData.clinicDetails,
+        availableTimings: formData.availableTimings,
+        availability: formData.availability,
+        averageConsultationMinutes: formData.averageConsultationMinutes,
+        documents: formData.documents,
+        digitalSignature: formData.digitalSignature,
+        isActive: formData.isActive,
+      }
+
+      const response = await updateDoctorProfile(updateData)
+      
+      if (response.success) {
+        // Update cache
+        const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
+        storage.setItem('doctorProfile', JSON.stringify(response.data?.doctor || response.data))
+        storage.setItem('doctorProfileActive', JSON.stringify(formData.isActive))
+        
+        toast.success('Profile updated successfully!')
+        setIsEditing(false)
+        setActiveSection(null)
+      } else {
+        toast.error(response.message || 'Failed to update profile')
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error)
+      toast.error(error.message || 'Failed to update profile. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleToggleActive = () => {
@@ -245,16 +392,82 @@ const DoctorProfile = () => {
     localStorage.setItem('doctorProfileActive', JSON.stringify(newActiveStatus))
     
     if (newActiveStatus) {
-      alert('Your profile is now active and visible to patients.')
+      toast.success('Your profile is now active and visible to patients.')
     } else {
-      alert('Your profile is now inactive and will not be visible to patients.')
+      toast.info('Your profile is now inactive and will not be visible to patients.')
     }
   }
 
-  const handleCancel = () => {
-    setFormData(mockDoctorData)
+  const handleCancel = async () => {
+    // Reload original data from backend
+    try {
+      const response = await getDoctorProfile()
+      if (response.success && response.data) {
+        const doctor = response.data.doctor || response.data
+        const transformedData = {
+          firstName: doctor.firstName || '',
+          lastName: doctor.lastName || '',
+          email: doctor.email || '',
+          phone: doctor.phone || '',
+          gender: doctor.gender || '',
+          profileImage: doctor.profileImage || doctor.documents?.profileImage || '',
+          specialization: doctor.specialization || '',
+          licenseNumber: doctor.licenseNumber || '',
+          experienceYears: doctor.experienceYears || 0,
+          qualification: doctor.qualification || '',
+          bio: doctor.bio || '',
+          consultationFee: doctor.consultationFee || 0,
+          education: Array.isArray(doctor.education) ? doctor.education : [],
+          languages: Array.isArray(doctor.languages) ? doctor.languages : [],
+          consultationModes: Array.isArray(doctor.consultationModes) ? doctor.consultationModes : [],
+          clinicDetails: doctor.clinicDetails || {
+            name: '',
+            address: {
+              line1: '',
+              line2: '',
+              city: '',
+              state: '',
+              postalCode: '',
+              country: '',
+            },
+          },
+          availableTimings: Array.isArray(doctor.availableTimings) ? doctor.availableTimings : [],
+          availability: Array.isArray(doctor.availability) ? doctor.availability : [],
+          averageConsultationMinutes: doctor.averageConsultationMinutes || 20,
+          documents: doctor.documents || {},
+          digitalSignature: doctor.digitalSignature || {
+            imageUrl: '',
+            uploadedAt: null,
+          },
+          status: doctor.status || 'pending',
+          rating: doctor.rating || 0,
+          isActive: doctor.isActive !== undefined ? doctor.isActive : true,
+        }
+        setFormData(transformedData)
+      }
+    } catch (error) {
+      console.error('Error reloading profile:', error)
+      toast.error('Failed to reload profile data')
+    }
     setIsEditing(false)
     setActiveSection(null)
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <>
+        <DoctorNavbar />
+        <section className={`flex flex-col gap-4 pb-24 lg:pb-8 ${isDashboardPage ? '-mt-20' : ''} lg:mt-0`}>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
+              <p className="mt-4 text-sm text-slate-600">Loading profile...</p>
+            </div>
+          </div>
+        </section>
+      </>
+    )
   }
 
   return (
@@ -278,12 +491,12 @@ const DoctorProfile = () => {
                 <div className="relative">
                   <div className="relative h-24 w-24">
                     <img
-                      src={formData.profileImage}
+                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Doctor')}&background=ffffff&color=11496c&size=128&bold=true`}
                       alt={`${formData.firstName} ${formData.lastName}`}
                       className="h-full w-full rounded-full object-cover ring-4 ring-white/50 shadow-2xl bg-slate-100"
                       onError={(e) => {
                         e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=ffffff&color=11496c&size=128&bold=true`
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Doctor')}&background=ffffff&color=11496c&size=128&bold=true`
                       }}
                     />
                     {isEditing && (
@@ -300,7 +513,9 @@ const DoctorProfile = () => {
                 {/* Name */}
                 <div className="text-center">
                   <h1 className="text-xl font-bold text-white mb-1.5">
-                    {formData.firstName} {formData.lastName}
+                    {formData.firstName || formData.lastName 
+                      ? `${formData.firstName || ''} ${formData.lastName || ''}`.trim()
+                      : 'Doctor'}
                   </h1>
                   <p className="text-sm text-white/90 mb-3">
                     {formData.email}
@@ -366,10 +581,20 @@ const DoctorProfile = () => {
                       <button
                         type="button"
                         onClick={handleSave}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 hover:scale-105 shadow-lg"
+                        disabled={isSaving}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <IoCheckmarkCircleOutline className="h-4 w-4" />
-                        Save Changes
+                        {isSaving ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <IoCheckmarkCircleOutline className="h-4 w-4" />
+                            Save Changes
+                          </>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -426,12 +651,12 @@ const DoctorProfile = () => {
                 <div className="relative">
                   <div className="relative h-24 w-24 sm:h-28 sm:w-28">
                     <img
-                      src={formData.profileImage}
+                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Doctor')}&background=ffffff&color=11496c&size=128&bold=true`}
                       alt={`${formData.firstName} ${formData.lastName}`}
                       className="h-full w-full rounded-full object-cover ring-2 ring-white/50 shadow-lg bg-slate-100"
                       onError={(e) => {
                         e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.firstName + ' ' + formData.lastName)}&background=ffffff&color=11496c&size=128&bold=true`
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Doctor')}&background=ffffff&color=11496c&size=128&bold=true`
                       }}
                     />
                     {isEditing && (
@@ -447,7 +672,9 @@ const DoctorProfile = () => {
 
                 {/* Name - Centered */}
                 <h1 className="text-xl sm:text-2xl font-bold text-white text-center">
-                  {formData.firstName} {formData.lastName}
+                  {formData.firstName || formData.lastName 
+                    ? `${formData.firstName || ''} ${formData.lastName || ''}`.trim()
+                    : 'Doctor'}
                 </h1>
 
                 {/* Email - Centered */}
@@ -504,10 +731,20 @@ const DoctorProfile = () => {
                       <button
                         type="button"
                         onClick={handleSave}
-                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/20 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95"
+                        disabled={isSaving}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/20 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <IoCheckmarkCircleOutline className="h-4 w-4" />
-                        Save
+                        {isSaving ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <IoCheckmarkCircleOutline className="h-4 w-4" />
+                            Save
+                          </>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -942,8 +1179,30 @@ const DoctorProfile = () => {
                                 }}
                                 className="h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] shrink-0"
                               />
+                              <IoPersonOutline className="h-3.5 w-3.5 text-slate-600 shrink-0" />
                               <span className="text-xs font-medium text-slate-900 capitalize">
                                 In Person
+                              </span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={formData.consultationModes?.includes('video') || false}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    handleArrayAdd('consultationModes', 'video')
+                                  } else {
+                                    const index = formData.consultationModes?.indexOf('video')
+                                    if (index !== undefined && index !== -1) {
+                                      handleArrayRemove('consultationModes', index)
+                                    }
+                                  }
+                                }}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] shrink-0"
+                              />
+                              <IoVideocamOutline className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                              <span className="text-xs font-medium text-slate-900 capitalize">
+                                Video Call
                               </span>
                             </label>
                           </div>
@@ -955,8 +1214,14 @@ const DoctorProfile = () => {
                                   key={index}
                                   className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700"
                                 >
-                                  <IoPersonOutline className="h-2.5 w-2.5 shrink-0" />
-                                  {mode.replace('_', ' ')}
+                                  {mode === 'in_person' ? (
+                                    <IoPersonOutline className="h-2.5 w-2.5 shrink-0" />
+                                  ) : mode === 'video' ? (
+                                    <IoVideocamOutline className="h-2.5 w-2.5 shrink-0" />
+                                  ) : (
+                                    <IoPersonOutline className="h-2.5 w-2.5 shrink-0" />
+                                  )}
+                                  {mode === 'in_person' ? 'In Person' : mode === 'video' ? 'Video Call' : mode.replace('_', ' ')}
                                 </span>
                               ))
                             ) : (

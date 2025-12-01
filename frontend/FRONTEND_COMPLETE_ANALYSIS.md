@@ -8,46 +8,71 @@
 **Frontend Tech Stack**: React 19.2.0 + Vite 7.2.2 + Tailwind CSS 4.1.17  
 **Architecture**: Mobile-First Design, Module-Based Structure
 
+**Important Note on Location Implementation:**
+- ❌ **No GPS/Geolocation Tracking**: Location is NOT tracked using GPS coordinates
+- ❌ **No Nearby Search**: No distance-based or radius-based search functionality
+- ❌ **No Location Tracking**: No real-time location tracking or geolocation APIs
+- ✅ **Simple Address Fields Only**: Location is stored as simple text fields (line1, line2, city, state, postalCode, country)
+- ✅ **Text-Based Filtering**: Search/filter by city/state using simple text matching only
+
 ---
 
 ## 🏗️ Project Structure
 
+**Verified against current codebase (App.jsx + modules folders, January 2025).**
+
 ```
 frontend/
 ├── src/
-│   ├── App.jsx                    # Main routing component
-│   ├── main.jsx                   # Entry point
-│   ├── index.css                  # Global styles
-│   ├── assets/                    # Static assets
-│   └── modules/                   # Feature-based modules
-│       ├── patient/               # Patient module
+│   ├── App.jsx                    # Main routing component (all module routes wired here)
+│   ├── main.jsx                   # Entry point (wraps App with ToastProvider)
+│   ├── index.css                  # Global styles + Tailwind layer
+│   ├── assets/                    # Static assets (logos, images, react.svg)
+│   ├── components/
+│   │   └── ProtectedRoute.jsx     # Shared auth guard for all modules
+│   ├── contexts/
+│   │   └── ToastContext.jsx       # Global toast notification system
+│   ├── utils/
+│   │   ├── apiClient.js           # Centralized API client (module-aware, token refresh)
+│   │   ├── dummyData.js           # Local/mock data for non‑auth features
+│   │   └── initializeDummyData.js # Dummy data seeding on app bootstrap
+│   └── modules/                   # Feature-based, mobile-first modules
+│       ├── patient/
 │       │   ├── patient-components/
 │       │   │   ├── PatientNavbar.jsx
 │       │   │   └── PatientSidebar.jsx
-│       │   └── patient-pages/      # 20+ page components
-│       ├── doctor/                # Doctor module
+│       │   ├── patient-pages/     # 19 page components (see Routing section)
+│       │   └── patient-services/
+│       │       └── patientService.js
+│       ├── doctor/
 │       │   ├── doctor-components/
 │       │   │   ├── DoctorNavbar.jsx
+│       │   │   ├── DoctorHeader.jsx
 │       │   │   └── DoctorSidebar.jsx
-│       │   └── doctor-pages/      # 15+ page components
-│       ├── pharmacy/              # Pharmacy module
+│       │   ├── doctor-pages/      # 20 page components (see Routing section)
+│       │   └── doctor-services/
+│       │       └── doctorService.js
+│       ├── pharmacy/
 │       │   ├── pharmacy-components/
 │       │   │   ├── PharmacyNavbar.jsx
 │       │   │   ├── PharmacySidebar.jsx
 │       │   │   └── PharmacySidebarContext.jsx
-│       │   ├── pharmacy-pages/    # 16 page components
+│       │   ├── pharmacy-pages/    # 16 page components (see Routing section)
 │       │   └── pharmacy-services/
 │       │       └── pharmacyService.js
-│       ├── laboratory/            # Laboratory module
+│       ├── laboratory/
 │       │   ├── laboratory-components/
 │       │   │   ├── LaboratoryNavbar.jsx
+│       │   │   ├── LaboratoryHeader.jsx
 │       │   │   └── LaboratorySidebar.jsx
-│       │   └── laboratory-pages/  # 20+ page components
-│       └── admin/                 # Admin module
+│       │   ├── laboratory-pages/  # 28 page components (see Routing section)
+│       │   └── laboratory-services/
+│       │       └── laboratoryService.js
+│       └── admin/
 │           ├── admin-components/
 │           │   ├── AdminNavbar.jsx
 │           │   └── AdminSidebar.jsx
-│           ├── admin-pages/       # 16 page components
+│           ├── admin-pages/       # 18 page components (see Routing section)
 │           └── admin-services/
 │               └── adminService.js
 ```
@@ -329,11 +354,11 @@ const token = localStorage.getItem('{module}AuthToken') ||
 - **Note:** Change password removed - login is OTP-based only
 
 #### Dashboard & Discovery
-- `GET /api/patients/doctors` - Get doctors list (with filters: search, specialty, location, rating)
+- `GET /api/patients/doctors` - Get doctors list (with filters: search, specialty, city, state, rating)
 - `GET /api/patients/doctors/:id` - Get doctor details
-- `GET /api/patients/hospitals` - Get hospitals list
+- `GET /api/patients/hospitals` - Get hospitals list (with filters: search, city, state, rating)
 - `GET /api/patients/specialties` - Get specialties list
-- `GET /api/patients/locations` - Get locations list
+- `GET /api/patients/locations` - Get locations list (cities/states for filter dropdowns)
 
 #### Appointments
 - `GET /api/patients/appointments` - Get patient appointments (with filters: date, status, doctor)
@@ -381,12 +406,12 @@ const token = localStorage.getItem('{module}AuthToken') ||
 - `GET /api/patients/reviews/:id` - Get review details
 
 #### Hospitals & Specialties
-- `GET /api/patients/hospitals` - Get hospitals list (with filters: search, location, rating)
+- `GET /api/patients/hospitals` - Get hospitals list (with filters: search, city, state, rating)
 - `GET /api/patients/hospitals/:id` - Get hospital details
 - `GET /api/patients/hospitals/:id/doctors` - Get doctors in hospital
 - `GET /api/patients/specialties` - Get specialties list
 - `GET /api/patients/specialties/:id/doctors` - Get doctors by specialty
-- `GET /api/patients/locations` - Get locations list (for search/filter)
+- `GET /api/patients/locations` - Get locations list (cities/states for filter dropdowns - no GPS/location tracking)
 
 ### 2. Doctor Module APIs
 
@@ -512,7 +537,7 @@ const token = localStorage.getItem('{module}AuthToken') ||
 - `PATCH /api/pharmacy/services/:id/toggle` - Toggle service availability
 
 #### Pharmacy Discovery (for Patients)
-- `GET /api/pharmacies` - Get pharmacies list (with filters: search, deliveryOption, radius, approvedOnly)
+- `GET /api/pharmacies` - Get pharmacies list (with filters: search, deliveryOption, city, state, approvedOnly)
 - `GET /api/pharmacies/:id` - Get pharmacy details
 
 ### 4. Laboratory Module APIs
@@ -726,7 +751,7 @@ const token = localStorage.getItem('{module}AuthToken') ||
     year: Number
   }],
   languages: [String],
-  consultationModes: [String] (enum: ['in_person', 'online']),
+  consultationModes: [String] (enum: ['in_person', 'video', 'audio', 'chat']),
   clinicDetails: {
     name: String,
     address: {
@@ -737,6 +762,7 @@ const token = localStorage.getItem('{module}AuthToken') ||
       postalCode: String,
       country: String
     }
+    // Note: No GPS coordinates - location is stored as simple address fields only
   },
   availableTimings: [String],
   availability: [{
@@ -772,39 +798,35 @@ const token = localStorage.getItem('{module}AuthToken') ||
 ```javascript
 {
   _id: ObjectId,
-  name: String (required),
+  pharmacyName: String (required),
   email: String (unique, required),
   phone: String (unique, required),
   password: String (hashed, optional - not required for signup),
   ownerName: String,
   licenseNumber: String,
+  gstNumber: String,
   address: {
     line1: String,
     line2: String,
     city: String,
     state: String,
     postalCode: String,
-    country: String,
-    coordinates: {
-      lat: Number,
-      lng: Number
-    }
+    country: String
+    // Note: No GPS coordinates - location is stored as simple address fields only
   },
-  deliveryOptions: [String] (enum: ['home_delivery', 'pickup']),
-  deliveryRadius: Number,
-  services: [{
+  deliveryOptions: [String] (enum: ['pickup', 'delivery', 'both']),
+  serviceRadiusKm: Number, // Service radius in kilometers (just a number field, not location-based)
+  timings: [String],
+  contactPerson: {
     name: String,
-    description: String,
-    category: String (enum: ['prescription', 'consultation', 'delivery']),
-    price: Number,
-    duration: String,
-    available: Boolean,
-    deliveryOptions: [String],
-    serviceRadius: Number
-  }],
+    phone: String,
+    email: String
+  },
+  documents: {
+    license: String (URL),
+    gstCertificate: String (URL)
+  },
   rating: Number (default: 0),
-  reviewCount: Number (default: 0),
-  responseTimeMinutes: Number,
   status: String (enum: ['pending', 'approved', 'rejected'], default: 'pending'),
   isActive: Boolean (default: true),
   createdAt: Date,
@@ -816,29 +838,37 @@ const token = localStorage.getItem('{module}AuthToken') ||
 ```javascript
 {
   _id: ObjectId,
-  name: String (required),
+  labName: String (required),
   email: String (unique, required),
   phone: String (unique, required),
   password: String (hashed, optional - not required for signup),
   ownerName: String,
   licenseNumber: String,
+  gstNumber: String,
   address: {
     line1: String,
     line2: String,
     city: String,
     state: String,
     postalCode: String,
-    country: String,
-    coordinates: {
-      lat: Number,
-      lng: Number
-    }
+    country: String
+    // Note: No GPS coordinates - location is stored as simple address fields only
   },
-  availableTests: [{
+  timings: [String],
+  contactPerson: {
+    name: String,
+    phone: String,
+    email: String
+  },
+  testsOffered: [{
     testName: String,
     price: Number,
     description: String
   }],
+  documents: {
+    license: String (URL),
+    gstCertificate: String (URL)
+  },
   status: String (enum: ['pending', 'approved', 'rejected'], default: 'pending'),
   isActive: Boolean (default: true),
   createdAt: Date,
@@ -874,7 +904,7 @@ const token = localStorage.getItem('{module}AuthToken') ||
   duration: String,
   available: Boolean (default: true),
   deliveryOptions: [String] (enum: ['pickup', 'delivery']),
-  serviceRadius: Number (default: 0),
+  serviceRadius: Number (default: 0), // Service radius in kilometers (just a number field, not location-based)
   createdAt: Date,
   updatedAt: Date
 }
@@ -1178,11 +1208,8 @@ const token = localStorage.getItem('{module}AuthToken') ||
     city: String,
     state: String,
     postalCode: String,
-    country: String,
-    coordinates: {
-      lat: Number,
-      lng: Number
-    }
+    country: String
+    // Note: No GPS coordinates - location is stored as simple address fields only
   },
   image: String (URL),
   rating: Number (default: 0),
@@ -1496,110 +1523,142 @@ AdminVerification
 ## 🛣️ Routing Structure
 
 ### Patient Routes (`/patient/*`)
+
+**Source of truth:** `App.jsx → PatientRoutes` (protected by `ProtectedRoute` + `getAuthToken('patient')`).
+
 ```
-/patient/login                    - Login/Signup page
-/patient/dashboard                - Dashboard
-/patient/doctors                  - Doctors listing
-/patient/doctors/:id              - Doctor details
-/patient/profile                 - Profile management
-/patient/locations               - Location selection
-/patient/prescriptions           - Prescriptions & Reports
-/patient/hospitals               - Hospitals listing
+/patient/login                         - Login/Signup page
+/patient/dashboard                     - Dashboard
+/patient/doctors                       - Doctors listing
+/patient/doctors/:id                   - Doctor details
+/patient/profile                       - Profile management
+/patient/locations                     - Location selection
+/patient/prescriptions                 - Prescriptions & Reports
+/patient/hospitals                     - Hospitals listing
 /patient/hospitals/:hospitalId/doctors - Hospital doctors
-/patient/specialties             - Specialties listing
+/patient/specialties                   - Specialties listing
 /patient/specialties/:specialtyId/doctors - Specialty doctors
-/patient/upcoming-schedules      - Upcoming schedules
-/patient/reports                 - Reports (redirects to prescriptions)
-/patient/requests               - Requests
-/patient/transactions            - Transaction history
-/patient/appointments            - Appointments
-/patient/orders                 - Orders
-/patient/history                - History
-/patient/support                - Support
+/patient/upcoming-schedules            - Upcoming schedules
+/patient/reports                       - Redirects to `/patient/prescriptions?tab=lab-reports`
+/patient/requests                      - Requests (medicine/test)
+/patient/transactions                  - Transaction history
+/patient/appointments                  - Appointments
+/patient/orders                        - Orders (pharmacy / lab)
+/patient/history                       - Complete history
+/patient/support                       - Support & help
 ```
 
 ### Doctor Routes (`/doctor/*`)
+
+**Source of truth:** `App.jsx → DoctorRoutes` (mobile-first navbar + desktop header/footer).
+
 ```
-/doctor/login                    - Login page
-/doctor/dashboard                - Dashboard
-/doctor/wallet                   - Wallet overview
-/doctor/wallet/balance           - Balance details
-/doctor/wallet/earning           - Earnings
-/doctor/wallet/withdraw          - Withdraw
-/doctor/wallet/transaction       - Transactions
-/doctor/patients                 - Patient queue
-/doctor/all-patients             - All patients
-/doctor/appointments             - Appointments
-/doctor/all-consultations        - All consultations
-/doctor/consultations            - Consultations
-/doctor/profile                  - Profile
-/doctor/support                  - Support
+/doctor/login                          - Login page (shared OTP flow)
+/doctor/dashboard                      - Dashboard
+/doctor/wallet                         - Wallet overview
+/doctor/wallet/balance                 - Balance details
+/doctor/wallet/earning                 - Earnings
+/doctor/wallet/withdraw                - Withdraw
+/doctor/wallet/transaction             - Transactions
+/doctor/patients                       - Patient queue
+/doctor/all-patients                   - All patients
+/doctor/appointments                   - Appointments
+/doctor/all-consultations              - All consultations
+/doctor/consultations                  - Consultations
+/doctor/profile                        - Profile
+/doctor/support                        - Support
+/doctor/faq                            - FAQ
+/doctor/privacy-policy                 - Privacy policy
+/doctor/terms-of-service               - Terms of service
+/doctor/medical-guidelines             - Medical guidelines
+/doctor/hipaa-compliance               - HIPAA compliance
+/doctor/data-protection                - Data protection & security
 ```
 
 ### Pharmacy Routes (`/pharmacy/*`)
+
+**Source of truth:** `App.jsx → PharmacyRoutes` (wrapped with `PharmacySidebarProvider`).
+
 ```
-/pharmacy/dashboard              - Dashboard
-/pharmacy/list                   - Pharmacy list (for browsing pharmacies)
-/pharmacy/services               - Services management (Note: Page exists but route not in App.jsx - may need to add)
-/pharmacy/orders                 - Orders
-/pharmacy/request-orders         - Request orders
-/pharmacy/prescriptions          - Prescriptions
-/pharmacy/medicines              - Medicines inventory
-/pharmacy/patients               - Patients
-/pharmacy/patient-statistics     - Patient statistics
-/pharmacy/profile                - Profile
-/pharmacy/wallet                 - Wallet overview
-/pharmacy/wallet/balance         - Balance
-/pharmacy/wallet/earning         - Earnings
-/pharmacy/wallet/withdraw        - Withdraw
-/pharmacy/wallet/transaction     - Transactions
-/pharmacy/support                - Support
+/pharmacy/login                        - Login page (uses DoctorLogin UI, module = pharmacy)
+/pharmacy/dashboard                    - Dashboard
+/pharmacy/list                         - Pharmacy discovery list
+/pharmacy/orders                       - Orders
+/pharmacy/request-orders               - Request orders (from admin)
+/pharmacy/prescriptions                - Prescriptions viewer
+/pharmacy/medicines                    - Medicines inventory
+/pharmacy/patients                     - Patients
+/pharmacy/patient-statistics           - Patient statistics
+/pharmacy/profile                      - Profile
+/pharmacy/wallet                       - Wallet overview
+/pharmacy/wallet/balance               - Wallet balance
+/pharmacy/wallet/earning               - Earnings
+/pharmacy/wallet/withdraw              - Withdraw
+/pharmacy/wallet/transaction           - Transactions
+/pharmacy/support                      - Support
 ```
 
+> **Note:** `PharmacyServices.jsx` page exists, but there is **no `/pharmacy/services` route** in `App.jsx` yet. If backend implements pharmacy services management, the route should be added later.
+
 ### Laboratory Routes (`/laboratory/*`)
+
+**Source of truth:** `App.jsx → LaboratoryRoutes` (mobile navbar + desktop header/footer).
+
 ```
-/laboratory/dashboard            - Dashboard
-/laboratory/orders               - Orders
-/laboratory/requests             - Requests
-/laboratory/request-orders       - Request orders
-/laboratory/available-tests      - Available tests
-/laboratory/available-tests/add  - Add test
+/laboratory/login                      - Login page (uses DoctorLogin UI, module = laboratory)
+/laboratory/dashboard                  - Dashboard
+/laboratory/orders                     - Orders / leads
+/laboratory/requests                   - Requests list
+/laboratory/request-orders             - Request orders (from admin)
+/laboratory/available-tests            - Available tests
+/laboratory/available-tests/add        - Add test
 /laboratory/available-tests/edit/:testId - Edit test
-/laboratory/reports              - Reports
-/laboratory/test-reports         - Test reports
-/laboratory/test-reports/add/:orderId - Add report
-/laboratory/patients             - Patients
-/laboratory/patients/orders      - Patient orders
-/laboratory/patient-statistics   - Patient statistics
-/laboratory/patient-details      - Patient details
-/laboratory/profile              - Profile
-/laboratory/wallet               - Wallet overview
-/laboratory/wallet/balance       - Balance
-/laboratory/wallet/earning       - Earnings
-/laboratory/wallet/withdraw      - Withdraw
-/laboratory/wallet/transaction   - Transactions
-/laboratory/support              - Support
+/laboratory/reports                    - Reports list
+/laboratory/test-reports               - Test reports
+/laboratory/test-reports/add/:orderId  - Add report for order
+/laboratory/patients                   - Patients
+/laboratory/patients/orders            - Patient orders
+/laboratory/patient-statistics         - Patient statistics
+/laboratory/patient-details            - Patient details
+/laboratory/profile                    - Profile
+/laboratory/wallet                     - Wallet overview
+/laboratory/wallet/balance             - Wallet balance
+/laboratory/wallet/earning             - Earnings
+/laboratory/wallet/withdraw            - Withdraw
+/laboratory/wallet/transaction         - Transactions
+/laboratory/support                    - Support
+/laboratory/privacy-policy             - Privacy policy
+/laboratory/terms-of-service           - Terms of service
+/laboratory/lab-guidelines             - Lab guidelines
+/laboratory/faq                        - FAQ
+/laboratory/hipaa-compliance           - HIPAA compliance
+/laboratory/data-protection            - Data protection
+/laboratory/lab-accreditation          - Lab accreditation
 ```
 
 ### Admin Routes (`/admin/*`)
+
+**Source of truth:** `App.jsx → AdminRoutes` (desktop-layout, admin is exempt from strict mobile-first).
+
 ```
-/admin/login                     - Login page
-/admin/dashboard                 - Dashboard
-/admin/users                     - Users management
-/admin/doctors                   - Doctors management
-/admin/pharmacies                - Pharmacies management
-/admin/pharmacy-medicines        - Pharmacy medicines
-/admin/inventory                 - Inventory
-/admin/laboratories              - Laboratories management
-/admin/wallet                    - Wallet management
-/admin/verification              - Verifications
-/admin/appointments              - Appointments
-/admin/orders                    - Orders
-/admin/request                   - Requests
-/admin/profile                   - Profile
-/admin/settings                  - Settings
-/admin/support                   - Support
+/admin/login                           - Login page
+/admin/dashboard                       - Dashboard
+/admin/users                           - Users management
+/admin/doctors                         - Doctors management
+/admin/pharmacies                      - Pharmacies management
+/admin/pharmacy-medicines              - Pharmacy medicines
+/admin/inventory                       - Inventory overview
+/admin/laboratories                    - Laboratories management
+/admin/wallet                          - Wallet management
+/admin/verification                    - Verifications
+/admin/appointments                    - Appointments
+/admin/orders                          - Orders
+/admin/request                         - Requests
+/admin/profile                         - Profile
+/admin/support                         - Support
 ```
+
+> **Note:** `AdminSettings.jsx` page exists in code, but there is **currently no `/admin/settings` route** in `App.jsx`. Backend settings APIs are still planned (see Admin Settings section), and the route can be wired when those are implemented.
 
 ---
 
@@ -2376,8 +2435,9 @@ All modules have sidebar components with:
 ### 6. Discovery System
 - **Hospital browsing**: Browse hospitals and their doctors
 - **Specialty filtering**: Filter doctors by specialty
-- **Location-based search**: Search by location/radius
+- **Location filtering**: Filter by city/state (simple text-based filtering, no GPS/coordinates)
 - **Rating-based sorting**: Sort by ratings
+- **Note**: No location tracking, GPS coordinates, or distance-based search. Location is stored as simple address fields (line1, line2, city, state, postalCode, country) only.
 
 ### 7. Inventory Management
 - **Pharmacy medicines**: Track medicine inventory
@@ -2433,8 +2493,9 @@ All modules have sidebar components with:
 
 5. **Search & Filtering**
    - Full-text search for doctors, medicines, tests
-   - Location-based search
+   - City/State-based filtering (simple text matching, no GPS/coordinates)
    - Advanced filtering options
+   - **Note**: No location tracking, GPS coordinates, or distance-based search implemented
 
 6. **Analytics & Reporting**
    - Dashboard statistics
@@ -3017,7 +3078,7 @@ clearTokens('moduleName')
 
 ---
 
-**Document Version:** 3.0 (Final - Complete with OTP, API Client, Backend Connections)  
+**Document Version:** 3.1 (Updated - Location Implementation Clarified)  
 **Last Updated:** January 2025  
 **Maintained By:** Development Team  
 **Total Pages:** Complete Analysis with all modules, APIs, data structures, routes, connections, OTP implementation, and backend status  
@@ -3027,5 +3088,6 @@ clearTokens('moduleName')
 **Authentication:** ✅ Updated - OTP-based login, Password removed from signup  
 **OTP Service:** ✅ Fully implemented and connected (Backend + Frontend)  
 **API Client:** ✅ Centralized implementation with automatic token refresh  
-**Backend Connections:** ✅ Authentication 100% connected, Other features pending backend implementation
+**Backend Connections:** ✅ Authentication 100% connected, Other features pending backend implementation  
+**Location Implementation:** ✅ Clarified - No GPS/coordinates, only simple address fields (line1, line2, city, state, postalCode, country). No location tracking, nearby search, or distance-based filtering.
 

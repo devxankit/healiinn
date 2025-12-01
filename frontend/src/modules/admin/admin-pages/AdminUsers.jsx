@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   IoSearchOutline,
   IoFilterOutline,
@@ -14,64 +14,16 @@ import {
   IoTrashOutline,
   IoCloseOutline,
 } from 'react-icons/io5'
-
-const mockUsers = [
-  {
-    id: 'user-1',
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@example.com',
-    phone: '+91 98765 43210',
-    registeredAt: '2025-01-10',
-    status: 'active',
-    totalConsultations: 12,
-  },
-  {
-    id: 'user-2',
-    firstName: 'Sarah',
-    lastName: 'Smith',
-    email: 'sarah.smith@example.com',
-    phone: '+91 98765 43211',
-    registeredAt: '2025-01-08',
-    status: 'active',
-    totalConsultations: 8,
-  },
-  {
-    id: 'user-3',
-    firstName: 'Mike',
-    lastName: 'Johnson',
-    email: 'mike.johnson@example.com',
-    phone: '+91 98765 43212',
-    registeredAt: '2025-01-05',
-    status: 'inactive',
-    totalConsultations: 3,
-  },
-  {
-    id: 'user-4',
-    firstName: 'Emily',
-    lastName: 'Brown',
-    email: 'emily.brown@example.com',
-    phone: '+91 98765 43213',
-    registeredAt: '2024-12-28',
-    status: 'active',
-    totalConsultations: 25,
-  },
-  {
-    id: 'user-5',
-    firstName: 'David',
-    lastName: 'Wilson',
-    email: 'david.wilson@example.com',
-    phone: '+91 98765 43214',
-    registeredAt: '2024-12-20',
-    status: 'suspended',
-    totalConsultations: 0,
-  },
-]
+import { useToast } from '../../../contexts/ToastContext'
+import { getUsers, updateUserStatus, deleteUser } from '../admin-services/adminService'
 
 const AdminUsers = () => {
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [users, setUsers] = useState(mockUsers)
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [allUsers, setAllUsers] = useState([]) // Store all users for stats
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [formData, setFormData] = useState({
@@ -81,6 +33,68 @@ const AdminUsers = () => {
     phone: '',
     status: 'active',
   })
+
+  // Load users from API
+  useEffect(() => {
+    loadUsers()
+  }, [statusFilter])
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadUsers()
+    }, 500)
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm])
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true)
+      
+      // First, load ALL users for stats (no filters)
+      const allUsersResponse = await getUsers({ page: 1, limit: 1000 })
+      if (allUsersResponse.success && allUsersResponse.data) {
+        const allTransformed = (allUsersResponse.data.items || []).map(user => ({
+          id: user._id || user.id,
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          status: user.isActive ? 'active' : 'inactive', // Map isActive to status
+          registeredAt: user.createdAt || new Date().toISOString(),
+          totalConsultations: 0, // TODO: Add when appointments API is ready
+        }))
+        setAllUsers(allTransformed)
+      }
+      
+      // Then, load filtered users for display
+      const filters = {
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: searchTerm || undefined,
+        page: 1,
+        limit: 100,
+      }
+      const response = await getUsers(filters)
+      
+      if (response.success && response.data) {
+        const transformedUsers = (response.data.items || []).map(user => ({
+          id: user._id || user.id,
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          status: user.isActive ? 'active' : 'inactive', // Map isActive to status
+          registeredAt: user.createdAt || new Date().toISOString(),
+          totalConsultations: 0, // TODO: Add when appointments API is ready
+        }))
+        setUsers(transformedUsers)
+      }
+    } catch (error) {
+      console.error('Error loading users:', error)
+      toast.error(error.message || 'Failed to load users')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredUsers = users.filter((user) => {
     // Filter by status first
@@ -170,38 +184,42 @@ const AdminUsers = () => {
     setShowEditModal(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (editingUser) {
-      // Update existing user
-      setUsers(users.map(u => 
-        u.id === editingUser.id 
-          ? { ...u, ...formData }
-          : u
-      ))
-    } else {
-      // Create new user
-      const newUser = {
-        id: `user-${Date.now()}`,
-        ...formData,
-        totalConsultations: 0,
-        registeredAt: new Date().toISOString().split('T')[0],
+      // Update existing user status
+      try {
+        await updateUserStatus(editingUser.id, formData.status)
+        toast.success('User status updated successfully')
+        await loadUsers()
+        setShowEditModal(false)
+        setEditingUser(null)
+        setFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          status: 'active',
+        })
+      } catch (error) {
+        console.error('Error updating user:', error)
+        toast.error(error.message || 'Failed to update user')
       }
-      setUsers([...users, newUser])
+    } else {
+      // Create new user - not implemented in backend yet
+      toast.warning('User creation not yet implemented')
     }
-    setShowEditModal(false)
-    setEditingUser(null)
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      status: 'active',
-    })
   }
 
-  const handleDelete = (userId) => {
+  const handleDelete = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
-      setUsers(users.filter(u => u.id !== userId))
+      try {
+        await deleteUser(userId)
+        toast.success('User deleted successfully')
+        await loadUsers()
+      } catch (error) {
+        console.error('Error deleting user:', error)
+        toast.error(error.message || 'Failed to delete user')
+      }
     }
   }
 
@@ -245,7 +263,7 @@ const AdminUsers = () => {
           }`}
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Patients</p>
-          <p className="mt-0.5 text-2xl font-bold text-slate-900">{users.length}</p>
+          <p className="mt-0.5 text-2xl font-bold text-slate-900">{allUsers.length}</p>
         </button>
         <button
           onClick={() => setStatusFilter('active')}
@@ -255,7 +273,7 @@ const AdminUsers = () => {
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Active</p>
           <p className="mt-1 text-2xl font-bold text-emerald-600">
-            {users.filter((u) => u.status === 'active').length}
+            {allUsers.filter((u) => u.status === 'active').length}
           </p>
         </button>
         <button
@@ -266,20 +284,24 @@ const AdminUsers = () => {
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Inactive</p>
           <p className="mt-1 text-2xl font-bold text-slate-600">
-            {users.filter((u) => u.status === 'inactive').length}
+            {allUsers.filter((u) => u.status === 'inactive').length}
           </p>
         </button>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Suspended</p>
           <p className="mt-1 text-2xl font-bold text-red-600">
-            {users.filter((u) => u.status === 'suspended').length}
+            {allUsers.filter((u) => u.status === 'suspended').length}
           </p>
         </div>
       </div>
 
       {/* Users List */}
       <div className="space-y-2">
-        {filteredUsers.length === 0 ? (
+        {loading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+            <p className="text-slate-600">Loading users...</p>
+          </div>
+        ) : filteredUsers.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No users found</p>
           </div>

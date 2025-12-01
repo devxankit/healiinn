@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   IoSearchOutline,
   IoFilterOutline,
@@ -16,68 +16,28 @@ import {
   IoTrashOutline,
   IoCloseOutline,
 } from 'react-icons/io5'
+import { useToast } from '../../../contexts/ToastContext'
+import {
+  getDoctors,
+  getDoctorById,
+  verifyDoctor,
+  rejectDoctor,
+} from '../admin-services/adminService'
 
-const mockDoctors = [
-  {
-    id: 'doc-1',
-    name: 'Dr. Rajesh Kumar',
-    email: 'rajesh.kumar@example.com',
-    phone: '+91 98765 43210',
-    specialty: 'General Physician',
-    clinic: 'Shivaji Nagar Clinic',
-    location: 'Pune, Maharashtra',
-    rating: 4.8,
-    totalConsultations: 245,
-    status: 'verified',
-    registeredAt: '2024-12-15',
-  },
-  {
-    id: 'doc-2',
-    name: 'Dr. Priya Sharma',
-    email: 'priya.sharma@example.com',
-    phone: '+91 98765 43211',
-    specialty: 'Pediatrician',
-    clinic: 'Central Hospital',
-    location: 'Mumbai, Maharashtra',
-    rating: 4.9,
-    totalConsultations: 189,
-    status: 'verified',
-    registeredAt: '2024-12-10',
-  },
-  {
-    id: 'doc-3',
-    name: 'Dr. Amit Patel',
-    email: 'amit.patel@example.com',
-    phone: '+91 98765 43212',
-    specialty: 'Cardiologist',
-    clinic: 'Heart Care Clinic',
-    location: 'Delhi, NCR',
-    rating: 4.7,
-    totalConsultations: 156,
-    status: 'pending',
-    registeredAt: '2025-01-05',
-  },
-  {
-    id: 'doc-4',
-    name: 'Dr. Sneha Reddy',
-    email: 'sneha.reddy@example.com',
-    phone: '+91 98765 43213',
-    specialty: 'Dermatologist',
-    clinic: 'Skin Care Center',
-    location: 'Bangalore, Karnataka',
-    rating: 4.6,
-    totalConsultations: 98,
-    status: 'verified',
-    registeredAt: '2024-11-20',
-  },
-]
+// Mock data removed - using real API now
 
 const AdminDoctors = () => {
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [doctors, setDoctors] = useState(mockDoctors)
+  const [doctors, setDoctors] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [processingId, setProcessingId] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingDoctor, setEditingDoctor] = useState(null)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectingDoctorId, setRejectingDoctorId] = useState(null)
+  const [rejectionReason, setRejectionReason] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -88,6 +48,128 @@ const AdminDoctors = () => {
     status: 'pending',
   })
 
+  // Load doctors from API
+  useEffect(() => {
+    loadDoctors()
+  }, [statusFilter])
+
+  const [allDoctors, setAllDoctors] = useState([]) // Store all doctors for stats
+
+  const loadDoctors = async () => {
+    try {
+      setLoading(true)
+      
+      // First, load ALL doctors for stats (no filters)
+      const allDoctorsResponse = await getDoctors({ page: 1, limit: 1000 })
+      if (allDoctorsResponse.success && allDoctorsResponse.data) {
+        const allTransformed = (allDoctorsResponse.data.items || []).map(doctor => ({
+          id: doctor._id || doctor.id,
+          name: `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim() || 'N/A',
+          email: doctor.email || '',
+          phone: doctor.phone || '',
+          specialty: doctor.specialization || '',
+          clinic: doctor.clinicDetails?.name || '',
+          location: doctor.clinicDetails?.address ? `${doctor.clinicDetails.address.city || ''}, ${doctor.clinicDetails.address.state || ''}`.trim() : '',
+          rating: doctor.rating || 0,
+          totalConsultations: 0, // TODO: Add when appointments API is ready
+          status: doctor.status === 'approved' ? 'verified' : doctor.status || 'pending',
+          registeredAt: doctor.createdAt || new Date().toISOString(),
+          rejectionReason: doctor.rejectionReason || '',
+        }))
+        setAllDoctors(allTransformed)
+      }
+      
+      // Then, load filtered doctors for display
+      const filters = {
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: searchTerm || undefined,
+        page: 1,
+        limit: 100,
+      }
+      const response = await getDoctors(filters)
+      
+      if (response.success && response.data) {
+        const transformedDoctors = (response.data.items || []).map(doctor => ({
+          id: doctor._id || doctor.id,
+          name: `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim() || 'N/A',
+          email: doctor.email || '',
+          phone: doctor.phone || '',
+          specialty: doctor.specialization || '',
+          clinic: doctor.clinicDetails?.name || '',
+          location: doctor.clinicDetails?.address ? `${doctor.clinicDetails.address.city || ''}, ${doctor.clinicDetails.address.state || ''}`.trim() : '',
+          rating: doctor.rating || 0,
+          totalConsultations: 0, // TODO: Add when appointments API is ready
+          status: doctor.status === 'approved' ? 'verified' : doctor.status || 'pending',
+          registeredAt: doctor.createdAt || new Date().toISOString(),
+          rejectionReason: doctor.rejectionReason || '',
+        }))
+        setDoctors(transformedDoctors)
+      }
+    } catch (error) {
+      console.error('Error loading doctors:', error)
+      toast.error(error.message || 'Failed to load doctors')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleApprove = async (doctorId) => {
+    try {
+      setProcessingId(doctorId)
+      const response = await verifyDoctor(doctorId)
+      
+      if (response.success) {
+        toast.success('Doctor approved successfully')
+        await loadDoctors()
+      }
+    } catch (error) {
+      console.error('Error approving doctor:', error)
+      toast.error(error.message || 'Failed to approve doctor')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleRejectClick = (doctorId) => {
+    setRejectingDoctorId(doctorId)
+    setRejectionReason('')
+    setShowRejectModal(true)
+  }
+
+  const handleReject = async () => {
+    if (!rejectingDoctorId) return
+    if (!rejectionReason.trim()) {
+      toast.warning('Please provide a reason for rejection.')
+      return
+    }
+
+    try {
+      setProcessingId(rejectingDoctorId)
+      const response = await rejectDoctor(rejectingDoctorId, rejectionReason.trim())
+      
+      if (response.success) {
+        toast.success('Doctor rejected successfully')
+        await loadDoctors()
+        setShowRejectModal(false)
+        setRejectingDoctorId(null)
+        setRejectionReason('')
+      }
+    } catch (error) {
+      console.error('Error rejecting doctor:', error)
+      toast.error(error.message || 'Failed to reject doctor')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  // Update doctors when search term changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadDoctors()
+    }, 500)
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm])
+
   const filteredDoctors = doctors.filter((doctor) => {
     const matchesSearch =
       doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -95,9 +177,7 @@ const AdminDoctors = () => {
       doctor.specialty.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doctor.clinic.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = statusFilter === 'all' || doctor.status === statusFilter
-    
-    return matchesSearch && matchesStatus
+    return matchesSearch
   })
 
   const formatDate = (dateString) => {
@@ -261,7 +341,7 @@ const AdminDoctors = () => {
           }`}
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Doctors</p>
-          <p className="mt-0.5 text-2xl font-bold text-slate-900">{doctors.length}</p>
+          <p className="mt-0.5 text-2xl font-bold text-slate-900">{allDoctors.length}</p>
         </button>
         <button
           onClick={() => setStatusFilter('verified')}
@@ -271,7 +351,7 @@ const AdminDoctors = () => {
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verified</p>
           <p className="mt-1 text-2xl font-bold text-emerald-600">
-            {doctors.filter((d) => d.status === 'verified').length}
+            {allDoctors.filter((d) => d.status === 'verified' || d.status === 'approved').length}
           </p>
         </button>
         <button
@@ -282,20 +362,24 @@ const AdminDoctors = () => {
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Pending</p>
           <p className="mt-1 text-2xl font-bold text-amber-600">
-            {doctors.filter((d) => d.status === 'pending').length}
+            {allDoctors.filter((d) => d.status === 'pending').length}
           </p>
         </button>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Appointments</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">
-            {doctors.reduce((sum, d) => sum + d.totalConsultations, 0)}
+            {allDoctors.reduce((sum, d) => sum + d.totalConsultations, 0)}
           </p>
         </div>
       </div>
 
       {/* Doctors List */}
       <div className="space-y-2">
-        {filteredDoctors.length === 0 ? (
+        {loading ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
+            <p className="text-slate-600">Loading doctors...</p>
+          </div>
+        ) : filteredDoctors.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No doctors found</p>
           </div>
@@ -329,24 +413,34 @@ const AdminDoctors = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-start gap-2">
+                    <div className="flex shrink-0 items-start gap-2 flex-col">
                       {getStatusBadge(doctor.status)}
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(doctor)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[#11496c] hover:bg-[rgba(17,73,108,0.1)] transition-colors"
-                        aria-label="Edit doctor"
-                      >
-                        <IoCreateOutline className="h-5 w-5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(doctor.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-                        aria-label="Delete doctor"
-                      >
-                        <IoTrashOutline className="h-5 w-5" />
-                      </button>
+                      {doctor.status === 'pending' && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={() => handleApprove(doctor.id)}
+                            disabled={processingId === doctor.id}
+                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
+                          >
+                            {processingId === doctor.id ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRejectClick(doctor.id)}
+                            disabled={processingId === doctor.id}
+                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                      {doctor.status === 'rejected' && doctor.rejectionReason && (
+                        <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-2 max-w-xs">
+                          <p className="text-xs font-semibold text-red-700 mb-1">Rejection Reason:</p>
+                          <p className="text-xs text-red-600">{doctor.rejectionReason}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
@@ -502,6 +596,78 @@ const AdminDoctors = () => {
                 className="rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0e3a52]"
               >
                 {editingDoctor ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Doctor Modal */}
+      {showRejectModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => {
+            setShowRejectModal(false)
+            setRejectingDoctorId(null)
+            setRejectionReason('')
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h2 className="text-lg font-semibold text-slate-900">Reject Doctor</h2>
+              <button
+                onClick={() => {
+                  setShowRejectModal(false)
+                  setRejectingDoctorId(null)
+                  setRejectionReason('')
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <IoCloseOutline className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm text-slate-600 mb-3">
+                  Please provide a reason for rejecting this doctor. This reason will be visible to the doctor.
+                </p>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Rejection Reason *
+                </label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Enter the reason for rejection..."
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 resize-none"
+                />
+                {!rejectionReason.trim() && (
+                  <p className="mt-1 text-xs text-red-600">Reason is required</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+              <button
+                onClick={() => {
+                  setShowRejectModal(false)
+                  setRejectingDoctorId(null)
+                  setRejectionReason('')
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectionReason.trim() || processingId === rejectingDoctorId}
+                className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
+              >
+                {processingId === rejectingDoctorId ? 'Processing...' : 'Confirm Reject'}
               </button>
             </div>
           </div>

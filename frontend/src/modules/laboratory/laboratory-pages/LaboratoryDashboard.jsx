@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LaboratoryNavbar from '../laboratory-components/LaboratoryNavbar'
 import LaboratorySidebar from '../laboratory-components/LaboratorySidebar'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoBagHandleOutline,
   IoDocumentTextOutline,
@@ -329,6 +330,7 @@ const getStatusIcon = (status) => {
 
 const LaboratoryDashboard = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
@@ -483,45 +485,30 @@ const LaboratoryDashboard = () => {
         const todayStart = today.toISOString()
         const todayEnd = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString()
 
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/labs/leads?startDate=${todayStart}&endDate=${todayEnd}&limit=10&status=new,accepted`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.leads && data.leads.length > 0) {
-            // Transform leads to orders format
-            const transformedOrders = data.leads.map(lead => ({
-              _id: lead._id,
-              id: lead._id,
-              patient: lead.patient,
-              patientName: lead.patient?.firstName && lead.patient?.lastName 
-                ? `${lead.patient.firstName} ${lead.patient.lastName}` 
-                : lead.patient?.name || 'Unknown',
-              patientImage: lead.patient?.profileImage,
-              status: lead.status === 'accepted' ? 'ready' : lead.status === 'new' ? 'pending' : lead.status,
-              totalAmount: lead.billingSummary?.totalAmount || lead.amount || 0,
-              deliveryType: lead.homeCollectionRequested ? 'home' : 'pickup',
-              testRequestId: lead._id,
-              tests: lead.tests || lead.investigations || [],
-              time: lead.createdAt ? new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
-              createdAt: lead.createdAt,
-            }))
-            setTodayOrders(transformedOrders)
-          } else {
-            // If no data from API, use mock data
-            setTodayOrders(mockTodayOrdersData)
-          }
-        } else {
-          // If API fails, use mock data
-          setTodayOrders(mockTodayOrdersData)
-        }
+        // TODO: Backend endpoint not implemented yet - using mock data
+        // When backend implements: GET /api/laboratories/orders or /api/laboratories/leads
+        // const response = await fetch(
+        //   `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/laboratories/orders?startDate=${todayStart}&endDate=${todayEnd}&limit=10&status=new,accepted`,
+        //   {
+        //     headers: {
+        //       'Authorization': `Bearer ${token}`,
+        //       'Content-Type': 'application/json',
+        //     },
+        //   }
+        // )
+        // if (response.ok) {
+        //   const data = await response.json()
+        //   if (data.success && data.orders && data.orders.length > 0) {
+        //     setTodayOrders(data.orders)
+        //   } else {
+        //     setTodayOrders(mockTodayOrdersData)
+        //   }
+        // } else {
+        //   setTodayOrders(mockTodayOrdersData)
+        // }
+        
+        // Using mock data until backend endpoint is implemented
+        setTodayOrders(mockTodayOrdersData)
       } catch (error) {
         console.error('Error fetching today orders:', error)
         // Fallback to mock data on error
@@ -604,23 +591,23 @@ const LaboratoryDashboard = () => {
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file)
     } else {
-      alert('Please select a PDF file')
+      toast.warning('Please select a PDF file')
     }
   }
 
   const handleSendToPatient = async () => {
     if (!selectedFile) {
-      alert('Please select a PDF file')
+      toast.warning('Please select a PDF file')
       return
     }
     if (!selectedPatient) {
-      alert('Please select a patient')
+      toast.warning('Please select a patient')
       return
     }
 
     const patient = mockPatients.find(p => p.id === selectedPatient)
     if (!patient) {
-      alert('Patient not found')
+      toast.error('Patient not found')
       return
     }
 
@@ -676,7 +663,7 @@ const LaboratoryDashboard = () => {
     } catch (error) {
       setUploadStatus('error')
       setUploadProgress(0)
-      alert('Failed to send PDF. Please try again.')
+      toast.error('Failed to send PDF. Please try again.')
     } finally {
       setIsSending(false)
     }

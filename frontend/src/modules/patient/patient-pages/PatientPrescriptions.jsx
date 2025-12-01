@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import jsPDF from 'jspdf'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoDocumentTextOutline,
   IoCalendarOutline,
@@ -245,6 +246,7 @@ const formatDate = (dateString) => {
 
 const PatientPrescriptions = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedPrescription, setSelectedPrescription] = useState(null)
   const [filter, setFilter] = useState('all') // all, active, completed
@@ -691,7 +693,7 @@ const PatientPrescriptions = () => {
       doc.save(fileName)
     } catch (error) {
       console.error('Error generating PDF:', error)
-      alert('Error generating PDF. Please try again.')
+      toast.error('Error generating PDF. Please try again.')
     }
   }
 
@@ -708,7 +710,7 @@ const PatientPrescriptions = () => {
       }, 100)
     } catch (error) {
       console.error('Error viewing PDF:', error)
-      alert('Error generating PDF. Please try again.')
+      toast.error('Error generating PDF. Please try again.')
     }
   }
 
@@ -851,10 +853,10 @@ const PatientPrescriptions = () => {
       setTestVisitPrescription(null)
 
       // Show success message
-      alert('Home sample collection request sent to admin successfully! Admin will review and approve your request.')
+      toast.success('Home sample collection request sent to admin successfully! Admin will review and approve your request.')
     } catch (error) {
       console.error('Error sending home test visit request:', error)
-      alert('Error sending request. Please try again.')
+      toast.error('Error sending request. Please try again.')
     }
   }
 
@@ -959,10 +961,10 @@ const PatientPrescriptions = () => {
       setTestVisitPrescription(null)
 
       // Show success message
-      alert('Lab visit request sent to admin successfully! Admin will review and approve your request.')
+      toast.success('Lab visit request sent to admin successfully! Admin will review and approve your request.')
     } catch (error) {
       console.error('Error sending lab visit request:', error)
-      alert('Error sending request. Please try again.')
+      toast.error('Error sending request. Please try again.')
     }
   }
 
@@ -1008,10 +1010,10 @@ const PatientPrescriptions = () => {
       localStorage.setItem('adminRequests', JSON.stringify(existingRequests))
 
       // Show success message
-      alert('Medicine order request sent to admin successfully!')
+      toast.success('Medicine order request sent to admin successfully!')
     } catch (error) {
       console.error('Error sending medicine order request:', error)
-      alert('Error sending request. Please try again.')
+      toast.error('Error sending request. Please try again.')
     }
   }
 
@@ -1218,7 +1220,7 @@ const PatientPrescriptions = () => {
       setTimeout(() => {
         setIsSharingLabReport(false)
         handleCloseLabShareModal()
-        alert(`Report shared successfully with ${selectedDoctor.name}`)
+        toast.success(`Report shared successfully with ${selectedDoctor.name}`)
       }, 1000)
     } else {
       // Share with other doctor - requires booking
@@ -1246,7 +1248,7 @@ const PatientPrescriptions = () => {
       setTimeout(() => {
         setIsSharingLabReport(false)
         handleCloseLabShareModal()
-        alert(`Report "${selectedLabReport.testName}" will be shared with ${selectedDoctor.name} after booking appointment.`)
+        toast.info(`Report "${selectedLabReport.testName}" will be shared with ${selectedDoctor.name} after booking appointment.`)
         // Navigate to doctor details page with booking modal
         navigate(`/patient/doctors/${selectedLabDoctorId}?book=true`)
       }, 1000)
