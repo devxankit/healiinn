@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoArrowBackOutline,
@@ -11,74 +11,11 @@ import {
   IoCheckmarkCircleOutline,
   IoTimeOutline,
 } from 'react-icons/io5'
+import { getPatientReports, downloadReport, shareLabReport } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data for lab reports
-const mockLabReports = [
-  {
-    id: 'report-1',
-    testName: 'Complete Blood Count (CBC)',
-    labName: 'MediCare Diagnostics',
-    labId: 'lab-1',
-    date: '2025-01-10',
-    status: 'ready',
-    downloadUrl: '#',
-    doctorId: 'doc-1', // Doctor with whom appointment was booked
-    doctorName: 'Dr. Sarah Mitchell',
-    doctorSpecialty: 'Cardiology',
-    doctorImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    // PDF file uploaded by lab
-    pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
-    pdfFileName: 'CBC_Report_2025-01-10.pdf',
-  },
-  {
-    id: 'report-2',
-    testName: 'Lipid Profile',
-    labName: 'HealthFirst Lab',
-    labId: 'lab-2',
-    date: '2025-01-08',
-    status: 'ready',
-    downloadUrl: '#',
-    doctorId: 'doc-2',
-    doctorName: 'Dr. John Smith',
-    doctorSpecialty: 'General Medicine',
-    doctorImage: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-    // PDF file uploaded by lab
-    pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
-    pdfFileName: 'Lipid_Profile_2025-01-08.pdf',
-  },
-  {
-    id: 'report-3',
-    testName: 'Thyroid Function Test',
-    labName: 'Precision Labs',
-    labId: 'lab-3',
-    date: '2025-01-12',
-    status: 'ready',
-    downloadUrl: '#',
-    doctorId: 'doc-1',
-    doctorName: 'Dr. Sarah Mitchell',
-    doctorSpecialty: 'Cardiology',
-    doctorImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    // PDF file uploaded by lab
-    pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
-    pdfFileName: 'Thyroid_Function_Test_2025-01-12.pdf',
-  },
-  {
-    id: 'report-4',
-    testName: 'Liver Function Test',
-    labName: 'MediCare Diagnostics',
-    labId: 'lab-1',
-    date: '2025-01-15',
-    status: 'ready',
-    downloadUrl: '#',
-    doctorId: null, // No doctor associated
-    doctorName: null,
-    doctorSpecialty: null,
-    doctorImage: null,
-    // PDF file uploaded by lab
-    pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
-    pdfFileName: 'Liver_Function_Test_2025-01-15.pdf',
-  },
-]
+// Default reports (will be replaced by API data)
+const defaultReports = []
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -94,38 +31,90 @@ const formatDate = (dateString) => {
 
 const PatientReports = () => {
   const navigate = useNavigate()
+  const toast = useToast()
+  const [reports, setReports] = useState(defaultReports)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showShareModal, setShowShareModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [selectedReport, setSelectedReport] = useState(null)
   const [isSharing, setIsSharing] = useState(false)
 
-  // Mock doctors list for sharing
-  const mockDoctors = [
-    {
-      id: 'doc-1',
-      name: 'Dr. Sarah Mitchell',
-      specialty: 'Cardiology',
-      image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    },
-    {
-      id: 'doc-2',
-      name: 'Dr. John Smith',
-      specialty: 'General Medicine',
-      image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-    },
-    {
-      id: 'doc-3',
-      name: 'Dr. James Wilson',
-      specialty: 'Orthopedic',
-      image: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80',
-    },
-    {
-      id: 'doc-4',
-      name: 'Dr. Emily Chen',
-      specialty: 'Neurology',
-      image: 'https://images.unsplash.com/photo-1594824476968-48fd8d2d7dc2?auto=format&fit=crop&w=400&q=80',
-    },
-  ]
+  // Fetch reports from API
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPatientReports()
+        
+        if (response.success && response.data) {
+          const reportsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          
+          const transformed = reportsData.map(report => ({
+            id: report._id || report.id,
+            _id: report._id || report.id,
+            testName: report.testName || report.test?.name || 'Lab Test',
+            labName: report.laboratoryId?.labName || report.labName || 'Laboratory',
+            labId: report.laboratoryId?._id || report.laboratoryId || report.labId,
+            date: report.createdAt || report.date || new Date().toISOString().split('T')[0],
+            status: report.status || 'ready',
+            downloadUrl: report.pdfFileUrl || '#',
+            pdfFileUrl: report.pdfFileUrl || null,
+            pdfFileName: report.pdfFileName || `${report.testName || 'Report'}_${new Date(report.createdAt || Date.now()).toISOString().split('T')[0]}.pdf`,
+            doctorId: report.doctorId || null,
+            doctorName: report.doctorId?.name || null,
+            doctorSpecialty: report.doctorId?.specialty || null,
+            doctorImage: report.doctorId?.image || null,
+            originalData: report,
+          }))
+          
+          setReports(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching reports:', err)
+        setError(err.message || 'Failed to load reports')
+        toast.error('Failed to load reports')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchReports()
+  }, [toast])
+
+  // Get doctors for sharing (using discovery API)
+  const [doctors, setDoctors] = useState([])
+  
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const { getDiscoveryDoctors } = await import('../patient-services/patientService')
+        const response = await getDiscoveryDoctors()
+        if (response.success && response.data) {
+          const doctorsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          const transformed = doctorsData.map(doctor => ({
+            id: doctor._id || doctor.id,
+            name: doctor.firstName && doctor.lastName
+              ? `Dr. ${doctor.firstName} ${doctor.lastName}`
+              : doctor.name || 'Dr. Unknown',
+            specialty: doctor.specialization || doctor.specialty || 'General',
+            image: doctor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
+          }))
+          setDoctors(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching doctors for sharing:', err)
+      }
+    }
+    fetchDoctors()
+  }, [])
+
+  // Doctors list loaded from API - no mock data
 
   const [selectedDoctorId, setSelectedDoctorId] = useState(null)
 
@@ -158,83 +147,87 @@ const PatientReports = () => {
   }
 
   const handleShareWithDoctor = async () => {
-    if (!selectedReport) return
+    if (!selectedReport || !selectedDoctorId) return
 
     setIsSharing(true)
     
-    const patientId = 'pat-current' // In real app, get from auth
-    const selectedDoctor = mockDoctors.find(doc => doc.id === selectedDoctorId)
-    
-    // If sharing with associated doctor (direct share)
-    if (selectedReport.doctorId && selectedDoctorId === selectedReport.doctorId) {
-      // Direct share - save to localStorage for doctor to access
+    try {
+      const selectedDoctor = doctors.find(doc => (doc.id || doc._id) === selectedDoctorId)
+      const reportId = selectedReport._id || selectedReport.id
+      const doctorId = selectedDoctorId
+      
+      // Try to find consultation ID if patient has appointment with this doctor
+      let consultationId = null
       try {
-        const sharedReport = {
-          ...selectedReport,
-          sharedWithDoctorId: selectedDoctorId,
-          sharedAt: new Date().toISOString(),
-          patientId: patientId,
-          // Ensure PDF URL is included
-          pdfFileUrl: selectedReport.pdfFileUrl || selectedReport.downloadUrl,
-          pdfFileName: selectedReport.pdfFileName || `${selectedReport.testName?.replace(/\s+/g, '_') || 'Report'}_${selectedReport.date || 'Report'}.pdf`,
-        }
-        
-        // Save to patient-specific key
-        const sharedReportsKey = `sharedLabReports_${patientId}`
-        const existingReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
-        // Check if already shared
-        const alreadyShared = existingReports.find(r => r.id === selectedReport.id && r.sharedWithDoctorId === selectedDoctorId)
-        if (!alreadyShared) {
-          existingReports.push(sharedReport)
-          localStorage.setItem(sharedReportsKey, JSON.stringify(existingReports))
-        }
-        
-        // Also save to doctor-specific key for easy access
-        const doctorSharedReportsKey = `doctorSharedLabReports_${selectedDoctorId}`
-        const doctorReports = JSON.parse(localStorage.getItem(doctorSharedReportsKey) || '[]')
-        if (!doctorReports.find(r => r.id === selectedReport.id && r.patientId === patientId)) {
-          doctorReports.push(sharedReport)
-          localStorage.setItem(doctorSharedReportsKey, JSON.stringify(doctorReports))
+        const { getPatientAppointments } = await import('../patient-services/patientService')
+        const appointmentsResponse = await getPatientAppointments({ doctor: doctorId, status: 'completed' })
+        if (appointmentsResponse.success && appointmentsResponse.data) {
+          const appointments = Array.isArray(appointmentsResponse.data) 
+            ? appointmentsResponse.data 
+            : appointmentsResponse.data.items || []
+          // Get the most recent completed appointment
+          const recentAppointment = appointments
+            .filter(apt => {
+              const aptDoctorId = apt.doctorId?._id || apt.doctorId?.id || apt.doctorId
+              return aptDoctorId === doctorId && (apt.status === 'completed' || apt.status === 'visited')
+            })
+            .sort((a, b) => {
+              const dateA = new Date(a.appointmentDate || a.createdAt || 0)
+              const dateB = new Date(b.appointmentDate || b.createdAt || 0)
+              return dateB - dateA
+            })[0]
+          
+          if (recentAppointment?.consultationId) {
+            consultationId = recentAppointment.consultationId._id || recentAppointment.consultationId
+          }
         }
       } catch (error) {
-        console.error('Error saving shared report:', error)
+        console.error('Error fetching consultation ID:', error)
+        // Continue without consultationId
       }
       
-      setTimeout(() => {
-        setIsSharing(false)
+      // Share report via API
+      const response = await shareLabReport(reportId, doctorId, consultationId)
+      
+      if (response.success) {
+        toast.success(`Report shared successfully with ${selectedDoctor?.name || 'doctor'}`)
         handleCloseShareModal()
-        alert(`Report shared successfully with ${selectedReport.doctorName}`)
-      }, 1000)
-    } else if (selectedDoctorId && selectedDoctor) {
-      // Share with other doctor - requires booking, but save for when appointment is booked
-      try {
-        const sharedReport = {
-          ...selectedReport,
-          sharedWithDoctorId: selectedDoctorId,
-          sharedAt: new Date().toISOString(),
-          patientId: patientId,
-          pendingAppointment: true, // Mark as pending appointment
-        }
         
-        // Save to patient-specific key
-        const sharedReportsKey = `sharedLabReports_${patientId}`
-        const existingReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
-        const alreadyShared = existingReports.find(r => r.id === selectedReport.id && r.sharedWithDoctorId === selectedDoctorId)
-        if (!alreadyShared) {
-          existingReports.push(sharedReport)
-          localStorage.setItem(sharedReportsKey, JSON.stringify(existingReports))
+        // Refresh reports to get updated shared status
+        const reportsResponse = await getPatientReports()
+        if (reportsResponse.success && reportsResponse.data) {
+          const reportsData = Array.isArray(reportsResponse.data) 
+            ? reportsResponse.data 
+            : reportsResponse.data.items || []
+          
+          const transformed = reportsData.map(report => ({
+            id: report._id || report.id,
+            _id: report._id || report.id,
+            testName: report.testName || report.test?.name || 'Lab Test',
+            labName: report.laboratoryId?.labName || report.labName || 'Laboratory',
+            labId: report.laboratoryId?._id || report.laboratoryId || report.labId,
+            date: report.createdAt || report.date || new Date().toISOString().split('T')[0],
+            status: report.status || 'ready',
+            downloadUrl: report.pdfFileUrl || '#',
+            pdfFileUrl: report.pdfFileUrl || null,
+            pdfFileName: report.pdfFileName || `${report.testName || 'Report'}_${new Date(report.createdAt || Date.now()).toISOString().split('T')[0]}.pdf`,
+            doctorId: report.doctorId || null,
+            doctorName: report.doctorId?.name || null,
+            doctorSpecialty: report.doctorId?.specialty || null,
+            doctorImage: report.doctorId?.image || null,
+            originalData: report,
+          }))
+          
+          setReports(transformed)
+        }
+      } else {
+        toast.error(response.message || 'Failed to share report. Please try again.')
         }
       } catch (error) {
-        console.error('Error saving shared report:', error)
-      }
-      
-      setTimeout(() => {
+      console.error('Error sharing report:', error)
+      toast.error(error.message || 'Failed to share report. Please try again.')
+    } finally {
         setIsSharing(false)
-        handleCloseShareModal()
-        alert(`Report "${selectedReport.testName}" will be shared with ${selectedDoctor.name} after booking appointment.`)
-        // Navigate to doctor details page with booking modal
-        navigate(`/patient/doctors/${selectedDoctorId}?book=true`)
-      }, 1000)
     }
   }
 
@@ -433,8 +426,23 @@ const PatientReports = () => {
       </header>
 
       <main className="px-4 py-6 sm:px-6">
-        <div className="grid grid-cols-1 gap-4">
-          {mockLabReports.map((report) => (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-sm font-medium text-slate-600">Loading reports...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-sm font-medium text-red-600">Error: {error}</p>
+            <p className="mt-1 text-xs text-red-500">Please try again later.</p>
+          </div>
+        ) : reports.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-sm font-medium text-slate-600">No reports found</p>
+            <p className="mt-1 text-xs text-slate-500">No lab reports available at the moment.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {reports.map((report) => (
             <article
               key={report.id}
               className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md flex flex-col min-h-[180px]"
@@ -494,8 +502,9 @@ const PatientReports = () => {
                 </button>
               </div>
             </article>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Share Modal */}
@@ -557,36 +566,40 @@ const PatientReports = () => {
                   Other Doctors {selectedReport.doctorId && '(Requires Booking)'}:
                 </p>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {mockDoctors
-                    .filter((doc) => !selectedReport.doctorId || doc.id !== selectedReport.doctorId)
-                    .map((doctor) => (
-                      <button
-                        key={doctor.id}
-                        type="button"
-                        onClick={() => setSelectedDoctorId(doctor.id)}
-                        className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
-                          selectedDoctorId === doctor.id
-                            ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={doctor.image}
-                            alt={doctor.name}
-                            className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100"
-                          />
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-slate-900">{doctor.name}</h3>
-                            <p className="text-xs text-slate-600">{doctor.specialty}</p>
+                  {doctors.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-4">No doctors available. Please try again later.</p>
+                  ) : (
+                    doctors
+                      .filter((doc) => !selectedReport.doctorId || doc.id !== selectedReport.doctorId)
+                      .map((doctor) => (
+                        <button
+                          key={doctor.id}
+                          type="button"
+                          onClick={() => setSelectedDoctorId(doctor.id)}
+                          className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
+                            selectedDoctorId === doctor.id
+                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={doctor.image}
+                              alt={doctor.name}
+                              className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100"
+                            />
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-slate-900">{doctor.name}</h3>
+                              <p className="text-xs text-slate-600">{doctor.specialty}</p>
+                            </div>
+                            {selectedDoctorId === doctor.id && (
+                              <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
+                            )}
                           </div>
-                          {selectedDoctorId === doctor.id && (
-                            <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
-                          )}
-                        </div>
-                        <p className="mt-2 text-xs text-amber-600">⚠ Requires booking appointment</p>
-                      </button>
-                    ))}
+                          <p className="mt-2 text-xs text-amber-600">⚠ Requires booking appointment</p>
+                        </button>
+                      ))
+                  )}
                 </div>
               </div>
 

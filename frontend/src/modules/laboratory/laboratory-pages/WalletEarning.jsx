@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   IoArrowDownOutline,
   IoCalendarOutline,
@@ -7,56 +7,17 @@ import {
   IoTrendingUpOutline,
   IoTrendingDownOutline,
 } from 'react-icons/io5'
+import { getLaboratoryWalletEarnings } from '../laboratory-services/laboratoryService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data
-const mockEarningData = {
-  totalEarnings: 245420.25,
-  thisMonthEarnings: 18500.00,
-  lastMonthEarnings: 16200.50,
-  thisYearEarnings: 245420.25,
-  todayEarnings: 1200.00,
-  earnings: [
-    {
-      id: 'earn-1',
-      amount: 3500.00,
-      description: 'Test order payment - Order #2001 - Patient: John Doe',
-      date: '2025-01-15T10:30:00',
-      status: 'completed',
-      category: 'Test Order Payment',
-    },
-    {
-      id: 'earn-2',
-      amount: 4200.00,
-      description: 'Test order payment - Order #2003 - Patient: Mike Johnson',
-      date: '2025-01-13T09:15:00',
-      status: 'completed',
-      category: 'Test Order Payment',
-    },
-    {
-      id: 'earn-3',
-      amount: 2500.00,
-      description: 'Test order payment - Order #2002 - Patient: Sarah Smith',
-      date: '2025-01-12T16:45:00',
-      status: 'pending',
-      category: 'Test Order Payment',
-    },
-    {
-      id: 'earn-4',
-      amount: 2800.00,
-      description: 'Test order payment - Order #2004 - Patient: Emily Brown',
-      date: '2025-01-11T11:00:00',
-      status: 'completed',
-      category: 'Test Order Payment',
-    },
-    {
-      id: 'earn-5',
-      amount: 2000.00,
-      description: 'Test order payment - Order #2005 - Patient: David Wilson',
-      date: '2025-01-10T14:20:00',
-      status: 'completed',
-      category: 'Test Order Payment',
-    },
-  ],
+// Default earning data (will be replaced by API data)
+const defaultEarningData = {
+  totalEarnings: 0,
+  thisMonthEarnings: 0,
+  lastMonthEarnings: 0,
+  thisYearEarnings: 0,
+  todayEarnings: 0,
+  earnings: [],
 }
 
 const formatCurrency = (amount) => {
@@ -85,11 +46,54 @@ const formatDateTime = (dateString) => {
 }
 
 const WalletEarning = () => {
+  const toast = useToast()
   const [filterType, setFilterType] = useState('all') // all, today, year, month
+  const [earningData, setEarningData] = useState(defaultEarningData)
+  const [loading, setLoading] = useState(true)
 
-  const earningsChange = ((mockEarningData.thisMonthEarnings - mockEarningData.lastMonthEarnings) / mockEarningData.lastMonthEarnings) * 100
+  // Fetch earnings from API
+  useEffect(() => {
+    const fetchEarnings = async () => {
+      try {
+        setLoading(true)
+        const response = await getLaboratoryWalletEarnings()
+        
+        if (response.success && response.data) {
+          const data = response.data
+          setEarningData({
+            totalEarnings: data.totalEarnings || 0,
+            thisMonthEarnings: data.thisMonthEarnings || 0,
+            lastMonthEarnings: data.lastMonthEarnings || 0,
+            thisYearEarnings: data.thisYearEarnings || 0,
+            todayEarnings: data.todayEarnings || 0,
+            earnings: Array.isArray(data.earnings) 
+              ? data.earnings.map(earn => ({
+                  id: earn._id || earn.id,
+                  amount: earn.amount || 0,
+                  description: earn.description || earn.notes || 'Earning',
+                  date: earn.createdAt || earn.date || new Date().toISOString(),
+                  status: earn.status || 'completed',
+                  category: earn.category || 'Test Order Payment',
+                }))
+              : [],
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching earnings:', err)
+        toast.error('Failed to load earnings')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const filteredEarnings = mockEarningData.earnings.filter((earning) => {
+    fetchEarnings()
+  }, [toast])
+
+  const earningsChange = earningData.lastMonthEarnings > 0
+    ? ((earningData.thisMonthEarnings - earningData.lastMonthEarnings) / earningData.lastMonthEarnings) * 100
+    : 0
+
+  const filteredEarnings = earningData.earnings.filter((earning) => {
     if (filterType === 'all') return true
     // In a real app, you would filter by date range
     return true
@@ -106,7 +110,7 @@ const WalletEarning = () => {
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1">
               <p className="text-sm font-medium text-white/80 mb-1">Total Earnings</p>
-              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(mockEarningData.totalEarnings)}</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(earningData.totalEarnings)}</p>
             </div>
             <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
               <IoArrowDownOutline className="h-8 w-8 sm:h-10 sm:w-10" />
@@ -119,12 +123,12 @@ const WalletEarning = () => {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Today</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockEarningData.todayEarnings)}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(earningData.todayEarnings)}</p>
         </div>
 
         <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Month</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockEarningData.thisMonthEarnings)}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(earningData.thisMonthEarnings)}</p>
           <div className="mt-2 flex items-center gap-1 text-xs">
             {earningsChange >= 0 ? (
               <>
@@ -143,7 +147,7 @@ const WalletEarning = () => {
 
         <div className="rounded-2xl border border-[rgba(17,73,108,0.2)] bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">Year</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(mockEarningData.thisYearEarnings)}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(earningData.thisYearEarnings)}</p>
         </div>
       </div>
 

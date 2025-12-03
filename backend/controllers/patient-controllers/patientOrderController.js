@@ -7,8 +7,6 @@ const {
   sendOrderConfirmationEmail,
   sendProviderNewOrderNotification,
 } = require('../../services/notificationService');
-const { createOrderNotification } = require('../../services/inAppNotificationService');
-const { ROLES } = require('../../utils/constants');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -144,27 +142,6 @@ exports.createOrder = asyncHandler(async (req, res) => {
     }).catch((error) => console.error('Error sending provider new order notification:', error));
   } catch (error) {
     console.error('Error sending email notifications:', error);
-  }
-
-  // Create in-app notifications
-  try {
-    // Notification for patient
-    await createOrderNotification({
-      userId: id,
-      userType: ROLES.PATIENT,
-      order: order._id,
-      status: 'placed',
-    }).catch((error) => console.error('Error creating patient notification:', error));
-
-    // Notification for provider
-    await createOrderNotification({
-      userId: providerId,
-      userType: providerType === 'pharmacy' ? ROLES.PHARMACY : ROLES.LABORATORY,
-      order: order._id,
-      status: 'placed',
-    }).catch((error) => console.error('Error creating provider notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notifications:', error);
   }
 
   return res.status(201).json({

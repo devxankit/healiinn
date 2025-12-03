@@ -108,7 +108,9 @@ exports.getPatientHistory = asyncHandler(async (req, res) => {
     });
   }
 
-  const [appointments, consultations, prescriptions] = await Promise.all([
+  const LabReport = require('../../models/LabReport');
+
+  const [appointments, consultations, prescriptions, sharedReports] = await Promise.all([
     Appointment.find({ doctorId: id, patientId })
       .sort({ appointmentDate: -1 })
       .limit(10),
@@ -116,6 +118,14 @@ exports.getPatientHistory = asyncHandler(async (req, res) => {
       .sort({ consultationDate: -1 })
       .limit(10),
     Prescription.find({ doctorId: id, patientId })
+      .sort({ createdAt: -1 })
+      .limit(10),
+    LabReport.find({
+      patientId,
+      'sharedWith.doctorId': id,
+    })
+      .populate('laboratoryId', 'labName')
+      .populate('orderId', 'createdAt')
       .sort({ createdAt: -1 })
       .limit(10),
   ]);
@@ -126,6 +136,7 @@ exports.getPatientHistory = asyncHandler(async (req, res) => {
       appointments,
       consultations,
       prescriptions,
+      sharedLabReports: sharedReports,
     },
   });
 });

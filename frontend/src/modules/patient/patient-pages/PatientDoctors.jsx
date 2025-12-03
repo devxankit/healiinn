@@ -9,8 +9,11 @@ import {
 } from 'react-icons/io5'
 import { TbStethoscope } from 'react-icons/tb'
 import { MdOutlineEscalatorWarning } from 'react-icons/md'
+import { getDiscoveryDoctors, getSpecialties } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
-const specialties = [
+// Default specialties (will be replaced by API data)
+const defaultSpecialties = [
   { id: 'all', label: 'All Specialties', icon: TbStethoscope },
   { id: 'dentist', label: 'Dentist', icon: TbStethoscope },
   { id: 'cardio', label: 'Cardiology', icon: IoHeartOutline },
@@ -19,104 +22,8 @@ const specialties = [
   { id: 'general', label: 'General', icon: TbStethoscope },
 ]
 
-const mockDoctors = [
-  {
-    id: 'doc-1',
-    name: 'Dr. Alana Rueter',
-    specialty: 'Dentist',
-    experience: '12 years',
-    rating: 4.8,
-    reviewCount: 124,
-    consultationFee: 500,
-    distance: '1.2 km',
-    location: 'Sunrise Dental Care, New York',
-    availability: 'Available today',
-    nextSlot: '09:00 AM',
-    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'Spanish'],
-    education: 'MD, Dental Surgery',
-  },
-  {
-    id: 'doc-2',
-    name: 'Dr. Sarah Mitchell',
-    specialty: 'Cardiology',
-    experience: '15 years',
-    rating: 4.9,
-    reviewCount: 203,
-    consultationFee: 800,
-    distance: '2.5 km',
-    location: 'Heart Care Center, New York',
-    availability: 'Available tomorrow',
-    nextSlot: '10:30 AM',
-    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    languages: ['English'],
-    education: 'MD, Cardiology',
-  },
-  {
-    id: 'doc-3',
-    name: 'Dr. James Wilson',
-    specialty: 'Orthopedic',
-    experience: '18 years',
-    rating: 4.7,
-    reviewCount: 156,
-    consultationFee: 750,
-    distance: '3.1 km',
-    location: 'Bone & Joint Clinic, New York',
-    availability: 'Available today',
-    nextSlot: '02:00 PM',
-    image: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'French'],
-    education: 'MD, Orthopedic Surgery',
-  },
-  {
-    id: 'doc-4',
-    name: 'Dr. Emily Chen',
-    specialty: 'Neurology',
-    experience: '10 years',
-    rating: 4.6,
-    reviewCount: 89,
-    consultationFee: 900,
-    distance: '1.8 km',
-    location: 'Neuro Care Institute, New York',
-    availability: 'Available today',
-    nextSlot: '11:15 AM',
-    image: 'https://images.unsplash.com/photo-1594824476968-48fd8d2d7dc2?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'Mandarin'],
-    education: 'MD, Neurology',
-  },
-  {
-    id: 'doc-5',
-    name: 'Dr. Michael Brown',
-    specialty: 'General',
-    experience: '20 years',
-    rating: 4.9,
-    reviewCount: 312,
-    consultationFee: 600,
-    distance: '0.9 km',
-    location: 'Family Health Clinic, New York',
-    availability: 'Available today',
-    nextSlot: '03:30 PM',
-    image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031a?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'Spanish'],
-    education: 'MD, General Medicine',
-  },
-  {
-    id: 'doc-6',
-    name: 'Dr. Priya Sharma',
-    specialty: 'Dentist',
-    experience: '8 years',
-    rating: 4.5,
-    reviewCount: 67,
-    consultationFee: 450,
-    distance: '2.3 km',
-    location: 'Smile Dental Studio, New York',
-    availability: 'Available tomorrow',
-    nextSlot: '09:30 AM',
-    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'Hindi'],
-    education: 'BDS, Dental Surgery',
-  },
-]
+// Default doctors (will be replaced by API data)
+const defaultDoctors = []
 
 const renderStars = (rating) => {
   const stars = []
@@ -188,10 +95,137 @@ const isDoctorActive = (doctorName) => {
 
 const PatientDoctors = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [searchParams] = useSearchParams()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSpecialty, setSelectedSpecialty] = useState('all')
+  const [doctors, setDoctors] = useState(defaultDoctors)
+  const [specialtiesList, setSpecialtiesList] = useState(defaultSpecialties)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const sortBy = 'relevance' // Default sort: by rating (highest first)
+
+  // Fetch doctors and specialties from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // First fetch specialties to get the mapping
+        const specialtiesResponse = await getSpecialties().catch(() => ({ success: false, data: [] }))
+        
+        // Build filters object, only include defined values
+        const filters = {}
+        if (selectedSpecialty && selectedSpecialty !== 'all') {
+          // Find the actual specialty name from the list
+          let specialtyName = selectedSpecialty
+          if (specialtiesResponse.success && specialtiesResponse.data) {
+            const specialtiesData = Array.isArray(specialtiesResponse.data) 
+              ? specialtiesResponse.data 
+              : []
+            const specialtyObj = specialtiesData.find(s => {
+              const sName = typeof s === 'string' ? s : (s.name || s.label || '')
+              const sId = sName.toLowerCase().replace(/\s+/g, '_')
+              return sId === selectedSpecialty
+            })
+            if (specialtyObj) {
+              specialtyName = typeof specialtyObj === 'string' ? specialtyObj : (specialtyObj.name || specialtyObj.label || selectedSpecialty)
+            } else {
+              // Fallback: try to convert ID back to name format
+              specialtyName = selectedSpecialty.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+            }
+          } else {
+            // Fallback: try to convert ID back to name format
+            specialtyName = selectedSpecialty.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+          }
+          filters.specialty = specialtyName
+        }
+        if (searchTerm && searchTerm.trim()) {
+          filters.search = searchTerm.trim()
+        }
+        
+        const doctorsResponse = await getDiscoveryDoctors(filters)
+        
+        if (doctorsResponse.success && doctorsResponse.data) {
+          const doctorsData = Array.isArray(doctorsResponse.data) 
+            ? doctorsResponse.data 
+            : doctorsResponse.data.items || []
+          
+          const transformed = doctorsData.map(doctor => ({
+            id: doctor._id || doctor.id,
+            _id: doctor._id || doctor.id,
+            name: doctor.firstName && doctor.lastName
+              ? `Dr. ${doctor.firstName} ${doctor.lastName}`
+              : doctor.name || 'Dr. Unknown',
+            specialty: doctor.specialization || doctor.specialty || 'General',
+            experience: doctor.experienceYears 
+              ? `${doctor.experienceYears} years` 
+              : doctor.experience || 'N/A',
+            rating: doctor.rating || 0,
+            reviewCount: doctor.reviewCount || 0,
+            consultationFee: doctor.consultationFee || 0,
+            distance: doctor.distance || 'N/A',
+            location: doctor.clinicDetails?.name 
+              ? `${doctor.clinicDetails.name}, ${doctor.clinicDetails.address?.city || ''}`
+              : doctor.location || 'Location not available',
+            availability: 'Available', // TODO: Calculate from schedule
+            nextSlot: 'N/A', // TODO: Get from schedule
+            image: doctor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
+            languages: doctor.languages || ['English'],
+            education: doctor.qualification || doctor.education || 'MBBS',
+            bio: doctor.bio || '',
+            originalData: doctor,
+          }))
+          
+          setDoctors(transformed)
+        }
+        
+        if (specialtiesResponse.success && specialtiesResponse.data) {
+          const specialtiesData = Array.isArray(specialtiesResponse.data) 
+            ? specialtiesResponse.data 
+            : specialtiesResponse.data.specialties || []
+          
+          // Handle both string array and object array
+          const processedSpecialties = specialtiesData.map(s => {
+            if (typeof s === 'string') {
+              return {
+                id: s.toLowerCase().replace(/\s+/g, '_'),
+                label: s,
+                name: s,
+              }
+            }
+            return {
+              id: (s.name || s.label || s).toLowerCase().replace(/\s+/g, '_'),
+              label: s.name || s.label || s,
+              name: s.name || s.label || s,
+            }
+          })
+          
+          if (processedSpecialties.length > 0) {
+            setSpecialtiesList([
+              { id: 'all', label: 'All Specialties', icon: TbStethoscope, name: 'all' },
+              ...processedSpecialties.map(s => ({
+                id: s.id,
+                label: s.label,
+                name: s.name,
+                icon: TbStethoscope,
+              })),
+            ])
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching doctors:', err)
+        setError(err.message || 'Failed to load doctors')
+        toast.error('Failed to load doctors')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSpecialty, searchTerm, toast])
 
   // Set specialty from URL query parameter
   useEffect(() => {
@@ -204,16 +238,21 @@ const PatientDoctors = () => {
   const filteredDoctors = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
 
-    let filtered = mockDoctors.filter((doctor) => {
+    let filtered = doctors.filter((doctor) => {
       // Filter by active status first
       if (!isDoctorActive(doctor.name)) {
         return false
       }
       // Filter by specialty
       if (selectedSpecialty !== 'all') {
-        const doctorSpecialty = doctor.specialty.toLowerCase()
-        const selectedSpecialtyLower = selectedSpecialty.toLowerCase()
-        if (doctorSpecialty !== selectedSpecialtyLower) {
+        // Find the actual specialty name from the list
+        const specialtyObj = specialtiesList.find(s => s.id === selectedSpecialty)
+        const selectedSpecialtyName = specialtyObj?.name || selectedSpecialty.replace(/_/g, ' ')
+        const doctorSpecialty = (doctor.specialty || '').toLowerCase()
+        const selectedSpecialtyLower = selectedSpecialtyName.toLowerCase()
+        
+        // Match by name (case-insensitive, partial match)
+        if (!doctorSpecialty.includes(selectedSpecialtyLower) && !selectedSpecialtyLower.includes(doctorSpecialty)) {
           return false
         }
       }
@@ -309,7 +348,7 @@ const PatientDoctors = () => {
 
       {/* Specialty Filters - Scrollable */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch]">
-        {specialties.map((specialty) => {
+        {specialtiesList.map((specialty) => {
           const Icon = specialty.icon
           const isSelected = selectedSpecialty === specialty.id
           return (
@@ -341,7 +380,16 @@ const PatientDoctors = () => {
         })}
       </div>
 
-      {filteredDoctors.length === 0 ? (
+      {loading ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+          <p className="text-sm font-medium text-slate-600">Loading doctors...</p>
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-dashed border-red-200 bg-red-50 p-8 text-center">
+          <p className="text-sm font-medium text-red-600">Error: {error}</p>
+          <p className="mt-1 text-xs text-red-500">Please try again later.</p>
+        </div>
+      ) : filteredDoctors.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm font-medium text-slate-600">No doctors found matching your criteria.</p>
           <p className="mt-1 text-xs text-slate-500">Try adjusting your search or filters.</p>

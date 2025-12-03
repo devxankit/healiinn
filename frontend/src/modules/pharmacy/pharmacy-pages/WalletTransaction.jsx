@@ -12,28 +12,8 @@ import {
   IoBagHandleOutline,
   IoPersonOutline,
 } from 'react-icons/io5'
-
-// Mock data for withdrawals
-const mockWithdrawals = [
-  {
-    id: 'wd-1',
-    type: 'withdrawal',
-    amount: -8000.0,
-    description: 'Withdrawal to Bank Account',
-    date: '2025-01-14T14:20:00',
-    status: 'completed',
-    category: 'Withdrawal',
-  },
-  {
-    id: 'wd-2',
-    type: 'withdrawal',
-    amount: -5000.0,
-    description: 'Withdrawal to Bank Account',
-    date: '2025-01-10T10:00:00',
-    status: 'completed',
-    category: 'Withdrawal',
-  },
-]
+import { getPharmacyWalletTransactions } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -60,62 +40,46 @@ const formatDateTime = (dateString) => {
 
 const WalletTransaction = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [filterType, setFilterType] = useState('all') // all, earnings, withdrawals
   const [transactions, setTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  // Load transactions from localStorage
+  // Fetch transactions from API
   useEffect(() => {
-    const loadTransactions = () => {
-      const allTransactions = []
-      const pharmacyId = 'pharm-1' // Mock pharmacy ID - in real app, get from auth
-
+    const fetchTransactions = async () => {
       try {
-        // Load from pharmacyOrders - payment confirmed orders
-        const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
-        pharmacyOrders.forEach((order) => {
-          // Only include payment confirmed orders
-          if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
-            const paidDate = new Date(order.paidAt)
-            const dateStr = paidDate.toISOString().split('T')[0]
-            const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-            
-            allTransactions.push({
-              id: `order-${order.id}`,
-              type: 'earning',
-              amount: order.totalAmount,
-              description: `Payment received from ${order.patientName || 'Patient'} - Order ${order.requestId || order.id}`,
-              date: `${dateStr}T${timeStr}`,
-              status: 'completed',
-              category: 'Order Payment',
-              patientName: order.patientName || 'Patient',
-              requestId: order.requestId,
-              transactionId: `TXN-PHAR-${order.id?.substring(0, 8) || Date.now()}`,
-              medicines: order.medicines || [],
-            })
-          }
-        })
-      } catch (error) {
-        console.error('Error loading pharmacy orders:', error)
+        setLoading(true)
+        const response = await getPharmacyWalletTransactions()
+        
+        if (response.success && response.data) {
+          const transactionsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.transactions || []
+          
+          const transformed = transactionsData.map(txn => ({
+            id: txn._id || txn.id,
+            type: txn.type || 'earning',
+            amount: txn.amount || 0,
+            description: txn.description || txn.notes || 'Transaction',
+            date: txn.createdAt || txn.date || new Date().toISOString(),
+            status: txn.status || 'completed',
+            category: txn.category || 'Transaction',
+            originalData: txn,
+          }))
+          
+          setTransactions(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching transactions:', err)
+        toast.error('Failed to load transactions')
+      } finally {
+        setLoading(false)
       }
-
-      // Add mock withdrawals
-      allTransactions.push(...mockWithdrawals)
-
-      // Sort by date (newest first)
-      allTransactions.sort((a, b) => {
-        const dateA = new Date(a.date)
-        const dateB = new Date(b.date)
-        return dateB - dateA
-      })
-
-      setTransactions(allTransactions)
     }
 
-    loadTransactions()
-    // Refresh every 2 seconds to get new orders
-    const interval = setInterval(loadTransactions, 2000)
-    return () => clearInterval(interval)
-  }, [])
+    fetchTransactions()
+  }, [toast])
 
   const filteredTransactions = transactions.filter((txn) => {
     if (filterType === 'all') return true
@@ -201,7 +165,12 @@ const WalletTransaction = () => {
           </span>
         </div>
         <div className="space-y-3">
-          {filteredTransactions.length === 0 ? (
+          {loading ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-purple-500 border-r-transparent"></div>
+              <p className="mt-4 text-base font-semibold text-slate-600">Loading transactions...</p>
+            </div>
+          ) : filteredTransactions.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
               <IoReceiptOutline className="mx-auto h-16 w-16 text-slate-300" />
               <p className="mt-4 text-base font-semibold text-slate-600">No transactions found</p>

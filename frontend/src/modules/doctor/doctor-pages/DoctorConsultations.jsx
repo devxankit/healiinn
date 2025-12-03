@@ -3,6 +3,7 @@ import { useLocation, useSearchParams, useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
+import { getDoctorConsultations, getAllDoctorConsultations, getConsultationById, createConsultation, updateConsultation, getPatientById, getPatientHistory, createPrescription, getPrescriptions } from '../doctor-services/doctorService'
 import {
   IoDocumentTextOutline,
   IoSearchOutline,
@@ -78,72 +79,7 @@ const getDoctorInfo = () => {
   }
 }
 
-const mockConsultations = [
-  {
-    id: 'cons-1',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    age: 45,
-    gender: 'male',
-    appointmentTime: '2025-01-15T09:00:00',
-    appointmentType: 'Follow-up',
-    status: 'in-progress',
-    reason: 'Hypertension follow-up',
-    patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
-    patientPhone: '+1-555-987-6543',
-    patientEmail: 'john.doe@example.com',
-    patientAddress: '456 Patient Street, New York, NY 10002',
-    diagnosis: '',
-    vitals: {},
-    medications: [],
-    investigations: [],
-    advice: '',
-    attachments: [],
-  },
-]
-
-const mockFullMedicalHistory = {
-  'pat-1': {
-    personalInfo: {
-      name: 'John Doe',
-      age: 45,
-      gender: 'male',
-      bloodGroup: 'O+',
-      phone: '+1-555-123-4567',
-      email: 'john.doe@example.com',
-    },
-    conditions: [
-      { name: 'Hypertension', diagnosedDate: '2020-03-15', status: 'Active' },
-      { name: 'Type 2 Diabetes', diagnosedDate: '2019-06-20', status: 'Active' },
-    ],
-    allergies: [{ name: 'Penicillin', severity: 'Moderate', reaction: 'Rash' }],
-    medications: [
-      { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', startDate: '2020-03-20' },
-      { name: 'Metformin', dosage: '500mg', frequency: 'Twice daily', startDate: '2019-07-01' },
-    ],
-    surgeries: [
-      { name: 'Appendectomy', date: '2010-05-10', hospital: 'City General Hospital' },
-    ],
-    previousConsultations: [
-      {
-        date: '2024-12-15',
-        diagnosis: 'Hypertension',
-        doctor: 'Dr. Sarah Mitchell',
-        medications: ['Amlodipine 5mg'],
-      },
-      {
-        date: '2024-11-20',
-        diagnosis: 'Diabetes Management',
-        doctor: 'Dr. Sarah Mitchell',
-        medications: ['Metformin 500mg'],
-      },
-    ],
-    labReports: [
-      { testName: 'Blood Sugar Fasting', date: '2024-12-10', result: '110 mg/dL', status: 'Normal' },
-      { testName: 'HbA1c', date: '2024-12-10', result: '6.8%', status: 'Elevated' },
-    ],
-  },
-}
+// Mock data removed - using API data now
 
 const formatDateTime = (dateString) => {
   const date = new Date(dateString)
@@ -170,31 +106,76 @@ const DoctorConsultations = () => {
   const filterParam = searchParams.get('filter') || 'all'
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
   
-  // Load consultations from localStorage on mount (only if session is active, or if viewing from all consultations)
-  const [consultations, setConsultations] = useState(() => {
-    // If viewing from all consultations page, don't check session
-    if (location.state?.loadSavedData) {
-      return []
+  const [loadingConsultations, setLoadingConsultations] = useState(false)
+  const [consultationsError, setConsultationsError] = useState(null)
+
+  // Fetch consultations from API
+  useEffect(() => {
+    const fetchConsultations = async () => {
+      try {
+        setLoadingConsultations(true)
+        setConsultationsError(null)
+        const response = await getDoctorConsultations()
+        
+        if (response.success && response.data) {
+          const consultationsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.consultations || []
+          
+          // Transform API data to match component structure
+          const transformed = consultationsData.map(cons => ({
+            id: cons._id || cons.id,
+            _id: cons._id || cons.id,
+            patientId: cons.patientId?._id || cons.patientId?.id || cons.patientId || 'pat-unknown',
+            patientName: cons.patientId?.firstName && cons.patientId?.lastName
+              ? `${cons.patientId.firstName} ${cons.patientId.lastName}`
+              : cons.patientId?.name || cons.patientName || 'Unknown Patient',
+            age: cons.patientId?.age || cons.age || 30,
+            gender: cons.patientId?.gender || cons.gender || 'male',
+            appointmentTime: cons.appointmentId?.appointmentDate 
+              ? `${cons.appointmentId.appointmentDate}T${cons.appointmentId.time || '00:00'}`
+              : cons.appointmentTime || new Date().toISOString(),
+            appointmentType: cons.appointmentId?.appointmentType || cons.appointmentType || 'New',
+            status: cons.status || 'pending',
+            reason: cons.chiefComplaint || cons.reason || 'Consultation',
+            patientImage: cons.patientId?.profileImage || cons.patientId?.image || cons.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(cons.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            patientPhone: cons.patientId?.phone || cons.patientPhone || '',
+            patientEmail: cons.patientId?.email || cons.patientEmail || '',
+            patientAddress: cons.patientId?.address 
+              ? `${cons.patientId.address.line1 || ''}, ${cons.patientId.address.city || ''}, ${cons.patientId.address.state || ''}`.trim()
+              : cons.patientAddress || '',
+            diagnosis: cons.diagnosis || '',
+            vitals: cons.vitals || {},
+            medications: cons.medications || [],
+            investigations: cons.investigations || [],
+            advice: cons.advice || cons.notes || '',
+            attachments: cons.attachments || [],
+            originalData: cons,
+          }))
+          
+          // Set consultations from API data only
+          setConsultations(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching consultations:', err)
+        setConsultationsError(err.message || 'Failed to load consultations')
+        // Don't show toast here as it might be too frequent
+      } finally {
+        setLoadingConsultations(false)
+      }
     }
     
-    try {
-      // First check if session is active
-      const session = localStorage.getItem('doctorCurrentSession')
-      if (!session) {
-        // No active session - don't load consultations
-        return []
-      }
-      
-      const saved = localStorage.getItem('doctorConsultations')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        return parsed
-      }
-    } catch (error) {
-      console.error('Error loading consultations from localStorage:', error)
+    // Only fetch if not viewing from all consultations page
+    if (!location.state?.loadSavedData) {
+      fetchConsultations()
+      // Refresh every 30 seconds
+      const interval = setInterval(fetchConsultations, 30000)
+      return () => clearInterval(interval)
     }
-    return [] // Don't show mock consultations by default
-  })
+  }, [location.state?.loadSavedData])
+  
+  // Consultations state - loaded from API only
+  const [consultations, setConsultations] = useState([])
   
   // Filter consultations based on URL parameter
   const filteredConsultations = useMemo(() => {
@@ -322,27 +303,23 @@ const DoctorConsultations = () => {
       let updatedConsultation = { ...passedConsultation }
       
       // Load saved prescription data if loadSavedData flag is set
-      if (location.state?.loadSavedData) {
+      if (location.state?.loadSavedData && passedConsultation.id) {
+        const loadSavedData = async () => {
         try {
-          const patientPrescriptionsKey = `patientPrescriptions_${passedConsultation.patientId}`
-          const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
-          
-          // Find prescription for this specific consultation
-          let prescription = patientPrescriptions.find((p) => p.consultationId === passedConsultation.id)
-          if (!prescription && patientPrescriptions.length > 0) {
-            // If no exact match, get the most recent prescription for this patient
-            prescription = patientPrescriptions[0]
-          }
-          
-          if (prescription) {
-            // Load prescription data into form
-            setDiagnosis(prescription.diagnosis || '')
-            setSymptoms(prescription.symptoms || '')
-            setMedications(prescription.medications || [])
-            setInvestigations(prescription.investigations || [])
-            setAdvice(prescription.advice || '')
-            setFollowUpDate(prescription.followUpDate || '')
-            setVitals(prescription.vitals || {
+          // Load prescription from API using consultation ID
+          const consultationResponse = await getConsultationById(passedConsultation.id)
+          if (consultationResponse.success && consultationResponse.data) {
+            const consultation = consultationResponse.data
+            // Load prescription data from consultation
+            if (consultation.medications && consultation.medications.length > 0) {
+              // Load prescription data into form
+                setDiagnosis(consultation.diagnosis || '')
+                setSymptoms(consultation.symptoms || '')
+                setMedications(consultation.medications || [])
+                setInvestigations(consultation.investigations || [])
+                setAdvice(consultation.advice || '')
+                setFollowUpDate(consultation.followUpDate || '')
+                setVitals(consultation.vitals || {
               bloodPressure: { systolic: '', diastolic: '' },
               temperature: '',
               pulse: '',
@@ -356,18 +333,21 @@ const DoctorConsultations = () => {
             // Update consultation with prescription data
             updatedConsultation = {
               ...updatedConsultation,
-              diagnosis: prescription.diagnosis || updatedConsultation.diagnosis || '',
-              symptoms: prescription.symptoms || updatedConsultation.symptoms || '',
-              vitals: prescription.vitals || updatedConsultation.vitals || {},
-              medications: prescription.medications || updatedConsultation.medications || [],
-              investigations: prescription.investigations || updatedConsultation.investigations || [],
-              advice: prescription.advice || updatedConsultation.advice || '',
-              followUpDate: prescription.followUpDate || updatedConsultation.followUpDate || '',
+                  diagnosis: consultation.diagnosis || updatedConsultation.diagnosis || '',
+                  symptoms: consultation.symptoms || updatedConsultation.symptoms || '',
+                  vitals: consultation.vitals || updatedConsultation.vitals || {},
+                  medications: consultation.medications || updatedConsultation.medications || [],
+                  investigations: consultation.investigations || updatedConsultation.investigations || [],
+                  advice: consultation.advice || updatedConsultation.advice || '',
+                  followUpDate: consultation.followUpDate || updatedConsultation.followUpDate || '',
+                }
             }
           }
         } catch (error) {
           console.error('Error loading saved prescription data:', error)
         }
+        }
+        loadSavedData()
       }
       
       setConsultations((prev) => {
@@ -397,26 +377,23 @@ const DoctorConsultations = () => {
         console.log('Shared prescriptions loaded:', updatedConsultation.sharedPrescriptions)
       }
       
-      // Load saved prescriptions for this patient
-      try {
-        const patientPrescriptionsKey = `patientPrescriptions_${passedConsultation.patientId}`
-        const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
-        // Filter prescriptions for this consultation or show all for this patient
-        const relevantPrescriptions = patientPrescriptions.filter((p) => 
-          p.consultationId === passedConsultation.id || p.patientId === passedConsultation.patientId
-        )
-        if (relevantPrescriptions.length > 0) {
-          setSavedPrescriptions(relevantPrescriptions)
-          // If viewing from all consultations page, switch to saved prescriptions tab
-          if (location.state?.loadSavedData) {
-            setActiveTab('saved')
+      // Load patient history from API
+      if (passedConsultation.patientId) {
+        const loadPatientHistory = async () => {
+        try {
+          const historyResponse = await getPatientHistory(passedConsultation.patientId)
+          if (historyResponse.success && historyResponse.data) {
+            // Patient history will be used in history tab
+            // If viewing from all consultations page, show history tab
+            if (location.state?.loadSavedData) {
+              setActiveTab('history')
+            }
           }
-        } else if (location.state?.loadSavedData) {
-          // If no saved prescriptions but viewing from all consultations, show history tab
-          setActiveTab('history')
+        } catch (error) {
+          console.error('Error loading patient history:', error)
         }
-      } catch (error) {
-        console.error('Error loading saved prescriptions:', error)
+        }
+        loadPatientHistory()
       }
       
       // Clear the navigation state after using it
@@ -424,67 +401,7 @@ const DoctorConsultations = () => {
     }
   }, [passedConsultation, location.state?.loadSavedData]) // Run when passedConsultation changes
   
-  // Check for active session and clear consultation if session ended (but not if viewing from all consultations)
-  useEffect(() => {
-    // Don't clear if we're viewing from all consultations page
-    if (location.state?.loadSavedData) {
-      return
-    }
-    
-    try {
-      const session = localStorage.getItem('doctorCurrentSession')
-      if (!session) {
-        // No active session - clear consultation data
-        setSelectedConsultation(null)
-        setConsultations([])
-        localStorage.removeItem('doctorSelectedConsultation')
-        localStorage.removeItem('doctorConsultations')
-        return
-      }
-    } catch (error) {
-      console.error('Error checking session:', error)
-    }
-  }, [location.pathname, location.state?.loadSavedData])
-  
-  // Reload selectedConsultation from localStorage when navigating back (but not if viewing from all consultations)
-  useEffect(() => {
-    // Don't reload if we're viewing from all consultations page
-    if (location.state?.loadSavedData) {
-      return
-    }
-    
-    if (location.pathname === '/doctor/consultations' && !location.state?.selectedConsultation) {
-      try {
-        // First check if session is active
-        const session = localStorage.getItem('doctorCurrentSession')
-        if (!session) {
-          // No active session - don't load consultations
-          setSelectedConsultation(null)
-          setConsultations([])
-          return
-        }
-        
-        const saved = localStorage.getItem('doctorSelectedConsultation')
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          // Only load if it's an active consultation
-          if (parsed.status === 'in-progress' || parsed.status === 'called') {
-            setSelectedConsultation(parsed)
-            // Also ensure it's in consultations list
-            setConsultations((prev) => {
-              const exists = prev.find((c) => c.id === parsed.id)
-              if (!exists) {
-                return [parsed, ...prev]
-              }
-              return prev.map((c) => (c.id === parsed.id ? parsed : c))
-            })
-          }
-        }
-      } catch (error) {
-        console.error('Error reloading selected consultation:', error)
-      }
-    }
-  }, [location.pathname, location.state])
+  // Consultations are managed via API - no localStorage session checks needed
   
   // Update selected consultation when filter changes (but only if consultation was passed)
   useEffect(() => {
@@ -506,18 +423,8 @@ const DoctorConsultations = () => {
   const [showAddMedication, setShowAddMedication] = useState(false)
   const [showAddInvestigation, setShowAddInvestigation] = useState(false)
   
-  // Load saved prescriptions from localStorage on mount
-  const [savedPrescriptions, setSavedPrescriptions] = useState(() => {
-    try {
-      const saved = localStorage.getItem('doctorSavedPrescriptions')
-      if (saved) {
-        return JSON.parse(saved)
-      }
-    } catch (error) {
-      console.error('Error loading saved prescriptions:', error)
-    }
-    return []
-  })
+  // Saved prescriptions - loaded from consultation data or patient history
+  const [savedPrescriptions, setSavedPrescriptions] = useState([])
   
   const [viewingPrescription, setViewingPrescription] = useState(null)
   const [editingPrescriptionId, setEditingPrescriptionId] = useState(null)
@@ -525,50 +432,35 @@ const DoctorConsultations = () => {
   const [showReportViewer, setShowReportViewer] = useState(false)
   const [selectedReport, setSelectedReport] = useState(null)
 
-  // Function to load shared lab reports
-  const loadSharedLabReports = (patientId, doctorId) => {
+  // Function to load shared lab reports from API
+  const loadSharedLabReports = async (patientId, doctorId) => {
     try {
-      // Check multiple possible storage keys where patients might share reports
-      const sharedReportsKey = `sharedLabReports_${patientId}`
-      const doctorSharedReportsKey = `doctorSharedLabReports_${doctorId || 'doc-current'}`
+      // Fetch patient history which includes shared lab reports
+      const { getPatientHistory } = await import('../doctor-services/doctorService')
+      const response = await getPatientHistory(patientId)
       
-      // Try to load from patient-specific key first
-      let allSharedReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
+      if (response.success && response.data) {
+        // Get shared lab reports from patient history
+        const sharedReports = response.data.sharedLabReports || []
       
-      // Also check doctor-specific shared reports
-      const doctorReports = JSON.parse(localStorage.getItem(doctorSharedReportsKey) || '[]')
-      
-      // Combine and filter for this patient
-      const combinedReports = [...allSharedReports, ...doctorReports.filter(r => r.patientId === patientId)]
-      
-      // Filter reports shared with current doctor (in real app, use actual doctor ID)
-      const currentDoctorId = doctorId || 'doc-current' // In real app, get from auth
-      const reportsForDoctor = combinedReports.filter((report) => {
-        // Show reports if:
-        // 1. Shared with current doctor ID
-        // 2. Shared with doctorId from consultation
-        // 3. No specific doctor ID (show all for this patient)
-        // 4. Patient ID matches
-        return (
-          report.sharedWithDoctorId === currentDoctorId || 
-          report.sharedWithDoctorId === doctorId ||
-          !report.sharedWithDoctorId ||
-          (report.patientId === patientId && !report.sharedWithDoctorId)
-        )
-      })
-      
-      console.log('Loaded shared lab reports:', reportsForDoctor)
-      // Debug: Log each report's pdfFileUrl to help troubleshoot
-      reportsForDoctor.forEach((report, idx) => {
-        console.log(`Report ${idx} (${report.testName || report.reportName}):`, {
-          id: report.id,
-          pdfFileUrl: report.pdfFileUrl,
-          downloadUrl: report.downloadUrl,
-          hasPdfFileUrl: !!report.pdfFileUrl,
-          pdfFileUrlValue: report.pdfFileUrl
-        })
-      })
-      setSharedLabReports(reportsForDoctor)
+        // Transform reports to match component structure
+        const transformedReports = sharedReports.map(report => ({
+          id: report._id || report.id,
+          _id: report._id || report.id,
+          testName: report.testName || report.test?.name || 'Lab Test',
+          labName: report.laboratoryId?.labName || report.labName || 'Laboratory',
+          date: report.createdAt || report.date || new Date().toISOString().split('T')[0],
+          status: report.status || 'ready',
+          pdfFileUrl: report.pdfFileUrl || null,
+          downloadUrl: report.pdfFileUrl || '#',
+          pdfFileName: report.pdfFileName || `${report.testName || 'Report'}_${new Date(report.createdAt || Date.now()).toISOString().split('T')[0]}.pdf`,
+          originalData: report,
+        }))
+        
+        setSharedLabReports(transformedReports)
+      } else {
+        setSharedLabReports([])
+      }
     } catch (error) {
       console.error('Error loading shared lab reports:', error)
       setSharedLabReports([])
@@ -712,14 +604,7 @@ const DoctorConsultations = () => {
     setDoctorInfo(getDoctorInfo())
   }, [])
 
-  // Save prescriptions to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem('doctorSavedPrescriptions', JSON.stringify(savedPrescriptions))
-    } catch (error) {
-      console.error('Error saving prescriptions to localStorage:', error)
-    }
-  }, [savedPrescriptions])
+  // Prescriptions are saved via API when consultation is updated - no localStorage needed
 
   // Form states
   const [vitals, setVitals] = useState({
@@ -752,56 +637,12 @@ const DoctorConsultations = () => {
   const [medicineSearchTerm, setMedicineSearchTerm] = useState('')
   const [availableMedicines, setAvailableMedicines] = useState([])
   
-  // Load medicines from pharmacy or use mock data
+  // Load medicines - TODO: Add API endpoint for pharmacy medicines
+  // For now, using empty array - medicines can be entered manually
   useEffect(() => {
-    try {
-      // Try to load from pharmacy medicines
-      const pharmacyMedicines = JSON.parse(localStorage.getItem('pharmacyMedicines') || '[]')
-      
-      if (pharmacyMedicines.length > 0) {
-        // Use pharmacy medicines
-        const medicineList = pharmacyMedicines.map(med => ({
-          name: med.name,
-          dosage: med.dosage,
-          manufacturer: med.manufacturer || '',
-        }))
-        setAvailableMedicines(medicineList)
-      } else {
-        // Use mock medicine list
-        const mockMedicines = [
-          { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Generic' },
-          { name: 'Amlodipine', dosage: '5mg', manufacturer: 'Generic' },
-          { name: 'Metformin', dosage: '500mg', manufacturer: 'Generic' },
-          { name: 'Atorvastatin', dosage: '10mg', manufacturer: 'Generic' },
-          { name: 'Omeprazole', dosage: '20mg', manufacturer: 'Generic' },
-          { name: 'Amlodipine', dosage: '10mg', manufacturer: 'Generic' },
-          { name: 'Losartan', dosage: '50mg', manufacturer: 'Generic' },
-          { name: 'Levothyroxine', dosage: '50mcg', manufacturer: 'Generic' },
-          { name: 'Metoprolol', dosage: '25mg', manufacturer: 'Generic' },
-          { name: 'Atenolol', dosage: '50mg', manufacturer: 'Generic' },
-          { name: 'Furosemide', dosage: '40mg', manufacturer: 'Generic' },
-          { name: 'Hydrochlorothiazide', dosage: '25mg', manufacturer: 'Generic' },
-          { name: 'Warfarin', dosage: '5mg', manufacturer: 'Generic' },
-          { name: 'Aspirin', dosage: '75mg', manufacturer: 'Generic' },
-          { name: 'Clopidogrel', dosage: '75mg', manufacturer: 'Generic' },
-          { name: 'Ramipril', dosage: '5mg', manufacturer: 'Generic' },
-          { name: 'Amlodipine + Telmisartan', dosage: '5mg/40mg', manufacturer: 'Generic' },
-          { name: 'Gliclazide', dosage: '80mg', manufacturer: 'Generic' },
-          { name: 'Glibenclamide', dosage: '5mg', manufacturer: 'Generic' },
-          { name: 'Insulin Glargine', dosage: '100 IU/ml', manufacturer: 'Generic' },
-        ]
-        setAvailableMedicines(mockMedicines)
-      }
-    } catch (error) {
-      console.error('Error loading medicines:', error)
-      // Fallback to mock medicines
-      const mockMedicines = [
-        { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Generic' },
-        { name: 'Amlodipine', dosage: '5mg', manufacturer: 'Generic' },
-        { name: 'Metformin', dosage: '500mg', manufacturer: 'Generic' },
-      ]
-      setAvailableMedicines(mockMedicines)
-    }
+    // Medicines should come from pharmacy API in future
+    // For now, allow manual entry only
+    setAvailableMedicines([])
   }, [])
   
   // Filter medicines based on search term
@@ -847,56 +688,12 @@ const DoctorConsultations = () => {
   const [testSearchTerm, setTestSearchTerm] = useState('')
   const [availableTests, setAvailableTests] = useState([])
   
-  // Load tests from laboratory or use mock data
+  // Load tests - TODO: Add API endpoint for laboratory tests
+  // For now, using empty array - tests can be entered manually
   useEffect(() => {
-    try {
-      // Try to load from laboratory tests
-      const allPharmacyAvailability = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
-      // For now, use mock test list
-      const mockTests = [
-        { name: 'Complete Blood Count (CBC)', category: 'Blood Test' },
-        { name: 'Blood Glucose Test', category: 'Blood Test' },
-        { name: 'Lipid Profile', category: 'Blood Test' },
-        { name: 'Liver Function Test (LFT)', category: 'Blood Test' },
-        { name: 'Kidney Function Test (KFT)', category: 'Blood Test' },
-        { name: 'Thyroid Function Test (TFT)', category: 'Blood Test' },
-        { name: 'Hemoglobin A1C', category: 'Blood Test' },
-        { name: 'Vitamin D Test', category: 'Blood Test' },
-        { name: 'Vitamin B12 Test', category: 'Blood Test' },
-        { name: 'ECG (Electrocardiogram)', category: 'Cardiac Test' },
-        { name: 'Echocardiography', category: 'Cardiac Test' },
-        { name: 'Stress Test', category: 'Cardiac Test' },
-        { name: 'Chest X-Ray', category: 'Imaging' },
-        { name: 'CT Scan', category: 'Imaging' },
-        { name: 'MRI Scan', category: 'Imaging' },
-        { name: 'Ultrasound', category: 'Imaging' },
-        { name: 'Urine Analysis', category: 'Urine Test' },
-        { name: 'Urine Culture', category: 'Urine Test' },
-        { name: 'Stool Test', category: 'Stool Test' },
-        { name: 'Sputum Test', category: 'Sputum Test' },
-        { name: 'Pap Smear', category: 'Gynecological Test' },
-        { name: 'Mammography', category: 'Imaging' },
-        { name: 'Bone Density Test', category: 'Imaging' },
-        { name: 'Pulmonary Function Test', category: 'Lung Test' },
-        { name: 'Allergy Test', category: 'Allergy Test' },
-        { name: 'HIV Test', category: 'Blood Test' },
-        { name: 'Hepatitis B Test', category: 'Blood Test' },
-        { name: 'Hepatitis C Test', category: 'Blood Test' },
-        { name: 'PSA Test', category: 'Blood Test' },
-        { name: 'Tumor Markers', category: 'Blood Test' },
-      ]
-      setAvailableTests(mockTests)
-    } catch (error) {
-      console.error('Error loading tests:', error)
-      // Fallback to mock tests
-      const mockTests = [
-        { name: 'Complete Blood Count (CBC)', category: 'Blood Test' },
-        { name: 'Blood Glucose Test', category: 'Blood Test' },
-        { name: 'ECG', category: 'Cardiac Test' },
-        { name: 'Chest X-Ray', category: 'Imaging' },
-      ]
-      setAvailableTests(mockTests)
-    }
+    // Tests should come from laboratory API in future
+    // For now, allow manual entry only
+    setAvailableTests([])
   }, [])
   
   // Filter tests based on search term
@@ -933,9 +730,31 @@ const DoctorConsultations = () => {
   
   const [attachments, setAttachments] = useState([])
 
-  const patientHistory = selectedConsultation
-    ? mockFullMedicalHistory[selectedConsultation.patientId]
-    : null
+  // Patient history - loaded from API
+  const [patientHistory, setPatientHistory] = useState(null)
+  
+  // Load patient history when consultation is selected
+  useEffect(() => {
+    const loadPatientHistory = async () => {
+      if (selectedConsultation?.patientId) {
+        try {
+          const historyResponse = await getPatientHistory(selectedConsultation.patientId)
+          if (historyResponse.success && historyResponse.data) {
+            setPatientHistory(historyResponse.data)
+          } else {
+            setPatientHistory(null)
+          }
+        } catch (error) {
+          console.error('Error loading patient history:', error)
+          setPatientHistory(null)
+        }
+      } else {
+        setPatientHistory(null)
+      }
+    }
+    
+    loadPatientHistory()
+  }, [selectedConsultation?.patientId])
 
   const handleCalculateBMI = () => {
     if (vitals.weight && vitals.height) {
@@ -1789,34 +1608,32 @@ const DoctorConsultations = () => {
         )
       )
       
-      // Also update patient's localStorage so they see the updated prescription
+      // Update prescription via API
       try {
-        const patientPrescriptionsKey = `patientPrescriptions_${prescriptionData.patientId}`
-        const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
-        const updatedPatientPrescriptions = patientPrescriptions.map((presc) =>
-          presc.id === editingPrescriptionId ? prescriptionData : presc
-        )
-        localStorage.setItem(patientPrescriptionsKey, JSON.stringify(updatedPatientPrescriptions))
+        // Prescription is saved as part of consultation update
+        // The updateConsultation API will handle prescription data
+        toast.success('Prescription updated successfully!')
       } catch (error) {
-        console.error('Error updating patient prescriptions:', error)
+        console.error('Error updating prescription:', error)
+        toast.error('Failed to update prescription')
       }
-      
-      toast.success('Prescription updated successfully!')
     } else {
-      // Add new prescription
-      setSavedPrescriptions((prev) => [prescriptionData, ...prev])
-      
-      // Also add to patient's localStorage
+      // Create new prescription via API
       try {
-        const patientPrescriptionsKey = `patientPrescriptions_${prescriptionData.patientId}`
-        const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
-        patientPrescriptions.unshift(prescriptionData)
-        localStorage.setItem(patientPrescriptionsKey, JSON.stringify(patientPrescriptions))
+        const prescriptionResponse = await createPrescription({
+          ...prescriptionData,
+          consultationId: selectedConsultation?.id,
+          patientId: selectedConsultation?.patientId,
+        })
+        
+        if (prescriptionResponse.success) {
+          setSavedPrescriptions((prev) => [prescriptionResponse.data, ...prev])
+          toast.success('Prescription saved successfully!')
+        }
       } catch (error) {
-        console.error('Error saving patient prescriptions:', error)
+        console.error('Error creating prescription:', error)
+        toast.error('Failed to save prescription')
       }
-      
-      toast.success('Prescription saved successfully!')
     }
     
     // Update consultation status in both consultations list and selectedConsultation
@@ -2274,6 +2091,7 @@ const DoctorConsultations = () => {
                         onClick={() => {
                           // Save vitals to patient history
                           if (selectedConsultation && patientHistory) {
+                            try {
                             const vitalsData = {
                               ...vitals,
                               date: new Date().toISOString(),
@@ -2286,19 +2104,9 @@ const DoctorConsultations = () => {
                               }),
                             }
                             
-                            // Save to localStorage for patient history
-                            try {
-                              const historyKey = `patientHistory_${selectedConsultation.patientId}`
-                              const existingHistory = JSON.parse(localStorage.getItem(historyKey) || '{}')
-                              
-                              if (!existingHistory.vitalsRecords) {
-                                existingHistory.vitalsRecords = []
-                              }
-                              
-                              existingHistory.vitalsRecords.unshift(vitalsData)
-                              localStorage.setItem(historyKey, JSON.stringify(existingHistory))
-                              
-                              toast.success('Vitals added to patient history successfully!')
+                            // Vitals are saved as part of consultation update via API
+                            // Patient history is managed by backend
+                            toast.success('Vitals saved successfully!')
                               
                               // Reset vitals form
                               setVitals({

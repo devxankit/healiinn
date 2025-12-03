@@ -1,7 +1,11 @@
-import { useState } from 'react'
-import { IoCloseOutline, IoCheckmarkCircleOutline } from 'react-icons/io5'
+import { useState, useEffect } from 'react'
+import { IoCloseOutline, IoCheckmarkCircleOutline, IoTimeOutline, IoCheckmarkCircle, IoCloseCircle, IoHourglassOutline } from 'react-icons/io5'
+import { createSupportTicket, getSupportTickets, getSupportHistory } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const PatientSupport = () => {
+  const toast = useToast()
+  const [activeTab, setActiveTab] = useState('new') // 'new', 'tickets', 'history'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -10,6 +14,10 @@ const PatientSupport = () => {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [tickets, setTickets] = useState([])
+  const [history, setHistory] = useState([])
+  const [loadingTickets, setLoadingTickets] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -23,31 +31,172 @@ const PatientSupport = () => {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    try {
+      const response = await createSupportTicket({
+        subject: `Support Request from ${formData.name}`,
+        message: formData.note,
+        priority: 'medium',
+      })
 
-    // TODO: Replace with actual API call
-    // await submitSupportRequest({ ...formData, role: 'patient' })
+      if (response.success) {
+        toast.success('Support request submitted successfully')
+        setShowSuccessModal(true)
+        setFormData({
+          name: '',
+          email: '',
+          contactNumber: '',
+          note: '',
+        })
+      }
+    } catch (error) {
+      console.error('Error submitting support request:', error)
+      toast.error(error.message || 'Failed to submit support request. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
-    setIsSubmitting(false)
-    setShowSuccessModal(true)
-    setFormData({
-      name: '',
-      email: '',
-      contactNumber: '',
-      note: '',
-    })
+  // Fetch support tickets
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setLoadingTickets(true)
+        const response = await getSupportTickets()
+        if (response.success && response.data) {
+          const ticketsData = Array.isArray(response.data)
+            ? response.data
+            : response.data.tickets || []
+          setTickets(ticketsData)
+        }
+      } catch (error) {
+        console.error('Error fetching support tickets:', error)
+        setTickets([])
+      } finally {
+        setLoadingTickets(false)
+      }
+    }
+
+    if (activeTab === 'tickets') {
+      fetchTickets()
+    }
+  }, [activeTab])
+
+  // Fetch support history
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoadingHistory(true)
+        const response = await getSupportHistory()
+        if (response.success && response.data) {
+          const historyData = Array.isArray(response.data)
+            ? response.data
+            : response.data.history || []
+          setHistory(historyData)
+        }
+      } catch (error) {
+        console.error('Error fetching support history:', error)
+        setHistory([])
+      } finally {
+        setLoadingHistory(false)
+      }
+    }
+
+    if (activeTab === 'history') {
+      fetchHistory()
+    }
+  }, [activeTab])
+
+  const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'resolved':
+      case 'closed':
+        return <IoCheckmarkCircle className="h-5 w-5 text-green-600" />
+      case 'open':
+      case 'pending':
+        return <IoHourglassOutline className="h-5 w-5 text-yellow-600" />
+      case 'rejected':
+        return <IoCloseCircle className="h-5 w-5 text-red-600" />
+      default:
+        return <IoTimeOutline className="h-5 w-5 text-slate-400" />
+    }
+  }
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'resolved':
+      case 'closed':
+        return 'bg-green-100 text-green-700'
+      case 'open':
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-700'
+      case 'rejected':
+        return 'bg-red-100 text-red-700'
+      default:
+        return 'bg-slate-100 text-slate-700'
+    }
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '—'
+    try {
+      const date = new Date(dateString)
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date)
+    } catch {
+      return dateString
+    }
   }
 
   const isFormValid = formData.name && formData.email && formData.contactNumber && formData.note
 
   return (
     <div className="mx-auto max-w-2xl py-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Support Request</h1>
-          <p className="mt-2 text-sm text-slate-600">Fill out the form below and we'll get back to you soon.</p>
-        </div>
+      {/* Tabs */}
+      <div className="mb-4 flex gap-2 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('new')}
+          className={`px-4 py-2 text-sm font-semibold transition ${
+            activeTab === 'new'
+              ? 'border-b-2 border-[#11496c] text-[#11496c]'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          New Request
+        </button>
+        <button
+          onClick={() => setActiveTab('tickets')}
+          className={`px-4 py-2 text-sm font-semibold transition ${
+            activeTab === 'tickets'
+              ? 'border-b-2 border-[#11496c] text-[#11496c]'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          My Tickets ({tickets.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`px-4 py-2 text-sm font-semibold transition ${
+            activeTab === 'history'
+              ? 'border-b-2 border-[#11496c] text-[#11496c]'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          History
+        </button>
+      </div>
+
+      {/* New Request Form */}
+      {activeTab === 'new' && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-slate-900">Support Request</h1>
+            <p className="mt-2 text-sm text-slate-600">Fill out the form below and we'll get back to you soon.</p>
+          </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
@@ -129,7 +278,8 @@ const PatientSupport = () => {
             )}
           </button>
         </form>
-      </div>
+        </div>
+      )}
 
       {/* Success Modal */}
       {showSuccessModal && (

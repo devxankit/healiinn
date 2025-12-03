@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IoArrowBackOutline,
@@ -15,116 +15,33 @@ import {
   IoCardOutline,
   IoCheckmarkCircle,
 } from 'react-icons/io5'
+import { getDoctorById, bookAppointment, getPatientAppointments, getPatientProfile, getPatientPrescriptions, checkDoctorSlotAvailability, createAppointmentPaymentOrder, verifyAppointmentPayment, submitReview } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
-const mockDoctors = {
-  'doc-1': {
-    id: 'doc-1',
-    name: 'Dr. Alana Rueter',
-    specialty: 'Dentist',
-    experience: '12 years',
-    rating: 4.8,
-    reviewCount: 124,
-    consultationFee: 500,
-    distance: '1.2 km',
-    location: 'Sunrise Dental Care, New York',
-    availability: 'Available today',
-    nextSlot: '09:00 AM',
-    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'Spanish'],
-    education: 'MD, Dental Surgery',
-    about: 'Experienced dentist with expertise in cosmetic and restorative dentistry.',
-    phone: '+1-555-214-0098',
-  },
-  'doc-2': {
-    id: 'doc-2',
-    name: 'Dr. Sarah Mitchell',
-    specialty: 'Cardiology',
-    experience: '15 years',
-    rating: 4.9,
-    reviewCount: 203,
-    consultationFee: 800,
-    distance: '2.5 km',
-    location: 'Heart Care Center, New York',
-    availability: 'Available tomorrow',
-    nextSlot: '10:30 AM',
-    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    languages: ['English'],
-    education: 'MD, Cardiology',
-    about: 'Board-certified cardiologist specializing in preventive heart care.',
-    phone: '+1-555-909-4433',
-  },
-  'doc-3': {
-    id: 'doc-3',
-    name: 'Dr. James Wilson',
-    specialty: 'Orthopedic',
-    experience: '18 years',
-    rating: 4.7,
-    reviewCount: 156,
-    consultationFee: 750,
-    distance: '3.1 km',
-    location: 'Bone & Joint Clinic, New York',
-    availability: 'Available today',
-    nextSlot: '02:00 PM',
-    image: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'French'],
-    education: 'MD, Orthopedic Surgery',
-    about: 'Specialist in joint replacement and sports medicine.',
-    phone: '+1-555-712-0080',
-  },
-  'doc-4': {
-    id: 'doc-4',
-    name: 'Dr. Emily Chen',
-    specialty: 'Neurology',
-    experience: '10 years',
-    rating: 4.6,
-    reviewCount: 89,
-    consultationFee: 900,
-    distance: '1.8 km',
-    location: 'Neuro Care Institute, New York',
-    availability: 'Available today',
-    nextSlot: '11:15 AM',
-    image: 'https://images.unsplash.com/photo-1594824476968-48fd8d2d7dc2?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'Mandarin'],
-    education: 'MD, Neurology',
-    about: 'Expert in neurological disorders and brain health.',
-    phone: '+1-555-367-5511',
-  },
-  'doc-5': {
-    id: 'doc-5',
-    name: 'Dr. Michael Brown',
-    specialty: 'General',
-    experience: '20 years',
-    rating: 4.9,
-    reviewCount: 312,
-    consultationFee: 600,
-    distance: '0.9 km',
-    location: 'Family Health Clinic, New York',
-    availability: 'Available today',
-    nextSlot: '03:30 PM',
-    image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031a?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'Spanish'],
-    education: 'MD, General Medicine',
-    about: 'Comprehensive family medicine with focus on preventive care.',
-    phone: '+1-555-211-0800',
-  },
-  'doc-6': {
-    id: 'doc-6',
-    name: 'Dr. Priya Sharma',
-    specialty: 'Dentist',
-    experience: '8 years',
-    rating: 4.5,
-    reviewCount: 67,
-    consultationFee: 450,
-    distance: '2.3 km',
-    location: 'Smile Dental Studio, New York',
-    availability: 'Available tomorrow',
-    nextSlot: '09:30 AM',
-    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?auto=format&fit=crop&w=400&q=80',
-    languages: ['English', 'Hindi'],
-    education: 'BDS, Dental Surgery',
-    about: 'Passionate about pediatric and general dentistry.',
-    phone: '+1-555-712-1100',
-  },
+// Default doctor data (will be replaced by API)
+const defaultDoctor = null
+
+// Helper function to format availability
+const formatAvailability = (availability) => {
+  if (!availability || !Array.isArray(availability) || availability.length === 0) {
+    return 'Available'
+  }
+  
+  // Format: "Mon-Fri: 9:00 AM - 5:00 PM"
+  const days = availability.map(av => av.day).filter(Boolean)
+  if (days.length === 0) return 'Available'
+  
+  // Get common time range if all days have same time
+  const firstTime = availability[0]
+  const allSameTime = availability.every(av => 
+    av.startTime === firstTime.startTime && av.endTime === firstTime.endTime
+  )
+  
+  if (allSameTime && firstTime.startTime && firstTime.endTime) {
+    return `${days.join(', ')}: ${firstTime.startTime} - ${firstTime.endTime}`
+  }
+  
+  return days.join(', ')
 }
 
 const renderStars = (rating) => {
@@ -169,49 +86,88 @@ const getAvailableDates = () => {
   return dates
 }
 
-// Helper function to check if doctor is active
-const isDoctorActive = (doctorName) => {
-  try {
-    const saved = localStorage.getItem('doctorProfile')
-    if (saved) {
-      const profile = JSON.parse(saved)
-      const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
-      // Check if this doctor matches the saved profile
-      if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
-        return profile.isActive !== false // Default to true if not set
-      }
-    }
-    // Check separate active status
-    const activeStatus = localStorage.getItem('doctorProfileActive')
-    if (activeStatus !== null && saved) {
-      const isActive = JSON.parse(activeStatus)
-      const profile = JSON.parse(saved)
-      const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
-      if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
-        return isActive
-      }
-    }
-  } catch (error) {
-    console.error('Error checking doctor active status:', error)
-  }
-  // Default: show all doctors if no profile found (for mock data)
-  return true
+// Helper function to check if doctor is active (removed localStorage dependency)
+// Doctor active status is now determined by the doctor data from API
+const isDoctorActive = (doctor) => {
+  return doctor?.isActive !== false
 }
 
 const PatientDoctorDetails = () => {
   const { id } = useParams()
   const navigate = useNavigate()
+  const toast = useToast()
   const [searchParams] = useSearchParams()
-  const doctor = mockDoctors[id]
+  const [doctor, setDoctor] = useState(defaultDoctor)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   
-  // Check if doctor is active
+  // Fetch doctor details from API
   useEffect(() => {
-    if (doctor && !isDoctorActive(doctor.name)) {
-      // Redirect if doctor is inactive
-      alert('This doctor profile is currently not available.')
-      navigate('/patient/doctors')
+    const fetchDoctorDetails = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getDoctorById(id)
+        
+        if (response.success && response.data) {
+          // Backend returns { doctor, reviews, reviewStats, queueInfo }
+          const doctorData = response.data.doctor || response.data
+          const transformed = {
+            id: doctorData._id || doctorData.id,
+            _id: doctorData._id || doctorData.id,
+            name: doctorData.firstName && doctorData.lastName
+              ? `Dr. ${doctorData.firstName} ${doctorData.lastName}`
+              : doctorData.name || (doctorData.firstName ? `Dr. ${doctorData.firstName}` : 'Dr. Unknown'),
+            specialty: doctorData.specialization || doctorData.specialty || 'General',
+            experience: doctorData.experienceYears 
+              ? `${doctorData.experienceYears} years` 
+              : doctorData.experience || 'N/A',
+            rating: response.data.reviewStats?.averageRating || doctorData.rating || 0,
+            reviewCount: response.data.reviewStats?.totalReviews || doctorData.reviewCount || 0,
+            consultationFee: doctorData.consultationFee || 0,
+            distance: doctorData.distance || 'N/A',
+            location: doctorData.clinicDetails?.name 
+              ? `${doctorData.clinicDetails.name}, ${doctorData.clinicDetails.address?.city || ''}`
+              : doctorData.location || 'Location not available',
+            availability: doctorData.availability && doctorData.availability.length > 0
+              ? formatAvailability(doctorData.availability)
+              : (doctorData.availableTimings && doctorData.availableTimings.length > 0
+                ? doctorData.availableTimings.join(', ')
+                : 'Available'),
+            nextSlot: response.data.queueInfo?.eta || 'N/A',
+            image: doctorData.profileImage || doctorData.documents?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((doctorData.firstName && doctorData.lastName ? `${doctorData.firstName} ${doctorData.lastName}` : doctorData.firstName || 'Doctor'))}&background=11496c&color=fff&size=128&bold=true`,
+            languages: doctorData.languages || ['English'],
+            education: doctorData.qualification || doctorData.education || 'MBBS',
+            about: doctorData.bio || doctorData.about || '',
+            phone: doctorData.phone || doctorData.clinicDetails?.phone || 'N/A',
+            originalData: doctorData,
+          }
+          setDoctor(transformed)
+          
+          // Check if doctor is active
+          if (!isDoctorActive(transformed.name)) {
+            toast.error('This doctor profile is currently not available.')
+            navigate('/patient/doctors')
+          }
+        } else {
+          setError('Doctor not found')
+          toast.error('Doctor not found')
+          navigate('/patient/doctors')
+        }
+      } catch (err) {
+        console.error('Error fetching doctor details:', err)
+        setError(err.message || 'Failed to load doctor details')
+        toast.error('Failed to load doctor details')
+        navigate('/patient/doctors')
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [doctor, navigate])
+
+    if (id) {
+      fetchDoctorDetails()
+    }
+  }, [id, navigate, toast])
   
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
@@ -228,47 +184,70 @@ const PatientDoctorDetails = () => {
 
   const availableDates = getAvailableDates()
 
-  // Check if patient is a returning patient (within 7 days)
-  const checkIsReturningPatient = (doctorId) => {
-    try {
-      const patientId = 'pat-current' // In real app, get from auth
-      const allAppointments = [
-        ...JSON.parse(localStorage.getItem('patientAppointments') || '[]'),
-        ...JSON.parse(localStorage.getItem('doctorAppointments') || '[]'),
-      ]
+  // Check if patient is a returning patient (within 7 days) - using API
+  const [isReturningPatient, setIsReturningPatient] = useState(false)
+  const [lastVisitData, setLastVisitData] = useState(null)
+  const [patientProfile, setPatientProfile] = useState(null)
+  
+  useEffect(() => {
+    const checkIsReturningPatientAsync = async () => {
+      if (!doctor?.id && !doctor?._id) return
       
-      // Find last completed appointment with this doctor
-      const lastAppointment = allAppointments
-        .filter(
-          (apt) =>
-            apt.doctorId === doctorId &&
-            apt.patientId === patientId &&
-            (apt.status === 'completed' || apt.status === 'visited')
-        )
-        .sort((a, b) => {
-          const dateA = new Date(a.appointmentDate || a.createdAt || 0)
-          const dateB = new Date(b.appointmentDate || b.createdAt || 0)
-          return dateB - dateA
-        })[0]
-      
-      if (!lastAppointment) {
-        return { isReturning: false, daysSince: null, lastVisitDate: null }
+      try {
+        const response = await getPatientAppointments({ 
+          doctor: doctor.id || doctor._id,
+          status: 'completed'
+        })
+        
+        if (response.success && response.data) {
+          const appointments = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          
+          // Find last completed appointment with this doctor
+          const lastAppointment = appointments
+            .filter(apt => {
+              const aptDoctorId = apt.doctorId?._id || apt.doctorId?.id || apt.doctorId
+              const currentDoctorId = doctor.id || doctor._id
+              return aptDoctorId === currentDoctorId && 
+                     (apt.status === 'completed' || apt.status === 'visited')
+            })
+            .sort((a, b) => {
+              const dateA = new Date(a.appointmentDate || a.createdAt || 0)
+              const dateB = new Date(b.appointmentDate || b.createdAt || 0)
+              return dateB - dateA
+            })[0]
+          
+          if (lastAppointment) {
+            const lastVisitDate = new Date(lastAppointment.appointmentDate || lastAppointment.createdAt)
+            const today = new Date()
+            const diffTime = today - lastVisitDate
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+            setIsReturningPatient(diffDays <= 7)
+            setLastVisitData({ daysSince: diffDays, isReturning: diffDays <= 7 })
+          } else {
+            setIsReturningPatient(false)
+            setLastVisitData({ daysSince: null, isReturning: false })
+          }
+        }
+      } catch (error) {
+        console.error('Error checking returning patient:', error)
+        setIsReturningPatient(false)
+        setLastVisitData({ daysSince: null, isReturning: false })
       }
-      
-      const lastVisitDate = new Date(lastAppointment.appointmentDate || lastAppointment.createdAt)
-      const today = new Date()
-      const diffTime = today - lastVisitDate
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-      
-      return {
-        isReturning: diffDays <= 7,
-        daysSince: diffDays,
-        lastVisitDate: lastVisitDate.toISOString().split('T')[0],
-      }
-    } catch (error) {
-      console.error('Error checking returning patient:', error)
-      return { isReturning: false, daysSince: null, lastVisitDate: null }
     }
+    
+    if (doctor) {
+      checkIsReturningPatientAsync()
+    }
+  }, [doctor])
+
+  // Synchronous helper function to check returning patient status
+  const checkIsReturningPatient = (doctorId) => {
+    if (!lastVisitData) {
+      return { isReturning: false, daysSince: null }
+    }
+    return lastVisitData
   }
 
   // Get doctor profile data (session time and average consultation minutes)
@@ -308,98 +287,20 @@ const PatientDoctorDetails = () => {
     return Math.floor(durationMinutes / averageMinutes)
   }
 
-  // Function to get session info and token availability for selected date
+  // Function to get session info and token availability for selected date (using API cached data)
   const getSessionInfoForDate = (date) => {
-    try {
-      const doctorSessions = JSON.parse(localStorage.getItem('doctorSessions') || '[]')
-      const sessionForDate = doctorSessions.find(
-        (s) => s.date === date && (s.status === 'scheduled' || s.status === 'active')
-      )
-      
-      // If session exists, use its maxTokens
-      if (sessionForDate && sessionForDate.maxTokens) {
-        // Count existing appointments for this date and doctor
-        const doctorAppointments = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
-        const patientAppointments = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
-        
-        // Combine both sources
-        const allAppointments = [...doctorAppointments, ...patientAppointments]
-        
-        // Filter appointments for this date and doctor
-        const appointmentsForDate = allAppointments.filter(
-          (apt) =>
-            apt.appointmentDate === date &&
-            apt.doctorId === doctor.id &&
-            apt.status !== 'cancelled' &&
-            apt.status !== 'no-show' &&
-            apt.status !== 'completed'
-        )
-        
-        const currentBookings = appointmentsForDate.length
-        const maxTokens = sessionForDate.maxTokens || 0
-        const nextToken = currentBookings < maxTokens ? currentBookings + 1 : null
-        const available = currentBookings < maxTokens
-        
-        return {
-          available,
-          maxTokens,
-          currentBookings,
-          nextToken,
-          session: sessionForDate,
-        }
-      }
-      
-      // If no session exists, calculate based on doctor profile
-      const profileData = getDoctorProfileData()
-      const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' })
-      const dayAvailability = profileData.availability.find((avail) => avail.day === dayName)
-      
-      if (!dayAvailability) {
-        return { available: false, maxTokens: 0, currentBookings: 0, nextToken: null }
-      }
-      
-      // Calculate max tokens based on session time and average consultation
-      const maxTokens = calculateMaxTokens(
-        dayAvailability.startTime,
-        dayAvailability.endTime,
-        profileData.averageConsultationMinutes
-      )
-      
-      if (maxTokens === 0) {
-        return { available: false, maxTokens: 0, currentBookings: 0, nextToken: null }
-      }
-      
-      // Count existing appointments for this date and doctor
-      const doctorAppointments = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
-      const patientAppointments = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
-      
-      // Combine both sources
-      const allAppointments = [...doctorAppointments, ...patientAppointments]
-      
-      // Filter appointments for this date and doctor
-      const appointmentsForDate = allAppointments.filter(
-        (apt) =>
-          apt.appointmentDate === date &&
-          apt.doctorId === doctor.id &&
-          apt.status !== 'cancelled' &&
-          apt.status !== 'no-show' &&
-          apt.status !== 'completed'
-      )
-      
-      const currentBookings = appointmentsForDate.length
-      const nextToken = currentBookings < maxTokens ? currentBookings + 1 : null
-      const available = currentBookings < maxTokens
-      
-      return {
-        available,
-        maxTokens,
-        currentBookings,
-        nextToken,
-        session: null,
-      }
-    } catch (error) {
-      console.error('Error getting session info:', error)
-      return { available: false, maxTokens: 0, currentBookings: 0, nextToken: null }
+    // Return cached slot availability if available
+    if (slotAvailability[date]) {
+      return slotAvailability[date]
+    }
+    
+    // Fallback: return unavailable if not yet loaded
+    return {
+      available: false,
+      maxTokens: 0,
+      currentBookings: 0,
+      nextToken: null,
+      sessionId: null,
     }
   }
 
@@ -427,27 +328,125 @@ const PatientDoctorDetails = () => {
 
   // Auto-open booking modal if 'book' query parameter is present
   useEffect(() => {
-    if (doctor && searchParams.get('book') === 'true') {
+    if (doctor && id && searchParams.get('book') === 'true') {
       setShowBookingModal(true)
+      setBookingStep(1)
       // Remove the query parameter from URL
       navigate(`/patient/doctors/${id}`, { replace: true })
     }
   }, [doctor, searchParams, navigate, id])
 
-  // Load patient prescriptions from localStorage
-  const getPatientPrescriptions = () => {
+  // Load patient prescriptions from API
+  const [patientPrescriptions, setPatientPrescriptions] = useState([])
+  
+  useEffect(() => {
+    const fetchPrescriptions = async () => {
+      try {
+        const response = await getPatientPrescriptions()
+        if (response.success && response.data) {
+          const prescriptionsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.prescriptions || []
+          setPatientPrescriptions(prescriptionsData)
+        }
+      } catch (error) {
+        console.error('Error loading patient prescriptions:', error)
+        setPatientPrescriptions([])
+      }
+    }
+    
+    if (showBookingModal) {
+      fetchPrescriptions()
+    }
+  }, [showBookingModal])
+
+  // Slot availability state (cached by date)
+  const [slotAvailability, setSlotAvailability] = useState({})
+  const [loadingSlots, setLoadingSlots] = useState(false)
+
+  // Fetch slot availability for a specific date
+  const fetchSlotAvailabilityForDate = useCallback(async (date, doctorId) => {
+    if (!date || !doctorId) return
+    
     try {
-      const patientId = 'pat-current' // In real app, get from auth
-      const patientPrescriptionsKey = `patientPrescriptions_${patientId}`
-      const saved = localStorage.getItem(patientPrescriptionsKey)
-      if (saved) {
-        return JSON.parse(saved)
+      const response = await checkDoctorSlotAvailability(doctorId, date)
+      if (response.success && response.data) {
+        setSlotAvailability(prev => {
+          // Don't overwrite if already cached
+          if (prev[date]) return prev
+          return {
+            ...prev,
+            [date]: {
+              available: response.data.available,
+              maxTokens: response.data.totalSlots,
+              currentBookings: response.data.bookedSlots,
+              nextToken: response.data.availableSlots > 0 ? response.data.bookedSlots + 1 : null,
+              sessionId: response.data.sessionId,
+            }
+          }
+        })
+      } else {
+        setSlotAvailability(prev => {
+          if (prev[date]) return prev
+          return {
+            ...prev,
+            [date]: {
+              available: false,
+              maxTokens: 0,
+              currentBookings: 0,
+              nextToken: null,
+            }
+          }
+        })
       }
     } catch (error) {
-      console.error('Error loading patient prescriptions:', error)
+      console.error(`Error fetching slot availability for ${date}:`, error)
+      setSlotAvailability(prev => {
+        if (prev[date]) return prev
+        return {
+          ...prev,
+          [date]: {
+            available: false,
+            maxTokens: 0,
+            currentBookings: 0,
+            nextToken: null,
+          }
+        }
+      })
     }
-    return []
-  }
+  }, [])
+
+  // Fetch slot availability for all dates when booking modal opens
+  useEffect(() => {
+    if (showBookingModal && doctor?._id) {
+      const fetchAllDatesAvailability = async () => {
+        setLoadingSlots(true)
+        const dates = getAvailableDates()
+        
+        // Fetch availability for all dates in parallel (with limit to avoid too many requests)
+        const datePromises = dates.slice(0, 14).map(date => 
+          fetchSlotAvailabilityForDate(date.value, doctor._id)
+        )
+        
+        try {
+          await Promise.all(datePromises)
+        } catch (error) {
+          console.error('Error fetching dates availability:', error)
+        } finally {
+          setLoadingSlots(false)
+        }
+      }
+      
+      fetchAllDatesAvailability()
+    }
+  }, [showBookingModal, doctor?._id])
+
+  // Also fetch when a date is selected (in case it wasn't loaded initially)
+  useEffect(() => {
+    if (selectedDate && doctor?._id && !slotAvailability[selectedDate]) {
+      fetchSlotAvailabilityForDate(selectedDate, doctor._id)
+    }
+  }, [selectedDate, doctor?._id, slotAvailability, fetchSlotAvailabilityForDate])
 
   const handleBookingClick = () => {
     setShowBookingModal(true)
@@ -485,141 +484,172 @@ const PatientDoctorDetails = () => {
   }
 
   const handleConfirmBooking = async () => {
-    setIsSubmitting(true)
-    
-    // Check if patient is returning (within 7 days)
-    const returningPatientInfo = checkIsReturningPatient(doctor.id)
-    const isFreeBooking = returningPatientInfo.isReturning
-    
-    // Get shared prescription data
-    const sharedPrescriptionsData = selectedPrescriptions.map((prescId) => {
-      const patientPrescriptions = getPatientPrescriptions()
-      return patientPrescriptions.find((p) => p.id === prescId)
-    }).filter(Boolean)
-
-    // Get token number for this booking
-    const sessionInfo = getSessionInfoForDate(selectedDate)
-    if (!sessionInfo.available || !sessionInfo.nextToken) {
-      alert('This date is no longer available. Please select another date.')
-      setIsSubmitting(false)
-      setBookingStep(1)
+    if (!selectedDate) {
+      toast.error('Please select a date')
       return
     }
 
-    // Get patient profile data if available
-    let patientProfile = null
+    setIsSubmitting(true)
+    
     try {
-      const profileData = localStorage.getItem('patientProfile')
-      if (profileData) {
-        patientProfile = JSON.parse(profileData)
+      const returningPatientInfo = checkIsReturningPatient(doctor.id)
+      const isFreeBooking = returningPatientInfo.isReturning
+      
+      // Map appointmentType to backend enum values: 'New' or 'Follow-up'
+      let mappedAppointmentType = 'New'
+      if (appointmentType === 'follow_up') {
+        mappedAppointmentType = 'Follow-up'
+      } else {
+        mappedAppointmentType = 'New' // Both 'in_person' and 'video_call' map to 'New'
       }
-    } catch (error) {
-      console.error('Error loading patient profile:', error)
-    }
 
-    // Create appointment data
-    const appointmentData = {
-      id: `appt-${Date.now()}`,
-      doctorId: doctor.id,
-      doctorName: doctor.name,
-      doctorSpecialty: doctor.specialty,
-      patientId: 'pat-current', // In real app, get from auth
-      patientName: patientProfile?.firstName && patientProfile?.lastName 
-        ? `${patientProfile.firstName} ${patientProfile.lastName}`.trim()
-        : patientProfile?.name || 'Current Patient',
-      age: patientProfile?.age || 30,
-      gender: patientProfile?.gender || 'male',
-      appointmentDate: selectedDate,
-      date: selectedDate, // Also add date field for compatibility
-      appointmentType: appointmentType === 'in_person' ? 'In-Person' : appointmentType === 'video_call' ? 'Video Call' : 'Follow-up',
-      status: 'scheduled', // Changed from 'waiting' to 'scheduled' for consistency
-      queueNumber: sessionInfo.nextToken, // Assign token number
-      reason: reason || 'Consultation',
-      patientImage: patientProfile?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patientProfile?.firstName || 'Patient')}&background=11496c&color=fff&size=160`,
-      patientPhone: patientProfile?.phone || '+1-555-000-0000',
-      patientEmail: patientProfile?.email || 'patient@example.com',
-      patientAddress: patientProfile?.address || '123 Patient Street',
-      sharedPrescriptions: sharedPrescriptionsData, // Prescriptions shared by patient
-      sharedPrescriptionIds: selectedPrescriptions, // IDs of shared prescriptions
-      isFreeBooking: isFreeBooking, // Mark if this is a free booking
-      paymentRequired: !isFreeBooking, // Payment required if not returning patient
-      consultationFee: isFreeBooking ? 0 : doctor.consultationFee,
-      createdAt: new Date().toISOString(),
-      // Calculate time based on session start and token number
-      time: (() => {
-        try {
-          const doctorSessions = JSON.parse(localStorage.getItem('doctorSessions') || '[]')
-          const sessionForDate = doctorSessions.find(
-            (s) => s.date === selectedDate && (s.status === 'scheduled' || s.status === 'active')
-          )
-          if (sessionForDate && sessionForDate.sessionStartTime && sessionInfo.nextToken) {
-            const [startHour, startMin] = sessionForDate.sessionStartTime.split(':').map(Number)
-            const profileData = getDoctorProfileData()
-            const avgMinutes = profileData.averageConsultationMinutes || 20
-            const totalMinutes = startHour * 60 + startMin + ((sessionInfo.nextToken - 1) * avgMinutes)
-            const hours = Math.floor(totalMinutes / 60)
-            const minutes = totalMinutes % 60
-            const period = hours >= 12 ? 'PM' : 'AM'
-            const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours
-            return `${displayHour}:${String(minutes).padStart(2, '0')} ${period}`
-          }
-          return '10:00 AM'
-        } catch (error) {
-          return '10:00 AM'
-        }
-      })(),
-    }
-    
-    // Save appointment to localStorage (this will be picked up by doctor's session and admin)
-    try {
-      // Save to patient appointments
-      const existingAppointments = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
-      existingAppointments.push(appointmentData)
-      localStorage.setItem('patientAppointments', JSON.stringify(existingAppointments))
-      
-      // Save to shared allAppointments for admin and doctor
-      const allAppointments = JSON.parse(localStorage.getItem('allAppointments') || '[]')
-      allAppointments.push(appointmentData)
-      localStorage.setItem('allAppointments', JSON.stringify(allAppointments))
-      
-      // Also add to doctor's appointments if session exists for that date
-      const doctorSessions = JSON.parse(localStorage.getItem('doctorSessions') || '[]')
-      const sessionForDate = doctorSessions.find(
-        (s) => s.date === selectedDate && (s.status === 'scheduled' || s.status === 'active')
-      )
-      
-      if (sessionForDate) {
-        const doctorAppointments = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
-        doctorAppointments.push(appointmentData)
-        localStorage.setItem('doctorAppointments', JSON.stringify(doctorAppointments))
+      // Prepare appointment data for API
+      const appointmentData = {
+        doctorId: doctor.id || doctor._id,
+        appointmentDate: selectedDate,
+        time: '10:00 AM', // Backend will calculate based on token number
+        reason: reason || 'Consultation',
+        appointmentType: mappedAppointmentType, // Use mapped value
       }
+
+      // Step 1: Book appointment first (creates appointment with paymentStatus: 'pending')
+      const bookingResponse = await bookAppointment(appointmentData)
+      
+      if (!bookingResponse.success) {
+        toast.error(bookingResponse.message || 'Failed to book appointment. Please try again.')
+        return
+      }
+
+      const appointmentId = bookingResponse.data?._id || bookingResponse.data?.id
+
+      // Step 2: If free booking, skip payment
+      if (isFreeBooking) {
+        toast.success('Appointment booked successfully! (Free consultation)')
+        handleCloseModal()
+        // Reset form
+        setSelectedDate('')
+        setAppointmentType('in_person')
+        setReason('')
+        setNotes('')
+        setSelectedPrescriptions([])
+        setBookingStep(1)
+        
+        setTimeout(() => {
+          navigate('/patient/appointments')
+        }, 1500)
+        return
+      }
+
+      // Step 3: Create payment order
+      const paymentOrderResponse = await createAppointmentPaymentOrder(appointmentId)
+      
+      if (!paymentOrderResponse.success) {
+        toast.error(paymentOrderResponse.message || 'Failed to create payment order. Please try again.')
+        return
+      }
+
+      const { orderId, amount, currency, razorpayKeyId } = paymentOrderResponse.data
+
+      // Step 4: Initialize Razorpay payment
+      if (!window.Razorpay) {
+        toast.error('Payment gateway not loaded. Please refresh the page and try again.')
+        return
+      }
+
+      if (!razorpayKeyId) {
+        toast.error('Payment gateway not configured. Please contact support.')
+        return
+      }
+
+      const options = {
+        key: razorpayKeyId, // Use key ID from backend response
+        amount: Math.round(amount * 100), // Convert to paise
+        currency: currency || 'INR',
+        name: 'Healiinn',
+        description: `Appointment with ${doctor.name}`,
+        order_id: orderId,
+        handler: async (response) => {
+          try {
+            setIsSubmitting(true) // Keep loading state during verification
+            // Step 5: Verify payment
+            const verifyResponse = await verifyAppointmentPayment(appointmentId, {
+              paymentId: response.razorpay_payment_id,
+              orderId: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              paymentMethod: 'razorpay',
+            })
+
+            if (verifyResponse.success) {
+              toast.success('Payment successful! Appointment booked successfully!')
+              
+              // Close modal and reset form immediately
+              handleCloseModal()
+              setSelectedDate('')
+              setAppointmentType('in_person')
+              setReason('')
+              setNotes('')
+              setSelectedPrescriptions([])
+              setBookingStep(1)
+              setIsSubmitting(false)
+              
+              // Emit custom event to refresh dashboard and appointments
+              window.dispatchEvent(new CustomEvent('appointmentBooked'))
+              
+              // Navigate after a short delay to show success message
+              setTimeout(() => {
+                navigate('/patient/appointments', { replace: true })
+              }, 1000)
+            } else {
+              toast.error(verifyResponse.message || 'Payment verification failed. Please contact support.')
+              setIsSubmitting(false)
+            }
+          } catch (error) {
+            console.error('Error verifying payment:', error)
+            const errorMessage = error.response?.data?.message || error.message || 'Payment verification failed. Please contact support.'
+            toast.error(errorMessage)
+            setIsSubmitting(false)
+          }
+        },
+        prefill: {
+          name: patientProfile?.firstName && patientProfile?.lastName 
+            ? `${patientProfile.firstName} ${patientProfile.lastName}` 
+            : patientProfile?.name || '',
+          email: patientProfile?.email || '',
+          contact: patientProfile?.phone || '',
+        },
+        theme: {
+          color: '#11496c',
+        },
+        modal: {
+          ondismiss: () => {
+            setIsSubmitting(false)
+            toast.info('Payment cancelled')
+          },
+        },
+      }
+
+      const razorpay = new window.Razorpay(options)
+      razorpay.open()
+      
     } catch (error) {
-      console.error('Error saving appointment:', error)
+      console.error('Error booking appointment:', error)
+      toast.error(error.message || 'Failed to book appointment. Please try again.')
+      setIsSubmitting(false)
     }
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    console.log('Booking confirmed:', appointmentData)
-    
-    setIsSubmitting(false)
-    
-    // Show success message based on booking type
-    if (isFreeBooking) {
-      alert('Appointment booked successfully! This is a free consultation as you are a returning patient.')
-    } else {
-      alert('Appointment booked successfully! Please proceed with payment to confirm your booking.')
-    }
-    
-    // Show success and close after delay
-    setTimeout(() => {
-      handleCloseModal()
-    }, 2000)
   }
 
-  if (!doctor) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <p className="text-lg font-semibold text-slate-700">Doctor not found</p>
+        <p className="text-lg font-semibold text-slate-700">Loading doctor details...</p>
+      </div>
+    )
+  }
+
+  if (error || !doctor) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <p className="text-lg font-semibold text-slate-700">{error || 'Doctor not found'}</p>
         <button
           onClick={() => navigate('/patient/doctors')}
           className="rounded-lg bg-[#11496c] px-4 py-2 text-white font-semibold hover:bg-[#0d3a52]"
@@ -1023,23 +1053,25 @@ const PatientDoctorDetails = () => {
                         <p className="mb-3 text-xs text-slate-600">
                           Select prescriptions from other doctors to share with {doctor.name}
                         </p>
-                        {getPatientPrescriptions().length === 0 ? (
+                        {patientPrescriptions.length === 0 ? (
                           <p className="text-xs text-slate-500 italic">No previous prescriptions available</p>
                         ) : (
                           <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {getPatientPrescriptions().map((prescription) => (
+                            {patientPrescriptions.map((prescription) => {
+                              const prescriptionId = prescription._id || prescription.id
+                              return (
                               <label
-                                key={prescription.id}
+                                key={prescriptionId}
                                 className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 cursor-pointer hover:border-[#11496c]/30 transition"
                               >
                                 <input
                                   type="checkbox"
-                                  checked={selectedPrescriptions.includes(prescription.id)}
+                                  checked={selectedPrescriptions.includes(prescriptionId)}
                                   onChange={(e) => {
                                     if (e.target.checked) {
-                                      setSelectedPrescriptions([...selectedPrescriptions, prescription.id])
+                                      setSelectedPrescriptions([...selectedPrescriptions, prescriptionId])
                                     } else {
-                                      setSelectedPrescriptions(selectedPrescriptions.filter((id) => id !== prescription.id))
+                                      setSelectedPrescriptions(selectedPrescriptions.filter((id) => id !== prescriptionId))
                                     }
                                   }}
                                   className="mt-1 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
@@ -1064,7 +1096,8 @@ const PatientDoctorDetails = () => {
                                   </div>
                                 </div>
                               </label>
-                            ))}
+                              )
+                            })}
                           </div>
                         )}
                       </div>
@@ -1347,23 +1380,65 @@ const PatientDoctorDetails = () => {
                   type="button"
                   onClick={async () => {
                     if (reviewRating === 0) {
-                      alert('Please select a rating')
+                      toast.error('Please select a rating')
                       return
                     }
+                    
                     setIsSubmittingReview(true)
-                    // Simulate API call
-                    await new Promise((resolve) => setTimeout(resolve, 1000))
-                    console.log('Review submitted:', {
-                      doctorId: doctor.id,
-                      rating: reviewRating,
-                      comment: reviewComment,
-                    })
-                    setIsSubmittingReview(false)
-                    setShowReviewModal(false)
-                    setReviewRating(0)
-                    setReviewComment('')
-                    // Show success message
-                    alert('Thank you for your review!')
+                    
+                    try {
+                      const reviewData = {
+                        doctorId: doctor.id,
+                        rating: reviewRating,
+                        comment: reviewComment || '',
+                      }
+                      
+                      // Try to find a completed appointment with this doctor
+                      try {
+                        const appointmentsResponse = await getPatientAppointments({ 
+                          doctor: doctor.id, 
+                          status: 'completed' 
+                        })
+                        const completedAppointments = appointmentsResponse.data?.items || appointmentsResponse.data || []
+                        if (completedAppointments.length > 0) {
+                          // Use the most recent completed appointment
+                          reviewData.appointmentId = completedAppointments[0]._id || completedAppointments[0].id
+                        }
+                      } catch (apptError) {
+                        console.log('No completed appointments found, submitting review without appointmentId')
+                      }
+                      
+                      const response = await submitReview(reviewData)
+                      
+                      if (response.success) {
+                        toast.success('Thank you for your review!')
+                        setShowReviewModal(false)
+                        setReviewRating(0)
+                        setReviewComment('')
+                        
+                        // Refresh doctor data to show updated rating
+                        try {
+                          const updatedDoctor = await getDoctorById(doctor.id)
+                          if (updatedDoctor.success && updatedDoctor.data) {
+                            setDoctor(prevDoctor => ({
+                              ...prevDoctor,
+                              rating: updatedDoctor.data.reviewStats?.averageRating || updatedDoctor.data.doctor?.rating || prevDoctor.rating,
+                              reviewCount: updatedDoctor.data.reviewStats?.totalReviews || updatedDoctor.data.doctor?.reviewCount || prevDoctor.reviewCount,
+                            }))
+                          }
+                        } catch (refreshError) {
+                          console.error('Error refreshing doctor data:', refreshError)
+                        }
+                      } else {
+                        toast.error(response.message || 'Failed to submit review. Please try again.')
+                      }
+                    } catch (error) {
+                      console.error('Error submitting review:', error)
+                      const errorMessage = error.response?.data?.message || error.message || 'Failed to submit review. Please try again.'
+                      toast.error(errorMessage)
+                    } finally {
+                      setIsSubmittingReview(false)
+                    }
                   }}
                   disabled={isSubmittingReview || reviewRating === 0}
                   className="flex-1 rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50"

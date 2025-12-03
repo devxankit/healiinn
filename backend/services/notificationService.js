@@ -1,3 +1,5 @@
+const Notification = require('../models/Notification');
+const { getIO } = require('../config/socket');
 const {
   sendEmail,
   sendRoleApprovalEmail,
@@ -7,6 +9,452 @@ const {
   sendPrescriptionEmail,
 } = require('./emailService');
 const AdminSettings = require('../models/AdminSettings');
+
+/**
+ * Create and send notification
+ * @param {Object} params - Notification parameters
+ * @param {String} params.userId - User ID
+ * @param {String} params.userType - User type (patient, doctor, pharmacy, laboratory, admin)
+ * @param {String} params.type - Notification type
+ * @param {String} params.title - Notification title
+ * @param {String} params.message - Notification message
+ * @param {Object} params.data - Additional data
+ * @param {String} params.priority - Priority level (low, medium, high, urgent)
+ * @param {String} params.actionUrl - URL to navigate on click
+ * @param {String} params.icon - Icon name
+ * @param {Boolean} params.emitSocket - Whether to emit Socket.IO event (default: true)
+ */
+const createNotification = async ({
+  userId,
+  userType,
+  type,
+  title,
+  message,
+  data = {},
+  priority = 'medium',
+  actionUrl = null,
+  icon = null,
+  emitSocket = true,
+}) => {
+  try {
+    // Create notification in database
+    const notification = await Notification.create({
+      userId,
+      userType,
+      type,
+      title,
+      message,
+      data,
+      priority,
+      actionUrl,
+      icon,
+    });
+
+    // Emit Socket.IO event if enabled
+    if (emitSocket) {
+      try {
+        const io = getIO();
+        io.to(`${userType}-${userId}`).emit('notification:new', {
+          notification: notification.toObject(),
+        });
+      } catch (error) {
+        console.error('Socket.IO error in createNotification:', error);
+      }
+    }
+
+    return notification;
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create notification for appointment events
+ */
+const createAppointmentNotification = async ({ userId, userType, appointment, eventType, doctor, patient }) => {
+  let title, message, actionUrl;
+
+  switch (eventType) {
+    case 'created':
+      title = 'New Appointment';
+      message = patient
+        ? `Appointment booked with ${patient.firstName} ${patient.lastName || ''}`
+        : 'New appointment has been booked';
+      actionUrl = userType === 'patient' ? '/patient/appointments' : '/doctor/patients';
+      break;
+    case 'cancelled':
+      title = 'Appointment Cancelled';
+      message = doctor
+        ? `Your appointment with Dr. ${doctor.firstName} ${doctor.lastName || ''} has been cancelled`
+        : 'Appointment has been cancelled';
+      actionUrl = '/patient/appointments';
+      break;
+    case 'rescheduled':
+      title = 'Appointment Rescheduled';
+      message = doctor
+        ? `Your appointment with Dr. ${doctor.firstName} ${doctor.lastName || ''} has been rescheduled`
+        : 'Appointment has been rescheduled';
+      actionUrl = '/patient/appointments';
+      break;
+    case 'payment_confirmed':
+      title = 'Payment Confirmed';
+      message = `Payment of ₹${appointment.fee || 0} confirmed for your appointment`;
+      actionUrl = '/patient/appointments';
+      break;
+    case 'token_called':
+      title = 'Your Turn';
+      message = `Token ${appointment.tokenNumber} has been called. Please proceed to consultation room.`;
+      actionUrl = '/patient/appointments';
+      break;
+    case 'token_recalled':
+      title = 'Token Recalled';
+      message = `Your token ${appointment.tokenNumber} has been recalled. Please wait for your turn.`;
+      actionUrl = '/patient/appointments';
+      break;
+    default:
+      title = 'Appointment Update';
+      message = 'Your appointment has been updated';
+      actionUrl = '/patient/appointments';
+  }
+
+  return createNotification({
+    userId,
+    userType,
+    type: 'appointment',
+    title,
+    message,
+    data: {
+      appointmentId: appointment._id || appointment.id,
+      eventType,
+      tokenNumber: appointment.tokenNumber,
+    },
+    priority: eventType === 'token_called' ? 'urgent' : 'medium',
+    actionUrl,
+    icon: 'appointment',
+  });
+};
+
+/**
+ * Create notification for prescription events
+ */
+const createPrescriptionNotification = async ({ userId, userType, prescription, doctor, patient }) => {
+  const title = 'New Prescription';
+  const message = doctor
+    ? `Prescription received from Dr. ${doctor.firstName} ${doctor.lastName || ''}`
+    : `Prescription created for ${patient.firstName} ${patient.lastName || ''}`;
+  
+  return createNotification({
+    userId,
+    userType,
+    type: 'prescription',
+    title,
+    message,
+    data: {
+      prescriptionId: prescription._id || prescription.id,
+      consultationId: prescription.consultationId,
+    },
+    priority: 'high',
+    actionUrl: userType === 'patient' ? '/patient/prescriptions' : '/doctor/consultations',
+    icon: 'prescription',
+  });
+};
+
+/**
+ * Create notification for wallet events
+ */
+const createWalletNotification = async ({ userId, userType, amount, eventType, withdrawal = null }) => {
+  let title, message, priority, actionUrl;
+
+  switch (eventType) {
+    case 'credited':
+      title = 'Wallet Credited';
+      message = `₹${amount} has been credited to your wallet`;
+      priority = 'high';
+      actionUrl = '/doctor/wallet';
+      break;
+    case 'withdrawal_requested':
+      title = 'Withdrawal Requested';
+      message = `Withdrawal request of ₹${amount} has been submitted`;
+      priority = 'medium';
+      actionUrl = '/doctor/wallet';
+      break;
+    case 'withdrawal_approved':
+      title = 'Withdrawal Approved';
+      message = `Your withdrawal request of ₹${amount} has been approved`;
+      priority = 'high';
+      actionUrl = '/doctor/wallet';
+      break;
+    case 'withdrawal_rejected':
+      title = 'Withdrawal Rejected';
+      message = `Your withdrawal request of ₹${amount} has been rejected`;
+      priority = 'high';
+      actionUrl = '/doctor/wallet';
+      break;
+    default:
+      title = 'Wallet Update';
+      message = 'Your wallet has been updated';
+      priority = 'medium';
+      actionUrl = '/doctor/wallet';
+  }
+
+  return createNotification({
+    userId,
+    userType,
+    type: 'wallet',
+    title,
+    message,
+    data: {
+      amount,
+      eventType,
+      withdrawalId: withdrawal?._id || withdrawal?.id,
+    },
+    priority,
+    actionUrl,
+    icon: 'wallet',
+  });
+};
+
+/**
+ * Create notification for order events
+ */
+const createOrderNotification = async ({ userId, userType, order, eventType, pharmacy, laboratory, patient }) => {
+  let title, message, actionUrl;
+
+  switch (eventType) {
+    case 'created':
+      title = 'New Order';
+      message = patient
+        ? `New order from ${patient.firstName} ${patient.lastName || ''}`
+        : 'Your order has been placed';
+      actionUrl = userType === 'patient' ? '/patient/orders' : userType === 'pharmacy' ? '/pharmacy/orders' : '/laboratory/orders';
+      break;
+    case 'confirmed':
+      title = 'Order Confirmed';
+      message = pharmacy
+        ? `Your order has been confirmed by ${pharmacy.pharmacyName || 'Pharmacy'}`
+        : laboratory
+        ? `Your order has been confirmed by ${laboratory.labName || 'Laboratory'}`
+        : 'Order has been confirmed';
+      actionUrl = '/patient/orders';
+      break;
+    case 'completed':
+      title = 'Order Completed';
+      message = pharmacy
+        ? `Your order has been completed by ${pharmacy.pharmacyName || 'Pharmacy'}`
+        : laboratory
+        ? `Your test report is ready from ${laboratory.labName || 'Laboratory'}`
+        : 'Order has been completed';
+      actionUrl = '/patient/orders';
+      break;
+    case 'cancelled':
+      title = 'Order Cancelled';
+      message = 'Your order has been cancelled';
+      actionUrl = '/patient/orders';
+      break;
+    default:
+      title = 'Order Update';
+      message = 'Your order has been updated';
+      actionUrl = '/patient/orders';
+  }
+
+  return createNotification({
+    userId,
+    userType,
+    type: 'order',
+    title,
+    message,
+    data: {
+      orderId: order._id || order.id,
+      eventType,
+    },
+    priority: eventType === 'completed' ? 'high' : 'medium',
+    actionUrl,
+    icon: 'order',
+  });
+};
+
+/**
+ * Create notification for request events
+ */
+const createRequestNotification = async ({ userId, userType, request, eventType, admin, pharmacy, laboratory }) => {
+  let title, message, actionUrl;
+
+  switch (eventType) {
+    case 'created':
+      title = 'New Request';
+      message = 'New request has been submitted';
+      actionUrl = userType === 'patient' ? '/patient/requests' : '/admin/requests';
+      break;
+    case 'responded':
+      title = 'Request Response';
+      message = admin
+        ? 'Admin has responded to your request'
+        : 'Request has been responded';
+      actionUrl = '/patient/requests';
+      break;
+    case 'assigned':
+      title = 'Request Assigned';
+      message = pharmacy
+        ? `Request assigned to ${pharmacy.pharmacyName || 'Pharmacy'}`
+        : laboratory
+        ? `Request assigned to ${laboratory.labName || 'Laboratory'}`
+        : 'Request has been assigned';
+      actionUrl = userType === 'pharmacy' ? '/pharmacy/orders' : '/laboratory/orders';
+      break;
+    case 'confirmed':
+      title = 'Request Confirmed';
+      message = 'Your request has been confirmed';
+      actionUrl = '/patient/requests';
+      break;
+    default:
+      title = 'Request Update';
+      message = 'Your request has been updated';
+      actionUrl = '/patient/requests';
+  }
+
+  return createNotification({
+    userId,
+    userType,
+    type: 'request',
+    title,
+    message,
+    data: {
+      requestId: request._id || request.id,
+      eventType,
+    },
+    priority: 'medium',
+    actionUrl,
+    icon: 'request',
+  });
+};
+
+/**
+ * Create notification for report events
+ */
+const createReportNotification = async ({ userId, userType, report, laboratory, patient }) => {
+  const title = 'Test Report Ready';
+  const message = laboratory
+    ? `Test report is ready from ${laboratory.labName || 'Laboratory'}`
+    : `Test report created for ${patient.firstName} ${patient.lastName || ''}`;
+  
+  return createNotification({
+    userId,
+    userType,
+    type: 'report',
+    title,
+    message,
+    data: {
+      reportId: report._id || report.id,
+      orderId: report.orderId,
+    },
+    priority: 'high',
+    actionUrl: userType === 'patient' ? '/patient/reports' : '/laboratory/patients',
+    icon: 'report',
+  });
+};
+
+/**
+ * Create notification for admin events
+ */
+const createAdminNotification = async ({ userId, userType, eventType, data }) => {
+  let title, message, actionUrl, priority = 'medium';
+
+  switch (eventType) {
+    case 'payment_received':
+      title = 'Payment Received';
+      message = `Payment of ₹${data.amount || 0} received from patient`;
+      actionUrl = '/admin/wallet';
+      priority = 'high';
+      break;
+    case 'withdrawal_requested':
+      title = 'Withdrawal Request';
+      message = `New withdrawal request of ₹${data.amount || 0} from ${data.userType || 'provider'}`;
+      actionUrl = '/admin/wallet';
+      priority = 'high';
+      break;
+    case 'request_created':
+      title = 'New Request';
+      message = 'New patient request has been submitted';
+      actionUrl = '/admin/requests';
+      break;
+    case 'request_confirmed':
+      title = 'Request Confirmed';
+      message = 'Patient request has been confirmed';
+      actionUrl = '/admin/requests';
+      break;
+    default:
+      title = 'System Update';
+      message = 'System update received';
+      actionUrl = '/admin/dashboard';
+  }
+
+  return createNotification({
+    userId,
+    userType,
+    type: eventType === 'payment_received' || eventType === 'withdrawal_requested' ? 'wallet' : 'request',
+    title,
+    message,
+    data,
+    priority,
+    actionUrl,
+    icon: 'system',
+  });
+};
+
+/**
+ * Create notification for session/queue events
+ */
+const createSessionNotification = async ({ userId, userType, session, eventType }) => {
+  let title, message, actionUrl;
+
+  switch (eventType) {
+    case 'started':
+      title = 'Session Started';
+      message = 'Your session has started';
+      actionUrl = '/doctor/patients';
+      break;
+    case 'paused':
+      title = 'Session Paused';
+      message = 'Your session has been paused';
+      actionUrl = '/doctor/patients';
+      break;
+    case 'resumed':
+      title = 'Session Resumed';
+      message = 'Your session has been resumed';
+      actionUrl = '/doctor/patients';
+      break;
+    case 'cancelled':
+      title = 'Session Cancelled';
+      message = 'Your session has been cancelled';
+      actionUrl = '/doctor/patients';
+      break;
+    case 'queue_updated':
+      title = 'Queue Updated';
+      message = 'Patient queue has been updated';
+      actionUrl = '/doctor/patients';
+      break;
+    default:
+      title = 'Session Update';
+      message = 'Your session has been updated';
+      actionUrl = '/doctor/patients';
+  }
+
+  return createNotification({
+    userId,
+    userType,
+    type: 'session',
+    title,
+    message,
+    data: {
+      sessionId: session._id || session.id,
+      eventType,
+    },
+    priority: 'medium',
+    actionUrl,
+    icon: 'session',
+  });
+};
 
 /**
  * Check if email notifications are enabled globally
@@ -48,36 +496,8 @@ const sendAppointmentConfirmationEmail = async ({ patient, doctor, appointment }
   return sendEmail({
     to: patient.email,
     subject: `Appointment Confirmed - ${doctorName} | Healiinn`,
-    text: `Hello ${patientName},
-
-Your appointment has been confirmed:
-
-Doctor: ${doctorName}
-Date: ${appointmentDate}
-Time: ${appointmentTime}
-${appointment.tokenNumber ? `Token Number: ${appointment.tokenNumber}` : ''}
-${appointment.reason ? `Reason: ${appointment.reason}` : ''}
-
-Please arrive on time for your appointment. If you need to reschedule or cancel, please do so at least 24 hours in advance.
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">Appointment Confirmed</h2>
-        <p>Hello ${patientName},</p>
-        <p>Your appointment has been confirmed:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Doctor:</strong> ${doctorName}</p>
-          <p style="margin: 5px 0;"><strong>Date:</strong> ${appointmentDate}</p>
-          <p style="margin: 5px 0;"><strong>Time:</strong> ${appointmentTime}</p>
-          ${appointment.tokenNumber ? `<p style="margin: 5px 0;"><strong>Token Number:</strong> ${appointment.tokenNumber}</p>` : ''}
-          ${appointment.reason ? `<p style="margin: 5px 0;"><strong>Reason:</strong> ${appointment.reason}</p>` : ''}
-        </div>
-        <p>Please arrive on time for your appointment. If you need to reschedule or cancel, please do so at least 24 hours in advance.</p>
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
+    text: `Hello ${patientName},\n\nYour appointment has been confirmed:\n\nDoctor: ${doctorName}\nDate: ${appointmentDate}\nTime: ${appointmentTime}\nToken Number: ${appointment.tokenNumber || 'N/A'}\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello ${patientName},</p><p>Your appointment has been confirmed:</p><ul><li><strong>Doctor:</strong> ${doctorName}</li><li><strong>Date:</strong> ${appointmentDate}</li><li><strong>Time:</strong> ${appointmentTime}</li><li><strong>Token Number:</strong> ${appointment.tokenNumber || 'N/A'}</li></ul><p>Thank you,<br/>Team Healiinn</p>`,
   });
 };
 
@@ -88,6 +508,9 @@ const sendDoctorAppointmentNotification = async ({ doctor, patient, appointment 
   if (!(await isEmailNotificationsEnabled())) return null;
   if (!doctor?.email) return null;
 
+  const patientName = patient.firstName
+    ? `${patient.firstName} ${patient.lastName || ''}`.trim()
+    : 'Patient';
   const appointmentDate = appointment.appointmentDate
     ? new Date(appointment.appointmentDate).toLocaleDateString('en-IN', {
         weekday: 'long',
@@ -96,7 +519,21 @@ const sendDoctorAppointmentNotification = async ({ doctor, patient, appointment 
         day: 'numeric',
       })
     : '';
-  const appointmentTime = appointment.time || '';
+
+  return sendEmail({
+    to: doctor.email,
+    subject: `New Appointment - ${patientName} | Healiinn`,
+    text: `Hello Dr. ${doctor.firstName || 'Doctor'},\n\nYou have a new appointment:\n\nPatient: ${patientName}\nDate: ${appointmentDate}\nToken Number: ${appointment.tokenNumber || 'N/A'}\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello Dr. ${doctor.firstName || 'Doctor'},</p><p>You have a new appointment:</p><ul><li><strong>Patient:</strong> ${patientName}</li><li><strong>Date:</strong> ${appointmentDate}</li><li><strong>Token Number:</strong> ${appointment.tokenNumber || 'N/A'}</li></ul><p>Thank you,<br/>Team Healiinn</p>`,
+  });
+};
+
+/**
+ * Send appointment cancellation email
+ */
+const sendAppointmentCancellationEmail = async ({ patient, doctor, appointment }) => {
+  if (!(await isEmailNotificationsEnabled())) return null;
+  if (!patient?.email) return null;
 
   const patientName = patient.firstName
     ? `${patient.firstName} ${patient.lastName || ''}`.trim()
@@ -106,278 +543,17 @@ const sendDoctorAppointmentNotification = async ({ doctor, patient, appointment 
     : 'Doctor';
 
   return sendEmail({
-    to: doctor.email,
-    subject: `New Appointment - ${patientName} | Healiinn`,
-    text: `Hello ${doctorName},
-
-You have a new appointment:
-
-Patient: ${patientName}
-${patient.phone ? `Phone: ${patient.phone}` : ''}
-Date: ${appointmentDate}
-Time: ${appointmentTime}
-${appointment.tokenNumber ? `Token Number: ${appointment.tokenNumber}` : ''}
-${appointment.reason ? `Reason: ${appointment.reason}` : ''}
-
-Please review the appointment details in your dashboard.
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">New Appointment</h2>
-        <p>Hello ${doctorName},</p>
-        <p>You have a new appointment:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Patient:</strong> ${patientName}</p>
-          ${patient.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${patient.phone}</p>` : ''}
-          <p style="margin: 5px 0;"><strong>Date:</strong> ${appointmentDate}</p>
-          <p style="margin: 5px 0;"><strong>Time:</strong> ${appointmentTime}</p>
-          ${appointment.tokenNumber ? `<p style="margin: 5px 0;"><strong>Token Number:</strong> ${appointment.tokenNumber}</p>` : ''}
-          ${appointment.reason ? `<p style="margin: 5px 0;"><strong>Reason:</strong> ${appointment.reason}</p>` : ''}
-        </div>
-        <p>Please review the appointment details in your dashboard.</p>
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
-  });
-};
-
-/**
- * Send appointment cancellation email
- */
-const sendAppointmentCancellationEmail = async ({ patient, doctor, appointment, cancelledBy }) => {
-  if (!(await isEmailNotificationsEnabled())) return null;
-
-  const appointmentDate = appointment.appointmentDate
-    ? new Date(appointment.appointmentDate).toLocaleDateString('en-IN', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    : '';
-
-  const patientName = patient?.firstName
-    ? `${patient.firstName} ${patient.lastName || ''}`.trim()
-    : 'Patient';
-  const doctorName = doctor?.firstName
-    ? `Dr. ${doctor.firstName} ${doctor.lastName || ''}`.trim()
-    : 'Doctor';
-
-  const emails = [];
-  if (patient?.email && cancelledBy !== 'patient') {
-    emails.push(
-      sendEmail({
-        to: patient.email,
-        subject: `Appointment Cancelled - ${doctorName} | Healiinn`,
-        text: `Hello ${patientName},
-
-Your appointment with ${doctorName} scheduled for ${appointmentDate} has been cancelled${cancelledBy === 'doctor' ? ' by the doctor' : ''}.
-
-If you have any questions or would like to reschedule, please contact us.
-
-Thank you,
-Team Healiinn`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #11496c;">Appointment Cancelled</h2>
-            <p>Hello ${patientName},</p>
-            <p>Your appointment with <strong>${doctorName}</strong> scheduled for <strong>${appointmentDate}</strong> has been cancelled${cancelledBy === 'doctor' ? ' by the doctor' : ''}.</p>
-            <p>If you have any questions or would like to reschedule, please contact us.</p>
-            <p>Thank you,<br/>Team Healiinn</p>
-          </div>
-        `,
-      })
-    );
-  }
-
-  if (doctor?.email && cancelledBy !== 'doctor') {
-    emails.push(
-      sendEmail({
-        to: doctor.email,
-        subject: `Appointment Cancelled - ${patientName} | Healiinn`,
-        text: `Hello ${doctorName},
-
-The appointment with ${patientName} scheduled for ${appointmentDate} has been cancelled${cancelledBy === 'patient' ? ' by the patient' : ''}.
-
-Thank you,
-Team Healiinn`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #11496c;">Appointment Cancelled</h2>
-            <p>Hello ${doctorName},</p>
-            <p>The appointment with <strong>${patientName}</strong> scheduled for <strong>${appointmentDate}</strong> has been cancelled${cancelledBy === 'patient' ? ' by the patient' : ''}.</p>
-            <p>Thank you,<br/>Team Healiinn</p>
-          </div>
-        `,
-      })
-    );
-  }
-
-  return Promise.all(emails);
-};
-
-/**
- * Send order confirmation email
- */
-const sendOrderConfirmationEmail = async ({ patient, order, provider, providerType }) => {
-  if (!(await isEmailNotificationsEnabled())) return null;
-  if (!patient?.email) return null;
-
-  const patientName = patient.firstName
-    ? `${patient.firstName} ${patient.lastName || ''}`.trim()
-    : 'Patient';
-  const providerName =
-    providerType === 'pharmacy'
-      ? provider?.pharmacyName || 'Pharmacy'
-      : provider?.labName || 'Laboratory';
-
-  return sendEmail({
     to: patient.email,
-    subject: `Order Confirmed - ${providerName} | Healiinn`,
-    text: `Hello ${patientName},
-
-Your order has been confirmed:
-
-Order ID: ${order._id || order.id}
-${providerType === 'pharmacy' ? 'Pharmacy' : 'Laboratory'}: ${providerName}
-Total Amount: ₹${order.totalAmount || 0}
-Status: ${order.status || 'confirmed'}
-${order.deliveryOption ? `Delivery Option: ${order.deliveryOption}` : ''}
-
-You will receive updates about your order status via email.
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">Order Confirmed</h2>
-        <p>Hello ${patientName},</p>
-        <p>Your order has been confirmed:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Order ID:</strong> ${order._id || order.id}</p>
-          <p style="margin: 5px 0;"><strong>${providerType === 'pharmacy' ? 'Pharmacy' : 'Laboratory'}:</strong> ${providerName}</p>
-          <p style="margin: 5px 0;"><strong>Total Amount:</strong> ₹${order.totalAmount || 0}</p>
-          <p style="margin: 5px 0;"><strong>Status:</strong> ${order.status || 'confirmed'}</p>
-          ${order.deliveryOption ? `<p style="margin: 5px 0;"><strong>Delivery Option:</strong> ${order.deliveryOption}</p>` : ''}
-        </div>
-        <p>You will receive updates about your order status via email.</p>
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
-  });
-};
-
-/**
- * Send order status update email
- */
-const sendOrderStatusUpdateEmail = async ({ patient, order, provider, providerType, newStatus }) => {
-  if (!(await isEmailNotificationsEnabled())) return null;
-  if (!patient?.email) return null;
-
-  const patientName = patient.firstName
-    ? `${patient.firstName} ${patient.lastName || ''}`.trim()
-    : 'Patient';
-  const providerName =
-    providerType === 'pharmacy'
-      ? provider?.pharmacyName || 'Pharmacy'
-      : provider?.labName || 'Laboratory';
-
-  const statusMessages = {
-    accepted: 'Your order has been accepted and is being processed.',
-    processing: 'Your order is being processed.',
-    ready: 'Your order is ready for pickup/delivery.',
-    delivered: 'Your order has been delivered.',
-    cancelled: 'Your order has been cancelled.',
-  };
-
-  return sendEmail({
-    to: patient.email,
-    subject: `Order Update - ${providerName} | Healiinn`,
-    text: `Hello ${patientName},
-
-Your order status has been updated:
-
-Order ID: ${order._id || order.id}
-${providerType === 'pharmacy' ? 'Pharmacy' : 'Laboratory'}: ${providerName}
-New Status: ${newStatus}
-${statusMessages[newStatus] || ''}
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">Order Status Update</h2>
-        <p>Hello ${patientName},</p>
-        <p>Your order status has been updated:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Order ID:</strong> ${order._id || order.id}</p>
-          <p style="margin: 5px 0;"><strong>${providerType === 'pharmacy' ? 'Pharmacy' : 'Laboratory'}:</strong> ${providerName}</p>
-          <p style="margin: 5px 0;"><strong>New Status:</strong> ${newStatus}</p>
-        </div>
-        ${statusMessages[newStatus] ? `<p>${statusMessages[newStatus]}</p>` : ''}
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
-  });
-};
-
-/**
- * Send new order notification to pharmacy/lab
- */
-const sendProviderNewOrderNotification = async ({ provider, order, patient, providerType }) => {
-  if (!(await isEmailNotificationsEnabled())) return null;
-  if (!provider?.email) return null;
-
-  const providerName =
-    providerType === 'pharmacy'
-      ? provider?.pharmacyName || 'Pharmacy'
-      : provider?.labName || 'Laboratory';
-  const patientName = patient.firstName
-    ? `${patient.firstName} ${patient.lastName || ''}`.trim()
-    : 'Patient';
-
-  return sendEmail({
-    to: provider.email,
-    subject: `New Order - ${patientName} | Healiinn`,
-    text: `Hello ${providerName},
-
-You have received a new order:
-
-Order ID: ${order._id || order.id}
-Patient: ${patientName}
-${patient.phone ? `Phone: ${patient.phone}` : ''}
-Total Amount: ₹${order.totalAmount || 0}
-${order.deliveryOption ? `Delivery Option: ${order.deliveryOption}` : ''}
-
-Please review and process the order in your dashboard.
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">New Order</h2>
-        <p>Hello ${providerName},</p>
-        <p>You have received a new order:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Order ID:</strong> ${order._id || order.id}</p>
-          <p style="margin: 5px 0;"><strong>Patient:</strong> ${patientName}</p>
-          ${patient.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${patient.phone}</p>` : ''}
-          <p style="margin: 5px 0;"><strong>Total Amount:</strong> ₹${order.totalAmount || 0}</p>
-          ${order.deliveryOption ? `<p style="margin: 5px 0;"><strong>Delivery Option:</strong> ${order.deliveryOption}</p>` : ''}
-        </div>
-        <p>Please review and process the order in your dashboard.</p>
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
+    subject: `Appointment Cancelled - ${doctorName} | Healiinn`,
+    text: `Hello ${patientName},\n\nYour appointment with ${doctorName} has been cancelled. You can reschedule your appointment from the app.\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello ${patientName},</p><p>Your appointment with <strong>${doctorName}</strong> has been cancelled. You can reschedule your appointment from the app.</p><p>Thank you,<br/>Team Healiinn</p>`,
   });
 };
 
 /**
  * Send lab report ready email
  */
-const sendLabReportReadyEmail = async ({ patient, report, laboratory }) => {
+const sendLabReportReadyEmail = async ({ patient, laboratory, report, order }) => {
   if (!(await isEmailNotificationsEnabled())) return null;
   if (!patient?.email) return null;
 
@@ -388,89 +564,114 @@ const sendLabReportReadyEmail = async ({ patient, report, laboratory }) => {
 
   return sendEmail({
     to: patient.email,
-    subject: `Lab Report Ready - ${labName} | Healiinn`,
-    text: `Hello ${patientName},
-
-Your lab report is ready:
-
-Report ID: ${report._id || report.id}
-Laboratory: ${labName}
-Test Name: ${report.testName || 'Lab Test'}
-${report.pdfFileUrl ? 'PDF: Available for download' : ''}
-
-You can download your report from your dashboard or the link provided.
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">Lab Report Ready</h2>
-        <p>Hello ${patientName},</p>
-        <p>Your lab report is ready:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Report ID:</strong> ${report._id || report.id}</p>
-          <p style="margin: 5px 0;"><strong>Laboratory:</strong> ${labName}</p>
-          <p style="margin: 5px 0;"><strong>Test Name:</strong> ${report.testName || 'Lab Test'}</p>
-          ${report.pdfFileUrl ? '<p style="margin: 5px 0;"><strong>PDF:</strong> Available for download</p>' : ''}
-        </div>
-        <p>You can download your report from your dashboard or the link provided.</p>
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
+    subject: `Test Report Ready - ${labName} | Healiinn`,
+    text: `Hello ${patientName},\n\nYour test report is ready from ${labName}. You can view and download it from the app.\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello ${patientName},</p><p>Your test report is ready from <strong>${labName}</strong>. You can view and download it from the app.</p><p>Thank you,<br/>Team Healiinn</p>`,
   });
 };
 
 /**
- * Send request response email to patient
+ * Send order status update email
  */
-const sendRequestResponseEmail = async ({ patient, request }) => {
+const sendOrderStatusUpdateEmail = async ({ patient, pharmacy, laboratory, order, status }) => {
   if (!(await isEmailNotificationsEnabled())) return null;
   if (!patient?.email) return null;
 
   const patientName = patient.firstName
     ? `${patient.firstName} ${patient.lastName || ''}`.trim()
     : 'Patient';
+  const providerName = pharmacy?.pharmacyName || laboratory?.labName || 'Provider';
+
+  const statusMessages = {
+    confirmed: 'has been confirmed',
+    processing: 'is being processed',
+    ready: 'is ready for pickup/delivery',
+    completed: 'has been completed',
+    cancelled: 'has been cancelled',
+  };
+
+  const message = statusMessages[status] || 'has been updated';
 
   return sendEmail({
     to: patient.email,
-    subject: `Request Response - Healiinn`,
-    text: `Hello ${patientName},
-
-Your request has been processed:
-
-Request ID: ${request._id || request.id}
-Request Type: ${request.type === 'order_medicine' ? 'Medicine Order' : 'Test Booking'}
-Status: ${request.status}
-${request.adminResponse?.totalAmount ? `Total Amount: ₹${request.adminResponse.totalAmount}` : ''}
-
-${request.adminResponse?.message || 'Please check your dashboard for details.'}
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">Request Response</h2>
-        <p>Hello ${patientName},</p>
-        <p>Your request has been processed:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Request ID:</strong> ${request._id || request.id}</p>
-          <p style="margin: 5px 0;"><strong>Request Type:</strong> ${request.type === 'order_medicine' ? 'Medicine Order' : 'Test Booking'}</p>
-          <p style="margin: 5px 0;"><strong>Status:</strong> ${request.status}</p>
-          ${request.adminResponse?.totalAmount ? `<p style="margin: 5px 0;"><strong>Total Amount:</strong> ₹${request.adminResponse.totalAmount}</p>` : ''}
-        </div>
-        <p>${request.adminResponse?.message || 'Please check your dashboard for details.'}</p>
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
+    subject: `Order Update - ${providerName} | Healiinn`,
+    text: `Hello ${patientName},\n\nYour order ${message} by ${providerName}.\n\nOrder ID: ${order._id || order.id}\nStatus: ${status}\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello ${patientName},</p><p>Your order ${message} by <strong>${providerName}</strong>.</p><ul><li><strong>Order ID:</strong> ${order._id || order.id}</li><li><strong>Status:</strong> ${status}</li></ul><p>Thank you,<br/>Team Healiinn</p>`,
   });
 };
 
 /**
  * Send payment confirmation email
+ * Accepts either:
+ * - { patient, amount, orderId, appointmentId } (direct values)
+ * - { patient, transaction, order } (objects to extract from)
  */
-const sendPaymentConfirmationEmail = async ({ patient, transaction, order }) => {
+const sendPaymentConfirmationEmail = async ({ patient, amount, orderId, appointmentId, transaction, order }) => {
   if (!(await isEmailNotificationsEnabled())) return null;
   if (!patient?.email) return null;
+
+  // Extract values from transaction/order objects if provided
+  let paymentAmount = amount;
+  let referenceId = orderId || appointmentId || 'N/A';
+  
+  if (transaction) {
+    // Extract amount from transaction
+    if (!paymentAmount && transaction.amount) {
+      paymentAmount = transaction.amount;
+    }
+    // Extract reference ID from transaction
+    if (transaction.referenceId) {
+      referenceId = transaction.referenceId;
+    } else if (transaction._id) {
+      referenceId = transaction._id.toString();
+    } else if (transaction.id) {
+      referenceId = transaction.id.toString();
+    }
+    // Extract appointmentId from transaction if available
+    if (!appointmentId && transaction.appointmentId) {
+      appointmentId = transaction.appointmentId;
+      if (typeof appointmentId === 'object' && appointmentId._id) {
+        referenceId = appointmentId._id.toString();
+      } else if (typeof appointmentId === 'string') {
+        referenceId = appointmentId;
+      }
+    }
+  }
+  
+  if (order) {
+    // Extract order ID from order object
+    if (order._id) {
+      referenceId = order._id.toString();
+    } else if (order.id) {
+      referenceId = order.id.toString();
+    }
+  }
+  
+  // Fallback: if still no amount, try to get from transaction metadata
+  if (!paymentAmount && transaction?.metadata?.totalAmount) {
+    paymentAmount = transaction.metadata.totalAmount;
+  }
+  
+  // Ensure amount is a number and format it
+  if (paymentAmount === undefined || paymentAmount === null) {
+    console.error('Payment amount is undefined in sendPaymentConfirmationEmail:', {
+      amount,
+      transaction: transaction ? {
+        amount: transaction.amount,
+        metadata: transaction.metadata,
+      } : null,
+    });
+    paymentAmount = 0; // Fallback to 0 if still undefined
+  }
+  
+  // Format reference ID
+  if (referenceId === 'N/A' && appointmentId) {
+    if (typeof appointmentId === 'object' && appointmentId._id) {
+      referenceId = appointmentId._id.toString();
+    } else if (typeof appointmentId === 'string') {
+      referenceId = appointmentId;
+    }
+  }
 
   const patientName = patient.firstName
     ? `${patient.firstName} ${patient.lastName || ''}`.trim()
@@ -478,293 +679,34 @@ const sendPaymentConfirmationEmail = async ({ patient, transaction, order }) => 
 
   return sendEmail({
     to: patient.email,
-    subject: `Payment Confirmed - ₹${transaction.amount || 0} | Healiinn`,
-    text: `Hello ${patientName},
-
-Your payment has been confirmed:
-
-Transaction ID: ${transaction._id || transaction.id}
-Amount: ₹${transaction.amount || 0}
-Status: ${transaction.status || 'completed'}
-${order ? `Order ID: ${order._id || order.id}` : ''}
-Date: ${new Date().toLocaleDateString('en-IN')}
-
-Thank you for your payment.
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">Payment Confirmed</h2>
-        <p>Hello ${patientName},</p>
-        <p>Your payment has been confirmed:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Transaction ID:</strong> ${transaction._id || transaction.id}</p>
-          <p style="margin: 5px 0;"><strong>Amount:</strong> ₹${transaction.amount || 0}</p>
-          <p style="margin: 5px 0;"><strong>Status:</strong> ${transaction.status || 'completed'}</p>
-          ${order ? `<p style="margin: 5px 0;"><strong>Order ID:</strong> ${order._id || order.id}</p>` : ''}
-          <p style="margin: 5px 0;"><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
-        </div>
-        <p>Thank you for your payment.</p>
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
-  });
-};
-
-/**
- * Send withdrawal request notification
- */
-const sendWithdrawalRequestNotification = async ({ provider, withdrawal, providerType }) => {
-  if (!(await isEmailNotificationsEnabled())) return null;
-  if (!provider?.email) return null;
-
-  const providerName =
-    providerType === 'doctor'
-      ? `Dr. ${provider.firstName || ''} ${provider.lastName || ''}`.trim()
-      : providerType === 'pharmacy'
-      ? provider?.pharmacyName || 'Pharmacy'
-      : provider?.labName || 'Laboratory';
-
-  return sendEmail({
-    to: provider.email,
-    subject: `Withdrawal Request Submitted - ₹${withdrawal.amount || 0} | Healiinn`,
-    text: `Hello ${providerName},
-
-Your withdrawal request has been submitted:
-
-Request ID: ${withdrawal._id || withdrawal.id}
-Amount: ₹${withdrawal.amount || 0}
-Status: ${withdrawal.status || 'pending'}
-
-Your request is under review. You will be notified once it's processed.
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">Withdrawal Request Submitted</h2>
-        <p>Hello ${providerName},</p>
-        <p>Your withdrawal request has been submitted:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Request ID:</strong> ${withdrawal._id || withdrawal.id}</p>
-          <p style="margin: 5px 0;"><strong>Amount:</strong> ₹${withdrawal.amount || 0}</p>
-          <p style="margin: 5px 0;"><strong>Status:</strong> ${withdrawal.status || 'pending'}</p>
-        </div>
-        <p>Your request is under review. You will be notified once it's processed.</p>
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
-  });
-};
-
-/**
- * Send withdrawal status update email
- */
-const sendWithdrawalStatusUpdateEmail = async ({ provider, withdrawal, providerType }) => {
-  if (!(await isEmailNotificationsEnabled())) return null;
-  if (!provider?.email) return null;
-
-  const providerName =
-    providerType === 'doctor'
-      ? `Dr. ${provider.firstName || ''} ${provider.lastName || ''}`.trim()
-      : providerType === 'pharmacy'
-      ? provider?.pharmacyName || 'Pharmacy'
-      : provider?.labName || 'Laboratory';
-
-  const statusMessages = {
-    approved: 'Your withdrawal request has been approved and is being processed.',
-    rejected: 'Your withdrawal request has been rejected.',
-    processed: 'Your withdrawal has been processed and the amount has been transferred.',
-  };
-
-  return sendEmail({
-    to: provider.email,
-    subject: `Withdrawal Update - ₹${withdrawal.amount || 0} | Healiinn`,
-    text: `Hello ${providerName},
-
-Your withdrawal request status has been updated:
-
-Request ID: ${withdrawal._id || withdrawal.id}
-Amount: ₹${withdrawal.amount || 0}
-Status: ${withdrawal.status}
-${statusMessages[withdrawal.status] || ''}
-${withdrawal.adminNote ? `Admin Note: ${withdrawal.adminNote}` : ''}
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">Withdrawal Status Update</h2>
-        <p>Hello ${providerName},</p>
-        <p>Your withdrawal request status has been updated:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Request ID:</strong> ${withdrawal._id || withdrawal.id}</p>
-          <p style="margin: 5px 0;"><strong>Amount:</strong> ₹${withdrawal.amount || 0}</p>
-          <p style="margin: 5px 0;"><strong>Status:</strong> ${withdrawal.status}</p>
-        </div>
-        ${statusMessages[withdrawal.status] ? `<p>${statusMessages[withdrawal.status]}</p>` : ''}
-        ${withdrawal.adminNote ? `<p><strong>Admin Note:</strong> ${withdrawal.adminNote}</p>` : ''}
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
-  });
-};
-
-/**
- * Send support ticket notification
- */
-const sendSupportTicketNotification = async ({ user, ticket, userType, isResponse = false }) => {
-  if (!(await isEmailNotificationsEnabled())) return null;
-  if (!user?.email) return null;
-
-  const userName =
-    userType === 'patient'
-      ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
-      : userType === 'doctor'
-      ? `Dr. ${user.firstName || ''} ${user.lastName || ''}`.trim()
-      : userType === 'pharmacy'
-      ? user?.pharmacyName || 'Pharmacy'
-      : userType === 'laboratory'
-      ? user?.labName || 'Laboratory'
-      : user?.name || 'User';
-
-  if (isResponse) {
-    return sendEmail({
-      to: user.email,
-      subject: `Support Ticket Response - #${ticket._id || ticket.id} | Healiinn`,
-      text: `Hello ${userName},
-
-Your support ticket has received a response:
-
-Ticket ID: ${ticket._id || ticket.id}
-Subject: ${ticket.subject || 'Support Request'}
-Status: ${ticket.status || 'in_progress'}
-
-Please check your dashboard for the response details.
-
-Thank you,
-Team Healiinn`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #11496c;">Support Ticket Response</h2>
-          <p>Hello ${userName},</p>
-          <p>Your support ticket has received a response:</p>
-          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <p style="margin: 5px 0;"><strong>Ticket ID:</strong> #${ticket._id || ticket.id}</p>
-            <p style="margin: 5px 0;"><strong>Subject:</strong> ${ticket.subject || 'Support Request'}</p>
-            <p style="margin: 5px 0;"><strong>Status:</strong> ${ticket.status || 'in_progress'}</p>
-          </div>
-          <p>Please check your dashboard for the response details.</p>
-          <p>Thank you,<br/>Team Healiinn</p>
-        </div>
-      `,
-    });
-  }
-
-  return sendEmail({
-    to: user.email,
-    subject: `Support Ticket Created - #${ticket._id || ticket.id} | Healiinn`,
-    text: `Hello ${userName},
-
-Your support ticket has been created:
-
-Ticket ID: ${ticket._id || ticket.id}
-Subject: ${ticket.subject || 'Support Request'}
-Status: ${ticket.status || 'open'}
-
-We will review your ticket and respond as soon as possible.
-
-Thank you,
-Team Healiinn`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">Support Ticket Created</h2>
-        <p>Hello ${userName},</p>
-        <p>Your support ticket has been created:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Ticket ID:</strong> #${ticket._id || ticket.id}</p>
-          <p style="margin: 5px 0;"><strong>Subject:</strong> ${ticket.subject || 'Support Request'}</p>
-          <p style="margin: 5px 0;"><strong>Status:</strong> ${ticket.status || 'open'}</p>
-        </div>
-        <p>We will review your ticket and respond as soon as possible.</p>
-        <p>Thank you,<br/>Team Healiinn</p>
-      </div>
-    `,
-  });
-};
-
-/**
- * Send new support ticket notification to admin
- */
-const sendAdminSupportTicketNotification = async ({ admin, ticket, user, userType }) => {
-  if (!(await isEmailNotificationsEnabled())) return null;
-  if (!admin?.email) return null;
-
-  const userName =
-    userType === 'patient'
-      ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
-      : userType === 'doctor'
-      ? `Dr. ${user.firstName || ''} ${user.lastName || ''}`.trim()
-      : userType === 'pharmacy'
-      ? user?.pharmacyName || 'Pharmacy'
-      : userType === 'laboratory'
-      ? user?.labName || 'Laboratory'
-      : user?.name || 'User';
-
-  return sendEmail({
-    to: admin.email,
-    subject: `New Support Ticket - ${userType} | Healiinn`,
-    text: `Hello Admin,
-
-A new support ticket has been created:
-
-Ticket ID: ${ticket._id || ticket.id}
-User: ${userName} (${userType})
-Subject: ${ticket.subject || 'Support Request'}
-Priority: ${ticket.priority || 'medium'}
-
-Please review and respond to the ticket in the admin panel.
-
-Thank you,
-Healiinn Platform`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #11496c;">New Support Ticket</h2>
-        <p>Hello Admin,</p>
-        <p>A new support ticket has been created:</p>
-        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
-          <p style="margin: 5px 0;"><strong>Ticket ID:</strong> #${ticket._id || ticket.id}</p>
-          <p style="margin: 5px 0;"><strong>User:</strong> ${userName} (${userType})</p>
-          <p style="margin: 5px 0;"><strong>Subject:</strong> ${ticket.subject || 'Support Request'}</p>
-          <p style="margin: 5px 0;"><strong>Priority:</strong> ${ticket.priority || 'medium'}</p>
-        </div>
-        <p>Please review and respond to the ticket in the admin panel.</p>
-        <p>Thank you,<br/>Healiinn Platform</p>
-      </div>
-    `,
+    subject: `Payment Confirmed - ₹${paymentAmount} | Healiinn`,
+    text: `Hello ${patientName},\n\nYour payment of ₹${paymentAmount} has been confirmed.\n\nReference ID: ${referenceId}\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello ${patientName},</p><p>Your payment of <strong>₹${paymentAmount}</strong> has been confirmed.</p><p><strong>Reference ID:</strong> ${referenceId}</p><p>Thank you,<br/>Team Healiinn</p>`,
   });
 };
 
 module.exports = {
+  createNotification,
+  createAppointmentNotification,
+  createPrescriptionNotification,
+  createWalletNotification,
+  createOrderNotification,
+  createRequestNotification,
+  createReportNotification,
+  createAdminNotification,
+  createSessionNotification,
+  // Email notification functions
   sendAppointmentConfirmationEmail,
   sendDoctorAppointmentNotification,
   sendAppointmentCancellationEmail,
-  sendOrderConfirmationEmail,
-  sendOrderStatusUpdateEmail,
-  sendProviderNewOrderNotification,
   sendLabReportReadyEmail,
-  sendRequestResponseEmail,
+  sendOrderStatusUpdateEmail,
   sendPaymentConfirmationEmail,
-  sendWithdrawalRequestNotification,
-  sendWithdrawalStatusUpdateEmail,
-  sendSupportTicketNotification,
-  sendAdminSupportTicketNotification,
-  // Re-export existing functions
+  // Re-export email service functions
+  sendEmail,
   sendRoleApprovalEmail,
   sendSignupAcknowledgementEmail,
   sendPasswordResetOtpEmail,
   sendAppointmentReminderEmail,
   sendPrescriptionEmail,
 };
-

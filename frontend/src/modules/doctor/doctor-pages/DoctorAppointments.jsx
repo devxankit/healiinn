@@ -12,182 +12,10 @@ import {
   IoCloseCircleOutline,
   IoCloseOutline,
 } from 'react-icons/io5'
+import { getDoctorAppointments, cancelDoctorAppointment } from '../doctor-services/doctorService'
 
-// Mock data for appointments
-const mockAllAppointments = [
-  // Today's appointments
-  {
-    id: 'apt-1',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
-    date: '2025-01-15',
-    time: '09:00 AM',
-    type: 'In-person',
-    status: 'confirmed',
-    duration: '30 min',
-    reason: 'Follow-up consultation',
-    appointmentType: 'Follow-up',
-  },
-  {
-    id: 'apt-2',
-    patientId: 'pat-2',
-    patientName: 'Sarah Smith',
-    patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160',
-    date: '2025-01-15',
-    time: '10:30 AM',
-    type: 'In-person',
-    status: 'confirmed',
-    duration: '45 min',
-    reason: 'Initial consultation',
-    appointmentType: 'New',
-  },
-  {
-    id: 'apt-3',
-    patientId: 'pat-3',
-    patientName: 'Mike Johnson',
-    patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
-    date: '2025-01-15',
-    time: '02:00 PM',
-    type: 'In-person',
-    status: 'scheduled', // Backend status - will display as 'pending'
-    duration: '20 min',
-    reason: 'Quick check-up',
-    appointmentType: 'Follow-up',
-  },
-  {
-    id: 'apt-4',
-    patientId: 'pat-4',
-    patientName: 'Emily Brown',
-    patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
-    date: '2025-01-15',
-    time: '03:30 PM',
-    type: 'In-person',
-    status: 'confirmed',
-    duration: '30 min',
-    reason: 'Routine check-up',
-    appointmentType: 'Follow-up',
-  },
-  // This month appointments (already today's + more)
-  {
-    id: 'apt-5',
-    patientId: 'pat-5',
-    patientName: 'David Wilson',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=8b5cf6&color=fff&size=160',
-    date: '2025-01-14',
-    time: '11:00 AM',
-    type: 'In-person',
-    status: 'completed',
-    duration: '30 min',
-    reason: 'Annual checkup',
-    appointmentType: 'New',
-  },
-  {
-    id: 'apt-6',
-    patientId: 'pat-6',
-    patientName: 'Lisa Anderson',
-    patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=ef4444&color=fff&size=160',
-    date: '2025-01-13',
-    time: '09:30 AM',
-    type: 'In-person',
-    status: 'completed',
-    duration: '45 min',
-    reason: 'Prescription follow-up',
-    appointmentType: 'Follow-up',
-  },
-  {
-    id: 'apt-7',
-    patientId: 'pat-7',
-    patientName: 'Robert Taylor',
-    patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=6366f1&color=fff&size=160',
-    date: '2025-01-12',
-    time: '02:30 PM',
-    type: 'In-person',
-    status: 'completed',
-    duration: '20 min',
-    reason: 'Lab results review',
-    appointmentType: 'Follow-up',
-  },
-  {
-    id: 'apt-8',
-    patientId: 'pat-8',
-    patientName: 'Jennifer Martinez',
-    patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=160',
-    date: '2025-01-11',
-    time: '10:00 AM',
-    type: 'In-person',
-    status: 'completed',
-    duration: '30 min',
-    reason: 'Initial consultation',
-    appointmentType: 'New',
-  },
-  {
-    id: 'apt-9',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
-    date: '2025-01-10',
-    time: '03:00 PM',
-    type: 'In-person',
-    status: 'completed',
-    duration: '30 min',
-    reason: 'Hypertension follow-up',
-    appointmentType: 'Follow-up',
-  },
-  {
-    id: 'apt-10',
-    patientId: 'pat-2',
-    patientName: 'Sarah Smith',
-    patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160',
-    date: '2025-01-09',
-    time: '11:30 AM',
-    type: 'In-person',
-    status: 'completed',
-    duration: '45 min',
-    reason: 'Chest pain evaluation',
-    appointmentType: 'Follow-up',
-  },
-  // This year appointments (sample from previous months)
-  {
-    id: 'apt-11',
-    patientId: 'pat-3',
-    patientName: 'Mike Johnson',
-    patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
-    date: '2024-12-20',
-    time: '02:00 PM',
-    type: 'In-person',
-    status: 'completed',
-    duration: '30 min',
-    reason: 'Diabetes management',
-    appointmentType: 'Follow-up',
-  },
-  {
-    id: 'apt-12',
-    patientId: 'pat-4',
-    patientName: 'Emily Brown',
-    patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
-    date: '2024-11-15',
-    time: '10:00 AM',
-    type: 'In-person',
-    status: 'completed',
-    duration: '30 min',
-    reason: 'Arthritis consultation',
-    appointmentType: 'Follow-up',
-  },
-  {
-    id: 'apt-13',
-    patientId: 'pat-5',
-    patientName: 'David Wilson',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=8b5cf6&color=fff&size=160',
-    date: '2024-10-10',
-    time: '11:00 AM',
-    type: 'In-person',
-    status: 'completed',
-    duration: '30 min',
-    reason: 'Annual checkup',
-    appointmentType: 'New',
-  },
-]
+// Default appointments (will be replaced by API data)
+const defaultAppointments = []
 
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
@@ -263,79 +91,73 @@ const getStatusColor = (status) => {
 const DoctorAppointments = () => {
   const navigate = useNavigate()
   const toast = useToast()
-  const [appointments, setAppointments] = useState([])
+  const [appointments, setAppointments] = useState(defaultAppointments)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPeriod, setFilterPeriod] = useState('all') // 'today', 'monthly', 'yearly', 'all'
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [appointmentToCancel, setAppointmentToCancel] = useState(null)
   const [cancelReason, setCancelReason] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Load appointments from localStorage
+  // Fetch appointments from API
   useEffect(() => {
-    const loadAppointments = () => {
+    const fetchAppointments = async () => {
       try {
-        // Get current doctor ID from profile
-        const doctorProfile = JSON.parse(localStorage.getItem('doctorProfile') || '{}')
-        const doctorId = doctorProfile.id || 'doc-current'
-        const doctorName = `${doctorProfile.firstName || ''} ${doctorProfile.lastName || ''}`.trim() || doctorProfile.name || ''
+        setLoading(true)
+        setError(null)
+        const response = await getDoctorAppointments()
         
-        // Load from allAppointments (shared by patient bookings)
-        const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
-        // Also check doctorAppointments for backward compatibility
-        const doctorAppts = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
-        
-        // Filter appointments for this doctor
-        const doctorFilteredAppts = [
-          ...allAppts.filter(apt => apt.doctorId === doctorId || apt.doctorName === doctorName),
-          ...doctorAppts.filter(apt => apt.doctorId === doctorId),
-        ]
-        
-        // Remove duplicates
-        const unique = doctorFilteredAppts.filter((apt, idx, self) => 
-          idx === self.findIndex(a => a.id === apt.id)
-        )
-        
-        // Merge with mock data for backward compatibility, but prioritize localStorage data
-        const merged = [...unique, ...mockAllAppointments]
-        const finalUnique = merged.filter((apt, idx, self) => 
-          idx === self.findIndex(a => a.id === apt.id)
-        )
-        
-        // Transform to match expected format, preserving all data
-        const transformed = finalUnique.map(apt => ({
-          id: apt.id,
-          patientId: apt.patientId || apt.patient?.id || 'pat-unknown',
-          patientName: apt.patientName || apt.patient?.name || 'Unknown Patient',
-          patientImage: apt.patientImage || apt.patient?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
-          date: apt.appointmentDate || apt.date,
-          time: apt.time || '10:00 AM',
-          type: apt.appointmentType || apt.type || 'In-person',
-          status: apt.status || 'scheduled',
-          duration: apt.duration || '30 min',
-          reason: apt.reason || 'Consultation',
-          appointmentType: apt.appointmentType || 'New',
-          // Preserve additional patient data
-          patientPhone: apt.patientPhone || apt.patient?.phone || '+1-555-000-0000',
-          patientEmail: apt.patientEmail || apt.patient?.email || `${(apt.patientName || 'patient').toLowerCase().replace(/\s+/g, '.')}@example.com`,
-          patientAddress: apt.patientAddress || apt.patient?.address || 'Address not provided',
-          age: apt.age || apt.patient?.age || 30,
-          gender: apt.gender || apt.patient?.gender || 'male',
-          // Preserve original appointment data for reference
-          originalData: apt,
-        }))
-        
-        setAppointments(transformed)
-      } catch (error) {
-        console.error('Error loading appointments:', error)
-        setAppointments(mockAllAppointments)
+        if (response.success && response.data) {
+          // Handle both array and object with items/appointments property
+          const appointmentsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || response.data.appointments || []
+          
+          // Transform API data to match component structure
+          const transformed = appointmentsData.map(apt => ({
+            id: apt._id || apt.id,
+            _id: apt._id || apt.id,
+            patientId: apt.patientId?._id || apt.patientId?.id || apt.patientId || 'pat-unknown',
+            patientName: apt.patientId?.firstName && apt.patientId?.lastName
+              ? `${apt.patientId.firstName} ${apt.patientId.lastName}`
+              : apt.patientId?.name || apt.patientName || 'Unknown Patient',
+            patientImage: apt.patientId?.profileImage || apt.patientId?.image || apt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            date: apt.appointmentDate || apt.date,
+            time: apt.time || '',
+            type: apt.appointmentType || apt.type || 'In-person',
+            status: apt.status || 'scheduled',
+            duration: apt.duration || '30 min',
+            reason: apt.reason || apt.chiefComplaint || 'Consultation',
+            appointmentType: apt.appointmentType || 'New',
+            // Preserve additional patient data
+            patientPhone: apt.patientId?.phone || apt.patientPhone || '',
+            patientEmail: apt.patientId?.email || apt.patientEmail || '',
+            patientAddress: apt.patientId?.address 
+              ? `${apt.patientId.address.line1 || ''}, ${apt.patientId.address.city || ''}, ${apt.patientId.address.state || ''}`.trim()
+              : apt.patientAddress || 'Address not provided',
+            age: apt.patientId?.age || apt.age || 30,
+            gender: apt.patientId?.gender || apt.gender || 'male',
+            // Preserve original appointment data for reference
+            originalData: apt,
+          }))
+          
+          setAppointments(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching appointments:', err)
+        setError(err.message || 'Failed to load appointments')
+        toast.error('Failed to load appointments')
+      } finally {
+        setLoading(false)
       }
     }
     
-    loadAppointments()
-    // Refresh every 2 seconds to get new appointments
-    const interval = setInterval(loadAppointments, 2000)
+    fetchAppointments()
+    // Refresh every 30 seconds to get new appointments
+    const interval = setInterval(fetchAppointments, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [toast])
 
   // Get today's date for filtering
   const today = new Date()
@@ -454,58 +276,36 @@ const DoctorAppointments = () => {
     setShowCancelModal(true)
   }
 
-  const handleConfirmCancel = () => {
+  const handleConfirmCancel = async () => {
     if (!appointmentToCancel || !cancelReason.trim()) {
       toast.warning('Please provide a reason for cancellation')
       return
     }
 
-    // Update appointment status to cancelled in localStorage
+    // Call API to cancel appointment
     try {
-      const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
-      const updatedAllAppts = allAppts.map(apt =>
-        apt.id === appointmentToCancel.id
-          ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
-          : apt
-      )
-      localStorage.setItem('allAppointments', JSON.stringify(updatedAllAppts))
+      await cancelDoctorAppointment(appointmentToCancel._id || appointmentToCancel.id, cancelReason.trim())
       
-      // Also update in doctorAppointments
-      const doctorAppts = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
-      const updatedDoctorAppts = doctorAppts.map(apt =>
-        apt.id === appointmentToCancel.id
-          ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
-          : apt
+      // Update appointment status to cancelled in state
+      setAppointments((prev) =>
+        prev.map((apt) =>
+          apt.id === appointmentToCancel.id || apt._id === appointmentToCancel._id
+            ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
+            : apt
+        )
       )
-      localStorage.setItem('doctorAppointments', JSON.stringify(updatedDoctorAppts))
-      
-      // Also update in patientAppointments
-      const patientAppts = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
-      const updatedPatientAppts = patientAppts.map(apt =>
-        apt.id === appointmentToCancel.id
-          ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
-          : apt
-      )
-      localStorage.setItem('patientAppointments', JSON.stringify(updatedPatientAppts))
-    } catch (error) {
-      console.error('Error updating appointment status:', error)
-    }
 
-    // Update appointment status to cancelled in state
-    setAppointments((prev) =>
-      prev.map((apt) =>
-        apt.id === appointmentToCancel.id
-          ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
-          : apt
-      )
-    )
+      toast.success(`Appointment with ${appointmentToCancel.patientName} has been cancelled. Patient will be notified and can reschedule.`)
+    } catch (error) {
+      console.error('Error cancelling appointment:', error)
+      toast.error(error.message || 'Failed to cancel appointment')
+      return
+    }
 
     // Close modal and reset
     setShowCancelModal(false)
     setAppointmentToCancel(null)
     setCancelReason('')
-    
-    toast.success(`Appointment with ${appointmentToCancel.patientName} has been cancelled. Patient will be notified and can reschedule.`)
   }
 
   const handleCloseCancelModal = () => {

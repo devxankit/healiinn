@@ -15,108 +15,13 @@ import {
   IoTimeOutline,
   IoDownloadOutline,
 } from 'react-icons/io5'
+import { 
+  getPatientRequests, 
+  confirmRequestPayment, 
+  cancelPatientRequest 
+} from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data for booking requests and responses
-const mockRequests = [
-  {
-    id: 'req-1',
-    type: 'lab', // 'lab' or 'pharmacy'
-    providerName: 'MediCare Diagnostics',
-    providerId: 'lab-1',
-    testName: 'Complete Blood Count (CBC)',
-    status: 'accepted', // 'pending', 'accepted', 'paid', 'confirmed'
-    requestDate: '2025-01-10',
-    responseDate: '2025-01-11',
-    totalAmount: 350,
-    message: 'Your booking request has been accepted. Please proceed with payment.',
-    prescriptionId: 'presc-1',
-    // Patient Information
-    patient: {
-      name: 'John Doe',
-      phone: '+91 98765 12345',
-      email: 'john.doe@example.com',
-      address: '123 Main Street, Pune, Maharashtra 411001',
-      age: 32,
-      gender: 'Male',
-    },
-    // Provider Response
-    providerResponse: {
-      message: 'Your booking request has been accepted. Sample collection can be scheduled at your home address on Jan 15, 2025. Total amount: ₹350. Please proceed with payment.',
-      responseBy: 'MediCare Diagnostics Team',
-      responseTime: '2025-01-11T10:30:00',
-    },
-    // Doctor Information (from prescription)
-    doctor: {
-      name: 'Dr. Rajesh Kumar',
-      specialty: 'General Physician',
-      phone: '+91 98765 43210',
-    },
-  },
-  {
-    id: 'req-2',
-    type: 'pharmacy',
-    providerName: 'City Pharmacy',
-    providerId: 'pharmacy-1',
-    medicineName: 'Prescription Medicines',
-    status: 'accepted',
-    requestDate: '2025-01-12',
-    responseDate: '2025-01-13',
-    totalAmount: 1250,
-    message: 'Medicines are available. Total amount: ₹1,250. Please confirm and pay.',
-    prescriptionId: 'presc-2',
-    // Patient Information
-    patient: {
-      name: 'John Doe',
-      phone: '+91 98765 12345',
-      email: 'john.doe@example.com',
-      address: '123 Main Street, Pune, Maharashtra 411001',
-      age: 32,
-      gender: 'Male',
-    },
-    // Provider Response
-    providerResponse: {
-      message: 'All prescribed medicines are available in stock. We can deliver to your address within 2-3 hours. Total amount: ₹1,250. Please confirm and proceed with payment.',
-      responseBy: 'City Pharmacy Team',
-      responseTime: '2025-01-13T14:20:00',
-    },
-    // Doctor Information (from prescription)
-    doctor: {
-      name: 'Dr. Priya Sharma',
-      specialty: 'Cardiologist',
-      phone: '+91 98765 54321',
-    },
-  },
-  {
-    id: 'req-3',
-    type: 'lab',
-    providerName: 'HealthLab Center',
-    providerId: 'lab-2',
-    testName: 'Blood Glucose Test',
-    status: 'pending',
-    requestDate: '2025-01-14',
-    responseDate: null,
-    totalAmount: null,
-    message: null,
-    prescriptionId: 'presc-3',
-    // Patient Information
-    patient: {
-      name: 'John Doe',
-      phone: '+91 98765 12345',
-      email: 'john.doe@example.com',
-      address: '123 Main Street, Pune, Maharashtra 411001',
-      age: 32,
-      gender: 'Male',
-    },
-    // Provider Response (pending)
-    providerResponse: null,
-    // Doctor Information (from prescription)
-    doctor: {
-      name: 'Dr. Rajesh Kumar',
-      specialty: 'General Physician',
-      phone: '+91 98765 43210',
-    },
-  },
-]
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -146,35 +51,241 @@ const PatientRequests = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('card')
   const [requests, setRequests] = useState([])
-  const [, setCancelledRequests] = useState([])
   const [receiptPdfUrl, setReceiptPdfUrl] = useState(null)
+  const toast = useToast()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Load requests from localStorage
+  // Fetch requests from API
   useEffect(() => {
-    loadRequests()
-    // Refresh every 2 seconds to get new requests
-    const interval = setInterval(() => {
-      loadRequests()
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [])
+    const fetchRequests = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPatientRequests()
+        
+        if (response.success && response.data) {
+          const requestsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          
+          const transformed = requestsData.map(request => {
+            const isLab = request.type === 'book_test_visit' || request.type === 'lab'
+            const isPharmacy = request.type === 'order_medicine' || request.type === 'pharmacy'
+            
+            // Group medicines by pharmacy
+            const medicinesByPharmacy = {}
+            if (request.adminResponse?.medicines && Array.isArray(request.adminResponse.medicines)) {
+              request.adminResponse.medicines.forEach(med => {
+                const pharmId = med.pharmacyId?.toString() || med.pharmacyId || 'unknown'
+                if (!medicinesByPharmacy[pharmId]) {
+                  medicinesByPharmacy[pharmId] = {
+                    pharmacyId: pharmId,
+                    pharmacyName: med.pharmacyName || 'Pharmacy',
+                    medicines: []
+                  }
+                }
+                medicinesByPharmacy[pharmId].medicines.push({
+                  name: med.name,
+                  dosage: med.dosage,
+                  quantity: med.quantity,
+                  price: med.price,
+                  total: (med.price || 0) * (med.quantity || 1)
+                })
+              })
+            }
+            
+            // Group tests by lab
+            const testsByLab = {}
+            if (request.adminResponse?.tests && Array.isArray(request.adminResponse.tests)) {
+              request.adminResponse.tests.forEach(test => {
+                const labId = test.labId?.toString() || test.labId || 'unknown'
+                if (!testsByLab[labId]) {
+                  testsByLab[labId] = {
+                    labId: labId,
+                    labName: test.labName || 'Laboratory',
+                    tests: []
+                  }
+                }
+                testsByLab[labId].tests.push({
+                  testName: test.testName,
+                  price: test.price
+                })
+              })
+            }
+            
+            return {
+              id: request._id || request.id,
+              _id: request._id || request.id,
+              type: isLab ? 'lab' : isPharmacy ? 'pharmacy' : request.type,
+              providerName: isLab 
+                ? (request.adminResponse?.lab?.labName || request.adminResponse?.labs?.[0]?.labName || 'Laboratory')
+                : (request.adminResponse?.pharmacy?.pharmacyName || request.adminResponse?.pharmacies?.[0]?.pharmacyName || 'Pharmacy'),
+              providerId: isLab 
+                ? (request.adminResponse?.lab?.labId || request.adminResponse?.labs?.[0]?.labId)
+                : (request.adminResponse?.pharmacy?.pharmacyId || request.adminResponse?.pharmacies?.[0]?.pharmacyId),
+              testName: request.adminResponse?.lab?.testName || request.adminResponse?.tests?.[0]?.testName || 'Lab Test',
+              medicineName: request.adminResponse?.pharmacy?.medicineName || 'Prescription Medicines',
+              status: request.status || 'pending',
+              requestDate: request.createdAt || request.requestDate || new Date().toISOString().split('T')[0],
+              responseDate: request.adminResponse?.responseTime || request.responseDate || null,
+              totalAmount: request.adminResponse?.totalAmount || request.totalAmount || null,
+              message: request.adminResponse?.message || request.message || null,
+              prescriptionId: request.prescriptionId?._id || request.prescriptionId || null,
+              // Grouped data
+              medicinesByPharmacy: Object.values(medicinesByPharmacy),
+              testsByLab: Object.values(testsByLab),
+              // Legacy fields for backward compatibility
+              adminMedicines: request.adminResponse?.medicines || [],
+              investigations: request.adminResponse?.tests || [],
+              patient: request.patientId ? {
+                name: `${request.patientId.firstName || ''} ${request.patientId.lastName || ''}`.trim() || 'Patient',
+                phone: request.patientId.phone || '',
+                email: request.patientId.email || '',
+                address: request.patientId.address || '',
+                age: request.patientId.age || null,
+                gender: request.patientId.gender || null,
+              } : null,
+              providerResponse: request.adminResponse ? {
+                message: request.adminResponse.message || '',
+                responseBy: request.adminResponse.responseBy || 'Provider',
+                responseTime: request.adminResponse.responseTime || request.createdAt,
+              } : null,
+              doctor: request.prescriptionId?.doctorId ? {
+                name: request.prescriptionId.doctorId.name || 'Dr. Unknown',
+                specialty: request.prescriptionId.doctorId.specialty || '',
+                phone: request.prescriptionId.doctorId.phone || '',
+              } : null,
+              originalData: request,
+            }
+          })
+          
+          // Sort by date (newest first)
+          transformed.sort((a, b) => new Date(b.requestDate || b.createdAt || 0) - new Date(a.requestDate || a.createdAt || 0))
+          setRequests(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching requests:', err)
+        setError(err.message || 'Failed to load requests')
+        toast.error('Failed to load requests')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const loadRequests = () => {
+    fetchRequests()
+    // Refresh every 30 seconds to get new requests
+    const interval = setInterval(() => {
+      fetchRequests()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [toast])
+
+  // Refetch requests after operations
+  const refetchRequests = async () => {
     try {
-      // Load from patientRequests localStorage (set by admin)
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      // Also check mockRequests for backward compatibility
-      const allRequests = [...patientRequests, ...mockRequests]
-      // Remove duplicates by id
-      const uniqueRequests = allRequests.filter((req, idx, self) => 
-        idx === self.findIndex(r => r.id === req.id)
-      )
-      // Sort by date (newest first)
-      uniqueRequests.sort((a, b) => new Date(b.requestDate || b.createdAt || 0) - new Date(a.requestDate || a.createdAt || 0))
-      setRequests(uniqueRequests)
+      const response = await getPatientRequests()
+      if (response.success && response.data) {
+        const requestsData = Array.isArray(response.data) 
+          ? response.data 
+          : response.data.items || []
+        
+        const transformed = requestsData.map(request => {
+          const isLab = request.type === 'book_test_visit' || request.type === 'lab'
+          const isPharmacy = request.type === 'order_medicine' || request.type === 'pharmacy'
+          
+          // Group medicines by pharmacy
+          const medicinesByPharmacy = {}
+          if (request.adminResponse?.medicines && Array.isArray(request.adminResponse.medicines)) {
+            request.adminResponse.medicines.forEach(med => {
+              const pharmId = med.pharmacyId?.toString() || med.pharmacyId || 'unknown'
+              if (!medicinesByPharmacy[pharmId]) {
+                medicinesByPharmacy[pharmId] = {
+                  pharmacyId: pharmId,
+                  pharmacyName: med.pharmacyName || 'Pharmacy',
+                  medicines: []
+                }
+              }
+              medicinesByPharmacy[pharmId].medicines.push({
+                name: med.name,
+                dosage: med.dosage,
+                quantity: med.quantity,
+                price: med.price,
+                total: (med.price || 0) * (med.quantity || 1)
+              })
+            })
+          }
+          
+          // Group tests by lab
+          const testsByLab = {}
+          if (request.adminResponse?.tests && Array.isArray(request.adminResponse.tests)) {
+            request.adminResponse.tests.forEach(test => {
+              const labId = test.labId?.toString() || test.labId || 'unknown'
+              if (!testsByLab[labId]) {
+                testsByLab[labId] = {
+                  labId: labId,
+                  labName: test.labName || 'Laboratory',
+                  tests: []
+                }
+              }
+              testsByLab[labId].tests.push({
+                testName: test.testName,
+                price: test.price
+              })
+            })
+          }
+          
+          return {
+            id: request._id || request.id,
+            _id: request._id || request.id,
+            type: isLab ? 'lab' : isPharmacy ? 'pharmacy' : request.type,
+            providerName: isLab 
+              ? (request.adminResponse?.lab?.labName || request.adminResponse?.labs?.[0]?.labName || 'Laboratory')
+              : (request.adminResponse?.pharmacy?.pharmacyName || request.adminResponse?.pharmacies?.[0]?.pharmacyName || 'Pharmacy'),
+            providerId: isLab 
+              ? (request.adminResponse?.lab?.labId || request.adminResponse?.labs?.[0]?.labId)
+              : (request.adminResponse?.pharmacy?.pharmacyId || request.adminResponse?.pharmacies?.[0]?.pharmacyId),
+            testName: request.adminResponse?.lab?.testName || request.adminResponse?.tests?.[0]?.testName || 'Lab Test',
+            medicineName: request.adminResponse?.pharmacy?.medicineName || 'Prescription Medicines',
+            status: request.status || 'pending',
+            requestDate: request.createdAt || request.requestDate || new Date().toISOString().split('T')[0],
+            responseDate: request.adminResponse?.responseTime || request.responseDate || null,
+            totalAmount: request.adminResponse?.totalAmount || request.totalAmount || null,
+            message: request.adminResponse?.message || request.message || null,
+            prescriptionId: request.prescriptionId?._id || request.prescriptionId || null,
+            // Grouped data
+            medicinesByPharmacy: Object.values(medicinesByPharmacy),
+            testsByLab: Object.values(testsByLab),
+            // Legacy fields for backward compatibility
+            adminMedicines: request.adminResponse?.medicines || [],
+            investigations: request.adminResponse?.tests || [],
+            patient: request.patientId ? {
+              name: `${request.patientId.firstName || ''} ${request.patientId.lastName || ''}`.trim() || 'Patient',
+              phone: request.patientId.phone || '',
+              email: request.patientId.email || '',
+              address: request.patientId.address || '',
+              age: request.patientId.age || null,
+              gender: request.patientId.gender || null,
+            } : null,
+            providerResponse: request.adminResponse ? {
+              message: request.adminResponse.message || '',
+              responseBy: request.adminResponse.responseBy || 'Provider',
+              responseTime: request.adminResponse.responseTime || request.createdAt,
+            } : null,
+            doctor: request.prescriptionId?.doctorId ? {
+              name: request.prescriptionId.doctorId.name || 'Dr. Unknown',
+              specialty: request.prescriptionId.doctorId.specialty || '',
+              phone: request.prescriptionId.doctorId.phone || '',
+            } : null,
+            originalData: request,
+          }
+        })
+        
+        transformed.sort((a, b) => new Date(b.requestDate || b.createdAt || 0) - new Date(a.requestDate || a.createdAt || 0))
+        setRequests(transformed)
+      }
     } catch (error) {
-      console.error('Error loading requests:', error)
-      setRequests(mockRequests)
+      console.error('Error refetching requests:', error)
     }
   }
 
@@ -405,153 +516,31 @@ const PatientRequests = () => {
     setIsProcessing(true)
     
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      const requestId = selectedRequest._id || selectedRequest.id
       
-      // Update request status to confirmed and payment confirmed
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const updatedRequests = patientRequests.map(req => 
-        req.id === selectedRequest.id 
-          ? { 
-              ...req, 
-              status: 'confirmed', 
-              paymentPending: false,
-              paymentConfirmed: true,
-              paidAt: new Date().toISOString() 
-            }
-          : req
-      )
-      localStorage.setItem('patientRequests', JSON.stringify(updatedRequests))
-
-      // Update admin requests - payment confirmed, ready for order assignment
-      const allAdminRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedAdminRequests = allAdminRequests.map(req => {
-        if (req.id === selectedRequest.id) {
-          return {
-            ...req,
-            status: 'payment_confirmed', // Payment confirmed, admin can now assign orders
-            paymentPending: false,
-            paymentConfirmed: true,
-            paidAt: new Date().toISOString(),
-            confirmationMessage: `Payment confirmed! Please assign order to ${selectedRequest.type === 'pharmacy' ? 'pharmacy' : 'laboratory'}.`,
-            readyForAssignment: true, // Flag to indicate admin can assign orders
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedAdminRequests))
-
-      // Create notification for admin
-      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
-      adminNotifications.unshift({
-        id: `notif-${Date.now()}`,
-        type: 'payment_confirmed',
-        title: 'Payment Confirmed',
-        message: `Patient ${selectedRequest.patient?.name || 'Patient'} has paid ₹${selectedRequest.totalAmount || 0} for ${selectedRequest.type === 'pharmacy' ? 'pharmacy' : 'lab test'} order. Please assign order.`,
-            requestId: selectedRequest.id,
-            patientName: selectedRequest.patient?.name || 'Patient',
-        amount: selectedRequest.totalAmount || 0,
-        orderType: selectedRequest.type,
-            createdAt: new Date().toISOString(),
-        read: false,
-      })
-      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
-
-      // Don't create orders here - admin will assign orders after payment
-      // Orders will be created when admin clicks "Assign Order" button
-      
-      // Just create patient order record for tracking
-      if (selectedRequest.type === 'pharmacy') {
-        const patientOrder = {
-          id: `order-${Date.now()}`,
-          requestId: selectedRequest.id,
-          type: 'pharmacy',
-          patientId: 'pat-current',
-          patientName: selectedRequest.patient?.name || 'Patient',
-          providerIds: selectedRequest.providerId ? selectedRequest.providerId.split(',') : [],
-          providerNames: selectedRequest.providerName ? selectedRequest.providerName.split(',').map(n => n.trim()) : [],
-          medicines: selectedRequest.adminMedicines || [],
-          totalAmount: selectedRequest.totalAmount,
-          status: 'payment_confirmed', // Payment confirmed, waiting for admin to assign
-          createdAt: new Date().toISOString(),
-          paidAt: new Date().toISOString(),
-          paymentConfirmed: true,
-        }
-        const orders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-        orders.push(patientOrder)
-        localStorage.setItem('patientOrders', JSON.stringify(orders))
-
-        // Update admin wallet with total payment
-        try {
-          const adminWallet = JSON.parse(localStorage.getItem('adminWallet') || '{"balance": 0, "transactions": []}')
-          adminWallet.balance = (adminWallet.balance || 0) + selectedRequest.totalAmount
-          const transaction = {
-            id: `txn-${Date.now()}`,
-            type: 'credit',
-            amount: selectedRequest.totalAmount,
-            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for medicine order. Awaiting order assignment.`,
-            requestId: selectedRequest.id,
-            patientName: selectedRequest.patient?.name || 'Patient',
-            createdAt: new Date().toISOString(),
-          }
-          adminWallet.transactions = adminWallet.transactions || []
-          adminWallet.transactions.unshift(transaction)
-          localStorage.setItem('adminWallet', JSON.stringify(adminWallet))
-        } catch (error) {
-          console.error('Error updating admin wallet:', error)
-        }
-
-      } else if (selectedRequest.type === 'lab') {
-        // Just create patient order record for tracking
-        const patientOrder = {
-          id: `order-${Date.now()}`,
-          requestId: selectedRequest.id,
-          type: 'lab',
-          visitType: selectedRequest.visitType || 'lab',
-          patientId: 'pat-current',
-          patientName: selectedRequest.patient?.name || 'Patient',
-          providerIds: selectedRequest.providerId ? selectedRequest.providerId.split(',') : [],
-          providerNames: selectedRequest.providerName ? selectedRequest.providerName.split(',').map(n => n.trim()) : [],
-          investigations: selectedRequest.investigations || [],
-          totalAmount: selectedRequest.totalAmount,
-          status: 'payment_confirmed', // Payment confirmed, waiting for admin to assign
-          createdAt: new Date().toISOString(),
-          paidAt: new Date().toISOString(),
-          paymentConfirmed: true,
-        }
-        const orders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-        orders.push(patientOrder)
-        localStorage.setItem('patientOrders', JSON.stringify(orders))
-
-        // Update admin wallet with total payment
-        try {
-          const adminWallet = JSON.parse(localStorage.getItem('adminWallet') || '{"balance": 0, "transactions": []}')
-          adminWallet.balance = (adminWallet.balance || 0) + selectedRequest.totalAmount
-          const transaction = {
-            id: `txn-${Date.now()}`,
-            type: 'credit',
-            amount: selectedRequest.totalAmount,
-            description: `Payment received from ${selectedRequest.patient?.name || 'Patient'} for lab test order. Awaiting order assignment.`,
-            requestId: selectedRequest.id,
-            patientName: selectedRequest.patient?.name || 'Patient',
-            createdAt: new Date().toISOString(),
-          }
-          adminWallet.transactions = adminWallet.transactions || []
-          adminWallet.transactions.unshift(transaction)
-          localStorage.setItem('adminWallet', JSON.stringify(adminWallet))
-        } catch (error) {
-          console.error('Error updating admin wallet:', error)
-        }
+      // For now, we'll use a simple payment confirmation
+      // In production, integrate with Razorpay or other payment gateway
+      const paymentData = {
+        paymentMethod: paymentMethod, // 'card', 'upi', 'wallet'
+        // For Razorpay integration, you would include:
+        // paymentId, orderId, signature
       }
 
-      setIsProcessing(false)
-      handleClosePaymentModal()
-      loadRequests()
-      alert(`Payment successful! Your ${selectedRequest.type === 'lab' ? 'test' : 'medicine'} order has been confirmed.`)
+      const response = await confirmRequestPayment(requestId, paymentData)
+      
+      if (response.success) {
+        toast.success(`Payment successful! Your ${selectedRequest.type === 'lab' ? 'test' : 'medicine'} order has been confirmed.`)
+        handleClosePaymentModal()
+        // Refetch requests to get updated status
+        await refetchRequests()
+      } else {
+        toast.error(response.message || 'Payment failed. Please try again.')
+      }
     } catch (error) {
       console.error('Error processing payment:', error)
+      toast.error(error.message || 'Error processing payment. Please try again.')
+    } finally {
       setIsProcessing(false)
-      alert('Error processing payment. Please try again.')
     }
   }
 
@@ -568,80 +557,21 @@ const PatientRequests = () => {
     setIsProcessing(true)
 
     try {
-      // Update patient request status to cancelled
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const updatedRequests = patientRequests.map(req => 
-        req.id === request.id 
-          ? { ...req, status: 'cancelled', cancelledAt: new Date().toISOString(), cancelledBy: 'patient' }
-          : req
-      )
-      localStorage.setItem('patientRequests', JSON.stringify(updatedRequests))
-
-      // Update admin request status to cancelled
-      const allAdminRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedAdminRequests = allAdminRequests.map(req => {
-        if (req.id === request.id) {
-          return {
-            ...req,
-            status: 'cancelled',
-            cancelledAt: new Date().toISOString(),
-            cancelledBy: 'patient',
-            cancellationMessage: `Request cancelled by patient ${request.patient?.name || 'Patient'}. Request ID: ${request.id}`,
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedAdminRequests))
-
-      // Update pharmacy/lab orders to cancelled
-      if (request.type === 'pharmacy') {
-        const providerIds = request.providerId ? request.providerId.split(',') : []
-        providerIds.forEach(pharmId => {
-          try {
-            const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmId}`) || '[]')
-            const updatedPharmacyOrders = pharmacyOrders.map(pharmOrder => {
-              if (pharmOrder.requestId === request.id) {
-                return {
-                  ...pharmOrder,
-                  status: 'cancelled',
-                  cancelledAt: new Date().toISOString(),
-                  cancelledBy: 'patient',
-                }
-              }
-              return pharmOrder
-            })
-            localStorage.setItem(`pharmacyOrders_${pharmId}`, JSON.stringify(updatedPharmacyOrders))
-          } catch (error) {
-            console.error('Error updating pharmacy order:', error)
-          }
-        })
-      } else if (request.type === 'lab') {
-        try {
-          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${request.providerId}`) || '[]')
-          const updatedLabOrders = labOrders.map(labOrder => {
-            if (labOrder.requestId === request.id) {
-              return {
-                ...labOrder,
-                status: 'cancelled',
-                cancelledAt: new Date().toISOString(),
-                cancelledBy: 'patient',
-              }
-            }
-            return labOrder
-          })
-          localStorage.setItem(`labOrders_${request.providerId}`, JSON.stringify(updatedLabOrders))
-        } catch (error) {
-          console.error('Error updating lab order:', error)
-        }
+      const requestId = request._id || request.id
+      const response = await cancelPatientRequest(requestId)
+      
+      if (response.success) {
+        toast.success(`Request cancelled successfully. Cancellation notification sent to ${request.providerName || 'provider'}.`)
+        // Refetch requests to get updated status
+        await refetchRequests()
+      } else {
+        toast.error(response.message || 'Failed to cancel request. Please try again.')
       }
-
-      setIsProcessing(false)
-      loadRequests()
-      alert(`Request cancelled successfully. Cancellation notification sent to ${request.providerName || 'provider'}.`)
     } catch (error) {
       console.error('Error cancelling request:', error)
+      toast.error(error.message || 'Error cancelling request. Please try again.')
+    } finally {
       setIsProcessing(false)
-      alert('Error cancelling request. Please try again.')
     }
   }
 
@@ -693,8 +623,23 @@ const PatientRequests = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       <main className="px-4 py-5 sm:px-6">
-        <div className="space-y-4">
-          {requests.map((request) => (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-sm font-medium text-slate-600">Loading requests...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-sm font-medium text-red-600">Error: {error}</p>
+            <p className="mt-1 text-xs text-red-500">Please try again later.</p>
+          </div>
+        ) : requests.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-sm font-medium text-slate-600">No requests found</p>
+            <p className="mt-1 text-xs text-slate-500">No booking requests available at the moment.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {requests.map((request) => (
             <article
               key={request.id}
               className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
@@ -739,27 +684,35 @@ const PatientRequests = () => {
                   </div>
                 </div>
 
-                {/* Admin Medicines List - Only show for pharmacy requests, not lab */}
-                {request.type !== 'lab' && request.type !== 'book_test_visit' && request.adminMedicines && request.adminMedicines.length > 0 && (
-                  <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <IoBagHandleOutline className="h-3 w-3 text-blue-600 shrink-0" />
-                      <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Medicines Added by Admin</h4>
-                    </div>
-                    <div className="space-y-1 max-h-24 overflow-y-auto">
-                      {request.adminMedicines.map((med, idx) => (
-                        <div key={med.id || idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-blue-100">
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-slate-900">{med.name}</span>
-                            {med.dosage && <span className="text-slate-600 ml-1">({med.dosage})</span>}
-                            {med.quantity > 1 && <span className="text-slate-500 ml-1">x{med.quantity}</span>}
-                          </div>
-                          {((med.price || 0) * (med.quantity || 1)) > 0 && (
-                            <span className="font-semibold text-blue-700 shrink-0 ml-2">₹{((med.price || 0) * (med.quantity || 1)).toFixed(2)}</span>
-                          )}
+                {/* Medicines Grouped by Pharmacy - Only show for pharmacy requests */}
+                {request.type !== 'lab' && request.type !== 'book_test_visit' && request.medicinesByPharmacy && request.medicinesByPharmacy.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {request.medicinesByPharmacy.map((pharmacyGroup, pharmIdx) => (
+                      <div key={pharmIdx} className="rounded-lg border border-blue-200 bg-blue-50 p-2">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <IoBagHandleOutline className="h-3 w-3 text-blue-600 shrink-0" />
+                          <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">{pharmacyGroup.pharmacyName}</h4>
                         </div>
-                      ))}
-                    </div>
+                        <div className="space-y-1 max-h-24 overflow-y-auto">
+                          {pharmacyGroup.medicines.map((med, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-blue-100">
+                              <div className="flex-1 min-w-0">
+                                <span className="font-semibold text-slate-900">{med.name}</span>
+                                {med.dosage && <span className="text-slate-600 ml-1">({med.dosage})</span>}
+                                {med.quantity > 1 && <span className="text-slate-500 ml-1">x{med.quantity}</span>}
+                              </div>
+                              {med.total > 0 && (
+                                <span className="font-semibold text-blue-700 shrink-0 ml-2">₹{med.total.toFixed(2)}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-1.5 pt-1.5 border-t border-blue-200 flex items-center justify-between text-[9px]">
+                          <span className="font-semibold text-slate-700">Subtotal:</span>
+                          <span className="font-bold text-blue-700">₹{pharmacyGroup.medicines.reduce((sum, m) => sum + (m.total || 0), 0).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -819,31 +772,35 @@ const PatientRequests = () => {
                       </div>
                     )}
 
-                    {/* Lab Tests List with Prices */}
-                    {(request.investigations && request.investigations.length > 0) || (request.adminResponse?.investigations && request.adminResponse.investigations.length > 0) ? (
-                      <div className="mt-2 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
-                          <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Tests Added by Admin</h4>
-                        </div>
-                        <div className="space-y-1 max-h-32 overflow-y-auto">
-                          {((request.investigations || request.adminResponse?.investigations || [])).map((test, idx) => {
-                            const testName = typeof test === 'string' ? test : test.name || test.testName || 'Test'
-                            const testPrice = typeof test === 'object' ? (test.price || 0) : 0
-                            return (
-                              <div key={idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-[rgba(17,73,108,0.1)]">
-                                <div className="flex-1 min-w-0">
-                                  <span className="font-semibold text-slate-900">{testName}</span>
+                    {/* Tests Grouped by Lab */}
+                    {request.testsByLab && request.testsByLab.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {request.testsByLab.map((labGroup, labIdx) => (
+                          <div key={labIdx} className="rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
+                              <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">{labGroup.labName}</h4>
+                            </div>
+                            <div className="space-y-1 max-h-32 overflow-y-auto">
+                              {labGroup.tests.map((test, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-[rgba(17,73,108,0.1)]">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-semibold text-slate-900">{test.testName}</span>
+                                  </div>
+                                  {test.price > 0 && (
+                                    <span className="font-semibold text-[#11496c] shrink-0 ml-2">₹{Number(test.price).toFixed(2)}</span>
+                                  )}
                                 </div>
-                                {testPrice > 0 && (
-                                  <span className="font-semibold text-[#11496c] shrink-0 ml-2">₹{Number(testPrice).toFixed(2)}</span>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
+                              ))}
+                            </div>
+                            <div className="mt-1.5 pt-1.5 border-t border-[rgba(17,73,108,0.2)] flex items-center justify-between text-[9px]">
+                              <span className="font-semibold text-slate-700">Subtotal:</span>
+                              <span className="font-bold text-[#11496c]">₹{labGroup.tests.reduce((sum, t) => sum + (t.price || 0), 0).toFixed(2)}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ) : null}
+                    )}
 
                     {/* Total Amount for Lab Requests */}
                     <div className="mt-2 flex items-center justify-between rounded-lg border border-[#11496c] bg-[rgba(17,73,108,0.05)] px-2 py-1.5">
@@ -938,8 +895,9 @@ const PatientRequests = () => {
                 </div>
               )}
             </article>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Receipt Detail Modal - PDF View */}

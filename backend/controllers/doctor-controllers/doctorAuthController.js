@@ -304,6 +304,29 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     }
   }
 
+  // Ensure consultationFee is properly converted to number without any rounding or modification
+  let finalConsultationFee = undefined;
+  if (consultationFee !== undefined && consultationFee !== null && consultationFee !== '') {
+    // Convert to string first to preserve precision, then parse
+    const feeStr = String(consultationFee).trim();
+    const feeValue = parseFloat(feeStr);
+    
+    // Validate the parsed value - preserve exact value without any rounding
+    if (!isNaN(feeValue) && isFinite(feeValue) && feeValue >= 0) {
+      // Keep exact value - no rounding, no modification
+      finalConsultationFee = feeValue;
+    }
+  }
+
+  console.log('💰 Consultation Fee Processing:', {
+    original: consultationFee,
+    originalType: typeof consultationFee,
+    stringValue: consultationFee !== undefined ? String(consultationFee) : 'undefined',
+    parsed: finalConsultationFee,
+    finalType: typeof finalConsultationFee,
+    isInteger: finalConsultationFee !== undefined ? Number.isInteger(finalConsultationFee) : 'N/A',
+  });
+
   const doctor = await Doctor.create({
     firstName: resolvedName.firstName,
     lastName: resolvedName.lastName || '',
@@ -319,7 +342,7 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     clinicDetails: finalClinicDetails,
     bio,
     documents,
-    consultationFee: consultationFee !== undefined ? Number(consultationFee) : undefined,
+    consultationFee: finalConsultationFee,
     availableTimings: Array.isArray(availableTimings)
       ? availableTimings
       : availableTimings
@@ -327,6 +350,12 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
       : undefined,
     profileImage,
     status: APPROVAL_STATUS.PENDING,
+  });
+
+  console.log('✅ Doctor created with consultationFee:', {
+    doctorId: doctor._id,
+    consultationFee: doctor.consultationFee,
+    type: typeof doctor.consultationFee,
   });
 
   await sendSignupAcknowledgementEmail({
@@ -426,8 +455,11 @@ exports.updateDoctorProfile = asyncHandler(async (req, res) => {
     updates.experienceYears = updates.experience;
   }
 
-  if (updates.consultationFee !== undefined) {
-    updates.consultationFee = Number(updates.consultationFee);
+  if (updates.consultationFee !== undefined && updates.consultationFee !== null && updates.consultationFee !== '') {
+    const feeValue = parseFloat(String(updates.consultationFee));
+    if (!isNaN(feeValue) && isFinite(feeValue)) {
+      updates.consultationFee = feeValue;
+    }
   }
 
   if (updates.availableTimings !== undefined && !Array.isArray(updates.availableTimings)) {

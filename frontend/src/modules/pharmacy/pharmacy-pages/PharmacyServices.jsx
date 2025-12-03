@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoArrowBackOutline,
@@ -13,64 +13,10 @@ import {
   IoBagHandleOutline,
   IoHomeOutline,
 } from 'react-icons/io5'
+import { getPharmacyServices, addPharmacyService, updatePharmacyService, deletePharmacyService, togglePharmacyService } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 
-const mockServices = [
-  {
-    id: 'svc-1',
-    name: 'Prescription Filling',
-    description: 'Fast and accurate prescription filling service',
-    category: 'prescription',
-    price: 0,
-    duration: '15-30 minutes',
-    available: true,
-    deliveryOptions: ['pickup', 'delivery'],
-    serviceRadius: 10,
-  },
-  {
-    id: 'svc-2',
-    name: 'Medication Consultation',
-    description: 'One-on-one consultation with licensed pharmacists',
-    category: 'consultation',
-    price: 25,
-    duration: '30 minutes',
-    available: true,
-    deliveryOptions: ['pickup'],
-    serviceRadius: 0,
-  },
-  {
-    id: 'svc-3',
-    name: 'Home Delivery',
-    description: 'Same-day home delivery service for prescriptions',
-    category: 'delivery',
-    price: 5,
-    duration: '2-4 hours',
-    available: true,
-    deliveryOptions: ['delivery'],
-    serviceRadius: 15,
-  },
-  {
-    id: 'svc-4',
-    name: 'Medication Synchronization',
-    description: 'Sync all medications to be refilled on the same day',
-    category: 'prescription',
-    price: 0,
-    duration: 'Ongoing',
-    available: true,
-    deliveryOptions: ['pickup', 'delivery'],
-    serviceRadius: 10,
-  },
-  {
-    id: 'svc-5',
-    name: 'Chronic Care Management',
-    description: 'Specialized care for chronic conditions',
-    category: 'consultation',
-    price: 50,
-    duration: '60 minutes',
-    available: false,
-    deliveryOptions: ['pickup'],
-    serviceRadius: 0,
-  },
-]
+// Removed mock data - now using backend API
 
 const categoryConfig = {
   prescription: { label: 'Prescription', color: 'bg-[rgba(17,73,108,0.15)] text-[#11496c]', icon: IoBagHandleOutline },
@@ -80,7 +26,10 @@ const categoryConfig = {
 
 const PharmacyServices = () => {
   const navigate = useNavigate()
-  const [services, setServices] = useState(mockServices)
+  const toast = useToast()
+  const [services, setServices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingService, setEditingService] = useState(null)
   const [formData, setFormData] = useState({
@@ -93,6 +42,32 @@ const PharmacyServices = () => {
     deliveryOptions: [],
     serviceRadius: 0,
   })
+
+  // Fetch services from API
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPharmacyServices()
+        
+        if (response.success && response.data) {
+          const servicesData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          setServices(servicesData)
+        }
+      } catch (err) {
+        console.error('Error fetching services:', err)
+        setError(err.message || 'Failed to load services')
+        toast.error('Failed to load services')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchServices()
+  }, [toast])
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -110,30 +85,41 @@ const PharmacyServices = () => {
     }))
   }
 
-  const handleSave = () => {
-    if (editingService) {
-      setServices((prev) =>
-        prev.map((svc) => (svc.id === editingService.id ? { ...editingService, ...formData } : svc))
-      )
-    } else {
-      const newService = {
-        id: `svc-${Date.now()}`,
-        ...formData,
+  const handleSave = async () => {
+    try {
+      if (editingService) {
+        const response = await updatePharmacyService(editingService._id || editingService.id, formData)
+        if (response.success) {
+          toast.success('Service updated successfully')
+          setServices((prev) =>
+            prev.map((svc) => (svc._id === editingService._id || svc.id === editingService.id) 
+              ? { ...svc, ...formData } 
+              : svc)
+          )
+        }
+      } else {
+        const response = await addPharmacyService(formData)
+        if (response.success) {
+          toast.success('Service added successfully')
+          setServices((prev) => [...prev, response.data])
+        }
       }
-      setServices((prev) => [...prev, newService])
+      setShowAddModal(false)
+      setEditingService(null)
+      setFormData({
+        name: '',
+        description: '',
+        category: 'prescription',
+        price: 0,
+        duration: '',
+        available: true,
+        deliveryOptions: [],
+        serviceRadius: 0,
+      })
+    } catch (err) {
+      console.error('Error saving service:', err)
+      toast.error(err.message || 'Failed to save service')
     }
-    setShowAddModal(false)
-    setEditingService(null)
-    setFormData({
-      name: '',
-      description: '',
-      category: 'prescription',
-      price: 0,
-      duration: '',
-      available: true,
-      deliveryOptions: [],
-      serviceRadius: 0,
-    })
   }
 
   const handleEdit = (service) => {
@@ -142,16 +128,36 @@ const PharmacyServices = () => {
     setShowAddModal(true)
   }
 
-  const handleDelete = (serviceId) => {
+  const handleDelete = async (serviceId) => {
     if (confirm('Are you sure you want to delete this service?')) {
-      setServices((prev) => prev.filter((svc) => svc.id !== serviceId))
+      try {
+        const response = await deletePharmacyService(serviceId)
+        if (response.success) {
+          toast.success('Service deleted successfully')
+          setServices((prev) => prev.filter((svc) => (svc._id || svc.id) !== serviceId))
+        }
+      } catch (err) {
+        console.error('Error deleting service:', err)
+        toast.error(err.message || 'Failed to delete service')
+      }
     }
   }
 
-  const handleToggleAvailability = (serviceId) => {
-    setServices((prev) =>
-      prev.map((svc) => (svc.id === serviceId ? { ...svc, available: !svc.available } : svc))
-    )
+  const handleToggleAvailability = async (serviceId) => {
+    try {
+      const response = await togglePharmacyService(serviceId)
+      if (response.success) {
+        toast.success(`Service ${response.data.available ? 'enabled' : 'disabled'}`)
+        setServices((prev) =>
+          prev.map((svc) => ((svc._id || svc.id) === serviceId) 
+            ? { ...svc, available: response.data.available } 
+            : svc)
+        )
+      }
+    } catch (err) {
+      console.error('Error toggling service:', err)
+      toast.error(err.message || 'Failed to toggle service')
+    }
   }
 
   return (
@@ -192,15 +198,37 @@ const PharmacyServices = () => {
         </button>
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm font-medium text-slate-600">Loading services...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm font-medium text-red-600">Error: {error}</p>
+          <p className="mt-1 text-xs text-red-500">Please try again later.</p>
+        </div>
+      )}
+
       {/* Services List */}
-      <div className="space-y-3">
-        {services.map((service) => {
+      {!loading && !error && (
+        <div className="space-y-3">
+          {services.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+              <p className="text-sm font-medium text-slate-600">No services found</p>
+              <p className="mt-1 text-xs text-slate-500">Add your first service to get started.</p>
+            </div>
+          ) : (
+            services.map((service) => {
           const categoryInfo = categoryConfig[service.category] || categoryConfig.prescription
           const CategoryIcon = categoryInfo.icon
 
           return (
             <article
-              key={service.id}
+              key={service._id || service.id}
               className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-lg sm:p-5"
             >
               <div className="flex items-start justify-between gap-3">
@@ -220,7 +248,7 @@ const PharmacyServices = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleToggleAvailability(service.id)}
+                    onClick={() => handleToggleAvailability(service._id || service.id)}
                     className={`rounded-full p-2 transition ${
                       service.available
                         ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
@@ -291,16 +319,18 @@ const PharmacyServices = () => {
                   Edit
                 </button>
                 <button
-                  onClick={() => handleDelete(service.id)}
+                  onClick={() => handleDelete(service._id || service.id)}
                   className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                 >
                   <IoTrashOutline className="h-4 w-4" />
                 </button>
               </div>
             </article>
-          )
-        })}
-      </div>
+            )
+          })
+          )}
+        </div>
+      )}
 
       {/* Add/Edit Service Modal */}
       {showAddModal && (

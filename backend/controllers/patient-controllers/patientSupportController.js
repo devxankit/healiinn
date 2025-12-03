@@ -6,8 +6,6 @@ const {
   sendSupportTicketNotification,
   sendAdminSupportTicketNotification,
 } = require('../../services/notificationService');
-const { createSupportNotification } = require('../../services/inAppNotificationService');
-const { ROLES } = require('../../utils/constants');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -75,18 +73,6 @@ exports.createSupportTicket = asyncHandler(async (req, res) => {
     }
   } catch (error) {
     console.error('Error sending email notifications:', error);
-  }
-
-  // Create in-app notification for patient
-  try {
-    await createSupportNotification({
-      userId: id,
-      userType: ROLES.PATIENT,
-      ticket: ticket._id,
-      action: 'created',
-    }).catch((error) => console.error('Error creating support notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notification:', error);
   }
 
   return res.status(201).json({

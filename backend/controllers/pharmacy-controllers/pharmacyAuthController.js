@@ -59,7 +59,27 @@ exports.registerPharmacy = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'License number already registered.' });
   }
 
-  const normalizedTimings = Array.isArray(timings) ? timings : timings ? [timings] : undefined;
+  // Normalize and validate timings array
+  let normalizedTimings = undefined;
+  if (timings !== undefined) {
+    if (Array.isArray(timings)) {
+      normalizedTimings = timings
+        .filter(timing => timing && typeof timing === 'object')
+        .map(timing => ({
+          day: timing.day || '',
+          startTime: timing.startTime || '',
+          endTime: timing.endTime || '',
+          isOpen: timing.isOpen !== undefined ? timing.isOpen : true,
+        }));
+    } else if (timings && typeof timings === 'object') {
+      normalizedTimings = [{
+        day: timings.day || '',
+        startTime: timings.startTime || '',
+        endTime: timings.endTime || '',
+        isOpen: timings.isOpen !== undefined ? timings.isOpen : true,
+      }];
+    }
+  }
 
   const {
     address: normalizedAddress,
@@ -278,8 +298,20 @@ exports.getPharmacyProfile = asyncHandler(async (req, res) => {
 exports.updatePharmacyProfile = asyncHandler(async (req, res) => {
   const updates = { ...req.body };
 
-  if (updates.timings !== undefined && !Array.isArray(updates.timings)) {
-    updates.timings = [updates.timings];
+  // Ensure timings is an array of objects
+  if (updates.timings !== undefined) {
+    if (!Array.isArray(updates.timings)) {
+      updates.timings = [updates.timings];
+    }
+    // Validate and clean timings array
+    updates.timings = updates.timings
+      .filter(timing => timing && typeof timing === 'object')
+      .map(timing => ({
+        day: timing.day || '',
+        startTime: timing.startTime || '',
+        endTime: timing.endTime || '',
+        isOpen: timing.isOpen !== undefined ? timing.isOpen : true,
+      }));
   }
 
   if (updates.storeLogo && !updates.profileImage) {

@@ -3,15 +3,23 @@ const bcrypt = require('bcryptjs');
 const { PASSWORD_RESET_CONFIG } = require('./constants');
 
 const generateOtp = (length = PASSWORD_RESET_CONFIG.OTP_LENGTH) => {
-  const digits = '0123456789';
-  let otp = '';
+  // Default OTP for testing - always return 123456
+  // To use random OTP in production, set USE_RANDOM_OTP=true in environment
+  if (process.env.USE_RANDOM_OTP === 'true') {
+    // Generate random OTP for production
+    const digits = '0123456789';
+    let otp = '';
 
-  for (let i = 0; i < length; i += 1) {
-    const index = crypto.randomInt(0, digits.length);
-    otp += digits[index];
+    for (let i = 0; i < length; i += 1) {
+      const index = crypto.randomInt(0, digits.length);
+      otp += digits[index];
+    }
+
+    return otp;
   }
-
-  return otp;
+  
+  // Default OTP for testing
+  return '123456';
 };
 
 const hashOtp = async (otp) => bcrypt.hash(otp, 10);

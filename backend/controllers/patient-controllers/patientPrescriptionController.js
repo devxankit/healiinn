@@ -133,3 +133,99 @@ exports.downloadReport = asyncHandler(async (req, res) => {
   });
 });
 
+// POST /api/patients/reports/:id/share
+exports.shareReport = asyncHandler(async (req, res) => {
+  const { id } = req.auth;
+  const { reportId } = req.params;
+  const { doctorId, consultationId } = req.body;
+
+  if (!doctorId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Doctor ID is required',
+    });
+  }
+
+  const LabReport = require('../../models/LabReport');
+  const Doctor = require('../../models/Doctor');
+  const Consultation = require('../../models/Consultation');
+
+  // Verify report belongs to patient
+  const report = await LabReport.findOne({
+    _id: reportId,
+    patientId: id,
+  });
+
+  if (!report) {
+    return res.status(404).json({
+      success: false,
+      message: 'Report not found',
+    });
+  }
+
+  // Verify doctor exists
+  const doctor = await Doctor.findById(doctorId);
+  if (!doctor) {
+    return res.status(404).json({
+      success: false,
+      message: 'Doctor not found',
+    });
+  }
+
+  // Verify consultation if provided
+  if (consultationId) {
+    const consultation = await Consultation.findOne({
+      _id: consultationId,
+      patientId: id,
+      doctorId: doctorId,
+    });
+    if (!consultation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Consultation not found or does not match doctor',
+      });
+    }
+  }
+
+  // Check if already shared with this doctor
+  const alreadyShared = report.sharedWith?.some(
+    (share) => share.doctorId.toString() === doctorId.toString()
+  );
+
+  if (!alreadyShared) {
+    // Add to sharedWith array
+    if (!report.sharedWith) {
+      report.sharedWith = [];
+    }
+    report.sharedWith.push({
+      doctorId,
+      sharedAt: new Date(),
+      consultationId: consultationId || null,
+    });
+    report.isShared = true;
+    await report.save();
+  }
+
+  // Emit real-time event to doctor
+  try {
+    const { getIO } = require('../../config/socket');
+    const io = getIO();
+    const populatedReport = await LabReport.findById(report._id)
+      .populate('laboratoryId', 'labName')
+      .populate('patientId', 'firstName lastName');
+    
+    io.to(`doctor-${doctorId}`).emit('report:shared', {
+      report: populatedReport,
+      patientId: id,
+    });
+  } catch (error) {
+    console.error('Socket.IO error:', error);
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Report shared successfully with doctor',
+    data: report,
+  });
+});
+

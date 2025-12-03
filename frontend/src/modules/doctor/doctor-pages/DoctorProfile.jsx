@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
-import { getDoctorProfile, updateDoctorProfile } from '../doctor-services/doctorService'
+import { getDoctorProfile, updateDoctorProfile, getSupportHistory, uploadProfileImage, uploadSignature } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
 import {
@@ -35,6 +35,35 @@ import {
 
 // Mock data removed - using real backend data now
 
+// Utility function to normalize image URLs (remove /api from base URL for static files)
+const normalizeImageUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  // Get base URL without /api for static file serving
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+  const baseUrl = apiBaseUrl.replace('/api', '')
+  return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+}
+
+// Utility function to convert 24-hour time to 12-hour format with AM/PM
+const formatTimeTo12Hour = (time24) => {
+  if (!time24) return '';
+  
+  // Handle time format like "17:00" or "17:00:00"
+  const timeStr = time24.toString().trim();
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  
+  if (isNaN(hours) || isNaN(minutes)) return time24;
+  
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const minutesStr = minutes.toString().padStart(2, '0');
+  
+  return `${hours12}:${minutesStr} ${period}`;
+};
+
 const DoctorProfile = () => {
   const location = useLocation()
   const toast = useToast()
@@ -44,6 +73,7 @@ const DoctorProfile = () => {
   const [activeSection, setActiveSection] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const languageInputRef = useRef(null)
   
   // Initialize with empty/default data
   const [formData, setFormData] = useState({
@@ -109,7 +139,7 @@ const DoctorProfile = () => {
             email: cachedProfile.email || '',
             phone: cachedProfile.phone || '',
             gender: cachedProfile.gender || '',
-            profileImage: cachedProfile.profileImage || cachedProfile.documents?.profileImage || '',
+            profileImage: normalizeImageUrl(cachedProfile.profileImage || cachedProfile.documents?.profileImage || ''),
             specialization: cachedProfile.specialization || '',
             licenseNumber: cachedProfile.licenseNumber || '',
             experienceYears: cachedProfile.experienceYears || 0,
@@ -134,7 +164,10 @@ const DoctorProfile = () => {
             availability: Array.isArray(cachedProfile.availability) ? cachedProfile.availability : [],
             averageConsultationMinutes: cachedProfile.averageConsultationMinutes || 20,
             documents: cachedProfile.documents || {},
-            digitalSignature: cachedProfile.digitalSignature || {
+            digitalSignature: cachedProfile.digitalSignature ? {
+              imageUrl: normalizeImageUrl(cachedProfile.digitalSignature.imageUrl || ''),
+              uploadedAt: cachedProfile.digitalSignature.uploadedAt || null,
+            } : {
               imageUrl: '',
               uploadedAt: null,
             },
@@ -157,7 +190,7 @@ const DoctorProfile = () => {
             email: doctor.email || '',
             phone: doctor.phone || '',
             gender: doctor.gender || '',
-            profileImage: doctor.profileImage || doctor.documents?.profileImage || '',
+            profileImage: normalizeImageUrl(doctor.profileImage || doctor.documents?.profileImage || ''),
             specialization: doctor.specialization || '',
             licenseNumber: doctor.licenseNumber || '',
             experienceYears: doctor.experienceYears || 0,
@@ -182,7 +215,10 @@ const DoctorProfile = () => {
             availability: Array.isArray(doctor.availability) ? doctor.availability : [],
             averageConsultationMinutes: doctor.averageConsultationMinutes || 20,
             documents: doctor.documents || {},
-            digitalSignature: doctor.digitalSignature || {
+            digitalSignature: doctor.digitalSignature ? {
+              imageUrl: normalizeImageUrl(doctor.digitalSignature.imageUrl || ''),
+              uploadedAt: doctor.digitalSignature.uploadedAt || null,
+            } : {
               imageUrl: '',
               uploadedAt: null,
             },
@@ -206,7 +242,7 @@ const DoctorProfile = () => {
     }
 
     fetchDoctorProfile()
-  }, [toast])
+  }, [])
 
   const formatDate = (dateString) => {
     if (!dateString) return '—'
@@ -265,10 +301,25 @@ const DoctorProfile = () => {
   }
 
   const handleArrayAdd = (field, newItem) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: [...(prev[field] || []), newItem],
-    }))
+    if (!newItem || (typeof newItem === 'string' && !newItem.trim())) {
+      return
+    }
+    setFormData((prev) => {
+      const currentArray = prev[field] || []
+      // For languages, check if it already exists (case-insensitive)
+      if (field === 'languages' && typeof newItem === 'string') {
+        const exists = currentArray.some(
+          item => typeof item === 'string' && item.toLowerCase().trim() === newItem.toLowerCase().trim()
+        )
+        if (exists) {
+          return prev // Don't add duplicate
+        }
+      }
+      return {
+        ...prev,
+        [field]: [...currentArray, newItem],
+      }
+    })
   }
 
   const handleArrayRemove = (field, index) => {
@@ -286,32 +337,74 @@ const DoctorProfile = () => {
     })
   }
 
-  const handleSignatureUpload = (event) => {
+  const handleProfileImageChange = async (event) => {
     const file = event.target.files[0]
-    if (file) {
-      // Check if file is an image
-      if (!file.type.startsWith('image/')) {
-        toast.warning('Please select an image file')
-        return
-      }
-      
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.warning('Image size should be less than 5MB')
-        return
-      }
+    if (!file) return
 
-      const reader = new FileReader()
-      reader.onloadend = () => {
+    // Check if file is an image
+    if (!file.type.startsWith('image/')) {
+      toast.warning('Please select an image file')
+      return
+    }
+    
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.warning('Image size should be less than 5MB')
+      return
+    }
+
+    try {
+      toast.info('Uploading image...')
+      const response = await uploadProfileImage(file)
+      
+      if (response.success && response.data?.url) {
+        const imageUrl = normalizeImageUrl(response.data.url)
+        setFormData((prev) => ({
+          ...prev,
+          profileImage: imageUrl,
+        }))
+        toast.success('Profile image uploaded successfully!')
+      }
+    } catch (error) {
+      console.error('Error uploading profile image:', error)
+      toast.error(error.message || 'Failed to upload profile image')
+    }
+  }
+
+  const handleSignatureUpload = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    // Check if file is an image
+    if (!file.type.startsWith('image/')) {
+      toast.warning('Please select an image file')
+      return
+    }
+    
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.warning('Image size should be less than 5MB')
+      return
+    }
+
+    try {
+      toast.info('Uploading signature...')
+      const response = await uploadSignature(file)
+      
+      if (response.success && response.data?.url) {
+        const imageUrl = normalizeImageUrl(response.data.url)
         setFormData((prev) => ({
           ...prev,
           digitalSignature: {
-            imageUrl: reader.result,
+            imageUrl: imageUrl,
             uploadedAt: new Date(),
           },
         }))
+        toast.success('Signature uploaded successfully!')
       }
-      reader.readAsDataURL(file)
+    } catch (error) {
+      console.error('Error uploading signature:', error)
+      toast.error(error.message || 'Failed to upload signature')
     }
   }
 
@@ -383,18 +476,36 @@ const DoctorProfile = () => {
     }
   }
 
-  const handleToggleActive = () => {
+  const handleToggleActive = async () => {
     const newActiveStatus = !formData.isActive
     const updatedFormData = { ...formData, isActive: newActiveStatus }
     setFormData(updatedFormData)
-    // Save immediately when toggled
-    localStorage.setItem('doctorProfile', JSON.stringify(updatedFormData))
-    localStorage.setItem('doctorProfileActive', JSON.stringify(newActiveStatus))
     
-    if (newActiveStatus) {
-      toast.success('Your profile is now active and visible to patients.')
-    } else {
-      toast.info('Your profile is now inactive and will not be visible to patients.')
+    try {
+      // Update backend immediately
+      const response = await updateDoctorProfile({ isActive: newActiveStatus })
+      
+      if (response.success) {
+        // Update cache
+        const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
+        storage.setItem('doctorProfile', JSON.stringify(response.data?.doctor || response.data || updatedFormData))
+        storage.setItem('doctorProfileActive', JSON.stringify(newActiveStatus))
+        
+        if (newActiveStatus) {
+          toast.success('Your profile is now active and visible to patients.')
+        } else {
+          toast.info('Your profile is now inactive and will not be visible to patients.')
+        }
+      } else {
+        // Revert on error
+        setFormData(formData)
+        toast.error(response.message || 'Failed to update profile status')
+      }
+    } catch (error) {
+      // Revert on error
+      setFormData(formData)
+      console.error('Error updating profile status:', error)
+      toast.error(error.message || 'Failed to update profile status. Please try again.')
     }
   }
 
@@ -486,10 +597,45 @@ const DoctorProfile = () => {
                 backgroundSize: '20px 20px'
               }} />
 
+              {/* Active Status - Top Right Corner */}
+              <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5 z-10">
+                <button
+                  type="button"
+                  onClick={handleToggleActive}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${
+                    formData.isActive
+                      ? 'bg-emerald-500/95 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
+                      : 'bg-slate-500/95 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
+                  }`}
+                >
+                  {formData.isActive ? (
+                    <>
+                      <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                      <span>Active</span>
+                    </>
+                  ) : (
+                    <>
+                      <IoPowerOutline className="h-3.5 w-3.5" />
+                      <span>Inactive</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-[10px] text-white/80 text-right whitespace-nowrap drop-shadow-md">
+                  {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
+                </p>
+              </div>
+
               <div className="relative flex flex-col items-center gap-4">
                 {/* Profile Picture */}
                 <div className="relative">
                   <div className="relative h-24 w-24">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageChange}
+                      className="hidden"
+                      id="doctor-profile-image-input"
+                    />
                     <img
                       src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Doctor')}&background=ffffff&color=11496c&size=128&bold=true`}
                       alt={`${formData.firstName} ${formData.lastName}`}
@@ -500,12 +646,12 @@ const DoctorProfile = () => {
                       }}
                     />
                     {isEditing && (
-                      <button
-                        type="button"
-                        className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#11496c] shadow-xl transition hover:bg-slate-50 hover:scale-110"
+                      <label
+                        htmlFor="doctor-profile-image-input"
+                        className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#11496c] shadow-xl transition hover:bg-slate-50 hover:scale-110 cursor-pointer"
                       >
                         <IoCameraOutline className="h-5 w-5" />
-                      </button>
+                      </label>
                     )}
                   </div>
                 </div>
@@ -544,34 +690,6 @@ const DoctorProfile = () => {
                       )}
                     </div>
                   </div>
-                </div>
-
-                {/* Active Status */}
-                <div className="w-full">
-                  <button
-                    type="button"
-                    onClick={handleToggleActive}
-                    className={`w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
-                      formData.isActive
-                        ? 'bg-emerald-500/90 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500 shadow-lg'
-                        : 'bg-slate-500/90 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500 shadow-lg'
-                    }`}
-                  >
-                    {formData.isActive ? (
-                      <>
-                        <IoCheckmarkCircleOutline className="h-5 w-5" />
-                        <span>Active</span>
-                      </>
-                    ) : (
-                      <>
-                        <IoPowerOutline className="h-5 w-5" />
-                        <span>Inactive</span>
-                      </>
-                    )}
-                  </button>
-                  <p className="text-xs text-white/70 text-center mt-2">
-                    {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
-                  </p>
                 </div>
 
                 {/* Action Buttons */}
@@ -620,11 +738,23 @@ const DoctorProfile = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           if (window.confirm('Are you sure you want to sign out?')) {
-                            localStorage.removeItem('doctorAuthToken')
-                            sessionStorage.removeItem('doctorAuthToken')
-                            window.location.href = '/doctor/login'
+                            try {
+                              const { logoutDoctor } = await import('../doctor-services/doctorService')
+                              await logoutDoctor()
+                              toast.success('Logged out successfully')
+                            } catch (error) {
+                              console.error('Error during logout:', error)
+                              // Clear tokens manually if API call fails
+                              const { clearDoctorTokens } = await import('../doctor-services/doctorService')
+                              clearDoctorTokens()
+                              toast.success('Logged out successfully')
+                            }
+                            // Force navigation to login page - full page reload to clear all state
+                            setTimeout(() => {
+                              window.location.href = '/doctor/login'
+                            }, 500)
                           }
                         }}
                         className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/10 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 active:scale-95"
@@ -646,10 +776,45 @@ const DoctorProfile = () => {
                 backgroundSize: '20px 20px'
               }} />
 
+              {/* Active Status - Top Right Corner */}
+              <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5 z-10">
+                <button
+                  type="button"
+                  onClick={handleToggleActive}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${
+                    formData.isActive
+                      ? 'bg-emerald-500/95 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
+                      : 'bg-slate-500/95 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
+                  }`}
+                >
+                  {formData.isActive ? (
+                    <>
+                      <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                      <span>Active</span>
+                    </>
+                  ) : (
+                    <>
+                      <IoPowerOutline className="h-3.5 w-3.5" />
+                      <span>Inactive</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-[10px] text-white/80 text-right whitespace-nowrap drop-shadow-md">
+                  {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
+                </p>
+              </div>
+
               <div className="relative flex flex-col items-center gap-4 sm:gap-5">
                 {/* Profile Picture - Centered */}
                 <div className="relative">
                   <div className="relative h-24 w-24 sm:h-28 sm:w-28">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageChange}
+                      className="hidden"
+                      id="doctor-profile-image-input-mobile"
+                    />
                     <img
                       src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Doctor')}&background=ffffff&color=11496c&size=128&bold=true`}
                       alt={`${formData.firstName} ${formData.lastName}`}
@@ -660,12 +825,12 @@ const DoctorProfile = () => {
                       }}
                     />
                     {isEditing && (
-                      <button
-                        type="button"
-                        className="absolute -bottom-1 -right-1 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white text-[#11496c] shadow-lg transition hover:bg-slate-50"
+                      <label
+                        htmlFor="doctor-profile-image-input-mobile"
+                        className="absolute -bottom-1 -right-1 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white text-[#11496c] shadow-lg transition hover:bg-slate-50 cursor-pointer"
                       >
                         <IoCameraOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      </button>
+                      </label>
                     )}
                   </div>
                 </div>
@@ -694,34 +859,6 @@ const DoctorProfile = () => {
                       {formData.rating}
                     </span>
                   )}
-                </div>
-
-                {/* Active Status - Top Right */}
-                <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
-                  <button
-                    type="button"
-                    onClick={handleToggleActive}
-                    className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 ${
-                      formData.isActive
-                        ? 'bg-emerald-500/90 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
-                        : 'bg-slate-500/90 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
-                    }`}
-                  >
-                    {formData.isActive ? (
-                      <>
-                        <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                        <span>Active</span>
-                      </>
-                    ) : (
-                      <>
-                        <IoPowerOutline className="h-3.5 w-3.5" />
-                        <span>Inactive</span>
-                      </>
-                    )}
-                  </button>
-                  <p className="text-[10px] text-white/70 text-right max-w-[100px]">
-                    {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
-                  </p>
                 </div>
 
                 {/* Action Buttons - Full Width, Stacked */}
@@ -770,11 +907,23 @@ const DoctorProfile = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           if (window.confirm('Are you sure you want to sign out?')) {
-                            localStorage.removeItem('doctorAuthToken')
-                            sessionStorage.removeItem('doctorAuthToken')
-                            window.location.href = '/doctor/login'
+                            try {
+                              const { logoutDoctor } = await import('../doctor-services/doctorService')
+                              await logoutDoctor()
+                              toast.success('Logged out successfully')
+                            } catch (error) {
+                              console.error('Error during logout:', error)
+                              // Clear tokens manually if API call fails
+                              const { clearDoctorTokens } = await import('../doctor-services/doctorService')
+                              clearDoctorTokens()
+                              toast.success('Logged out successfully')
+                            }
+                            // Force navigation to login page - full page reload to clear all state
+                            setTimeout(() => {
+                              window.location.href = '/doctor/login'
+                            }, 500)
                           }
                         }}
                         className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 active:scale-95"
@@ -1132,6 +1281,7 @@ const DoctorProfile = () => {
                         {isEditing && (
                           <div className="mt-2 flex gap-1.5">
                             <input
+                              ref={languageInputRef}
                               type="text"
                               placeholder="Add language"
                               onKeyDown={(e) => {
@@ -1144,11 +1294,10 @@ const DoctorProfile = () => {
                             />
                             <button
                               type="button"
-                              onClick={(e) => {
-                                const input = e.target.previousElementSibling
-                                if (input.value.trim()) {
-                                  handleArrayAdd('languages', input.value.trim())
-                                  input.value = ''
+                              onClick={() => {
+                                if (languageInputRef.current && languageInputRef.current.value && languageInputRef.current.value.trim()) {
+                                  handleArrayAdd('languages', languageInputRef.current.value.trim())
+                                  languageInputRef.current.value = ''
                                 }
                               }}
                               className="flex items-center justify-center rounded-md bg-[#11496c] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0d3a52] shrink-0"
@@ -1392,7 +1541,13 @@ const DoctorProfile = () => {
                     {isEditing && (
                       <button
                         type="button"
-                        onClick={() => handleArrayAdd('availableTimings', '')}
+                        onClick={() => {
+                          // Add empty string directly to allow user to type
+                          setFormData((prev) => ({
+                            ...prev,
+                            availableTimings: [...(prev.availableTimings || []), ''],
+                          }))
+                        }}
                         className="mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
                       >
                         <IoAddOutline className="h-3.5 w-3.5" />
@@ -1444,7 +1599,9 @@ const DoctorProfile = () => {
                             ) : (
                               <>
                                 <IoCalendarOutline className="h-3.5 w-3.5 text-[#11496c] shrink-0" />
-                                <span className="text-xs font-medium text-slate-900">{avail.day}: {avail.startTime} - {avail.endTime}</span>
+                                <span className="text-xs font-medium text-slate-900">
+                                  {avail.day}: {formatTimeTo12Hour(avail.startTime)} - {formatTimeTo12Hour(avail.endTime)}
+                                </span>
                               </>
                             )}
                           </div>
@@ -1564,49 +1721,6 @@ const DoctorProfile = () => {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        License Document
-                      </label>
-                      {formData.documents?.license ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 hover:bg-slate-50 transition-colors">
-                          <IoDocumentTextOutline className="h-4 w-4 text-[#11496c] shrink-0" />
-                          <a
-                            href={formData.documents.license}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-medium text-[#11496c] hover:text-[#11496c] hover:underline truncate"
-                          >
-                            View License
-                          </a>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-500">No license document uploaded</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Identity Proof
-                      </label>
-                      {formData.documents?.identityProof ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 hover:bg-slate-50 transition-colors">
-                          <IoDocumentTextOutline className="h-4 w-4 text-[#11496c] shrink-0" />
-                          <a
-                            href={formData.documents.identityProof}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-medium text-[#11496c] hover:underline truncate"
-                          >
-                            View Identity Proof
-                          </a>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-500">No identity proof uploaded</p>
-                      )}
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
@@ -1794,37 +1908,62 @@ const DoctorProfile = () => {
 // Support History Component
 const SupportHistory = ({ role }) => {
   const [supportRequests, setSupportRequests] = useState([])
-
+  const [isLoading, setIsLoading] = useState(true)
+  const toast = useToast()
+  
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // const fetchSupportHistory = async () => {
-    //   const response = await fetch(`/api/${role}/support/history`)
-    //   const data = await response.json()
-    //   setSupportRequests(data)
-    // }
-    // fetchSupportHistory()
+    const fetchSupportHistory = async () => {
+      try {
+        setIsLoading(true)
+        const response = await getSupportHistory()
+        
+        // Handle different response structures
+        let tickets = []
+        if (Array.isArray(response)) {
+          tickets = response
+        } else if (response && response.success && response.data) {
+          // Check if data is an array or has items property
+          if (Array.isArray(response.data)) {
+            tickets = response.data
+          } else if (response.data.items && Array.isArray(response.data.items)) {
+            tickets = response.data.items
+          } else if (response.data.tickets && Array.isArray(response.data.tickets)) {
+            tickets = response.data.tickets
+          } else if (response.data.history && Array.isArray(response.data.history)) {
+            tickets = response.data.history
+          }
+        } else if (response && response.tickets && Array.isArray(response.tickets)) {
+          tickets = response.tickets
+        } else if (response && response.data && Array.isArray(response.data)) {
+          tickets = response.data
+        }
+        
+        // Transform tickets to match component structure
+        const transformedTickets = tickets.map(ticket => ({
+          id: ticket._id || ticket.id,
+          _id: ticket._id || ticket.id,
+          note: ticket.message || ticket.subject || ticket.note || '',
+          subject: ticket.subject || ticket.message || '',
+          message: ticket.message || ticket.subject || '',
+          status: ticket.status || 'pending',
+          createdAt: ticket.createdAt || ticket.date || new Date().toISOString(),
+          updatedAt: ticket.updatedAt || ticket.updatedAt || ticket.createdAt || new Date().toISOString(),
+          adminNote: ticket.adminNote || ticket.response || ticket.adminResponse || '',
+          priority: ticket.priority || 'medium',
+        }))
+        
+        setSupportRequests(Array.isArray(transformedTickets) ? transformedTickets : [])
+      } catch (error) {
+        console.error('Error fetching support history:', error)
+        toast.error('Failed to load support history')
+        setSupportRequests([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-    // Mock data
-    const mockRequests = [
-      {
-        id: '1',
-        note: 'Need help with prescription management system.',
-        status: 'resolved',
-        createdAt: '2024-01-15T10:30:00Z',
-        updatedAt: '2024-01-16T14:20:00Z',
-        adminNote: 'Issue resolved. Prescription system updated.',
-      },
-      {
-        id: '2',
-        note: 'Unable to access patient records.',
-        status: 'in_progress',
-        createdAt: '2024-01-20T09:15:00Z',
-        updatedAt: '2024-01-20T11:30:00Z',
-        adminNote: 'Working on the issue.',
-      },
-    ]
-    setSupportRequests(mockRequests)
-  }, [role])
+    fetchSupportHistory()
+  }, [role, toast])
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -1852,7 +1991,18 @@ const SupportHistory = ({ role }) => {
     })
   }
 
-  if (supportRequests.length === 0) {
+  // Ensure supportRequests is always an array
+  const safeSupportRequests = Array.isArray(supportRequests) ? supportRequests : []
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#11496c] border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (safeSupportRequests.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
         <p className="text-sm font-medium text-slate-600">No support requests yet</p>
@@ -1863,10 +2013,10 @@ const SupportHistory = ({ role }) => {
 
   return (
     <div className="space-y-3">
-      {supportRequests.map((request) => (
-        <div key={request.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
+      {safeSupportRequests.map((request, index) => (
+        <div key={request._id || request.id || `support-${index}-${request.createdAt || Date.now()}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
           <div className="flex items-start justify-between gap-2 mb-2">
-            <p className="text-sm font-medium text-slate-900 flex-1">{request.note}</p>
+            <p className="text-sm font-medium text-slate-900 flex-1">{request.note || request.message || request.subject || 'Support Request'}</p>
             {getStatusBadge(request.status)}
           </div>
           {request.adminNote && (
@@ -1877,7 +2027,7 @@ const SupportHistory = ({ role }) => {
           )}
           <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
             <span>Submitted: {formatDate(request.createdAt)}</span>
-            {request.updatedAt !== request.createdAt && (
+            {request.updatedAt && request.updatedAt !== request.createdAt && (
               <span>Updated: {formatDate(request.updatedAt)}</span>
             )}
           </div>

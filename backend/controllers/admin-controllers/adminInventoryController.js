@@ -55,24 +55,44 @@ exports.getLaboratoryInventory = asyncHandler(async (req, res) => {
   const { search } = req.query;
   const { page, limit, skip } = buildPagination(req);
 
-  const filter = { isActive: true };
+  const { APPROVAL_STATUS } = require('../../utils/constants');
+  
+  const filter = { 
+    isActive: true,
+    status: APPROVAL_STATUS.APPROVED, // Only show approved laboratories
+  };
+  
   if (search) {
     const regex = new RegExp(search.trim(), 'i');
     filter.$or = [
       { labName: regex },
       { 'address.city': regex },
       { 'address.state': regex },
+      { phone: regex },
+      { email: regex },
     ];
   }
 
+  console.log(`🔍 Fetching laboratory inventory:`, {
+    filter,
+    search: search || 'none',
+    page,
+    limit,
+  });
+
   const [laboratories, total] = await Promise.all([
     Laboratory.find(filter)
-      .select('labName address')
+      .select('labName address phone email status isActive rating')
       .sort({ labName: 1 })
       .skip(skip)
       .limit(limit),
     Laboratory.countDocuments(filter),
   ]);
+
+  console.log(`📊 Laboratory inventory fetched:`, {
+    count: laboratories.length,
+    total,
+  });
 
   return res.status(200).json({
     success: true,
@@ -90,7 +110,7 @@ exports.getLaboratoryInventory = asyncHandler(async (req, res) => {
 
 // GET /api/admin/inventory/pharmacies/:id
 exports.getPharmacyMedicines = asyncHandler(async (req, res) => {
-  const { pharmacyId } = req.params;
+  const { id: pharmacyId } = req.params;
   const { page, limit, skip } = buildPagination(req);
 
   const pharmacy = await Pharmacy.findById(pharmacyId);
@@ -129,7 +149,7 @@ exports.getPharmacyMedicines = asyncHandler(async (req, res) => {
 
 // GET /api/admin/inventory/laboratories/:id
 exports.getLaboratoryTests = asyncHandler(async (req, res) => {
-  const { laboratoryId } = req.params;
+  const { id: laboratoryId } = req.params;
   const { page, limit, skip } = buildPagination(req);
 
   const laboratory = await Laboratory.findById(laboratoryId);

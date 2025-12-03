@@ -4,8 +4,20 @@ const Test = require('../../models/Test');
 // Helper functions
 const buildPagination = (req) => {
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+  // Increased max limit to 10000 to allow fetching all tests at once
+  // Default limit is 20, but if limit is explicitly provided, use it (up to 10000)
+  const requestedLimit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
+  const limit = Math.min(Math.max(requestedLimit, 1), 10000);
   const skip = (page - 1) * limit;
+  
+  console.log('📄 Pagination params:', { 
+    requestedLimit, 
+    parsedLimit: limit, 
+    page, 
+    skip,
+    queryParams: req.query 
+  });
+  
   return { page, limit, skip };
 };
 
@@ -30,6 +42,14 @@ exports.getTests = asyncHandler(async (req, res) => {
     ? { $and: [filter, searchFilter] }
     : filter;
 
+  console.log(`🔍 Fetching laboratory tests:`, {
+    laboratoryId: id,
+    filter: finalFilter,
+    page,
+    limit,
+    skip,
+  });
+
   const [tests, total] = await Promise.all([
     Test.find(finalFilter)
       .sort({ name: 1 })
@@ -37,6 +57,14 @@ exports.getTests = asyncHandler(async (req, res) => {
       .limit(limit),
     Test.countDocuments(finalFilter),
   ]);
+
+  console.log(`📊 Laboratory tests fetched:`, {
+    laboratoryId: id,
+    count: tests.length,
+    total,
+    page,
+    limit,
+  });
 
   return res.status(200).json({
     success: true,

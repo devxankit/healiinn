@@ -2,8 +2,6 @@ const asyncHandler = require('../../middleware/asyncHandler');
 const LabReport = require('../../models/LabReport');
 const Order = require('../../models/Order');
 const { generateLabReportPDF, uploadLabReportPDF } = require('../../services/pdfService');
-const { createReportNotification } = require('../../services/inAppNotificationService');
-const { ROLES } = require('../../utils/constants');
 const Laboratory = require('../../models/Laboratory');
 const Patient = require('../../models/Patient');
 const { getIO } = require('../../config/socket');
@@ -53,7 +51,8 @@ exports.getReports = asyncHandler(async (req, res) => {
 // POST /api/laboratory/reports
 exports.createReport = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { orderId, testName, results, notes } = req.body;
+  const { orderId, testName, results, notes, pdfFileUrl } = req.body;
+  const uploadedFile = req.file; // PDF file from multer
 
   if (!orderId || !testName) {
     return res.status(400).json({
@@ -85,15 +84,19 @@ exports.createReport = asyncHandler(async (req, res) => {
     });
   }
 
-  // Get laboratory and patient data for PDF
+  // Get laboratory and patient data
   const laboratory = await Laboratory.findById(id);
   const patient = await Patient.findById(order.patientId);
+
+  // Get prescription ID from order if available
+  const prescriptionId = order.prescriptionId || null;
 
   // Create report
   const reportData = {
     orderId,
     patientId: order.patientId,
     laboratoryId: id,
+    prescriptionId,
     testName,
     results: results || [],
     notes: notes || '',
@@ -103,61 +106,135 @@ exports.createReport = asyncHandler(async (req, res) => {
 
   const report = await LabReport.create(reportData);
 
-  // Generate and upload PDF
+  // Handle PDF: Use uploaded file if provided, otherwise generate
+  let pdfUrl = pdfFileUrl || null;
   try {
-    const pdfBuffer = await generateLabReportPDF(
-      { ...reportData, createdAt: report.createdAt },
-      laboratory.toObject(),
-      patient.toObject()
-    );
-    const pdfUrl = await uploadLabReportPDF(pdfBuffer, 'healiinn/reports', `report_${report._id}`);
-    report.pdfFileUrl = pdfUrl;
-    report.status = 'completed';
-    await report.save();
+    if (uploadedFile) {
+      // Use uploaded PDF file
+      const { uploadPDF: uploadPDFService } = require('../../services/fileUploadService');
+      const result = await uploadPDFService(uploadedFile, 'reports', 'lab_report');
+      pdfUrl = result.url;
+    } else if (!pdfFileUrl) {
+      // Generate PDF if no file uploaded and no URL provided
+      const pdfBuffer = await generateLabReportPDF(
+        { ...reportData, createdAt: report.createdAt },
+        laboratory.toObject(),
+        patient.toObject()
+      );
+      pdfUrl = await uploadLabReportPDF(pdfBuffer, 'healiinn/reports', `report_${report._id}`);
+    }
+    
+    if (pdfUrl) {
+      report.pdfFileUrl = pdfUrl;
+      report.status = 'completed';
+      await report.save();
+    }
   } catch (error) {
-    console.error('PDF generation error:', error);
-    // Continue even if PDF generation fails
+    console.error('PDF upload/generation error:', error);
+    // Continue even if PDF fails
   }
 
-  // Update order status
-  order.status = 'ready';
+  // Update order status to completed when report is ready
+  order.status = 'completed';
   await order.save();
 
-  // Emit real-time event
+  // Emit real-time events
   try {
     const io = getIO();
+    const populatedReport = await LabReport.findById(report._id)
+      .populate('laboratoryId', 'labName')
+      .populate('orderId');
+    
+    // Notify patient about report ready
     io.to(`patient-${order.patientId}`).emit('report:created', {
-      report: await LabReport.findById(report._id)
-        .populate('laboratoryId', 'labName'),
+      report: populatedReport,
+    });
+    
+    // Notify patient about order completion
+    io.to(`patient-${order.patientId}`).emit('order:completed', {
+      orderId: order._id,
+      order: order,
+      report: populatedReport,
+    });
+    
+    // Notify admin about order completion
+    io.to('admins').emit('order:completed', {
+      orderId: order._id,
+      order: order,
+      report: populatedReport,
     });
   } catch (error) {
     console.error('Socket.IO error:', error);
   }
 
-  // Send email notification to patient
+  // Create in-app notifications
+  try {
+    const { createReportNotification, createOrderNotification, createAdminNotification } = require('../../services/notificationService');
+    const Patient = require('../../models/Patient');
+    const populatedReport = await LabReport.findById(report._id)
+      .populate('laboratoryId', 'labName')
+      .populate('orderId');
+    const patient = await Patient.findById(order.patientId);
+
+    // Notify patient about report
+    await createReportNotification({
+      userId: order.patientId,
+      userType: 'patient',
+      report: populatedReport,
+      laboratory: populatedReport.laboratoryId,
+    }).catch((error) => console.error('Error creating patient report notification:', error));
+
+    // Notify patient about order completion
+    await createOrderNotification({
+      userId: order.patientId,
+      userType: 'patient',
+      order,
+      eventType: 'completed',
+      laboratory: populatedReport.laboratoryId,
+    }).catch((error) => console.error('Error creating patient order notification:', error));
+
+    // Notify admin
+    const Admin = require('../../models/Admin');
+    const admins = await Admin.find({});
+    for (const admin of admins) {
+      await createAdminNotification({
+        userId: admin._id,
+        userType: 'admin',
+        eventType: 'order_completed',
+        data: {
+          orderId: order._id,
+          patientId: order.patientId,
+          laboratoryId: id,
+        },
+      }).catch((error) => console.error('Error creating admin notification:', error));
+    }
+  } catch (error) {
+    console.error('Error creating notifications:', error);
+  }
+
+  // Send email notifications to patient
   try {
     const populatedReport = await LabReport.findById(report._id)
       .populate('patientId', 'firstName lastName')
       .populate('orderId');
 
+    // Send report ready email
     await sendLabReportReadyEmail({
       patient,
       report: populatedReport,
       laboratory,
     }).catch((error) => console.error('Error sending lab report ready email:', error));
+
+    // Send order completion email
+    const { sendOrderStatusUpdateEmail } = require('../../services/notificationService');
+    await sendOrderStatusUpdateEmail({
+      patient,
+      order: order,
+      status: 'completed',
+      message: 'Your lab test order has been completed and the report is ready.',
+    }).catch((error) => console.error('Error sending order completion email:', error));
   } catch (error) {
     console.error('Error sending email notifications:', error);
-  }
-
-  // Create in-app notification for patient
-  try {
-    await createReportNotification({
-      userId: order.patientId,
-      userType: ROLES.PATIENT,
-      report: report._id,
-    }).catch((error) => console.error('Error creating report notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notification:', error);
   }
 
   return res.status(201).json({

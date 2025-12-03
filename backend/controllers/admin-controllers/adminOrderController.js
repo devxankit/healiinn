@@ -46,7 +46,7 @@ exports.getOrders = asyncHandler(async (req, res) => {
 
 // GET /api/admin/orders/:id
 exports.getOrderById = asyncHandler(async (req, res) => {
-  const { orderId } = req.params;
+  const { id: orderId } = req.params;
 
   const order = await Order.findById(orderId)
     .populate('patientId')
@@ -69,7 +69,7 @@ exports.getOrderById = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/orders/:id
 exports.updateOrder = asyncHandler(async (req, res) => {
-  const { orderId } = req.params;
+  const { id: orderId } = req.params;
   const updateData = req.body;
 
   const order = await Order.findById(orderId);

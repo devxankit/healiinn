@@ -67,16 +67,25 @@ const AdminUsers = () => {
       }
       
       // Then, load filtered users for display
-      const filters = {
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        search: searchTerm || undefined,
-        page: 1,
-        limit: 100,
+      const filters = {}
+      if (statusFilter !== 'all') {
+        filters.status = statusFilter
       }
+      if (searchTerm && searchTerm.trim()) {
+        filters.search = searchTerm.trim()
+      }
+      filters.page = 1
+      filters.limit = 100
+      
+      console.log('🔍 Loading users with filters:', filters) // Debug log
       const response = await getUsers(filters)
+      console.log('📊 Users API response:', response) // Debug log
       
       if (response.success && response.data) {
-        const transformedUsers = (response.data.items || []).map(user => ({
+        const usersData = response.data.items || response.data || []
+        console.log('📋 Raw users data from API:', usersData) // Debug log
+        console.log('📋 Transformed users count:', usersData.length) // Debug log
+        const transformedUsers = usersData.map(user => ({
           id: user._id || user.id,
           firstName: user.firstName || '',
           lastName: user.lastName || '',
@@ -86,7 +95,11 @@ const AdminUsers = () => {
           registeredAt: user.createdAt || new Date().toISOString(),
           totalConsultations: 0, // TODO: Add when appointments API is ready
         }))
+        console.log('📋 Transformed users:', transformedUsers) // Debug log
         setUsers(transformedUsers)
+      } else {
+        console.error('❌ Invalid response from API:', response) // Debug log
+        setUsers([])
       }
     } catch (error) {
       console.error('Error loading users:', error)

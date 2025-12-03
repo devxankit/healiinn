@@ -9,209 +9,81 @@ import {
   IoBagHandleOutline,
   IoPeopleOutline,
 } from 'react-icons/io5'
+import { getPatientTransactions } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
+
+// Default transactions (will be replaced by API data)
+const defaultTransactions = []
 
 const PatientTransactions = () => {
+  const toast = useToast()
   const [filter, setFilter] = useState('all')
-  const [transactions, setTransactions] = useState([])
+  const [transactions, setTransactions] = useState(defaultTransactions)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Mock transactions for demonstration
-  const mockTransactions = [
-    {
-      id: 'txn-1',
-      type: 'Appointment',
-      category: 'doctor',
-      providerName: 'Dr. Rajesh Kumar',
-      amount: 500,
-      status: 'completed',
-      date: '2025-01-15',
-      time: '10:30 AM',
-      transactionId: 'TXN-APP-001',
-      paymentMethod: 'UPI',
-      queueNumber: 5,
-    },
-    {
-      id: 'txn-2',
-      type: 'Lab Test',
-      category: 'laboratory',
-      providerName: 'MediCare Diagnostics',
-      serviceName: 'Complete Blood Count (CBC)',
-      amount: 350,
-      status: 'completed',
-      date: '2025-01-14',
-      time: '02:15 PM',
-      transactionId: 'TXN-LAB-002',
-      paymentMethod: 'Credit Card',
-    },
-    {
-      id: 'txn-3',
-      type: 'Pharmacy',
-      category: 'pharmacy',
-      providerName: 'City Pharmacy',
-      serviceName: 'Prescription Medicines',
-      amount: 1250,
-      status: 'pending',
-      date: '2025-01-13',
-      time: '11:00 AM',
-      transactionId: 'TXN-PHAR-003',
-      paymentMethod: 'Wallet',
-    },
-    {
-      id: 'txn-4',
-      type: 'Appointment',
-      category: 'doctor',
-      providerName: 'Dr. Priya Sharma',
-      amount: 600,
-      status: 'completed',
-      date: '2025-01-12',
-      time: '09:45 AM',
-      transactionId: 'TXN-APP-004',
-      paymentMethod: 'Debit Card',
-      queueNumber: 3,
-    },
-    {
-      id: 'txn-5',
-      type: 'Lab Test',
-      category: 'laboratory',
-      providerName: 'HealthLab Center',
-      serviceName: 'Blood Glucose Test',
-      amount: 450,
-      status: 'completed',
-      date: '2025-01-11',
-      time: '03:20 PM',
-      transactionId: 'TXN-LAB-005',
-      paymentMethod: 'UPI',
-    },
-    {
-      id: 'txn-6',
-      type: 'Pharmacy',
-      category: 'pharmacy',
-      providerName: 'MediPlus Pharmacy',
-      serviceName: 'Prescription Medicines',
-      amount: 850,
-      status: 'failed',
-      date: '2025-01-10',
-      time: '04:00 PM',
-      transactionId: 'TXN-PHAR-006',
-      paymentMethod: 'Credit Card',
-    },
-  ]
-
-  // Load all transactions from localStorage and combine with mock data
+  // Fetch transactions from API
   useEffect(() => {
-    const loadTransactions = () => {
-      const allTransactions = []
-
-      // Load Doctor Appointments
+    const fetchTransactions = async () => {
       try {
-        const appointments = JSON.parse(localStorage.getItem('patientAppointments') || '[]')
-        appointments.forEach((appt) => {
-          if (appt.amount || appt.fee) {
-            allTransactions.push({
-              id: `appt-${appt.id}`,
-              type: 'Appointment',
-              category: 'doctor',
-              providerName: appt.doctorName || 'Doctor',
-              amount: appt.amount || appt.fee || 0,
-              status: appt.status === 'confirmed' || appt.status === 'completed' ? 'completed' : appt.status || 'pending',
-              date: appt.appointmentDate || appt.date || new Date().toISOString().split('T')[0],
-              time: appt.appointmentTime ? appt.appointmentTime.split('T')[1]?.substring(0, 5) : 'N/A',
-              transactionId: `TXN-APP-${appt.id}`,
-              paymentMethod: appt.paymentMethod || 'Online',
-              queueNumber: appt.queueNumber,
-            })
-          }
-        })
-      } catch (error) {
-        console.error('Error loading appointments:', error)
+        setLoading(true)
+        setError(null)
+        const response = await getPatientTransactions()
+        
+        if (response.success && response.data) {
+          // Handle both array and object with items/transactions property
+          const transactionsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || response.data.transactions || []
+          
+          // Transform API data to match component structure
+          const transformed = transactionsData.map(txn => ({
+            id: txn._id || txn.id,
+            _id: txn._id || txn.id,
+            type: txn.type || txn.transactionType || 'Appointment',
+            category: txn.category || txn.providerType || 'doctor',
+            providerName: txn.providerId?.name 
+              || txn.providerName 
+              || txn.doctorId?.name 
+              || txn.pharmacyId?.name 
+              || txn.laboratoryId?.name 
+              || 'Provider',
+            serviceName: txn.serviceName || txn.description || '',
+            amount: txn.amount || 0,
+            status: txn.status || 'completed',
+            date: txn.createdAt ? new Date(txn.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            time: txn.createdAt ? new Date(txn.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+            transactionId: txn.transactionId || txn._id || txn.id,
+            paymentMethod: txn.paymentMethod || 'UPI',
+            queueNumber: txn.queueNumber || null,
+            originalData: txn,
+          }))
+          
+          setTransactions(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching transactions:', err)
+        setError(err.message || 'Failed to load transactions')
+        toast.error('Failed to load transactions')
+      } finally {
+        setLoading(false)
       }
-
-      // Load Lab and Pharmacy Requests (from PatientRequests) - Only payment confirmed
-      try {
-        const requests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-        requests.forEach((req) => {
-          // Only include payment confirmed requests
-          if (req.paymentConfirmed && req.totalAmount && (req.status === 'confirmed' || req.status === 'paid' || req.paidAt)) {
-            const paidDate = req.paidAt ? new Date(req.paidAt) : (req.responseDate ? new Date(req.responseDate) : new Date())
-            const dateStr = paidDate.toISOString().split('T')[0]
-            const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-            
-            allTransactions.push({
-              id: `req-${req.id}`,
-              type: req.type === 'lab' ? 'Lab Test' : 'Pharmacy',
-              category: req.type === 'lab' ? 'laboratory' : 'pharmacy',
-              providerName: req.providerName || (req.type === 'lab' ? 'Laboratory' : 'Pharmacy'),
-              serviceName: req.type === 'lab' ? (req.testName || 'Lab Tests') : (req.medicineName || 'Medicines'),
-              amount: req.totalAmount,
-              status: 'completed',
-              date: dateStr,
-              time: timeStr,
-              transactionId: `TXN-${req.type === 'lab' ? 'LAB' : 'PHAR'}-${req.id?.substring(0, 8) || Date.now()}`,
-              paymentMethod: req.paymentMethod || 'Online',
-              requestId: req.id,
-              paidAt: req.paidAt,
-            })
-          }
-        })
-      } catch (error) {
-        console.error('Error loading requests:', error)
-      }
-
-      // Load from patientOrders - payment confirmed orders
-      try {
-        const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-        patientOrders.forEach((order) => {
-          // Only include payment confirmed orders
-          if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
-            const paidDate = new Date(order.paidAt)
-            const dateStr = paidDate.toISOString().split('T')[0]
-            const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-            
-            // Check if transaction already exists (from requests)
-            const existingTxn = allTransactions.find(txn => txn.requestId === order.requestId)
-            if (!existingTxn) {
-              allTransactions.push({
-                id: `order-${order.id}`,
-                type: order.type === 'lab' ? 'Lab Test' : 'Pharmacy',
-                category: order.type === 'lab' ? 'laboratory' : 'pharmacy',
-                providerName: order.type === 'lab' 
-                  ? (order.labName || order.providerNames?.join(', ') || 'Laboratory')
-                  : (order.pharmacyName || order.providerNames?.join(', ') || 'Pharmacy'),
-                serviceName: order.type === 'lab' 
-                  ? (order.investigations?.map(inv => typeof inv === 'string' ? inv : inv.name).join(', ') || 'Lab Tests')
-                  : (order.medicines?.map(med => typeof med === 'string' ? med : med.name).join(', ') || 'Medicines'),
-                amount: order.totalAmount,
-                status: 'completed',
-                date: dateStr,
-                time: timeStr,
-                transactionId: `TXN-${order.type === 'lab' ? 'LAB' : 'PHAR'}-${order.id?.substring(0, 8) || Date.now()}`,
-                paymentMethod: 'Online',
-                requestId: order.requestId,
-                paidAt: order.paidAt,
-              })
-            }
-          }
-        })
-      } catch (error) {
-        console.error('Error loading orders:', error)
-      }
-
-      // If no transactions found, use mock data
-      if (allTransactions.length === 0) {
-        allTransactions.push(...mockTransactions)
-      }
-
-      // Sort by date (newest first)
-      allTransactions.sort((a, b) => {
-        const dateA = new Date(a.date)
-        const dateB = new Date(b.date)
-        return dateB - dateA
-      })
-
-      setTransactions(allTransactions)
     }
 
-    loadTransactions()
-  }, [])
+    fetchTransactions()
+    
+    // Listen for appointment booking event to refresh transactions
+    const handleAppointmentBooked = () => {
+      fetchTransactions()
+    }
+    window.addEventListener('appointmentBooked', handleAppointmentBooked)
+    
+    return () => {
+      window.removeEventListener('appointmentBooked', handleAppointmentBooked)
+    }
+  }, [toast])
+
+  // Legacy localStorage loading removed - using API now
 
   // Filter out pending transactions (they should show in requests page)
   const completedTransactions = transactions.filter(txn => txn.status !== 'pending' && txn.status !== 'accepted')
@@ -219,6 +91,29 @@ const PatientTransactions = () => {
   const filteredTransactions = filter === 'all' 
     ? completedTransactions 
     : completedTransactions.filter(txn => txn.status === filter)
+
+  // Show loading state
+  if (loading) {
+    return (
+      <section className="flex flex-col gap-4 pb-4">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-lg font-semibold text-slate-700">Loading transactions...</p>
+        </div>
+      </section>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <section className="flex flex-col gap-4 pb-4">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-lg font-semibold text-red-700">Error loading transactions</p>
+          <p className="text-sm text-slate-500 mt-2">{error}</p>
+        </div>
+      </section>
+    )
+  }
 
   const getStatusColor = (status) => {
     switch (status) {

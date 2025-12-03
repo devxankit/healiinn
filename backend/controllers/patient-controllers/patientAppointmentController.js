@@ -8,10 +8,8 @@ const {
   sendAppointmentConfirmationEmail,
   sendDoctorAppointmentNotification,
   sendAppointmentCancellationEmail,
-} = require('../../services/notificationService');
-const {
   createAppointmentNotification,
-} = require('../../services/inAppNotificationService');
+} = require('../../services/notificationService');
 const { ROLES } = require('../../utils/constants');
 const { getOrCreateSession, checkSlotAvailability } = require('../../services/sessionService');
 const { calculateAppointmentETA, recalculateSessionETAs } = require('../../services/etaService');
@@ -214,30 +212,27 @@ exports.createAppointment = asyncHandler(async (req, res) => {
       patient,
       appointment: populatedAppointment,
     }).catch((error) => console.error('Error sending doctor appointment notification:', error));
+
+    // Create in-app notifications
+    await createAppointmentNotification({
+      userId: id,
+      userType: 'patient',
+      appointment: populatedAppointment,
+      eventType: 'created',
+      doctor,
+    }).catch((error) => console.error('Error creating patient notification:', error));
+
+    await createAppointmentNotification({
+      userId: appointment.doctorId,
+      userType: 'doctor',
+      appointment: populatedAppointment,
+      eventType: 'created',
+      patient,
+    }).catch((error) => console.error('Error creating doctor notification:', error));
   } catch (error) {
     console.error('Error sending email notifications:', error);
   }
 
-  // Create in-app notifications
-  try {
-    // Notification for patient
-    await createAppointmentNotification({
-      userId: id,
-      userType: ROLES.PATIENT,
-      appointment: appointment._id,
-      action: 'created',
-    }).catch((error) => console.error('Error creating patient notification:', error));
-
-    // Notification for doctor
-    await createAppointmentNotification({
-      userId: doctorId,
-      userType: ROLES.DOCTOR,
-      appointment: appointment._id,
-      action: 'created',
-    }).catch((error) => console.error('Error creating doctor notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notifications:', error);
-  }
 
   // Get appointment with ETA
   const populatedAppointment = await Appointment.findById(appointment._id)
@@ -357,23 +352,28 @@ exports.cancelAppointment = asyncHandler(async (req, res) => {
 
   // Create in-app notifications
   try {
-    // Notification for patient
+    const populatedAppointment = await Appointment.findById(appointment._id)
+      .populate('doctorId', 'firstName lastName specialization profileImage');
+
+    // Notify patient
     await createAppointmentNotification({
       userId: id,
-      userType: ROLES.PATIENT,
-      appointment: appointment._id,
-      action: 'cancelled',
-    }).catch((error) => console.error('Error creating patient notification:', error));
+      userType: 'patient',
+      appointment: populatedAppointment,
+      eventType: 'cancelled',
+      doctor: populatedAppointment.doctorId,
+    }).catch((error) => console.error('Error creating patient cancellation notification:', error));
 
-    // Notification for doctor
+    // Notify doctor
     await createAppointmentNotification({
       userId: appointment.doctorId,
-      userType: ROLES.DOCTOR,
-      appointment: appointment._id,
-      action: 'cancelled',
-    }).catch((error) => console.error('Error creating doctor notification:', error));
+      userType: 'doctor',
+      appointment: populatedAppointment,
+      eventType: 'cancelled',
+      patient,
+    }).catch((error) => console.error('Error creating doctor cancellation notification:', error));
   } catch (error) {
-    console.error('Error creating in-app notifications:', error);
+    console.error('Error creating notifications:', error);
   }
 
   return res.status(200).json({
@@ -517,23 +517,31 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
 
   // Create in-app notifications
   try {
-    // Notification for patient
+    const populatedAppointment = await Appointment.findById(appointment._id)
+      .populate('doctorId', 'firstName lastName specialization profileImage')
+      .populate('sessionId', 'date sessionStartTime sessionEndTime');
+    const patient = await Patient.findById(id);
+    const doctor = await Doctor.findById(appointment.doctorId);
+
+    // Notify patient
     await createAppointmentNotification({
       userId: id,
-      userType: ROLES.PATIENT,
-      appointment: appointment._id,
-      action: 'rescheduled',
-    }).catch((error) => console.error('Error creating patient notification:', error));
+      userType: 'patient',
+      appointment: populatedAppointment,
+      eventType: 'rescheduled',
+      doctor,
+    }).catch((error) => console.error('Error creating patient reschedule notification:', error));
 
-    // Notification for doctor
+    // Notify doctor
     await createAppointmentNotification({
       userId: appointment.doctorId,
-      userType: ROLES.DOCTOR,
-      appointment: appointment._id,
-      action: 'rescheduled',
-    }).catch((error) => console.error('Error creating doctor notification:', error));
+      userType: 'doctor',
+      appointment: populatedAppointment,
+      eventType: 'rescheduled',
+      patient,
+    }).catch((error) => console.error('Error creating doctor reschedule notification:', error));
   } catch (error) {
-    console.error('Error creating in-app notifications:', error);
+    console.error('Error creating notifications:', error);
   }
 
   return res.status(200).json({
@@ -548,7 +556,7 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
 // GET /api/patients/appointments/:id/eta - Get ETA for appointment
 exports.getAppointmentETA = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { id: appointmentId } = req.params;
+  const appointmentId = req.params.id; // Route uses :id
 
   const appointment = await Appointment.findOne({
     _id: appointmentId,
@@ -580,7 +588,7 @@ exports.getAppointmentETA = asyncHandler(async (req, res) => {
 // POST /api/patients/appointments/:id/payment/order - Create payment order for appointment
 exports.createAppointmentPaymentOrder = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { appointmentId } = req.params;
+  const appointmentId = req.params.id; // Route uses :id, not :appointmentId
 
   const appointment = await Appointment.findOne({
     _id: appointmentId,
@@ -624,6 +632,7 @@ exports.createAppointmentPaymentOrder = asyncHandler(async (req, res) => {
       amount: order.amount / 100, // Convert from paise to rupees
       currency: order.currency,
       appointmentId: appointment._id,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID || '', // Return Razorpay key ID for frontend
     },
   });
 });
@@ -631,7 +640,7 @@ exports.createAppointmentPaymentOrder = asyncHandler(async (req, res) => {
 // POST /api/patients/appointments/:id/payment/verify - Verify and confirm appointment payment
 exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { appointmentId } = req.params;
+  const appointmentId = req.params.id; // Route uses :id, not :appointmentId
   const { paymentId, orderId, signature, paymentMethod } = req.body;
 
   if (!paymentId || !orderId || !signature) {
@@ -696,7 +705,7 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
     type: 'payment',
     amount: appointment.fee,
     status: 'completed',
-    description: `Appointment payment for Dr. ${appointment.doctorId}`,
+    description: `Appointment payment for appointment ${appointment._id}`,
     referenceId: appointment._id.toString(),
     category: 'appointment',
     paymentMethod: paymentMethod || 'razorpay',
@@ -709,8 +718,14 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
   });
 
   // Create admin transaction (payment goes to admin wallet)
+  // Get first admin user for admin transactions
+  const Admin = require('../../models/Admin');
+  const mongoose = require('mongoose');
+  const adminUser = await Admin.findOne({ isActive: true }).sort({ createdAt: 1 });
+  const adminUserId = adminUser?._id || new mongoose.Types.ObjectId('000000000000000000000000'); // Fallback to a system admin ID
+  
   await Transaction.create({
-    userId: null, // Admin doesn't have a specific user ID, we'll use null
+    userId: adminUserId,
     userType: 'admin',
     type: 'payment',
     amount: appointment.fee,
@@ -728,6 +743,156 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
     },
   });
 
+  // Get IO instance for real-time events (must be before wallet credit)
+  const io = getIO();
+
+  // Credit doctor wallet (doctor earns from appointment)
+  const WalletTransaction = require('../../models/WalletTransaction');
+  const Doctor = require('../../models/Doctor');
+  
+  console.log(`💳 Processing wallet credit for appointment: ${appointment._id}, doctorId: ${appointment.doctorId}`);
+  
+  // Get doctor's current wallet balance
+  const doctor = await Doctor.findById(appointment.doctorId);
+  if (!doctor) {
+    console.error(`❌ Doctor not found for appointment: ${appointment._id}, doctorId: ${appointment.doctorId}`);
+  } else {
+    console.log(`✅ Doctor found: ${doctor.firstName} ${doctor.lastName}, ID: ${doctor._id.toString()}`);
+    console.log(`✅ Doctor found: ${doctor.firstName} ${doctor.lastName}, ID: ${doctor._id}`);
+    // Calculate doctor's earning using commission config from .env
+    const { calculateProviderEarning } = require('../../utils/commissionConfig');
+    const { earning: doctorEarning, commission, commissionRate } = calculateProviderEarning(
+      appointment.fee,
+      'doctor'
+    );
+    
+    console.log(`💰 Calculating earnings:`, {
+      appointmentFee: appointment.fee,
+      doctorEarning,
+      commission,
+      commissionRate,
+    });
+    
+    // Get current wallet balance - get the latest earning transaction balance
+    // or calculate from all earning transactions minus withdrawals
+    const lastEarningTransaction = await WalletTransaction.findOne({
+      userId: appointment.doctorId,
+      userType: 'doctor',
+      type: 'earning',
+      status: 'completed',
+    }).sort({ createdAt: -1 });
+    
+    // Calculate current balance from all transactions
+    const allEarnings = await WalletTransaction.aggregate([
+      {
+        $match: {
+          userId: appointment.doctorId,
+          userType: 'doctor',
+          type: 'earning',
+          status: 'completed',
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]);
+    
+    const allWithdrawals = await WalletTransaction.aggregate([
+      {
+        $match: {
+          userId: appointment.doctorId,
+          userType: 'doctor',
+          type: 'withdrawal',
+          status: 'completed',
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]);
+    
+    const currentBalance = (allEarnings[0]?.total || 0) - (allWithdrawals[0]?.total || 0);
+    const newBalance = currentBalance + doctorEarning;
+    
+    // Also update the last transaction balance reference for consistency
+    const lastTransactionBalance = lastEarningTransaction?.balance || currentBalance;
+    
+    // Create wallet transaction for doctor earning
+    try {
+      const walletTransaction = await WalletTransaction.create({
+      userId: appointment.doctorId,
+      userType: 'doctor',
+      type: 'earning',
+      amount: doctorEarning,
+      balance: newBalance,
+      status: 'completed',
+      description: `Earning from appointment ${appointment._id} (Commission: ${(commissionRate * 100).toFixed(1)}%)`,
+      referenceId: appointment._id.toString(),
+      appointmentId: appointment._id,
+      metadata: {
+        totalAmount: appointment.fee,
+        commission,
+        commissionRate,
+        earning: doctorEarning,
+      },
+    });
+      
+      console.log(`✅ Doctor wallet transaction created successfully:`, {
+        doctorId: appointment.doctorId.toString(),
+        amount: doctorEarning,
+        balance: newBalance,
+        transactionId: walletTransaction._id,
+        appointmentId: appointment._id.toString(),
+      });
+    } catch (walletError) {
+      console.error(`❌ Error creating doctor wallet transaction:`, {
+        error: walletError.message,
+        stack: walletError.stack,
+        doctorId: appointment.doctorId.toString(),
+        appointmentId: appointment._id.toString(),
+        amount: doctorEarning,
+      });
+      // Don't throw - payment is already successful, just log the error
+    }
+    
+    // Create commission deduction record (for admin tracking)
+    await WalletTransaction.create({
+      userId: appointment.doctorId,
+      userType: 'doctor',
+      type: 'commission_deduction',
+      amount: commission,
+      balance: currentBalance, // Balance before earning
+      status: 'completed',
+      description: `Platform commission (${(commissionRate * 100).toFixed(1)}%) for appointment ${appointment._id}`,
+      referenceId: appointment._id.toString(),
+      appointmentId: appointment._id,
+      metadata: {
+        totalAmount: appointment.fee,
+        commission,
+        commissionRate,
+      },
+    });
+    
+    // Emit real-time event to doctor
+    try {
+      io.to(`doctor-${appointment.doctorId}`).emit('wallet:credited', {
+        amount: doctorEarning,
+        balance: newBalance,
+        appointmentId: appointment._id,
+        commission,
+        commissionRate,
+      });
+    } catch (error) {
+      console.error('Socket.IO error for wallet credit:', error);
+    }
+  }
+
   // Get patient data for email
   const patient = await Patient.findById(id);
 
@@ -736,7 +901,9 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
     const { sendPaymentConfirmationEmail } = require('../../services/notificationService');
     await sendPaymentConfirmationEmail({
       patient,
-      transaction,
+      amount: appointment.fee, // Pass amount directly
+      appointmentId: appointment._id, // Pass appointmentId for reference
+      transaction, // Also pass transaction for additional data
       order: null,
     }).catch((error) => console.error('Error sending payment confirmation email:', error));
   } catch (error) {
@@ -745,7 +912,6 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
 
   // Emit real-time event
   try {
-    const io = getIO();
     io.to(`patient-${id}`).emit('appointment:payment:confirmed', {
       appointmentId: appointment._id,
       paymentId: paymentId,
@@ -760,13 +926,18 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
+  // Get populated appointment for response
+  const populatedAppointment = await Appointment.findById(appointment._id)
+    .populate('doctorId', 'firstName lastName specialization');
+  
+  console.log(`✅ Payment verification completed for appointment: ${appointment._id}`);
+
   return res.status(200).json({
     success: true,
     message: 'Payment verified and confirmed successfully',
     data: {
-      appointment: await Appointment.findById(appointment._id)
-        .populate('doctorId', 'firstName lastName specialization'),
-      transaction,
+      appointment: populatedAppointment.toObject(),
+      transaction: transaction.toObject(),
     },
   });
 });

@@ -136,6 +136,37 @@ exports.getTransactions = asyncHandler(async (req, res) => {
   });
 });
 
+// GET /api/pharmacy/wallet/withdrawals
+exports.getWithdrawals = asyncHandler(async (req, res) => {
+  const { id } = req.auth;
+  const { status } = req.query;
+  const { page, limit, skip } = buildPagination(req);
+
+  const filter = { userId: id, userType: 'pharmacy' };
+  if (status) filter.status = status;
+
+  const [withdrawals, total] = await Promise.all([
+    WithdrawalRequest.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    WithdrawalRequest.countDocuments(filter),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      items: withdrawals,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    },
+  });
+});
+
 // POST /api/pharmacy/wallet/withdraw
 exports.requestWithdrawal = asyncHandler(async (req, res) => {
   const { id } = req.auth;
@@ -223,6 +254,39 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     }).catch((error) => console.error('Error sending withdrawal request email:', error));
   } catch (error) {
     console.error('Error sending email notifications:', error);
+  }
+
+  // Create in-app notifications
+  try {
+    const { createWalletNotification, createAdminNotification } = require('../../services/notificationService');
+
+    // Notify pharmacy
+    await createWalletNotification({
+      userId: id,
+      userType: 'pharmacy',
+      amount,
+      eventType: 'withdrawal_requested',
+      withdrawal: withdrawalRequest,
+    }).catch((error) => console.error('Error creating pharmacy withdrawal notification:', error));
+
+    // Notify all admins
+    const Admin = require('../../models/Admin');
+    const admins = await Admin.find({});
+    for (const admin of admins) {
+      await createAdminNotification({
+        userId: admin._id,
+        userType: 'admin',
+        eventType: 'withdrawal_requested',
+        data: {
+          amount,
+          withdrawalId: withdrawalRequest._id,
+          userType: 'pharmacy',
+          userId: id,
+        },
+      }).catch((error) => console.error('Error creating admin withdrawal notification:', error));
+    }
+  } catch (error) {
+    console.error('Error creating notifications:', error);
   }
 
   return res.status(201).json({

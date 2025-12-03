@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { toast } from 'react-toastify'
 import {
   IoFlaskOutline,
   IoCheckmarkCircleOutline,
@@ -15,147 +16,7 @@ import {
   IoCloseOutline,
   IoMedicalOutline,
 } from 'react-icons/io5'
-
-// Mock patient orders data with full patient info
-const mockPatientOrders = [
-  {
-    id: 'order-1',
-    patientName: 'John Doe',
-    patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-    patientAge: 45,
-    patientGender: 'male',
-    patientPhone: '+1-555-123-4567',
-    patientEmail: 'john.doe@example.com',
-    patientAddress: {
-      line1: '123 Main Street',
-      line2: 'Apt 4B',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10001',
-    },
-    testName: 'Complete Blood Count (CBC)',
-    status: 'sample_collected',
-    amount: 1200,
-    date: '2025-01-15',
-    time: '10:30 AM',
-    collectionType: 'home',
-    address: '123 Main St, New York, NY',
-    orderId: 'ORD-2025-001',
-    doctorName: 'Dr. Sarah Mitchell',
-    prescriptionId: 'PRES-001',
-  },
-  {
-    id: 'order-2',
-    patientName: 'Sarah Smith',
-    patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
-    patientAge: 32,
-    patientGender: 'female',
-    patientPhone: '+1-555-234-5678',
-    patientEmail: 'sarah.smith@example.com',
-    patientAddress: {
-      line1: '456 Oak Avenue',
-      line2: '',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10002',
-    },
-    testName: 'Lipid Profile',
-    status: 'test_completed',
-    amount: 1500,
-    date: '2025-01-14',
-    time: '02:15 PM',
-    collectionType: 'lab',
-    address: '200 Park Ave, New York, NY',
-    orderId: 'ORD-2025-002',
-    doctorName: 'Dr. Priya Sharma',
-    prescriptionId: 'PRES-002',
-  },
-  {
-    id: 'order-3',
-    patientName: 'Mike Johnson',
-    patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
-    patientAge: 38,
-    patientGender: 'male',
-    patientPhone: '+1-555-345-6789',
-    patientEmail: 'mike.johnson@example.com',
-    patientAddress: {
-      line1: '789 Pine Street',
-      line2: 'Suite 201',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10003',
-    },
-    testName: 'Liver Function Test (LFT)',
-    status: 'home_collection_requested',
-    amount: 1800,
-    date: '2025-01-16',
-    time: '11:00 AM',
-    collectionType: 'home',
-    address: '456 Oak Avenue, New York, NY',
-    orderId: 'ORD-2025-003',
-    doctorName: 'Dr. James Wilson',
-    prescriptionId: 'PRES-003',
-  },
-  {
-    id: 'order-4',
-    patientName: 'Emily Brown',
-    patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true',
-    patientAge: 28,
-    patientGender: 'female',
-    patientPhone: '+1-555-456-7890',
-    patientEmail: 'emily.brown@example.com',
-    patientAddress: {
-      line1: '321 Elm Street',
-      line2: '',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10004',
-    },
-    testName: 'Thyroid Function Test',
-    status: 'report_uploaded',
-    amount: 900,
-    date: '2025-01-13',
-    time: '09:45 AM',
-    collectionType: 'lab',
-    address: '150 Broadway, New York, NY',
-    orderId: 'ORD-2025-004',
-    doctorName: 'Dr. Emily Chen',
-    prescriptionId: 'PRES-004',
-  },
-  {
-    id: 'order-5',
-    patientName: 'David Wilson',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true',
-    patientAge: 52,
-    patientGender: 'male',
-    patientPhone: '+1-555-567-8901',
-    patientEmail: 'david.wilson@example.com',
-    patientAddress: {
-      line1: '654 Maple Drive',
-      line2: 'Apt 5C',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10005',
-    },
-    testName: 'COVID-19 RT-PCR Test',
-    status: 'new',
-    amount: 800,
-    date: '2025-01-17',
-    time: '03:20 PM',
-    collectionType: 'home',
-    address: '100 Main St, New York, NY',
-    orderId: 'ORD-2025-005',
-    doctorName: 'Dr. John Smith',
-    prescriptionId: 'PRES-005',
-  },
-]
-
-// Mock patient history
-const getPatientHistory = (patientName) => {
-  return mockPatientOrders
-    .filter(order => order.patientName === patientName)
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-}
+import { getLaboratoryOrders } from '../laboratory-services/laboratoryService'
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -268,14 +129,39 @@ const getStatusSteps = (status) => {
 const LaboratoryPatientOrders = () => {
   const [filter, setFilter] = useState('all') // 'all', 'home', 'lab'
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [orders, setOrders] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetchOrders()
+  }, [])
+
+  const fetchOrders = async () => {
+    try {
+      setIsLoading(true)
+      const response = await getLaboratoryOrders()
+      const ordersData = Array.isArray(response) ? response : (response.data || response.orders || [])
+      setOrders(ordersData)
+    } catch (error) {
+      console.error('Error fetching orders:', error)
+      toast.error('Failed to load orders')
+      setOrders([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const filteredOrders = filter === 'all'
-    ? mockPatientOrders
-    : mockPatientOrders.filter(order => 
-        filter === 'home' ? order.collectionType === 'home' : order.collectionType === 'lab'
-      )
+    ? orders
+    : orders.filter(order => {
+        const collectionType = order.collectionType || order.collection?.type || 'lab'
+        return filter === 'home' ? collectionType === 'home' : collectionType === 'lab'
+      })
 
-  const patientHistory = selectedOrder ? getPatientHistory(selectedOrder.patientName) : []
+  const patientHistory = selectedOrder ? orders.filter(order => 
+    (order.patientId === selectedOrder.patientId || order.patient?.id === selectedOrder.patient?.id) &&
+    order.id !== selectedOrder.id && order._id !== selectedOrder._id
+  ).sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)) : []
 
   return (
     <section className="flex flex-col gap-4 pb-4">
@@ -302,7 +188,12 @@ const LaboratoryPatientOrders = () => {
 
       {/* Orders List */}
       <div className="space-y-3">
-        {filteredOrders.length === 0 ? (
+        {isLoading ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#11496c] border-t-transparent mx-auto mb-3"></div>
+            <p className="text-sm font-medium text-slate-500">Loading orders...</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             <IoFlaskOutline className="h-12 w-12 text-slate-300 mx-auto mb-3" />
             <p className="text-sm font-medium text-slate-500">No orders found</p>
@@ -320,19 +211,19 @@ const LaboratoryPatientOrders = () => {
                 {/* Patient Info */}
                 <div className="flex items-start gap-3 mb-4">
                   <img
-                    src={order.patientImage}
-                    alt={order.patientName}
+                    src={order.patientImage || order.patient?.image || order.patient?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientName || order.patient?.name || 'Patient')}&background=3b82f6&color=fff&size=128&bold=true`}
+                    alt={order.patientName || order.patient?.name || 'Patient'}
                     className="h-12 w-12 rounded-xl object-cover bg-slate-100"
                     onError={(e) => {
                       e.target.onerror = null
-                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientName || order.patient?.name || 'Patient')}&background=3b82f6&color=fff&size=128&bold=true`
                     }}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-base font-bold text-slate-900">{order.patientName}</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Order ID: {order.orderId}</p>
+                        <h3 className="text-base font-bold text-slate-900">{order.patientName || order.patient?.name || 'Patient'}</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Order ID: {order.orderId || order.id || order._id}</p>
                       </div>
                       <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getStatusColor(order.status)}`}>
                         {getStatusIcon(order.status)}
@@ -346,30 +237,32 @@ const LaboratoryPatientOrders = () => {
                 <div className="mb-4 space-y-2">
                   <div className="flex items-center gap-2">
                     <IoFlaskOutline className="h-4 w-4 text-[#11496c]" />
-                    <p className="text-sm font-semibold text-slate-900">{order.testName}</p>
+                    <p className="text-sm font-semibold text-slate-900">{order.testName || order.test?.name || 'Test'}</p>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-slate-600">
                     <div className="flex items-center gap-1.5">
                       <IoCalendarOutline className="h-3.5 w-3.5" />
-                      <span>{formatDate(order.date)}</span>
+                      <span>{formatDate(order.date || order.createdAt || order.orderDate)}</span>
                     </div>
+                    {order.time && (
+                      <div className="flex items-center gap-1.5">
+                        <IoTimeOutline className="h-3.5 w-3.5" />
+                        <span>{order.time}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-1.5">
-                      <IoTimeOutline className="h-3.5 w-3.5" />
-                      <span>{order.time}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {order.collectionType === 'home' ? (
+                      {(order.collectionType || order.collection?.type) === 'home' ? (
                         <IoHomeOutline className="h-3.5 w-3.5" />
                       ) : (
                         <IoLocationOutline className="h-3.5 w-3.5" />
                       )}
-                      <span className="capitalize">{order.collectionType === 'home' ? 'Home Collection' : 'Lab Visit'}</span>
+                      <span className="capitalize">{(order.collectionType || order.collection?.type) === 'home' ? 'Home Collection' : 'Lab Visit'}</span>
                     </div>
                   </div>
-                  {order.collectionType === 'home' && (
+                  {(order.collectionType || order.collection?.type) === 'home' && order.address && (
                     <div className="flex items-start gap-1.5 text-xs text-slate-600">
                       <IoLocationOutline className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                      <span>{order.address}</span>
+                      <span>{order.address || order.collection?.address}</span>
                     </div>
                   )}
                 </div>
@@ -467,40 +360,54 @@ const LaboratoryPatientOrders = () => {
               {/* Patient Profile */}
               <div className="flex items-start gap-4 p-4 bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-200">
                 <img
-                  src={selectedOrder.patientImage}
-                  alt={selectedOrder.patientName}
+                  src={selectedOrder.patientImage || selectedOrder.patient?.image || selectedOrder.patient?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedOrder.patientName || selectedOrder.patient?.name || 'Patient')}&background=11496c&color=fff&size=160&bold=true`}
+                  alt={selectedOrder.patientName || selectedOrder.patient?.name || 'Patient'}
                   className="h-20 w-20 rounded-xl object-cover bg-white shadow-sm border-2 border-white"
                   onError={(e) => {
                     e.target.onerror = null
-                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedOrder.patientName)}&background=11496c&color=fff&size=160&bold=true`
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedOrder.patientName || selectedOrder.patient?.name || 'Patient')}&background=11496c&color=fff&size=160&bold=true`
                   }}
                 />
                 <div className="flex-1">
-                  <h3 className="text-xl font-bold text-slate-900">{selectedOrder.patientName}</h3>
-                  <p className="text-sm text-slate-600 mt-1">
-                    {selectedOrder.patientAge} years, {selectedOrder.patientGender}
-                  </p>
+                  <h3 className="text-xl font-bold text-slate-900">{selectedOrder.patientName || selectedOrder.patient?.name || 'Patient'}</h3>
+                  {(selectedOrder.patientAge || selectedOrder.patient?.age || selectedOrder.patientGender || selectedOrder.patient?.gender) && (
+                    <p className="text-sm text-slate-600 mt-1">
+                      {selectedOrder.patientAge || selectedOrder.patient?.age || ''} {selectedOrder.patientAge || selectedOrder.patient?.age ? 'years' : ''}{selectedOrder.patientAge && selectedOrder.patientGender ? ', ' : ''}{selectedOrder.patientGender || selectedOrder.patient?.gender || ''}
+                    </p>
+                  )}
                   <div className="mt-3 space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-slate-700">
-                      <IoCallOutline className="h-4 w-4 text-[#11496c]" />
-                      <a href={`tel:${selectedOrder.patientPhone}`} className="hover:text-[#11496c]">
-                        {selectedOrder.patientPhone}
-                      </a>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-slate-700">
-                      <IoMailOutline className="h-4 w-4 text-[#11496c]" />
-                      <a href={`mailto:${selectedOrder.patientEmail}`} className="hover:text-[#11496c]">
-                        {selectedOrder.patientEmail}
-                      </a>
-                    </div>
-                    <div className="flex items-start gap-2 text-sm text-slate-700">
-                      <IoLocationOutline className="h-4 w-4 text-[#11496c] mt-0.5 shrink-0" />
-                      <div>
-                        <p>{selectedOrder.patientAddress.line1}</p>
-                        {selectedOrder.patientAddress.line2 && <p>{selectedOrder.patientAddress.line2}</p>}
-                        <p>{selectedOrder.patientAddress.city}, {selectedOrder.patientAddress.state} {selectedOrder.patientAddress.postalCode}</p>
+                    {(selectedOrder.patientPhone || selectedOrder.patient?.phone) && (
+                      <div className="flex items-center gap-2 text-sm text-slate-700">
+                        <IoCallOutline className="h-4 w-4 text-[#11496c]" />
+                        <a href={`tel:${selectedOrder.patientPhone || selectedOrder.patient?.phone}`} className="hover:text-[#11496c]">
+                          {selectedOrder.patientPhone || selectedOrder.patient?.phone}
+                        </a>
                       </div>
-                    </div>
+                    )}
+                    {(selectedOrder.patientEmail || selectedOrder.patient?.email) && (
+                      <div className="flex items-center gap-2 text-sm text-slate-700">
+                        <IoMailOutline className="h-4 w-4 text-[#11496c]" />
+                        <a href={`mailto:${selectedOrder.patientEmail || selectedOrder.patient?.email}`} className="hover:text-[#11496c]">
+                          {selectedOrder.patientEmail || selectedOrder.patient?.email}
+                        </a>
+                      </div>
+                    )}
+                    {(selectedOrder.patientAddress || selectedOrder.patient?.address) && (
+                      <div className="flex items-start gap-2 text-sm text-slate-700">
+                        <IoLocationOutline className="h-4 w-4 text-[#11496c] mt-0.5 shrink-0" />
+                        <div>
+                          {selectedOrder.patientAddress?.line1 || selectedOrder.patient?.address?.line1 ? (
+                            <>
+                              <p>{selectedOrder.patientAddress?.line1 || selectedOrder.patient?.address?.line1}</p>
+                              {selectedOrder.patientAddress?.line2 && <p>{selectedOrder.patientAddress.line2}</p>}
+                              <p>{selectedOrder.patientAddress?.city || selectedOrder.patient?.address?.city || ''}, {selectedOrder.patientAddress?.state || selectedOrder.patient?.address?.state || ''} {selectedOrder.patientAddress?.postalCode || selectedOrder.patient?.address?.postalCode || ''}</p>
+                            </>
+                          ) : (
+                            <p>{typeof selectedOrder.patientAddress === 'string' ? selectedOrder.patientAddress : (selectedOrder.patient?.address || 'Address not provided')}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -514,29 +421,33 @@ const LaboratoryPatientOrders = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-slate-600">Test Name:</span>
-                    <span className="font-semibold text-slate-900">{selectedOrder.testName}</span>
+                    <span className="font-semibold text-slate-900">{selectedOrder.testName || selectedOrder.test?.name || 'Test'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-600">Order Date:</span>
-                    <span className="font-semibold text-slate-900">{formatDate(selectedOrder.date)}</span>
+                    <span className="font-semibold text-slate-900">{formatDate(selectedOrder.date || selectedOrder.createdAt || selectedOrder.orderDate)}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Time:</span>
-                    <span className="font-semibold text-slate-900">{selectedOrder.time}</span>
-                  </div>
+                  {selectedOrder.time && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Time:</span>
+                      <span className="font-semibold text-slate-900">{selectedOrder.time}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-slate-600">Collection Type:</span>
                     <span className="font-semibold text-slate-900 capitalize">
-                      {selectedOrder.collectionType === 'home' ? 'Home Collection' : 'Lab Visit'}
+                      {(selectedOrder.collectionType || selectedOrder.collection?.type) === 'home' ? 'Home Collection' : 'Lab Visit'}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Prescribed by:</span>
-                    <span className="font-semibold text-slate-900">{selectedOrder.doctorName}</span>
-                  </div>
+                  {selectedOrder.doctorName && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Prescribed by:</span>
+                      <span className="font-semibold text-slate-900">{selectedOrder.doctorName}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-slate-600">Amount:</span>
-                    <span className="font-bold text-emerald-600">{formatCurrency(selectedOrder.amount)}</span>
+                    <span className="font-bold text-emerald-600">{formatCurrency(selectedOrder.amount || selectedOrder.totalAmount || 0)}</span>
                   </div>
                 </div>
               </div>
@@ -611,10 +522,10 @@ const LaboratoryPatientOrders = () => {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
-                            <p className="text-sm font-semibold text-slate-900">{historyOrder.testName}</p>
+                            <p className="text-sm font-semibold text-slate-900">{historyOrder.testName || historyOrder.test?.name || 'Test'}</p>
                             <div className="flex items-center gap-3 mt-1 text-xs text-slate-600">
-                              <span>{formatDate(historyOrder.date)}</span>
-                              <span>{historyOrder.time}</span>
+                              <span>{formatDate(historyOrder.date || historyOrder.createdAt || historyOrder.orderDate)}</span>
+                              {historyOrder.time && <span>{historyOrder.time}</span>}
                             </div>
                           </div>
                           <div className="text-right">
@@ -622,7 +533,7 @@ const LaboratoryPatientOrders = () => {
                               {getStatusIcon(historyOrder.status)}
                               {getStatusLabel(historyOrder.status)}
                             </span>
-                            <p className="text-xs font-semibold text-emerald-600 mt-1">{formatCurrency(historyOrder.amount)}</p>
+                            <p className="text-xs font-semibold text-emerald-600 mt-1">{formatCurrency(historyOrder.amount || historyOrder.totalAmount || 0)}</p>
                           </div>
                         </div>
                       </div>

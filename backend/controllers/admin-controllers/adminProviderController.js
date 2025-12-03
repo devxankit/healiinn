@@ -135,19 +135,6 @@ exports.verifyDoctor = asyncHandler(async (req, res) => {
     });
   }
 
-  // Create in-app notification for doctor
-  try {
-    const { createApprovalNotification } = require('../../services/inAppNotificationService');
-    const { ROLES } = require('../../utils/constants');
-    await createApprovalNotification({
-      userId: doctorId,
-      userType: ROLES.DOCTOR,
-      status: 'approved',
-    }).catch((error) => console.error('Error creating approval notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notification:', error);
-  }
-
   return res.status(200).json({
     success: true,
     message: 'Doctor approved successfully.',
@@ -190,20 +177,6 @@ exports.rejectDoctor = asyncHandler(async (req, res) => {
       console.error('Failed to send rejection email to doctor:', error);
       // Don't fail the request if email fails
     });
-  }
-
-  // Create in-app notification for doctor
-  try {
-    const { createApprovalNotification } = require('../../services/inAppNotificationService');
-    const { ROLES } = require('../../utils/constants');
-    await createApprovalNotification({
-      userId: id,
-      userType: ROLES.DOCTOR,
-      status: 'rejected',
-      reason: rejectionReason,
-    }).catch((error) => console.error('Error creating rejection notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notification:', error);
   }
 
   return res.status(200).json({
@@ -315,19 +288,6 @@ exports.verifyPharmacy = asyncHandler(async (req, res) => {
     });
   }
 
-  // Create in-app notification for pharmacy
-  try {
-    const { createApprovalNotification } = require('../../services/inAppNotificationService');
-    const { ROLES } = require('../../utils/constants');
-    await createApprovalNotification({
-      userId: id,
-      userType: ROLES.PHARMACY,
-      status: 'approved',
-    }).catch((error) => console.error('Error creating approval notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notification:', error);
-  }
-
   return res.status(200).json({
     success: true,
     message: 'Pharmacy approved successfully.',
@@ -370,20 +330,6 @@ exports.rejectPharmacy = asyncHandler(async (req, res) => {
       console.error('Failed to send rejection email to pharmacy:', error);
       // Don't fail the request if email fails
     });
-  }
-
-  // Create in-app notification for pharmacy
-  try {
-    const { createApprovalNotification } = require('../../services/inAppNotificationService');
-    const { ROLES } = require('../../utils/constants');
-    await createApprovalNotification({
-      userId: id,
-      userType: ROLES.PHARMACY,
-      status: 'rejected',
-      reason: rejectionReason,
-    }).catch((error) => console.error('Error creating rejection notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notification:', error);
   }
 
   return res.status(200).json({
@@ -495,19 +441,6 @@ exports.verifyLaboratory = asyncHandler(async (req, res) => {
     });
   }
 
-  // Create in-app notification for laboratory
-  try {
-    const { createApprovalNotification } = require('../../services/inAppNotificationService');
-    const { ROLES } = require('../../utils/constants');
-    await createApprovalNotification({
-      userId: id,
-      userType: ROLES.LABORATORY,
-      status: 'approved',
-    }).catch((error) => console.error('Error creating approval notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notification:', error);
-  }
-
   return res.status(200).json({
     success: true,
     message: 'Laboratory approved successfully.',
@@ -550,20 +483,6 @@ exports.rejectLaboratory = asyncHandler(async (req, res) => {
       console.error('Failed to send rejection email to laboratory:', error);
       // Don't fail the request if email fails
     });
-  }
-
-  // Create in-app notification for laboratory
-  try {
-    const { createApprovalNotification } = require('../../services/inAppNotificationService');
-    const { ROLES } = require('../../utils/constants');
-    await createApprovalNotification({
-      userId: id,
-      userType: ROLES.LABORATORY,
-      status: 'rejected',
-      reason: rejectionReason,
-    }).catch((error) => console.error('Error creating rejection notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notification:', error);
   }
 
   return res.status(200).json({

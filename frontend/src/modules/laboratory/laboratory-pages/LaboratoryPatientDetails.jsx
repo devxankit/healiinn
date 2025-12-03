@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import LaboratoryNavbar from '../laboratory-components/LaboratoryNavbar'
 import LaboratorySidebar from '../laboratory-components/LaboratorySidebar'
 import {
@@ -17,39 +18,40 @@ import {
   IoBagHandleOutline,
   IoCloseOutline,
 } from 'react-icons/io5'
-
-// Mock patient details
-const mockPatientDetails = {
-  total: [
-    { id: 'pat-1', name: 'John Doe', phone: '+1-555-0101', email: 'john.doe@example.com', status: 'active', age: 45, gender: 'Male', address: '123 Main Street, New York, NY 10001', bloodGroup: 'O+', image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true' },
-    { id: 'pat-2', name: 'Sarah Smith', phone: '+1-555-0102', email: 'sarah.smith@example.com', status: 'active', age: 32, gender: 'Female', address: '456 Oak Avenue, Los Angeles, CA 90001', bloodGroup: 'A+', image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true' },
-    { id: 'pat-3', name: 'Mike Johnson', phone: '+1-555-0103', email: 'mike.johnson@example.com', status: 'active', age: 28, gender: 'Male', address: '789 Pine Road, Chicago, IL 60601', bloodGroup: 'B+', image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true' },
-    { id: 'pat-4', name: 'Emily Brown', phone: '+1-555-0104', email: 'emily.brown@example.com', status: 'inactive', age: 35, gender: 'Female', address: '321 Elm Street, Houston, TX 77001', bloodGroup: 'AB+', image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true' },
-    { id: 'pat-5', name: 'David Wilson', phone: '+1-555-0105', email: 'david.wilson@example.com', status: 'active', age: 52, gender: 'Male', address: '654 Maple Drive, Phoenix, AZ 85001', bloodGroup: 'O-', image: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true' },
-  ],
-  active: [
-    { id: 'pat-1', name: 'John Doe', phone: '+1-555-0101', email: 'john.doe@example.com', status: 'active', age: 45, gender: 'Male', address: '123 Main Street, New York, NY 10001', bloodGroup: 'O+', image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true' },
-    { id: 'pat-2', name: 'Sarah Smith', phone: '+1-555-0102', email: 'sarah.smith@example.com', status: 'active', age: 32, gender: 'Female', address: '456 Oak Avenue, Los Angeles, CA 90001', bloodGroup: 'A+', image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true' },
-    { id: 'pat-3', name: 'Mike Johnson', phone: '+1-555-0103', email: 'mike.johnson@example.com', status: 'active', age: 28, gender: 'Male', address: '789 Pine Road, Chicago, IL 60601', bloodGroup: 'B+', image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true' },
-    { id: 'pat-5', name: 'David Wilson', phone: '+1-555-0105', email: 'david.wilson@example.com', status: 'active', age: 52, gender: 'Male', address: '654 Maple Drive, Phoenix, AZ 85001', bloodGroup: 'O-', image: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true' },
-  ],
-  inactive: [
-    { id: 'pat-4', name: 'Emily Brown', phone: '+1-555-0104', email: 'emily.brown@example.com', status: 'inactive', age: 35, gender: 'Female', address: '321 Elm Street, Houston, TX 77001', bloodGroup: 'AB+', image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true' },
-  ],
-}
+import { getLaboratoryPatients } from '../laboratory-services/laboratoryService'
 
 const LaboratoryPatientDetails = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState(null)
+  const [patients, setPatients] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
 
   // Get filter type from URL params or default to 'total'
   const searchParams = new URLSearchParams(location.search)
   const filterType = searchParams.get('type') || 'total'
-  
-  // Get patients based on filter type
-  const patients = mockPatientDetails[filterType] || mockPatientDetails.total
+
+  useEffect(() => {
+    fetchPatients()
+  }, [filterType])
+
+  const fetchPatients = async () => {
+    try {
+      setIsLoading(true)
+      const response = await getLaboratoryPatients({ status: filterType === 'total' ? undefined : filterType })
+      const patientsData = Array.isArray(response) ? response : (response.data || response.patients || [])
+      setPatients(patientsData)
+    } catch (error) {
+      console.error('Error fetching patients:', error)
+      toast.error('Failed to load patients')
+      setPatients([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Mock data removed - now using backend API
 
   // Get card info based on filter type
   const getCardInfo = () => {
@@ -136,7 +138,12 @@ const LaboratoryPatientDetails = () => {
 
           {/* Patient List */}
           <div className="space-y-3">
-            {patients.length === 0 ? (
+            {isLoading ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#11496c] border-t-transparent mx-auto mb-3"></div>
+                <p className="text-sm font-semibold text-slate-600">Loading patients...</p>
+              </div>
+            ) : patients.length === 0 ? (
               <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
                 <Icon className="h-12 w-12 text-slate-400 mx-auto mb-3" />
                 <p className="text-sm font-semibold text-slate-600">No patients found</p>
@@ -149,43 +156,49 @@ const LaboratoryPatientDetails = () => {
                   className={`flex items-center gap-4 p-4 rounded-xl border ${cardInfo.cardBg} transition-colors cursor-pointer shadow-sm hover:shadow-md`}
                 >
                   <img
-                    src={patient.image}
-                    alt={patient.name}
+                    src={patient.image || patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name || 'Patient')}&background=11496c&color=fff&size=128&bold=true`}
+                    alt={patient.name || 'Patient'}
                     className="h-14 w-14 rounded-full object-cover border-2 border-white shadow-md"
                     onError={(e) => {
                       e.target.onerror = null
-                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name)}&background=11496c&color=fff&size=128&bold=true`
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name || 'Patient')}&background=11496c&color=fff&size=128&bold=true`
                     }}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-base font-bold text-slate-900 truncate">{patient.name}</p>
+                      <p className="text-base font-bold text-slate-900 truncate">{patient.name || 'Patient'}</p>
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        patient.status === 'active' 
+                        (patient.status === 'active' || patient.isActive)
                           ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
                           : 'bg-red-100 text-red-700 border border-red-200'
                       }`}>
-                        {patient.status === 'active' ? (
+                        {(patient.status === 'active' || patient.isActive) ? (
                           <IoCheckmarkCircleOutline className="h-3 w-3" />
                         ) : (
                           <IoCloseCircleOutline className="h-3 w-3" />
                         )}
-                        {patient.status === 'active' ? 'Active' : 'Inactive'}
+                        {(patient.status === 'active' || patient.isActive) ? 'Active' : 'Inactive'}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-3 mt-2">
-                      <p className="text-xs text-slate-600 flex items-center gap-1.5">
-                        <IoCallOutline className="h-3.5 w-3.5" />
-                        {patient.phone}
-                      </p>
-                      <p className="text-xs text-slate-600 flex items-center gap-1.5">
-                        <IoMailOutline className="h-3.5 w-3.5" />
-                        <span className="truncate">{patient.email}</span>
-                      </p>
-                      <p className="text-xs text-slate-600 flex items-center gap-1.5">
-                        <IoCalendarOutline className="h-3.5 w-3.5" />
-                        {patient.age} years, {patient.gender}
-                      </p>
+                      {patient.phone && (
+                        <p className="text-xs text-slate-600 flex items-center gap-1.5">
+                          <IoCallOutline className="h-3.5 w-3.5" />
+                          {patient.phone}
+                        </p>
+                      )}
+                      {patient.email && (
+                        <p className="text-xs text-slate-600 flex items-center gap-1.5">
+                          <IoMailOutline className="h-3.5 w-3.5" />
+                          <span className="truncate">{patient.email}</span>
+                        </p>
+                      )}
+                      {(patient.age || patient.gender) && (
+                        <p className="text-xs text-slate-600 flex items-center gap-1.5">
+                          <IoCalendarOutline className="h-3.5 w-3.5" />
+                          {patient.age ? `${patient.age} years` : ''}{patient.age && patient.gender ? ', ' : ''}{patient.gender || ''}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

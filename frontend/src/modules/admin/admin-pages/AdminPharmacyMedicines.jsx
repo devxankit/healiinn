@@ -8,19 +8,78 @@ import {
   IoCheckmarkCircleOutline,
   IoTimeOutline,
 } from 'react-icons/io5'
+import { getPharmacyMedicines } from '../admin-services/adminService'
 
 const AdminPharmacyMedicines = () => {
   const [pharmacyList, setPharmacyList] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPharmacy, setSelectedPharmacy] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     loadPharmacyAvailability()
   }, [])
 
-  const loadPharmacyAvailability = () => {
-    const availabilityList = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
+  const loadPharmacyAvailability = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      // Fetch all pharmacy medicines
+      const response = await getPharmacyMedicines({ limit: 1000 })
+      
+      if (response.success && response.data) {
+        const medicines = response.data.items || response.data || []
+        
+        // Group medicines by pharmacy
+        const pharmacyMap = new Map()
+        
+        medicines.forEach((medicine) => {
+          const pharmacy = medicine.pharmacyId || {}
+          const pharmacyId = pharmacy._id || pharmacy.id || 'unknown'
+          
+          if (!pharmacyMap.has(pharmacyId)) {
+            pharmacyMap.set(pharmacyId, {
+              pharmacyId,
+              pharmacyName: pharmacy.pharmacyName || 'Unknown Pharmacy',
+              address: pharmacy.address || {},
+              medicines: [],
+              lastUpdated: null,
+            })
+          }
+          
+          const pharmacyData = pharmacyMap.get(pharmacyId)
+          pharmacyData.medicines.push({
+            name: medicine.name || '',
+            dosage: medicine.dosage || '',
+            manufacturer: medicine.manufacturer || '',
+            quantity: medicine.quantity || 0,
+            price: medicine.price || 0,
+            expiryDate: medicine.expiryDate || null,
+            _id: medicine._id || medicine.id,
+          })
+          
+          // Update last updated if this medicine was updated more recently
+          const medicineUpdated = medicine.updatedAt || medicine.createdAt
+          if (medicineUpdated) {
+            if (!pharmacyData.lastUpdated || new Date(medicineUpdated) > new Date(pharmacyData.lastUpdated)) {
+              pharmacyData.lastUpdated = medicineUpdated
+            }
+          }
+        })
+        
+        // Convert map to array
+        const availabilityList = Array.from(pharmacyMap.values())
     setPharmacyList(availabilityList)
+      }
+    } catch (err) {
+      console.error('Error loading pharmacy medicines:', err)
+      setError(err.message || 'Failed to load pharmacy medicines')
+      setPharmacyList([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const filteredPharmacies = pharmacyList.filter(pharmacy =>
@@ -197,7 +256,21 @@ const AdminPharmacyMedicines = () => {
 
       {/* Pharmacies List */}
       <div className="space-y-3">
-        {filteredPharmacies.length === 0 ? (
+        {loading ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+            <p className="text-sm font-medium text-slate-600">Loading pharmacy medicines...</p>
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-dashed border-red-200 bg-red-50 p-8 text-center">
+            <p className="text-sm font-medium text-red-600">Error: {error}</p>
+            <button
+              onClick={loadPharmacyAvailability}
+              className="mt-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        ) : filteredPharmacies.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             <IoMedicalOutline className="mx-auto h-12 w-12 text-slate-400" />
             <p className="mt-4 text-sm font-medium text-slate-600">

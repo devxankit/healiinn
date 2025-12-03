@@ -9,6 +9,12 @@ import {
   IoCheckmarkCircleOutline,
   IoFlaskOutline,
 } from 'react-icons/io5'
+import {
+  getPharmacyInventory,
+  getLaboratoryInventory,
+  getPharmacyMedicinesByPharmacy,
+  getLaboratoryTestsByLaboratory,
+} from '../admin-services/adminService'
 
 const AdminInventory = () => {
   const [pharmacyList, setPharmacyList] = useState([])
@@ -16,184 +22,156 @@ const AdminInventory = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPharmacy, setSelectedPharmacy] = useState(null)
   const [selectedLab, setSelectedLab] = useState(null)
-  const [activeTab, setActiveTab] = useState('total') // 'total', 'pharmacy', or 'laboratory'
-  const [inventoryType, setInventoryType] = useState('pharmacy') // 'pharmacy' or 'laboratory'
+  const [activeTab, setActiveTab] = useState('pharmacy') // 'pharmacy' or 'laboratory'
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     loadPharmacyInventory()
     loadLaboratoryInventory()
-    
-    // Refresh inventory every 2 seconds to get latest tests from laboratories
-    const interval = setInterval(() => {
-      loadPharmacyInventory()
-      loadLaboratoryInventory()
-    }, 2000)
-    
-    return () => clearInterval(interval)
   }, [])
 
-  const loadPharmacyInventory = () => {
-    // Get data from localStorage
-    let availabilityList = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
-    
-    // If no data in localStorage, use dummy data for registered pharmacies
-    if (availabilityList.length === 0) {
-      availabilityList = [
-        {
-          pharmacyId: 'pharm-1',
-          pharmacyName: 'Apollo Pharmacy',
-          status: 'approved',
-          isActive: true,
-          medicines: [
-            { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 150, price: 25 },
-            { name: 'Amoxicillin', dosage: '250mg', manufacturer: 'Sun Pharma', quantity: 80, price: 45 },
-            { name: 'Cetirizine', dosage: '10mg', manufacturer: 'Dr. Reddy\'s', quantity: 120, price: 30 },
-          ],
-        },
-        {
-          pharmacyId: 'pharm-2',
-          pharmacyName: 'MedPlus Pharmacy',
-          status: 'approved',
-          isActive: true,
-          medicines: [
-            { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 200, price: 24 },
-            { name: 'Ibuprofen', dosage: '400mg', manufacturer: 'Mankind', quantity: 90, price: 35 },
-            { name: 'Azithromycin', dosage: '500mg', manufacturer: 'Pfizer', quantity: 60, price: 120 },
-          ],
-        },
-        {
-          pharmacyId: 'pharm-3',
-          pharmacyName: 'Wellness Forever',
-          status: 'approved',
-          isActive: true,
-          medicines: [
-            { name: 'Cetirizine', dosage: '10mg', manufacturer: 'Dr. Reddy\'s', quantity: 100, price: 32 },
-            { name: 'Omeprazole', dosage: '20mg', manufacturer: 'Torrent', quantity: 75, price: 55 },
-          ],
-        },
-        {
-          pharmacyId: 'pharm-4',
-          pharmacyName: 'Health Plus Pharmacy',
-          status: 'approved',
-          isActive: true,
-          medicines: [
-            { name: 'Amoxicillin', dosage: '250mg', manufacturer: 'Sun Pharma', quantity: 110, price: 48 },
-            { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 180, price: 26 },
-            { name: 'Metformin', dosage: '500mg', manufacturer: 'USV', quantity: 95, price: 40 },
-          ],
-        },
-        {
-          pharmacyId: 'pharm-5',
-          pharmacyName: 'City Pharmacy',
-          status: 'pending',
-          isActive: false,
-          medicines: [],
-        },
-        {
-          pharmacyId: 'pharm-6',
-          pharmacyName: 'Green Pharmacy',
-          status: 'approved',
-          isActive: true,
-          medicines: [
-            { name: 'Ibuprofen', dosage: '400mg', manufacturer: 'Mankind', quantity: 70, price: 38 },
-            { name: 'Aspirin', dosage: '75mg', manufacturer: 'Bayer', quantity: 150, price: 15 },
-          ],
-        },
-        {
-          pharmacyId: 'pharm-7',
-          pharmacyName: 'Life Care Pharmacy',
-          status: 'approved',
-          isActive: true,
-          medicines: [],
-        },
-      ]
-      // Save dummy data to localStorage for future use
-      localStorage.setItem('allPharmacyAvailability', JSON.stringify(availabilityList))
+  const loadPharmacyInventory = async () => {
+    try {
+      setError(null)
+      const response = await getPharmacyInventory({ limit: 1000 })
+      
+      if (response.success && response.data) {
+        const pharmacies = response.data.items || response.data || []
+        
+        // Load medicines for each pharmacy
+        const pharmaciesWithMedicines = await Promise.all(
+          pharmacies.map(async (pharmacy) => {
+            try {
+              const medicinesResponse = await getPharmacyMedicinesByPharmacy(pharmacy._id || pharmacy.id, { limit: 1000 })
+              const medicines = medicinesResponse.success && medicinesResponse.data
+                ? (medicinesResponse.data.items || medicinesResponse.data || [])
+                : []
+              
+              return {
+                pharmacyId: pharmacy._id || pharmacy.id,
+                pharmacyName: pharmacy.pharmacyName || 'Unknown Pharmacy',
+                status: pharmacy.status || 'pending',
+                isActive: pharmacy.isActive !== false,
+                address: pharmacy.address || {},
+                medicines: medicines.map((med) => ({
+                  name: med.name || '',
+                  dosage: med.dosage || '',
+                  manufacturer: med.manufacturer || '',
+                  quantity: Number(med.quantity) || 0, // Ensure quantity is always a number
+                  price: Number(med.price) || 0, // Ensure price is always a number
+                  expiryDate: med.expiryDate || null,
+                  _id: med._id || med.id,
+                })),
+              }
+            } catch (err) {
+              console.error(`Error loading medicines for pharmacy ${pharmacy._id}:`, err)
+              return {
+                pharmacyId: pharmacy._id || pharmacy.id,
+                pharmacyName: pharmacy.pharmacyName || 'Unknown Pharmacy',
+                status: pharmacy.status || 'pending',
+                isActive: pharmacy.isActive !== false,
+                address: pharmacy.address || {},
+                medicines: [],
+              }
+            }
+          })
+        )
+        
+        setPharmacyList(pharmaciesWithMedicines)
+      }
+    } catch (err) {
+      console.error('Error loading pharmacy inventory:', err)
+      setError(err.message || 'Failed to load pharmacy inventory')
+      setPharmacyList([])
+    } finally {
+      setLoading(false)
     }
-    
-    setPharmacyList(availabilityList)
   }
 
-  const loadLaboratoryInventory = () => {
-    // Get data from localStorage
-    let availabilityList = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
-    
-    // If no data in localStorage, use dummy data for registered laboratories
-    if (availabilityList.length === 0) {
-      availabilityList = [
-        {
-          labId: 'lab-1',
-          labName: 'MediCare Diagnostics',
-          status: 'approved',
-          isActive: true,
-          phone: '+91 98765 11111',
-          email: 'medicare@lab.com',
-          address: '123 Health Street, Pune, Maharashtra 411001',
-          rating: 4.9,
-          tests: [
-            { name: 'Complete Blood Count (CBC)', price: 500 },
-            { name: 'Lipid Profile', price: 800 },
-            { name: 'ECG', price: 300 },
-            { name: 'Blood Sugar Test', price: 250 },
-          ],
-        },
-        {
-          labId: 'lab-2',
-          labName: 'HealthFirst Lab',
-          status: 'approved',
-          isActive: true,
-          phone: '+91 98765 22222',
-          email: 'healthfirst@lab.com',
-          address: '456 Test Avenue, Mumbai, Maharashtra 400001',
-          rating: 4.7,
-          tests: [
-            { name: 'Blood Pressure Monitoring', price: 200 },
-            { name: 'Blood Sugar Test', price: 250 },
-            { name: 'Thyroid Function Test', price: 600 },
-          ],
-        },
-        {
-          labId: 'lab-3',
-          labName: 'City Diagnostic Center',
-          status: 'approved',
-          isActive: true,
-          phone: '+91 98765 33333',
-          email: 'citylab@lab.com',
-          address: '789 Medical Road, Delhi, Delhi 110001',
-          rating: 4.8,
-          tests: [
-            { name: 'Complete Blood Count (CBC)', price: 480 },
-            { name: 'ECG', price: 280 },
-            { name: 'X-Ray Chest', price: 400 },
-          ],
-        },
-        {
-          labId: 'lab-4',
-          labName: 'Advanced Lab Services',
-          status: 'approved',
-          isActive: true,
-          phone: '+91 98765 44444',
-          email: 'advanced@lab.com',
-          address: '321 Science Park, Bangalore, Karnataka 560001',
-          rating: 4.6,
-          tests: [
-            { name: 'Lipid Profile', price: 750 },
-            { name: 'Liver Function Test', price: 900 },
-          ],
-        },
-        {
-          labId: 'lab-5',
-          labName: 'Quick Test Lab',
-          status: 'pending',
-          isActive: false,
-          tests: [],
-        },
-      ]
-      // Save dummy data to localStorage for future use
-      localStorage.setItem('allLabAvailability', JSON.stringify(availabilityList))
+  const loadLaboratoryInventory = async () => {
+    try {
+      setError(null)
+      setLoading(true)
+      
+      console.log('🔍 Fetching laboratory inventory...') // Debug log
+      
+      const response = await getLaboratoryInventory({ limit: 1000 })
+      
+      console.log('📊 Laboratory inventory API response:', response) // Debug log
+      
+      if (response && response.success && response.data) {
+        const laboratories = response.data.items || response.data || []
+        
+        console.log('✅ Laboratories received:', {
+          count: laboratories.length,
+          firstLab: laboratories[0],
+        }) // Debug log
+        
+        // Load tests for each laboratory
+        const laboratoriesWithTests = await Promise.all(
+          laboratories.map(async (lab) => {
+            try {
+              const testsResponse = await getLaboratoryTestsByLaboratory(lab._id || lab.id, { limit: 1000 })
+              const tests = testsResponse.success && testsResponse.data
+                ? (testsResponse.data.items || testsResponse.data || [])
+                : []
+              
+              console.log(`✅ Tests loaded for ${lab.labName}:`, {
+                count: tests.length,
+                firstTest: tests[0],
+              }) // Debug log
+              
+              return {
+                labId: lab._id || lab.id,
+                labName: lab.labName || 'Unknown Laboratory',
+                status: lab.status || 'pending',
+                isActive: lab.isActive !== false,
+                phone: lab.phone || '',
+                email: lab.email || '',
+                address: lab.address || {},
+                rating: lab.rating || 0,
+                tests: tests.map((test) => ({
+                  name: test.name || '',
+                  price: Number(test.price) || 0, // Ensure price is always a number
+                  description: test.description || '',
+                  _id: test._id || test.id,
+                })),
+              }
+            } catch (err) {
+              console.error(`❌ Error loading tests for laboratory ${lab._id}:`, err)
+              return {
+                labId: lab._id || lab.id,
+                labName: lab.labName || 'Unknown Laboratory',
+                status: lab.status || 'pending',
+                isActive: lab.isActive !== false,
+                phone: lab.phone || '',
+                email: lab.email || '',
+                address: lab.address || {},
+                rating: lab.rating || 0,
+                tests: [],
+              }
+            }
+          })
+        )
+        
+        console.log('💰 Setting laboratory list:', {
+          count: laboratoriesWithTests.length,
+          labsWithTests: laboratoriesWithTests.filter(l => l.tests.length > 0).length,
+        }) // Debug log
+        
+        setLabList(laboratoriesWithTests)
+      } else {
+        console.error('❌ Invalid API response:', response) // Debug log
+        setLabList([])
+      }
+    } catch (err) {
+      console.error('❌ Error loading laboratory inventory:', err)
+      setError(err.message || 'Failed to load laboratory inventory')
+      setLabList([])
+    } finally {
+      setLoading(false)
     }
-    
-    setLabList(availabilityList)
   }
 
   // Calculate total pharmacy inventory statistics
@@ -221,8 +199,8 @@ const AdminInventory = () => {
         })
       }
       const existing = medicineMap.get(key)
-      const quantity = parseInt(med.quantity) || 0
-      const price = parseFloat(med.price) || 0
+      const quantity = Number(med.quantity) || 0
+      const price = Number(med.price) || 0
       existing.totalQuantity += quantity
       existing.totalPrice += price * quantity
       existing.pharmacies.push({
@@ -233,16 +211,37 @@ const AdminInventory = () => {
       })
     })
 
+    const totalStock = allMedicines.reduce((sum, med) => {
+      const qty = Number(med.quantity) || 0
+      return sum + qty
+    }, 0)
+    
+    const totalValue = allMedicines.reduce((sum, med) => {
+      const quantity = Number(med.quantity) || 0
+      const price = Number(med.price) || 0
+      return sum + (quantity * price)
+    }, 0)
+
+    console.log('📊 Pharmacy inventory calculation:', {
+      totalPharmacies: pharmacyList.length,
+      totalMedicines: allMedicines.length,
+      uniqueMedicines: medicineMap.size,
+      totalStock,
+      totalValue,
+      sampleMedicines: allMedicines.slice(0, 3).map(m => ({
+        name: m.name,
+        quantity: Number(m.quantity) || 0,
+        price: Number(m.price) || 0,
+        value: (Number(m.quantity) || 0) * (Number(m.price) || 0),
+      })),
+    })
+
     return {
       totalPharmacies: pharmacyList.length,
       totalMedicines: allMedicines.length,
       uniqueMedicines: medicineMap.size,
-      totalStock: allMedicines.reduce((sum, med) => sum + (parseInt(med.quantity) || 0), 0),
-      totalValue: allMedicines.reduce((sum, med) => {
-        const quantity = parseInt(med.quantity) || 0
-        const price = parseFloat(med.price) || 0
-        return sum + (quantity * price)
-      }, 0),
+      totalStock,
+      totalValue,
       medicineMap: Array.from(medicineMap.values()),
     }
   }, [pharmacyList])
@@ -254,6 +253,8 @@ const AdminInventory = () => {
         ...test,
         labId: lab.labId,
         labName: lab.labName,
+        // Ensure price is always a number
+        price: Number(test.price) || 0,
       }))
     )
     
@@ -269,7 +270,7 @@ const AdminInventory = () => {
         })
       }
       const existing = testMap.get(key)
-      const price = parseFloat(test.price) || 0
+      const price = Number(test.price) || 0
       existing.totalPrice += price
       existing.laboratories.push({
         labId: test.labId,
@@ -278,14 +279,24 @@ const AdminInventory = () => {
       })
     })
 
+    const totalValue = allTests.reduce((sum, test) => {
+      const price = Number(test.price) || 0
+      return sum + price
+    }, 0)
+
+    console.log('📊 Laboratory inventory calculation:', {
+      totalLabs: labList.length,
+      totalTests: allTests.length,
+      uniqueTests: testMap.size,
+      totalValue,
+      sampleTests: allTests.slice(0, 3).map(t => ({ name: t.name, price: t.price })),
+    })
+
     return {
       totalLabs: labList.length,
       totalTests: allTests.length,
       uniqueTests: testMap.size,
-      totalValue: allTests.reduce((sum, test) => {
-        const price = parseFloat(test.price) || 0
-        return sum + price
-      }, 0),
+      totalValue,
       testMap: Array.from(testMap.values()),
     }
   }, [labList])
@@ -316,36 +327,7 @@ const AdminInventory = () => {
     )
   )
 
-  // Filter total inventory medicines/tests by search term
-  const filteredTotalInventory = useMemo(() => {
-    if (inventoryType === 'pharmacy') {
-      if (!searchTerm.trim()) return totalPharmacyInventory.medicineMap || []
-      
-      const searchLower = searchTerm.toLowerCase()
-      return (totalPharmacyInventory.medicineMap || []).filter(med =>
-        med.name.toLowerCase().includes(searchLower) ||
-        med.dosage.toLowerCase().includes(searchLower) ||
-        (med.manufacturer && med.manufacturer.toLowerCase().includes(searchLower))
-      )
-    } else {
-      if (!searchTerm.trim()) return totalLabInventory.testMap || []
-      
-      const searchLower = searchTerm.toLowerCase()
-      return (totalLabInventory.testMap || []).filter(test =>
-        test.name.toLowerCase().includes(searchLower)
-      )
-    }
-  }, [totalPharmacyInventory, totalLabInventory, searchTerm, inventoryType])
 
-  // Filter pharmacies for Total Inventory tab
-  const filteredPharmaciesForTotal = useMemo(() => {
-    if (!searchTerm.trim()) return pharmacyList
-    
-    const searchLower = searchTerm.toLowerCase()
-    return pharmacyList.filter(pharmacy =>
-      pharmacy.pharmacyName.toLowerCase().includes(searchLower)
-    )
-  }, [pharmacyList, searchTerm])
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -374,7 +356,7 @@ const AdminInventory = () => {
   // Laboratory Detail View
   if (selectedLab) {
     const labTotalValue = (selectedLab.tests || []).reduce((sum, test) => {
-      const price = parseFloat(test.price) || 0
+      const price = Number(test.price) || 0 // Ensure price is always a number
       return sum + price
     }, 0)
 
@@ -410,7 +392,7 @@ const AdminInventory = () => {
             </div>
           ) : (
             selectedLab.tests.map((test, index) => {
-              const price = parseFloat(test.price) || 0
+              const price = Number(test.price) || 0 // Ensure price is always a number
 
               return (
                 <article
@@ -565,11 +547,7 @@ const AdminInventory = () => {
         <input
           type="search"
           placeholder={
-            activeTab === 'total' 
-              ? inventoryType === 'pharmacy' 
-                ? 'Search by pharmacy name...' 
-                : 'Search by laboratory name...'
-              : activeTab === 'pharmacy'
+            activeTab === 'pharmacy'
               ? 'Search by pharmacy name or medicine...'
               : 'Search by laboratory name or test...'
           }
@@ -584,22 +562,7 @@ const AdminInventory = () => {
         <button
           type="button"
           onClick={() => {
-            setActiveTab('total')
-            setInventoryType('pharmacy')
-          }}
-          className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
-            activeTab === 'total'
-              ? 'text-[#11496c] border-[#11496c]'
-              : 'text-slate-600 border-transparent hover:text-slate-900'
-          }`}
-        >
-          Total Inventory
-        </button>
-        <button
-          type="button"
-          onClick={() => {
             setActiveTab('pharmacy')
-            setInventoryType('pharmacy')
             setSelectedLab(null)
           }}
           className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
@@ -614,7 +577,6 @@ const AdminInventory = () => {
           type="button"
           onClick={() => {
             setActiveTab('laboratory')
-            setInventoryType('laboratory')
             setSelectedPharmacy(null)
           }}
           className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
@@ -627,12 +589,12 @@ const AdminInventory = () => {
         </button>
       </div>
 
-      {/* Total Inventory Summary Cards */}
+      {/* Summary Cards - Show different values based on active tab */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
-              {inventoryType === 'pharmacy' ? (
+              {activeTab === 'pharmacy' ? (
                 <IoBusinessOutline className="h-6 w-6 text-[#11496c]" />
               ) : (
                 <IoFlaskOutline className="h-6 w-6 text-[#11496c]" />
@@ -640,10 +602,12 @@ const AdminInventory = () => {
             </div>
             <div>
               <p className="text-xs font-medium text-slate-600">
-                {inventoryType === 'pharmacy' ? 'Total Pharmacies' : 'Total Laboratories'}
+                {activeTab === 'pharmacy' ? 'Total Pharmacies' : 'Total Laboratories'}
               </p>
               <p className="text-2xl font-bold text-slate-900">
-                {inventoryType === 'pharmacy' ? totalInventory.totalPharmacies : totalInventory.totalLabs}
+                {activeTab === 'pharmacy' 
+                  ? totalPharmacyInventory.totalPharmacies 
+                  : totalLabInventory.totalLabs}
               </p>
             </div>
           </div>
@@ -651,7 +615,7 @@ const AdminInventory = () => {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
-              {inventoryType === 'pharmacy' ? (
+              {activeTab === 'pharmacy' ? (
                 <IoCubeOutline className="h-6 w-6 text-blue-600" />
               ) : (
                 <IoFlaskOutline className="h-6 w-6 text-blue-600" />
@@ -659,12 +623,12 @@ const AdminInventory = () => {
             </div>
             <div>
               <p className="text-xs font-medium text-slate-600">
-                {inventoryType === 'pharmacy' ? 'Total Stock' : 'Total Tests'}
+                {activeTab === 'pharmacy' ? 'Total Stock' : 'Total Tests'}
               </p>
               <p className="text-2xl font-bold text-slate-900">
-                {inventoryType === 'pharmacy' 
-                  ? (totalInventory.totalStock || 0).toLocaleString() 
-                  : (totalInventory.totalTests || 0).toLocaleString()}
+                {activeTab === 'pharmacy' 
+                  ? (totalPharmacyInventory.totalStock || 0).toLocaleString() 
+                  : (totalLabInventory.totalTests || 0).toLocaleString()}
               </p>
             </div>
           </div>
@@ -676,152 +640,20 @@ const AdminInventory = () => {
             </div>
             <div>
               <p className="text-xs font-medium text-slate-600">Total Value</p>
-              <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalInventory.totalValue || 0)}</p>
+              <p className="text-2xl font-bold text-slate-900">
+                {formatCurrency(
+                  activeTab === 'pharmacy' 
+                    ? (totalPharmacyInventory.totalValue || 0)
+                    : (totalLabInventory.totalValue || 0)
+                )}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'total' ? (
-        /* Total Inventory Tab - Show All Registered Pharmacies or Laboratories */
-        <div className="space-y-3">
-          {/* Type Selector for Total Inventory */}
-          <div className="flex gap-2 mb-3">
-            <button
-              type="button"
-              onClick={() => setInventoryType('pharmacy')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
-                inventoryType === 'pharmacy'
-                  ? 'bg-[#11496c] text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Pharmacies
-            </button>
-            <button
-              type="button"
-              onClick={() => setInventoryType('laboratory')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
-                inventoryType === 'laboratory'
-                  ? 'bg-[#11496c] text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Laboratories
-            </button>
-          </div>
-
-          {inventoryType === 'pharmacy' ? (
-            (filteredPharmaciesForTotal || []).length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-              <IoBusinessOutline className="mx-auto h-12 w-12 text-slate-400" />
-              <p className="mt-4 text-sm font-medium text-slate-600">
-                {searchTerm ? 'No pharmacies found' : 'No registered pharmacies yet'}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {searchTerm ? 'Try a different search term' : 'Pharmacies will appear here once they register'}
-              </p>
-            </div>
-          ) : (
-            filteredPharmaciesForTotal.map((pharmacy) => {
-              const pharmacyTotalValue = (pharmacy.medicines || []).reduce((sum, med) => {
-                const quantity = parseInt(med.quantity) || 0
-                const price = parseFloat(med.price) || 0
-                return sum + (quantity * price)
-              }, 0)
-              const pharmacyTotalStock = (pharmacy.medicines || []).reduce((sum, med) => sum + (parseInt(med.quantity) || 0), 0)
-              const medicineCount = (pharmacy.medicines || []).length
-
-              return (
-                <article
-                  key={pharmacy.pharmacyId}
-                  onClick={() => setSelectedPharmacy(pharmacy)}
-                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-[rgba(17,73,108,0.3)] hover:shadow-md cursor-pointer active:scale-[0.98]"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
-                      <IoBusinessOutline className="h-6 w-6 text-[#11496c]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-semibold text-slate-900 mb-1">{pharmacy.pharmacyName}</h3>
-                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-2">
-                            <span className="flex items-center gap-1">
-                              <IoMedicalOutline className="h-3 w-3" />
-                              <span className="font-semibold text-slate-700">{medicineCount}</span>
-                              <span>{medicineCount === 1 ? 'medicine' : 'medicines'}</span>
-                            </span>
-                            <span className="text-slate-400">•</span>
-                            <span className="flex items-center gap-1">
-                              <IoCubeOutline className="h-3 w-3" />
-                              <span className="font-semibold text-slate-700">{pharmacyTotalStock}</span>
-                              <span>units</span>
-                            </span>
-                            <span className="text-slate-400">•</span>
-                            <span className="flex items-center gap-1">
-                              <IoPricetagOutline className="h-3 w-3" />
-                              <span className="font-semibold text-[#11496c]">{formatCurrency(pharmacyTotalValue)}</span>
-                            </span>
-                          </div>
-                        </div>
-                        <div className="shrink-0">
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            pharmacy.status === 'approved' && pharmacy.isActive
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : pharmacy.status === 'pending'
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            <IoCheckmarkCircleOutline className="h-3 w-3" />
-                            {pharmacy.status === 'approved' ? (pharmacy.isActive ? 'Active' : 'Inactive') : 'Pending'}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {/* Sample Medicines Preview */}
-                      {medicineCount > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {pharmacy.medicines.slice(0, 3).map((med, idx) => (
-                            <span
-                              key={idx}
-                              className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700"
-                            >
-                              <IoMedicalOutline className="h-3 w-3" />
-                              {med.name} ({med.dosage}) - {med.quantity} units
-                            </span>
-                          ))}
-                          {medicineCount > 3 && (
-                            <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">
-                              +{medicineCount - 3} more
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {medicineCount === 0 && (
-                        <p className="text-xs text-slate-500 mt-2">No medicines added yet</p>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              )
-            })
-          )
-          ) : (
-            // Laboratory section for total inventory
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-              <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-400" />
-              <p className="mt-4 text-sm font-medium text-slate-600">
-                {searchTerm ? 'No laboratories found' : 'No registered laboratories yet'}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {searchTerm ? 'Try a different search term' : 'Laboratories will appear here once they register'}
-              </p>
-            </div>
-          )}
-        </div>
-      ) : activeTab === 'pharmacy' ? (
+      {activeTab === 'pharmacy' ? (
         /* Pharmacy Inventory Tab */
         <div className="space-y-3">
           {filteredPharmacies.length === 0 ? (
@@ -926,7 +758,7 @@ const AdminInventory = () => {
           ) : (
             filteredLabs.map((lab) => {
               const labTotalValue = (lab.tests || []).reduce((sum, test) => {
-                const price = parseFloat(test.price) || 0
+                const price = Number(test.price) || 0 // Ensure price is always a number
                 return sum + price
               }, 0)
               const testCount = (lab.tests || []).length

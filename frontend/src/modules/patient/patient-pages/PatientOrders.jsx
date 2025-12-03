@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoFlaskOutline,
@@ -10,184 +10,119 @@ import {
   IoLocationOutline,
   IoDocumentTextOutline,
 } from 'react-icons/io5'
+import { getPatientOrders } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
-const mockOrders = [
-  {
-    id: 'order-1',
-    type: 'lab',
-    labName: 'MediCare Diagnostics',
-    testName: 'Complete Blood Count (CBC)',
-    status: 'sample_collected',
-    amount: 1200,
-    date: '2024-01-15',
-    time: '10:30 AM',
-    collectionType: 'home',
-    address: '123 Main St, New York, NY',
-    prescriptionId: 'presc-1',
-  },
-  {
-    id: 'order-2',
-    type: 'pharmacy',
-    pharmacyName: 'Rx Care Pharmacy',
-    medicineName: 'Amlodipine 5mg, Losartan 50mg',
-    status: 'delivered',
-    amount: 850,
-    date: '2024-01-14',
-    time: '02:15 PM',
-    deliveryType: 'home',
-    address: '123 Main St, New York, NY',
-    prescriptionId: 'presc-2',
-  },
-  {
-    id: 'order-3',
-    type: 'lab',
-    labName: 'HealthLab Center',
-    testName: 'ECG, Blood Pressure Monitoring',
-    status: 'test_completed',
-    amount: 1500,
-    date: '2024-01-13',
-    time: '11:00 AM',
-    collectionType: 'lab',
-    address: '200 Park Ave, New York, NY',
-    prescriptionId: 'presc-1',
-  },
-  {
-    id: 'order-4',
-    type: 'pharmacy',
-    pharmacyName: 'Wellness Pharmacy',
-    medicineName: 'Paracetamol 500mg',
-    status: 'new',
-    amount: 250,
-    date: '2024-01-12',
-    time: '09:45 AM',
-    deliveryType: 'pickup',
-    address: '150 Broadway, New York, NY',
-    prescriptionId: 'presc-3',
-  },
-  {
-    id: 'order-5',
-    type: 'lab',
-    labName: 'Diagnostic Solutions',
-    testName: 'COVID-19 RT-PCR Test',
-    status: 'report_uploaded',
-    amount: 800,
-    date: '2024-01-11',
-    time: '03:20 PM',
-    collectionType: 'home',
-    address: '100 Main St, New York, NY',
-    prescriptionId: 'presc-4',
-  },
-  {
-    id: 'order-6',
-    type: 'pharmacy',
-    pharmacyName: 'MedExpress',
-    medicineName: 'Aspirin 75mg',
-    status: 'patient_arrived',
-    amount: 180,
-    date: '2024-01-10',
-    time: '01:30 PM',
-    deliveryType: 'pickup',
-    address: '50 State St, New York, NY',
-    prescriptionId: 'presc-5',
-  },
-]
+// Default orders (will be replaced by API data)
+const defaultOrders = []
 
 const PatientOrders = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [filter, setFilter] = useState('all')
-  const [orders, setOrders] = useState([])
+  const [orders, setOrders] = useState(defaultOrders)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Load orders from localStorage
+  // Fetch orders from API
   useEffect(() => {
-    const loadOrders = () => {
+    const fetchOrders = async () => {
       try {
-        const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
+        setLoading(true)
+        setError(null)
+        const response = await getPatientOrders()
         
-        // Transform orders to display format
-        const transformedOrders = patientOrders.map(order => {
-          const orderDate = order.createdAt || order.paidAt || new Date().toISOString()
-          const date = new Date(orderDate).toISOString().split('T')[0]
-          const time = new Date(orderDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        if (response.success && response.data) {
+          const ordersData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.orders || []
           
-          // Preserve payment status - check paymentConfirmed first, then paymentPending, then order.status
-          let orderStatus = order.status
-          if (order.paymentConfirmed) {
-            orderStatus = 'payment_confirmed'
-          } else if (order.paymentPending || order.status === 'payment_pending') {
-            orderStatus = 'payment_pending'
-          } else if (!orderStatus) {
-            orderStatus = 'confirmed'
-          }
+          // Transform API data to match component structure
+          const transformed = ordersData.map(order => ({
+            id: order._id || order.id,
+            _id: order._id || order.id,
+            type: order.providerType || order.type || 'pharmacy',
+            labName: order.providerType === 'laboratory' 
+              ? (order.providerId?.labName || order.providerId?.name || 'Laboratory')
+              : undefined,
+            pharmacyName: order.providerType === 'pharmacy'
+              ? (order.providerId?.pharmacyName || order.providerId?.name || 'Pharmacy')
+              : undefined,
+            testName: order.providerType === 'laboratory' && order.items?.length > 0
+              ? order.items.map(item => item.name || item.testName).join(', ')
+              : undefined,
+            medicineName: order.providerType === 'pharmacy' && order.items?.length > 0
+              ? order.items.map(item => item.name || item.medicineName).join(', ')
+              : undefined,
+            status: order.status || 'new',
+            amount: order.totalAmount || order.amount || 0,
+            date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+            collectionType: order.deliveryOption === 'pickup' ? 'lab' : 'home',
+            deliveryType: order.deliveryOption || 'home',
+            address: order.deliveryAddress || order.address || '',
+            prescriptionId: order.prescriptionId || order.prescription?.id || null,
+            originalData: order,
+          }))
           
-          if (order.type === 'lab') {
-            return {
-              id: order.id,
-              type: 'lab',
-              labName: order.labName || order.providerNames?.join(', ') || 'Laboratory',
-              testName: order.investigations?.map(inv => typeof inv === 'string' ? inv : inv.name).join(', ') || 'Lab Tests',
-              status: orderStatus,
-              amount: order.totalAmount || 0,
-              date: date,
-              time: time,
-              collectionType: 'home',
-              address: order.patient?.address || order.address || 'N/A',
-              prescriptionId: order.requestId,
-              requestId: order.requestId,
-              investigations: order.investigations || [],
-              providerIds: order.providerIds || [order.labId].filter(Boolean),
-              providerNames: order.providerNames || [order.labName].filter(Boolean),
-              paymentPending: order.paymentPending,
-              paymentConfirmed: order.paymentConfirmed,
-            }
-          } else if (order.type === 'pharmacy') {
-            return {
-              id: order.id,
-              type: 'pharmacy',
-              pharmacyName: order.pharmacyName || order.providerNames?.join(', ') || 'Pharmacy',
-              medicineName: order.medicines?.map(med => typeof med === 'string' ? med : med.name).join(', ') || 'Medicines',
-              status: orderStatus,
-              amount: order.totalAmount || 0,
-              date: date,
-              time: time,
-              deliveryType: 'home',
-              address: order.patient?.address || order.address || 'N/A',
-              prescriptionId: order.requestId,
-              requestId: order.requestId,
-              medicines: order.medicines || [],
-              providerIds: order.providerIds || [order.pharmacyId].filter(Boolean),
-              providerNames: order.providerNames || [order.pharmacyName].filter(Boolean),
-              paymentPending: order.paymentPending,
-              paymentConfirmed: order.paymentConfirmed,
-            }
-          }
-          return null
-        }).filter(Boolean)
-        
-        // Merge with mock data for backward compatibility
-        const merged = [...transformedOrders, ...mockOrders]
-        const unique = merged.filter((order, idx, self) => 
-          idx === self.findIndex(o => o.id === order.id)
-        )
-        
-        // Sort by date (newest first)
-        unique.sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time))
-        
-        setOrders(unique)
-      } catch (error) {
-        console.error('Error loading orders:', error)
-        setOrders(mockOrders)
+          setOrders(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching orders:', err)
+        setError(err.message || 'Failed to load orders')
+        toast.error('Failed to load orders')
+      } finally {
+        setLoading(false)
       }
     }
-    
-    loadOrders()
-    // Refresh every 2 seconds to get new orders
-    const interval = setInterval(loadOrders, 2000)
-    return () => clearInterval(interval)
-  }, [])
 
-  const filteredOrders = filter === 'all'
-    ? orders
-    : orders.filter(order => order.type === filter)
+    fetchOrders()
+  }, [toast])
+
+  // Filter orders based on selected filter
+  const filteredOrders = useMemo(() => {
+    if (filter === 'all') return orders
+    
+    return orders.filter(order => {
+      switch (filter) {
+        case 'pharmacy':
+          return order.type === 'pharmacy'
+        case 'lab':
+          return order.type === 'lab'
+        case 'active':
+          return ['new', 'confirmed', 'processing', 'ready', 'payment_pending', 'payment_confirmed'].includes(order.status)
+        case 'completed':
+          return ['delivered', 'test_completed', 'report_uploaded', 'completed'].includes(order.status)
+        default:
+          return true
+      }
+    })
+  }, [orders, filter])
+
+  // Show loading state
+  if (loading) {
+    return (
+      <section className="flex flex-col gap-4 pb-4">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-lg font-semibold text-slate-700">Loading orders...</p>
+        </div>
+      </section>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <section className="flex flex-col gap-4 pb-4">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-lg font-semibold text-red-700">Error loading orders</p>
+          <p className="text-sm text-slate-500 mt-2">{error}</p>
+        </div>
+      </section>
+    )
+  }
+
+  // Legacy localStorage loading removed - using API now
 
   const getStatusColor = (status) => {
     switch (status) {

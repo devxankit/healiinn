@@ -12,6 +12,8 @@ const laboratorySchema = new mongoose.Schema(
     password: { type: String, minlength: 8 },
     licenseNumber: { type: String, required: true, trim: true, unique: true },
     gstNumber: { type: String, trim: true },
+    gender: { type: String, enum: ['male', 'female', 'other', 'prefer_not_to_say'], trim: true },
+    bio: { type: String, trim: true },
     address: {
       line1: { type: String, trim: true },
       line2: { type: String, trim: true },

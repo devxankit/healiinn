@@ -86,19 +86,38 @@ exports.createRequest = asyncHandler(async (req, res) => {
     console.error('Error sending email notifications:', error);
   }
 
-  // Create in-app notification for patient
+  // Create in-app notifications
   try {
-    const { createRequestNotification } = require('../../services/inAppNotificationService');
-    const { ROLES } = require('../../utils/constants');
+    const { createRequestNotification, createAdminNotification } = require('../../services/notificationService');
+    const populatedRequest = await Request.findById(request._id)
+      .populate('patientId', 'firstName lastName phone email');
+
+    // Notify patient
     await createRequestNotification({
       userId: id,
-      userType: ROLES.PATIENT,
-      request: request._id,
-      action: 'created',
-    }).catch((error) => console.error('Error creating request notification:', error));
+      userType: 'patient',
+      request: populatedRequest,
+      eventType: 'created',
+    }).catch((error) => console.error('Error creating patient request notification:', error));
+
+    // Notify all admins
+    const Admin = require('../../models/Admin');
+    const admins = await Admin.find({});
+    for (const admin of admins) {
+      await createAdminNotification({
+        userId: admin._id,
+        userType: 'admin',
+        eventType: 'request_created',
+        data: {
+          requestId: request._id,
+          patientId: id,
+        },
+      }).catch((error) => console.error('Error creating admin notification:', error));
+    }
   } catch (error) {
-    console.error('Error creating in-app notification:', error);
+    console.error('Error creating notifications:', error);
   }
+
 
   return res.status(201).json({
     success: true,
@@ -310,50 +329,93 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
   // Get patient data for email
   const patient = await Patient.findById(id);
 
-  // Create orders for each pharmacy/lab in admin response
-  const Order = require('../../models/Order');
-  const orders = [];
+  // Distribute money to pharmacies and labs based on their items
+  const WalletTransaction = require('../../models/WalletTransaction');
+  const Pharmacy = require('../../models/Pharmacy');
+  const Laboratory = require('../../models/Laboratory');
+  const io = getIO();
 
+  // Group medicines by pharmacy and distribute money
   if (request.adminResponse.medicines && request.adminResponse.medicines.length > 0) {
-    // Group medicines by pharmacy
     const pharmacyGroups = {};
     request.adminResponse.medicines.forEach((med) => {
-      if (!pharmacyGroups[med.pharmacyId]) {
-        pharmacyGroups[med.pharmacyId] = [];
+      const pharmId = med.pharmacyId?.toString() || med.pharmacyId;
+      if (!pharmacyGroups[pharmId]) {
+        pharmacyGroups[pharmId] = [];
       }
-      pharmacyGroups[med.pharmacyId].push(med);
+      pharmacyGroups[pharmId].push(med);
     });
 
     for (const [pharmacyId, medicines] of Object.entries(pharmacyGroups)) {
-      const items = medicines.map(med => ({
-        name: med.name,
-        quantity: med.quantity,
-        price: med.price,
-        total: med.price * med.quantity,
-      }));
+      // Calculate pharmacy's total amount
+      const pharmacyTotal = medicines.reduce((sum, med) => sum + (med.price * med.quantity), 0);
 
-      const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+      // Calculate pharmacy earning after commission using .env config
+      const { calculateProviderEarning } = require('../../utils/commissionConfig');
+      const { earning: pharmacyEarning, commission, commissionRate } = calculateProviderEarning(
+        pharmacyTotal,
+        'pharmacy'
+      );
 
-      const order = await Order.create({
-        patientId: id,
-        providerId: pharmacyId,
-        providerType: 'pharmacy',
+      // Get pharmacy's current wallet balance
+      const latestTransaction = await WalletTransaction.findOne({
+        userId: pharmacyId,
+        userType: 'pharmacy',
+        status: 'completed',
+      }).sort({ createdAt: -1 });
+
+      const currentBalance = latestTransaction?.balance || 0;
+      const newBalance = currentBalance + pharmacyEarning;
+
+      // Create wallet transaction for pharmacy earning
+      await WalletTransaction.create({
+        userId: pharmacyId,
+        userType: 'pharmacy',
+        type: 'earning',
+        amount: pharmacyEarning,
+        balance: newBalance,
+        status: 'completed',
+        description: `Payment received for medicines from patient ${patient.firstName} ${patient.lastName} - Request ${request._id} (Commission: ${(commissionRate * 100).toFixed(1)}%)`,
+        referenceId: request._id.toString(),
         requestId: request._id,
-        items,
-        totalAmount,
-        deliveryOption: 'home_delivery',
-        deliveryAddress: request.patientAddress,
-        status: 'pending',
-        paymentStatus: 'paid',
+        metadata: {
+          totalAmount: pharmacyTotal,
+          commission,
+          commissionRate,
+          earning: pharmacyEarning,
+        },
       });
 
-      orders.push(order._id);
+      // Create commission deduction record (for admin tracking)
+      await WalletTransaction.create({
+        userId: pharmacyId,
+        userType: 'pharmacy',
+        type: 'commission_deduction',
+        amount: commission,
+        balance: currentBalance,
+        status: 'completed',
+        description: `Platform commission (${(commissionRate * 100).toFixed(1)}%) for request ${request._id}`,
+        referenceId: request._id.toString(),
+        requestId: request._id,
+        metadata: {
+          totalAmount: pharmacyTotal,
+          commission,
+          commissionRate,
+        },
+      });
 
-      // Emit real-time event
+      // Emit real-time event to pharmacy
       try {
-        const io = getIO();
-        io.to(`pharmacy-${pharmacyId}`).emit('order:created', {
-          order: await Order.findById(order._id).populate('patientId', 'firstName lastName phone'),
+        io.to(`pharmacy-${pharmacyId}`).emit('wallet:credited', {
+          amount: pharmacyEarning,
+          balance: newBalance,
+          requestId: request._id,
+          commission,
+          commissionRate,
+        });
+        io.to(`pharmacy-${pharmacyId}`).emit('request:assigned', {
+          request: await Request.findById(request._id)
+            .populate('patientId', 'firstName lastName phone address'),
         });
       } catch (error) {
         console.error('Socket.IO error:', error);
@@ -361,46 +423,87 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
     }
   }
 
+  // Group tests by lab and distribute money
   if (request.adminResponse.tests && request.adminResponse.tests.length > 0) {
-    // Group tests by lab
     const labGroups = {};
     request.adminResponse.tests.forEach((test) => {
-      if (!labGroups[test.labId]) {
-        labGroups[test.labId] = [];
+      const labId = test.labId?.toString() || test.labId;
+      if (!labGroups[labId]) {
+        labGroups[labId] = [];
       }
-      labGroups[test.labId].push(test);
+      labGroups[labId].push(test);
     });
 
     for (const [labId, tests] of Object.entries(labGroups)) {
-      const items = tests.map(test => ({
-        name: test.testName,
-        quantity: 1,
-        price: test.price,
-        total: test.price,
-      }));
+      // Calculate lab's total amount
+      const labTotal = tests.reduce((sum, test) => sum + test.price, 0);
 
-      const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
+      // Calculate laboratory earning after commission using .env config
+      const { calculateProviderEarning } = require('../../utils/commissionConfig');
+      const { earning: labEarning, commission, commissionRate } = calculateProviderEarning(
+        labTotal,
+        'laboratory'
+      );
 
-      const order = await Order.create({
-        patientId: id,
-        providerId: labId,
-        providerType: 'laboratory',
+      // Get lab's current wallet balance
+      const latestTransaction = await WalletTransaction.findOne({
+        userId: labId,
+        userType: 'laboratory',
+        status: 'completed',
+      }).sort({ createdAt: -1 });
+
+      const currentBalance = latestTransaction?.balance || 0;
+      const newBalance = currentBalance + labEarning;
+
+      // Create wallet transaction for lab earning
+      await WalletTransaction.create({
+        userId: labId,
+        userType: 'laboratory',
+        type: 'earning',
+        amount: labEarning,
+        balance: newBalance,
+        status: 'completed',
+        description: `Payment received for tests from patient ${patient.firstName} ${patient.lastName} - Request ${request._id} (Commission: ${(commissionRate * 100).toFixed(1)}%)`,
+        referenceId: request._id.toString(),
         requestId: request._id,
-        items,
-        totalAmount,
-        deliveryOption: request.visitType === 'home' ? 'home_delivery' : 'pickup',
-        deliveryAddress: request.patientAddress,
-        status: 'pending',
-        paymentStatus: 'paid',
+        metadata: {
+          totalAmount: labTotal,
+          commission,
+          commissionRate,
+          earning: labEarning,
+        },
       });
 
-      orders.push(order._id);
+      // Create commission deduction record (for admin tracking)
+      await WalletTransaction.create({
+        userId: labId,
+        userType: 'laboratory',
+        type: 'commission_deduction',
+        amount: commission,
+        balance: currentBalance,
+        status: 'completed',
+        description: `Platform commission (${(commissionRate * 100).toFixed(1)}%) for request ${request._id}`,
+        referenceId: request._id.toString(),
+        requestId: request._id,
+        metadata: {
+          totalAmount: labTotal,
+          commission,
+          commissionRate,
+        },
+      });
 
-      // Emit real-time event
+      // Emit real-time event to lab
       try {
-        const io = getIO();
-        io.to(`laboratory-${labId}`).emit('order:created', {
-          order: await Order.findById(order._id).populate('patientId', 'firstName lastName phone'),
+        io.to(`laboratory-${labId}`).emit('wallet:credited', {
+          amount: labEarning,
+          balance: newBalance,
+          requestId: request._id,
+          commission,
+          commissionRate,
+        });
+        io.to(`laboratory-${labId}`).emit('request:assigned', {
+          request: await Request.findById(request._id)
+            .populate('patientId', 'firstName lastName phone address'),
         });
       } catch (error) {
         console.error('Socket.IO error:', error);
@@ -408,9 +511,8 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
     }
   }
 
-  // Update request with orders
-  request.orders = orders;
-  await request.save();
+  // Don't create orders yet - orders will be created after pharmacy/lab actions on requests
+  // Requests are already visible to pharmacy/lab via their request endpoints
 
   // Create transaction record for patient
   const Transaction = require('../../models/Transaction');
@@ -455,9 +557,52 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
     },
   });
 
+  // Create in-app notifications
+  try {
+    const { createRequestNotification, createAdminNotification } = require('../../services/notificationService');
+    const populatedRequest = await Request.findById(request._id)
+      .populate('patientId', 'firstName lastName phone email');
+
+    // Notify patient
+    await createRequestNotification({
+      userId: id,
+      userType: 'patient',
+      request: populatedRequest,
+      eventType: 'confirmed',
+    }).catch((error) => console.error('Error creating patient request confirmation notification:', error));
+
+    // Notify all admins
+    const Admin = require('../../models/Admin');
+    const admins = await Admin.find({});
+    for (const admin of admins) {
+      await createAdminNotification({
+        userId: admin._id,
+        userType: 'admin',
+        eventType: 'request_confirmed',
+        data: {
+          requestId: request._id,
+          patientId: id,
+          amount: totalAmount,
+        },
+      }).catch((error) => console.error('Error creating admin notification:', error));
+
+      await createAdminNotification({
+        userId: admin._id,
+        userType: 'admin',
+        eventType: 'payment_received',
+        data: {
+          amount: totalAmount,
+          requestId: request._id,
+          patientId: id,
+        },
+      }).catch((error) => console.error('Error creating admin payment notification:', error));
+    }
+  } catch (error) {
+    console.error('Error creating notifications:', error);
+  }
+
   // Emit real-time event
   try {
-    const io = getIO();
     io.to('admins').emit('request:confirmed', {
       request: await Request.findById(request._id),
     });
@@ -476,8 +621,10 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
     const { sendPaymentConfirmationEmail } = require('../../services/notificationService');
     await sendPaymentConfirmationEmail({
       patient,
-      transaction: patientTransaction,
-      order: orders.length > 0 ? { _id: orders[0] } : null,
+      amount: totalAmount, // Pass amount directly
+      orderId: orders.length > 0 ? (orders[0]._id || orders[0].id) : null, // Pass orderId for reference
+      transaction: patientTransaction, // Also pass transaction for additional data
+      order: orders.length > 0 ? orders[0] : null,
     }).catch((error) => console.error('Error sending payment confirmation email:', error));
   } catch (error) {
     console.error('Error sending email notifications:', error);
@@ -485,10 +632,9 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
 
   return res.status(200).json({
     success: true,
-    message: 'Payment confirmed and orders created',
+    message: 'Payment confirmed. Requests have been sent to pharmacies and laboratories.',
     data: {
       request,
-      orders,
     },
   });
 });

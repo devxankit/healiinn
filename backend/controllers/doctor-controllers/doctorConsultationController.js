@@ -175,6 +175,8 @@ exports.getConsultationById = asyncHandler(async (req, res) => {
   const { id } = req.auth;
   const { consultationId } = req.params;
 
+  const LabReport = require('../../models/LabReport');
+
   const consultation = await Consultation.findOne({
     _id: consultationId,
     doctorId: id,
@@ -190,9 +192,21 @@ exports.getConsultationById = asyncHandler(async (req, res) => {
     });
   }
 
+  // Get shared lab reports for this patient and doctor
+  const sharedReports = await LabReport.find({
+    patientId: consultation.patientId,
+    'sharedWith.doctorId': id,
+  })
+    .populate('laboratoryId', 'labName')
+    .populate('orderId', 'createdAt')
+    .sort({ createdAt: -1 });
+
+  const consultationData = consultation.toObject();
+  consultationData.sharedLabReports = sharedReports;
+
   return res.status(200).json({
     success: true,
-    data: consultation,
+    data: consultationData,
   });
 });
 

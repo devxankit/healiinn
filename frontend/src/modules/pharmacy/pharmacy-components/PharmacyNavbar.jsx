@@ -6,7 +6,6 @@ import {
   IoWalletOutline,
   IoPersonCircleOutline,
   IoMenuOutline,
-  IoNotificationsOutline,
   IoDocumentTextOutline,
   IoHelpCircleOutline,
   IoMedicalOutline,
@@ -14,6 +13,8 @@ import {
 import healinnLogo from '../../../assets/images/logo.png'
 import PharmacySidebar from './PharmacySidebar'
 import { usePharmacySidebar } from './PharmacySidebarContext'
+import { useToast } from '../../../contexts/ToastContext'
+import NotificationBell from '../../../components/NotificationBell'
 
 // Sidebar nav and desktop navbar (includes Support above Profile)
 const sidebarNavItems = [
@@ -34,6 +35,7 @@ const PharmacyNavbar = () => {
   const toggleButtonRef = useRef(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
   
   // Hide top header only on dashboard page
   const isDashboardPage = location.pathname === '/pharmacy/dashboard' || location.pathname === '/pharmacy/'
@@ -56,11 +58,23 @@ const PharmacyNavbar = () => {
     closeSidebar()
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleSidebarClose()
-    localStorage.removeItem('pharmacyAuthToken')
-    sessionStorage.removeItem('pharmacyAuthToken')
-    navigate('/doctor/login', { replace: true })
+    try {
+      const { logoutPharmacy } = await import('../pharmacy-services/pharmacyService')
+      await logoutPharmacy()
+      toast.success('Logged out successfully')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      // Clear tokens manually if API call fails
+      const { clearPharmacyTokens } = await import('../pharmacy-services/pharmacyService')
+      clearPharmacyTokens()
+      toast.success('Logged out successfully')
+    }
+    // Force navigation to login page
+    setTimeout(() => {
+      window.location.href = '/pharmacy/login'
+    }, 500)
   }
 
   return (
@@ -102,10 +116,9 @@ const PharmacyNavbar = () => {
             </button>
           </nav>
           <div className="flex items-center gap-2">
-            <IoNotificationsOutline
-              aria-hidden="true"
-              className="text-xl text-slate-500 md:hidden"
-            />
+            <div className="md:hidden">
+              <NotificationBell />
+            </div>
             <button
               type="button"
               ref={toggleButtonRef}

@@ -48,7 +48,7 @@ exports.getRequests = asyncHandler(async (req, res) => {
 
 // GET /api/admin/requests/:id
 exports.getRequestById = asyncHandler(async (req, res) => {
-  const { requestId } = req.params;
+  const { id: requestId } = req.params;
 
   const request = await Request.findById(requestId)
     .populate('patientId')
@@ -70,7 +70,7 @@ exports.getRequestById = asyncHandler(async (req, res) => {
 
 // POST /api/admin/requests/:id/accept
 exports.acceptRequest = asyncHandler(async (req, res) => {
-  const { requestId } = req.params;
+  const { id: requestId } = req.params;
 
   const request = await Request.findById(requestId);
   if (!request) {
@@ -100,20 +100,6 @@ exports.acceptRequest = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
-  // Create in-app notification for patient
-  try {
-    const { createRequestNotification } = require('../../services/inAppNotificationService');
-    const { ROLES } = require('../../utils/constants');
-    await createRequestNotification({
-      userId: request.patientId,
-      userType: ROLES.PATIENT,
-      request: request._id,
-      action: 'accepted',
-    }).catch((error) => console.error('Error creating request notification:', error));
-  } catch (error) {
-    console.error('Error creating in-app notification:', error);
-  }
-
   return res.status(200).json({
     success: true,
     message: 'Request accepted',
@@ -123,7 +109,7 @@ exports.acceptRequest = asyncHandler(async (req, res) => {
 
 // POST /api/admin/requests/:id/respond
 exports.respondToRequest = asyncHandler(async (req, res) => {
-  const { requestId } = req.params;
+  const { id: requestId } = req.params;
   const { pharmacy, pharmacies, lab, labs, medicines, tests, message } = req.body;
 
   const request = await Request.findById(requestId);
@@ -177,20 +163,6 @@ exports.respondToRequest = asyncHandler(async (req, res) => {
       request: populatedRequest,
     });
 
-    // Create in-app notification for patient
-    try {
-      const { createRequestNotification } = require('../../services/inAppNotificationService');
-      const { ROLES } = require('../../utils/constants');
-      await createRequestNotification({
-        userId: request.patientId,
-        userType: ROLES.PATIENT,
-        request: request._id,
-        action: 'responded',
-      }).catch((error) => console.error('Error creating request notification:', error));
-    } catch (error) {
-      console.error('Error creating in-app notification:', error);
-    }
-
     // Notify pharmacies and labs
     if (pharmacies && pharmacies.length > 0) {
       for (const pharm of pharmacies) {
@@ -209,6 +181,59 @@ exports.respondToRequest = asyncHandler(async (req, res) => {
     }
   } catch (error) {
     console.error('Socket.IO error:', error);
+  }
+
+  // Create in-app notifications
+  try {
+    const { createRequestNotification } = require('../../services/notificationService');
+    const Pharmacy = require('../../models/Pharmacy');
+    const Laboratory = require('../../models/Laboratory');
+    const populatedRequest = await Request.findById(request._id)
+      .populate('patientId', 'firstName lastName phone')
+      .populate('prescriptionId');
+
+    // Notify patient
+    await createRequestNotification({
+      userId: request.patientId,
+      userType: 'patient',
+      request: populatedRequest,
+      eventType: 'responded',
+      admin: { _id: id },
+    }).catch((error) => console.error('Error creating patient request notification:', error));
+
+    // Notify pharmacies
+    if (pharmacies && pharmacies.length > 0) {
+      for (const pharmId of pharmacies) {
+        const pharmacy = await Pharmacy.findById(pharmId);
+        if (pharmacy) {
+          await createRequestNotification({
+            userId: pharmId,
+            userType: 'pharmacy',
+            request: populatedRequest,
+            eventType: 'assigned',
+            pharmacy,
+          }).catch((error) => console.error('Error creating pharmacy notification:', error));
+        }
+      }
+    }
+
+    // Notify laboratories
+    if (labs && labs.length > 0) {
+      for (const labId of labs) {
+        const laboratory = await Laboratory.findById(labId);
+        if (laboratory) {
+          await createRequestNotification({
+            userId: labId,
+            userType: 'laboratory',
+            request: populatedRequest,
+            eventType: 'assigned',
+            laboratory,
+          }).catch((error) => console.error('Error creating laboratory notification:', error));
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error creating notifications:', error);
   }
 
   // Send email notification to patient
@@ -235,7 +260,7 @@ exports.respondToRequest = asyncHandler(async (req, res) => {
 
 // POST /api/admin/requests/:id/cancel
 exports.cancelRequest = asyncHandler(async (req, res) => {
-  const { requestId } = req.params;
+  const { id: requestId } = req.params;
   const { reason } = req.body;
 
   const request = await Request.findById(requestId);
@@ -275,7 +300,7 @@ exports.cancelRequest = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/requests/:id/status
 exports.updateRequestStatus = asyncHandler(async (req, res) => {
-  const { requestId } = req.params;
+  const { id: requestId } = req.params;
   const { status } = req.body;
 
   if (!status || !['pending', 'accepted', 'confirmed', 'cancelled', 'completed'].includes(status)) {

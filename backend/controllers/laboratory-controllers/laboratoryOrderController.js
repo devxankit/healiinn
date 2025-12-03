@@ -17,7 +17,15 @@ exports.getLeads = asyncHandler(async (req, res) => {
   const limit = Math.min(Math.max(parseInt(limitParam, 10) || 20, 1), 100);
 
   const filter = { providerId: id, providerType: 'laboratory' };
-  if (status) filter.status = status;
+  if (status) {
+    // Handle comma-separated status values
+    const statusArray = status.split(',').map(s => s.trim()).filter(s => s);
+    if (statusArray.length === 1) {
+      filter.status = statusArray[0];
+    } else if (statusArray.length > 1) {
+      filter.status = { $in: statusArray };
+    }
+  }
 
   if (startDate || endDate) {
     filter.createdAt = {};

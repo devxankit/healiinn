@@ -1,7 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
+import {
+  getLaboratoryRequestOrders,
+  confirmLaboratoryRequestOrder,
+  updateLaboratoryRequestOrderStatus,
+} from '../laboratory-services/laboratoryService'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   IoDocumentTextOutline,
   IoCalendarOutline,
@@ -50,253 +56,109 @@ const LaboratoryRequestOrders = () => {
   const [requests, setRequests] = useState([])
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [filter, setFilter] = useState('all') // all, pending, completed
+  const [isLoading, setIsLoading] = useState(false)
 
-  useEffect(() => {
-    loadRequests()
-    // Refresh every 2 seconds to get new requests
-    const interval = setInterval(() => {
-      loadRequests()
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const loadRequests = () => {
+  const loadRequests = useCallback(async () => {
     try {
-      // Get lab ID (in real app, get from auth)
-      const labId = 'lab-1' // Mock lab ID - in real app, get from auth
+      setIsLoading(true)
+      const response = await getLaboratoryRequestOrders({ limit: 100 })
       
-      // Load orders from lab-specific localStorage key
-      const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
-      
-      // Also load from adminRequests - check both single lab and multiple labs structure
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const labTestRequests = allRequests.filter(r => {
-        if (r.type !== 'book_test_visit') return false
-        // Check if this lab is in the response (single lab or multiple labs)
-        if (r.adminResponse?.lab?.id === labId) return true
-        if (r.adminResponse?.labs && Array.isArray(r.adminResponse.labs)) {
-          return r.adminResponse.labs.some(l => l.id === labId)
-        }
-        return false
-      })
-      
-      // Transform adminRequests to order format
-      const transformedRequests = labTestRequests.map(req => ({
-        id: req.id,
-        requestId: req.id,
-        patientName: req.patientName,
-        patientPhone: req.patientPhone,
-        patientAddress: req.patientAddress,
-        patientEmail: req.patientEmail,
-        prescription: {
-          ...req.prescription,
-          pdfUrl: req.prescriptionPdfUrl || req.prescription?.pdfUrl, // Include prescription PDF URL
-        },
-        prescriptionPdfUrl: req.prescriptionPdfUrl || req.prescription?.pdfUrl, // Include at request level too
-        visitType: req.visitType || 'lab', // Include visitType
-        investigations: req.adminResponse?.investigations || req.prescription?.investigations || [],
-        totalAmount: req.adminResponse?.totalAmount || 0,
-        status: req.status === 'confirmed' && req.paymentPending ? 'payment_pending' : req.status === 'confirmed' ? 'confirmed' : req.status === 'rejected' ? 'rejected' : req.status === 'accepted' ? 'accepted' : 'pending',
-        labAccepted: req.labAccepted || false,
-        labRejected: req.labRejected || false,
-        acceptedAt: req.labAcceptedAt || req.acceptedAt,
-        rejectedAt: req.labRejectedAt || req.rejectedAt,
-        createdAt: req.createdAt || req.responseDate,
-        paymentConfirmed: req.paymentConfirmed || false,
-        paidAt: req.paidAt,
-      }))
-      
-      // Combine and deduplicate - preserve visitType from labOrders
-      const combined = [...labOrders.map(order => ({
-        ...order,
-        visitType: order.visitType || 'lab', // Ensure visitType is present
-      })), ...transformedRequests]
-      const unique = combined.filter((req, idx, self) => 
-        idx === self.findIndex(r => (r.id === req.id || r.requestId === req.requestId || r.id === req.requestId) && 
-                                    (r.requestId === req.requestId || r.requestId === req.id))
-      )
-      
-      // Sort by date (newest first)
-      unique.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-      
-      // Add default mock data if no requests exist
-      if (unique.length === 0) {
-        const mockData = [
-          {
-            id: 'req-1',
-            requestId: 'req-1',
-            patientName: 'John Doe',
-            patientPhone: '+1-555-000-0000',
-            patientAddress: '123 Main St, New York, NY',
-            patientEmail: 'john.doe@example.com',
-            visitType: 'lab',
+      if (response.success && response.data) {
+        const requestsData = response.data.items || response.data || []
+        
+        // Transform backend data to match frontend format
+        const transformedRequests = requestsData.map(req => {
+          if (!req) return null
+          
+          const patient = (req.patientId && typeof req.patientId === 'object') ? req.patientId : {}
+          const prescription = (req.prescriptionId && typeof req.prescriptionId === 'object') ? req.prescriptionId : {}
+          const adminResponse = req.adminResponse || {}
+          const tests = Array.isArray(adminResponse.tests) ? adminResponse.tests : []
+          
+          // Get investigations from tests (backend already filters by labId, so all tests are for this lab)
+          const investigations = tests
+            .map(test => {
+              if (typeof test === 'string') return test
+              return test?.testName || test?.name || null
+            })
+            .filter(Boolean) // Remove any undefined/null values
+          
+          // Find associated order to get status
+          const orders = Array.isArray(req.orders) ? req.orders : []
+          const order = orders.length > 0 ? orders[0] : null
+          
+          return {
+            id: req._id || req.id,
+            requestId: req._id || req.id,
+            patientName: patient.firstName && patient.lastName 
+              ? `${patient.firstName} ${patient.lastName}` 
+              : patient.name || req.patientName || 'Unknown Patient',
+            patientPhone: patient.phone || req.patientPhone,
+            patientAddress: patient.address || req.patientAddress || req.deliveryAddress,
+            patientEmail: patient.email || req.patientEmail,
+            patient: patient,
             prescription: {
-              doctorName: 'Dr. Sarah Mitchell',
-              doctorSpecialty: 'Cardiology',
-              diagnosis: 'Hypertension',
-              investigations: ['Lipid Profile', 'Blood Sugar Test'],
+              doctorName: prescription.doctorName || prescription.doctor?.name || 'Doctor',
+              doctorSpecialty: prescription.doctorSpecialty || prescription.specialty,
+              diagnosis: prescription.diagnosis || req.diagnosis,
+              investigations: prescription.investigations || investigations,
+              pdfUrl: prescription.pdfUrl || req.prescriptionPdfUrl,
+              issuedAt: prescription.createdAt || prescription.issuedAt,
             },
-            investigations: ['Lipid Profile', 'Blood Sugar Test'],
-            status: 'completed',
-            createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            paymentConfirmed: true,
-            labAccepted: true,
-            labConfirmed: true,
-          },
-          {
-            id: 'req-2',
-            requestId: 'req-2',
-            patientName: 'Emily Brown',
-            patientPhone: '+1-555-000-0000',
-            patientAddress: 'Address not provided',
-            patientEmail: 'emily.brown@example.com',
-            visitType: 'home',
-            prescription: {
-              doctorName: 'Dr. Sarah Mitchell',
-              doctorSpecialty: 'Cardiology',
-              diagnosis: 'Hypertension',
-              investigations: ['Lipid Profile'],
-            },
-            investigations: ['Lipid Profile'],
-            status: 'payment_pending',
-            createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-            paymentConfirmed: false,
-            labAccepted: false,
-          },
-          {
-            id: 'req-3',
-            requestId: 'req-3',
-            patientName: 'Mike Johnson',
-            patientPhone: '+1-555-111-1111',
-            patientAddress: '456 Oak Ave, New York, NY',
-            patientEmail: 'mike.johnson@example.com',
-            visitType: 'lab',
-            prescription: {
-              doctorName: 'Dr. Robert Taylor',
-              doctorSpecialty: 'Endocrinology',
-              diagnosis: 'Diabetes',
-              investigations: ['HbA1c Test', 'Complete Blood Count'],
-            },
-            investigations: ['HbA1c Test', 'Complete Blood Count'],
-            status: 'pending',
-            createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-            paymentConfirmed: true,
-            labAccepted: false,
-          },
-          {
-            id: 'req-4',
-            requestId: 'req-4',
-            patientName: 'Sarah Smith',
-            patientPhone: '+1-555-222-2222',
-            patientAddress: '789 Pine St, New York, NY',
-            patientEmail: 'sarah.smith@example.com',
-            visitType: 'home',
-            prescription: {
-              doctorName: 'Dr. Jennifer Martinez',
-              doctorSpecialty: 'General Medicine',
-              diagnosis: 'Fever',
-              investigations: ['Complete Blood Count', 'Liver Function Test'],
-            },
-            investigations: ['Complete Blood Count', 'Liver Function Test'],
-            status: 'pending',
-            createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-            paymentConfirmed: true,
-            labAccepted: false,
-          },
-          {
-            id: 'req-5',
-            requestId: 'req-5',
-            patientName: 'David Wilson',
-            patientPhone: '+1-555-333-3333',
-            patientAddress: '321 Elm St, New York, NY',
-            patientEmail: 'david.wilson@example.com',
-            visitType: 'lab',
-            prescription: {
-              doctorName: 'Dr. Michael Chen',
-              doctorSpecialty: 'Cardiology',
-              diagnosis: 'Chest Pain',
-              investigations: ['ECG', 'Troponin Test'],
-            },
-            investigations: ['ECG', 'Troponin Test'],
-            status: 'accepted',
-            createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-            paymentConfirmed: true,
-            labAccepted: true,
-            labConfirmed: false,
-          },
-          {
-            id: 'req-6',
-            requestId: 'req-6',
-            patientName: 'Lisa Anderson',
-            patientPhone: '+1-555-444-4444',
-            patientAddress: '654 Maple Dr, New York, NY',
-            patientEmail: 'lisa.anderson@example.com',
-            visitType: 'home',
-            prescription: {
-              doctorName: 'Dr. Sarah Mitchell',
-              doctorSpecialty: 'Cardiology',
-              diagnosis: 'High Cholesterol',
-              investigations: ['Lipid Profile', 'Thyroid Function Test'],
-            },
-            investigations: ['Lipid Profile', 'Thyroid Function Test'],
-            status: 'pending',
-            createdAt: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
-            paymentConfirmed: false,
-            labAccepted: false,
-          },
-          {
-            id: 'req-7',
-            requestId: 'req-7',
-            patientName: 'Robert Taylor',
-            patientPhone: '+1-555-555-5555',
-            patientAddress: '987 Cedar Ln, New York, NY',
-            patientEmail: 'robert.taylor@example.com',
-            visitType: 'lab',
-            prescription: {
-              doctorName: 'Dr. Jennifer Martinez',
-              doctorSpecialty: 'General Medicine',
-              diagnosis: 'Fatigue',
-              investigations: ['Vitamin D Test', 'Vitamin B12 Test'],
-            },
-            investigations: ['Vitamin D Test', 'Vitamin B12 Test'],
-            status: 'completed',
-            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-            paymentConfirmed: true,
-            labAccepted: true,
-            labConfirmed: true,
-          },
-          {
-            id: 'req-8',
-            requestId: 'req-8',
-            patientName: 'Jennifer Martinez',
-            patientPhone: '+1-555-666-6666',
-            patientAddress: '147 Birch St, New York, NY',
-            patientEmail: 'jennifer.martinez@example.com',
-            visitType: 'home',
-            prescription: {
-              doctorName: 'Dr. Michael Chen',
-              doctorSpecialty: 'Cardiology',
-              diagnosis: 'Arrhythmia',
-              investigations: ['ECG', 'Holter Monitor'],
-            },
-            investigations: ['ECG', 'Holter Monitor'],
-            status: 'payment_pending',
-            createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-            paymentConfirmed: false,
-            labAccepted: false,
-          },
-        ]
-        unique.push(...mockData)
+            prescriptionPdfUrl: prescription.pdfUrl || req.prescriptionPdfUrl,
+            visitType: req.visitType || (req.deliveryOption === 'home_delivery' ? 'home' : 'lab'),
+            investigations: investigations.length > 0 ? investigations : (prescription.investigations || []),
+            totalAmount: adminResponse.billingSummary?.totalAmount || adminResponse.totalAmount || order?.totalAmount || 0,
+            status: order?.status || req.status || 'pending',
+            labAccepted: order?.status === 'accepted' || order?.status === 'confirmed' || false,
+            labRejected: order?.status === 'rejected' || false,
+            labConfirmed: order?.status === 'completed' || false,
+            acceptedAt: order?.acceptedAt || order?.createdAt,
+            rejectedAt: order?.rejectedAt,
+            createdAt: req.createdAt || req.requestDate,
+            paymentConfirmed: req.paymentStatus === 'paid' || req.paymentStatus === 'completed' || false,
+            paidAt: req.paidAt,
+            order: order,
+          }
+        }).filter(Boolean) // Remove any null entries
+        
+        // Sort by date (newest first)
+        transformedRequests.sort((a, b) => {
+          const dateA = a?.createdAt ? new Date(a.createdAt).getTime() : 0
+          const dateB = b?.createdAt ? new Date(b.createdAt).getTime() : 0
+          return dateB - dateA
+        })
+        
+        setRequests(transformedRequests)
+      } else {
+        setRequests([])
       }
-      
-      setRequests(unique)
     } catch (error) {
       console.error('Error loading requests:', error)
       setRequests([])
+      toast.error('Failed to load request orders')
+    } finally {
+      setIsLoading(false)
     }
-  }
+  }, [toast])
 
-  const handleRejectOrder = async (orderId) => {
+  useEffect(() => {
+    const token = getAuthToken('laboratory')
+    if (!token) {
+      return
+    }
+    loadRequests()
+    // Refresh every 30 seconds to get new requests
+    const interval = setInterval(() => {
+      const currentToken = getAuthToken('laboratory')
+      if (currentToken) {
+        loadRequests()
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [loadRequests])
+
+  const handleRejectOrder = async (requestId) => {
     try {
       // Confirm rejection
       const confirmReject = window.confirm(
@@ -304,95 +166,21 @@ const LaboratoryRequestOrders = () => {
       )
       if (!confirmReject) return
 
-      const labId = 'lab-1' // Mock lab ID
-      const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
-      const orderToUpdate = labOrders.find(o => o.id === orderId || o.requestId === orderId)
-      const requestId = orderToUpdate?.requestId || orderId
+      // First, confirm the order to create it if it doesn't exist
+      // Then update its status to rejected
+      try {
+        // Try to confirm first (creates order if doesn't exist)
+        await confirmLaboratoryRequestOrder(requestId)
+        // Then update status to rejected
+        await updateLaboratoryRequestOrderStatus(requestId, 'rejected')
+      } catch (confirmError) {
+        // If order already exists, just update status
+        await updateLaboratoryRequestOrderStatus(requestId, 'rejected')
+      }
       
-      // Update lab orders - set status as 'rejected'
-      const updatedOrders = labOrders.map(order => {
-        if (order.id === orderId || order.requestId === orderId) {
-          return {
-            ...order,
-            status: 'rejected',
-            rejectedAt: new Date().toISOString(),
-            rejectedBy: 'Laboratory',
-            labRejected: true,
-          }
-        }
-        return order
-      })
-      localStorage.setItem(`labOrders_${labId}`, JSON.stringify(updatedOrders))
-      
-      // Update admin requests
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            labRejected: true,
-            labRejectedAt: new Date().toISOString(),
-            rejectedBy: 'Laboratory',
-            rejectionMessage: `Order rejected by laboratory`,
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-      
-      // Create notification for admin
-      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
-      const request = allRequests.find(r => r.id === requestId)
-      const labInfo = request?.adminResponse?.lab || request?.adminResponse?.labs?.[0] || {}
-      adminNotifications.unshift({
-        id: `notif-${Date.now()}`,
-        type: 'laboratory_rejected',
-        title: 'Laboratory Order Rejected',
-        message: `Laboratory ${labInfo?.labName || 'Laboratory'} has rejected the order for patient ${request?.patientName || 'Patient'}. Order ID: ${requestId}`,
-        requestId: requestId,
-        patientName: request?.patientName || 'Patient',
-        laboratoryName: labInfo?.labName || 'Laboratory',
-        orderType: 'laboratory',
-        createdAt: new Date().toISOString(),
-        read: false,
-      })
-      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
-      
-      // Update patient requests
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const updatedPatientRequests = patientRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            labRejected: true,
-            labRejectedAt: new Date().toISOString(),
-            rejectedBy: 'Laboratory',
-            status: 'rejected',
-          }
-        }
-        return req
-      })
-      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
-      
-      // Update patient orders
-      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-      const updatedPatientOrders = patientOrders.map(order => {
-        if (order.requestId === requestId && (order.type === 'lab' || order.type === 'laboratory')) {
-          return {
-            ...order,
-            status: 'rejected',
-            labRejected: true,
-            labRejectedAt: new Date().toISOString(),
-            rejectedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
-      
-      // Update current state
-      const updatedRequestsState = requests.map(r => {
-        if (r.id === orderId || r.requestId === orderId) {
+      // Update local state
+      const updatedRequests = requests.map(r => {
+        if (r.id === requestId || r.requestId === requestId) {
           return {
             ...r,
             status: 'rejected',
@@ -402,103 +190,23 @@ const LaboratoryRequestOrders = () => {
         }
         return r
       })
-      setRequests(updatedRequestsState)
+      setRequests(updatedRequests)
       
       loadRequests()
-      toast.success('Order rejected successfully. Admin and patient have been notified.')
+      toast.success('Order rejected successfully.')
     } catch (error) {
       console.error('Error rejecting order:', error)
       toast.error('Error rejecting order. Please try again.')
     }
   }
 
-  const handleAcceptOrder = async (orderId) => {
+  const handleAcceptOrder = async (requestId) => {
     try {
-      const labId = 'lab-1' // Mock lab ID
-      const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
-      const orderToUpdate = labOrders.find(o => o.id === orderId || o.requestId === orderId)
-      const requestId = orderToUpdate?.requestId || orderId
+      await confirmLaboratoryRequestOrder(requestId)
       
-      // Update lab orders - set status as 'accepted'
-      const updatedOrders = labOrders.map(order => {
-        if (order.id === orderId || order.requestId === orderId) {
-          return {
-            ...order,
-            status: 'accepted',
-            acceptedAt: new Date().toISOString(),
-            acceptedBy: 'Laboratory',
-            labAccepted: true,
-          }
-        }
-        return order
-      })
-      localStorage.setItem(`labOrders_${labId}`, JSON.stringify(updatedOrders))
-      
-      // Update admin requests
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            labAccepted: true,
-            labAcceptedAt: new Date().toISOString(),
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-      
-      // Create notification for admin
-      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
-      const request = allRequests.find(r => r.id === requestId)
-      const labInfo = request?.adminResponse?.lab || request?.adminResponse?.labs?.[0] || {}
-      adminNotifications.unshift({
-        id: `notif-${Date.now()}`,
-        type: 'laboratory_accepted',
-        title: 'Laboratory Order Accepted',
-        message: `Laboratory ${labInfo?.labName || 'Laboratory'} has accepted the order for patient ${request?.patientName || 'Patient'}. Order ID: ${requestId}`,
-        requestId: requestId,
-        patientName: request?.patientName || 'Patient',
-        laboratoryName: labInfo?.labName || 'Laboratory',
-        orderType: 'laboratory',
-        createdAt: new Date().toISOString(),
-        read: false,
-      })
-      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
-      
-      // Update patient requests
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const updatedPatientRequests = patientRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            labAccepted: true,
-            labAcceptedAt: new Date().toISOString(),
-          }
-        }
-        return req
-      })
-      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
-      
-      // Update patient orders
-      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-      const updatedPatientOrders = patientOrders.map(order => {
-        if (order.requestId === requestId && (order.type === 'lab' || order.type === 'laboratory')) {
-          return {
-            ...order,
-            status: 'accepted',
-            labAccepted: true,
-            labAcceptedAt: new Date().toISOString(),
-            acceptedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
-      
-      // Update current state
-      const updatedRequestsState = requests.map(r => {
-        if (r.id === orderId || r.requestId === orderId) {
+      // Update local state
+      const updatedRequests = requests.map(r => {
+        if (r.id === requestId || r.requestId === requestId) {
           return {
             ...r,
             status: 'accepted',
@@ -508,7 +216,7 @@ const LaboratoryRequestOrders = () => {
         }
         return r
       })
-      setRequests(updatedRequestsState)
+      setRequests(updatedRequests)
       
       loadRequests()
       toast.success('Order accepted successfully!')
@@ -518,93 +226,23 @@ const LaboratoryRequestOrders = () => {
     }
   }
 
-  const handleConfirmOrder = async (orderId) => {
+  const handleConfirmOrder = async (requestId) => {
     try {
-      const labId = 'lab-1' // Mock lab ID
-      const labOrders = JSON.parse(localStorage.getItem(`labOrders_${labId}`) || '[]')
-      const orderToUpdate = labOrders.find(o => o.id === orderId || o.requestId === orderId)
-      const requestId = orderToUpdate?.requestId || orderId
+      await updateLaboratoryRequestOrderStatus(requestId, 'completed')
       
-      // Update lab orders
-      const updatedOrders = labOrders.map(order => {
-        if (order.id === orderId || order.requestId === orderId) {
+      // Update local state
+      const updatedRequests = requests.map(r => {
+        if (r.id === requestId || r.requestId === requestId) {
           return {
-            ...order,
+            ...r,
             status: 'completed',
             confirmedAt: new Date().toISOString(),
-            confirmedBy: 'Laboratory',
-            completedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem(`labOrders_${labId}`, JSON.stringify(updatedOrders))
-      
-      // Update admin requests
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
             labConfirmed: true,
-            labConfirmedAt: new Date().toISOString(),
-            status: req.paymentConfirmed ? 'completed' : req.status,
           }
         }
-        return req
+        return r
       })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-      
-      // Update patient requests
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const updatedPatientRequests = patientRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            labConfirmed: true,
-            labConfirmedAt: new Date().toISOString(),
-            status: req.paymentConfirmed ? 'completed' : req.status,
-          }
-        }
-        return req
-      })
-      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
-      
-      // Update patient orders
-      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-      const updatedPatientOrders = patientOrders.map(order => {
-        if (order.requestId === requestId && order.type === 'lab') {
-          return {
-            ...order,
-            status: 'completed',
-            labConfirmed: true,
-            labConfirmedAt: new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
-      
-      // Update admin orders - check for both 'lab' and 'laboratory' type
-      const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
-      const updatedAdminOrders = adminOrders.map(order => {
-        // Match by requestId and labId, and check for both 'lab' and 'laboratory' types
-        if (order.requestId === requestId && 
-            (order.type === 'lab' || order.type === 'laboratory') && 
-            order.labId === labId) {
-          return {
-            ...order,
-            type: 'laboratory', // Ensure type is 'laboratory' for consistency
-            status: 'completed',
-            labConfirmed: true,
-            labConfirmedAt: new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem('adminOrders', JSON.stringify(updatedAdminOrders))
+      setRequests(updatedRequests)
       
       loadRequests()
       toast.success('Order confirmed successfully!')
@@ -764,17 +402,15 @@ const LaboratoryRequestOrders = () => {
     doc.save(fileName)
   }
 
-  const handleMarkCompleted = (requestId) => {
+  const handleMarkCompleted = async (requestId) => {
     try {
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(r => 
-        r.id === requestId ? { ...r, status: 'completed' } : r
-      )
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      await updateLaboratoryRequestOrderStatus(requestId, 'completed')
       loadRequests()
       setSelectedRequest(null)
+      toast.success('Order marked as completed!')
     } catch (error) {
       console.error('Error updating request:', error)
+      toast.error('Error marking order as completed. Please try again.')
     }
   }
 

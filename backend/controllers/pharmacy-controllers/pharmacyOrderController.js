@@ -7,8 +7,6 @@ const {
   sendOrderStatusUpdateEmail,
   sendProviderNewOrderNotification,
 } = require('../../services/notificationService');
-const { createOrderNotification } = require('../../services/inAppNotificationService');
-const { ROLES } = require('../../utils/constants');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -157,16 +155,26 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
       console.error('Error sending email notifications:', error);
     }
 
-    // Create in-app notification for patient
+    // Create in-app notifications
     try {
+      const { createOrderNotification } = require('../../services/notificationService');
+      let eventType = status;
+      if (status === 'accepted' || status === 'processing') {
+        eventType = 'confirmed';
+      } else if (status === 'ready' || status === 'delivered') {
+        eventType = 'completed';
+      }
+
+      // Notify patient
       await createOrderNotification({
         userId: order.patientId,
-        userType: ROLES.PATIENT,
-        order: order._id,
-        status,
-      }).catch((error) => console.error('Error creating order notification:', error));
+        userType: 'patient',
+        order,
+        eventType,
+        pharmacy,
+      }).catch((error) => console.error('Error creating patient order notification:', error));
     } catch (error) {
-      console.error('Error creating in-app notification:', error);
+      console.error('Error creating notifications:', error);
     }
   }
 

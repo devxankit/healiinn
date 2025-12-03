@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
@@ -6,38 +7,15 @@ import {
   IoCheckmarkCircleOutline,
   IoTimeOutline,
 } from 'react-icons/io5'
+import { getDoctorWalletBalance, getDoctorWalletTransactions } from '../doctor-services/doctorService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data
-const mockBalanceData = {
-  totalBalance: 15750.50,
-  availableBalance: 12400.25,
-  pendingBalance: 3350.25,
-  recentActivity: [
-    {
-      id: 'act-1',
-      type: 'available',
-      amount: 1500.00,
-      description: 'Consultation fee received',
-      date: '2025-01-15T10:30:00',
-      status: 'completed',
-    },
-    {
-      id: 'act-2',
-      type: 'pending',
-      amount: 1200.00,
-      description: 'Follow-up consultation fee',
-      date: '2025-01-12T16:45:00',
-      status: 'pending',
-    },
-    {
-      id: 'act-3',
-      type: 'available',
-      amount: 2500.00,
-      description: 'Consultation fee received',
-      date: '2025-01-13T09:15:00',
-      status: 'completed',
-    },
-  ],
+// Default balance data (will be replaced by API data)
+const defaultBalanceData = {
+  totalBalance: 0,
+  availableBalance: 0,
+  pendingBalance: 0,
+  recentActivity: [],
 }
 
 const formatCurrency = (amount) => {
@@ -68,7 +46,58 @@ const formatDateTime = (dateString) => {
 const WalletBalance = () => {
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
+  const [balanceData, setBalanceData] = useState(defaultBalanceData)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Fetch balance and recent activity from API
+  useEffect(() => {
+    const fetchBalanceData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const [balanceResponse, transactionsResponse] = await Promise.all([
+          getDoctorWalletBalance(),
+          getDoctorWalletTransactions({ limit: 5 }),
+        ])
+        
+        if (balanceResponse.success && balanceResponse.data) {
+          const balance = balanceResponse.data
+          const recentActivity = transactionsResponse.success && transactionsResponse.data
+            ? (Array.isArray(transactionsResponse.data) 
+                ? transactionsResponse.data 
+                : transactionsResponse.data.transactions || [])
+                .slice(0, 5)
+                .map(txn => ({
+                  id: txn._id || txn.id,
+                  type: txn.type === 'earning' ? 'available' : txn.status === 'pending' ? 'pending' : 'available',
+                  amount: txn.amount || 0,
+                  description: txn.description || txn.notes || 'Transaction',
+                  date: txn.createdAt || txn.date || new Date().toISOString(),
+                  status: txn.status || 'completed',
+                }))
+            : []
+          
+          setBalanceData({
+            totalBalance: balance.totalBalance || balance.balance || 0,
+            availableBalance: balance.availableBalance || balance.available || 0,
+            pendingBalance: balance.pendingBalance || balance.pending || 0,
+            recentActivity,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching balance data:', err)
+        setError(err.message || 'Failed to load balance data')
+        toast.error('Failed to load balance data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchBalanceData()
+  }, [toast])
 
   return (
     <>
@@ -98,7 +127,7 @@ const WalletBalance = () => {
               <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-white/80 mb-1">Total Balance</p>
-                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(mockBalanceData.totalBalance)}</p>
+                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{loading ? '...' : formatCurrency(balanceData.totalBalance)}</p>
                 </div>
                 <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
                   <IoWalletOutline className="h-8 w-8 sm:h-10 sm:w-10" />
@@ -122,7 +151,7 @@ const WalletBalance = () => {
                     <p className="mt-1 text-xs text-slate-500">Ready to withdraw</p>
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{formatCurrency(mockBalanceData.availableBalance)}</p>
+                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(balanceData.availableBalance)}</p>
                 <div className="mt-4 flex items-center gap-2 text-xs text-emerald-600">
                   <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="font-medium">Available now</span>
@@ -143,7 +172,7 @@ const WalletBalance = () => {
                     <p className="mt-1 text-xs text-slate-500">Processing</p>
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{formatCurrency(mockBalanceData.pendingBalance)}</p>
+                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(balanceData.pendingBalance)}</p>
                 <div className="mt-4 flex items-center gap-2 text-xs text-amber-600">
                   <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                   <span className="font-medium">Under review</span>
@@ -157,11 +186,11 @@ const WalletBalance = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">Recent Activity</h2>
               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {mockBalanceData.recentActivity.length} transactions
+                {loading ? '...' : balanceData.recentActivity.length} transactions
               </span>
             </div>
             <div className="space-y-3">
-              {mockBalanceData.recentActivity.map((activity) => (
+              {balanceData.recentActivity.map((activity) => (
                 <article
                   key={activity.id}
                   className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300"

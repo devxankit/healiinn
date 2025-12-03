@@ -1,8 +1,6 @@
 const asyncHandler = require('../../middleware/asyncHandler');
 const Notification = require('../../models/Notification');
-const { ROLES } = require('../../utils/constants');
 
-// Helper functions
 const buildPagination = (req) => {
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
@@ -13,31 +11,29 @@ const buildPagination = (req) => {
 // GET /api/doctors/notifications
 exports.getNotifications = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { isRead, type, limit: queryLimit } = req.query;
+  const { read, type } = req.query;
   const { page, limit, skip } = buildPagination(req);
 
   const filter = {
     userId: id,
-    userType: ROLES.DOCTOR,
+    userType: 'doctor',
   };
 
-  if (isRead !== undefined) {
-    filter.isRead = isRead === 'true';
+  if (read !== undefined) {
+    filter.read = read === 'true';
   }
 
   if (type) {
     filter.type = type;
   }
 
-  const finalLimit = queryLimit ? parseInt(queryLimit, 10) : limit;
-
   const [notifications, total, unreadCount] = await Promise.all([
     Notification.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(finalLimit),
+      .limit(limit),
     Notification.countDocuments(filter),
-    Notification.countDocuments({ ...filter, isRead: false }),
+    Notification.countDocuments({ userId: id, userType: 'doctor', read: false }),
   ]);
 
   return res.status(200).json({
@@ -46,9 +42,9 @@ exports.getNotifications = asyncHandler(async (req, res) => {
       items: notifications,
       pagination: {
         page,
-        limit: finalLimit,
+        limit,
         total,
-        totalPages: Math.ceil(total / finalLimit) || 1,
+        totalPages: Math.ceil(total / limit) || 1,
       },
       unreadCount,
     },
@@ -61,15 +57,13 @@ exports.getUnreadCount = asyncHandler(async (req, res) => {
 
   const unreadCount = await Notification.countDocuments({
     userId: id,
-    userType: ROLES.DOCTOR,
-    isRead: false,
+    userType: 'doctor',
+    read: false,
   });
 
   return res.status(200).json({
     success: true,
-    data: {
-      unreadCount,
-    },
+    data: { unreadCount },
   });
 });
 
@@ -81,7 +75,7 @@ exports.markAsRead = asyncHandler(async (req, res) => {
   const notification = await Notification.findOne({
     _id: notificationId,
     userId: id,
-    userType: ROLES.DOCTOR,
+    userType: 'doctor',
   });
 
   if (!notification) {
@@ -91,9 +85,7 @@ exports.markAsRead = asyncHandler(async (req, res) => {
     });
   }
 
-  notification.isRead = true;
-  notification.readAt = new Date();
-  await notification.save();
+  await notification.markAsRead();
 
   return res.status(200).json({
     success: true,
@@ -109,12 +101,12 @@ exports.markAllAsRead = asyncHandler(async (req, res) => {
   const result = await Notification.updateMany(
     {
       userId: id,
-      userType: ROLES.DOCTOR,
-      isRead: false,
+      userType: 'doctor',
+      read: false,
     },
     {
       $set: {
-        isRead: true,
+        read: true,
         readAt: new Date(),
       },
     }
@@ -123,9 +115,7 @@ exports.markAllAsRead = asyncHandler(async (req, res) => {
   return res.status(200).json({
     success: true,
     message: 'All notifications marked as read',
-    data: {
-      updatedCount: result.modifiedCount,
-    },
+    data: { updatedCount: result.modifiedCount },
   });
 });
 
@@ -137,7 +127,7 @@ exports.deleteNotification = asyncHandler(async (req, res) => {
   const notification = await Notification.findOneAndDelete({
     _id: notificationId,
     userId: id,
-    userType: ROLES.DOCTOR,
+    userType: 'doctor',
   });
 
   if (!notification) {
@@ -149,26 +139,7 @@ exports.deleteNotification = asyncHandler(async (req, res) => {
 
   return res.status(200).json({
     success: true,
-    message: 'Notification deleted successfully',
-  });
-});
-
-// DELETE /api/doctors/notifications/read
-exports.deleteReadNotifications = asyncHandler(async (req, res) => {
-  const { id } = req.auth;
-
-  const result = await Notification.deleteMany({
-    userId: id,
-    userType: ROLES.DOCTOR,
-    isRead: true,
-  });
-
-  return res.status(200).json({
-    success: true,
-    message: 'Read notifications deleted successfully',
-    data: {
-      deletedCount: result.deletedCount,
-    },
+    message: 'Notification deleted',
   });
 });
 

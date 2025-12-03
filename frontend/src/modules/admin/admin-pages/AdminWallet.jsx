@@ -21,9 +21,11 @@ import {
   IoArrowUpOutline,
   IoCalendarOutline,
 } from 'react-icons/io5'
+import { getAdminWalletOverview, getProviderSummaries, getWithdrawals, updateWithdrawalStatus, getAdminWalletBalance, getAdminWalletTransactions } from '../admin-services/adminService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data - replace with API calls
-const mockWalletOverview = {
+// Default wallet overview (will be replaced by API data)
+const defaultWalletOverview = {
   totalEarnings: 1250000,
   totalCommission: 125000,
   availableBalance: 980000,
@@ -35,284 +37,14 @@ const mockWalletOverview = {
   totalTransactions: 3420,
 }
 
-const mockProviders = {
-  doctors: [
-    {
-      id: 'doc-1',
-      name: 'Dr. Rajesh Kumar',
-      email: 'rajesh.kumar@example.com',
-      totalEarnings: 125000,
-      availableBalance: 98000,
-      pendingBalance: 27000,
-      totalWithdrawals: 112000,
-      totalTransactions: 245,
-      status: 'active',
-    },
-    {
-      id: 'doc-2',
-      name: 'Dr. Priya Sharma',
-      email: 'priya.sharma@example.com',
-      totalEarnings: 98000,
-      availableBalance: 75000,
-      pendingBalance: 23000,
-      totalWithdrawals: 85000,
-      totalTransactions: 189,
-      status: 'active',
-    },
-    {
-      id: 'doc-3',
-      name: 'Dr. Amit Patel',
-      email: 'amit.patel@example.com',
-      totalEarnings: 156000,
-      availableBalance: 120000,
-      pendingBalance: 36000,
-      totalWithdrawals: 140000,
-      totalTransactions: 312,
-      status: 'active',
-    },
-  ],
-  pharmacies: [
-    {
-      id: 'pharm-1',
-      name: 'City Pharmacy',
-      email: 'citypharmacy@example.com',
-      totalEarnings: 85000,
-      availableBalance: 65000,
-      pendingBalance: 20000,
-      totalWithdrawals: 70000,
-      totalTransactions: 156,
-      status: 'active',
-    },
-    {
-      id: 'pharm-2',
-      name: 'MediCare Pharmacy',
-      email: 'medicare@example.com',
-      totalEarnings: 92000,
-      availableBalance: 72000,
-      pendingBalance: 20000,
-      totalWithdrawals: 80000,
-      totalTransactions: 178,
-      status: 'active',
-    },
-  ],
-  laboratories: [
-    {
-      id: 'lab-1',
-      name: 'Test Lab Services',
-      email: 'testlab@example.com',
-      totalEarnings: 68000,
-      availableBalance: 52000,
-      pendingBalance: 16000,
-      totalWithdrawals: 60000,
-      totalTransactions: 124,
-      status: 'active',
-    },
-    {
-      id: 'lab-2',
-      name: 'Health Diagnostics',
-      email: 'healthdiag@example.com',
-      totalEarnings: 75000,
-      availableBalance: 58000,
-      pendingBalance: 17000,
-      totalWithdrawals: 65000,
-      totalTransactions: 142,
-      status: 'active',
-    },
-  ],
+// Removed mock data - now using backend API
+const defaultProviders = {
+  doctors: [],
+  pharmacies: [],
+  laboratories: [],
 }
 
-const mockWithdrawals = [
-  {
-    id: 'wd-1',
-    providerName: 'Dr. Rajesh Kumar',
-    providerType: 'doctor',
-    providerEmail: 'rajesh.kumar@example.com',
-    amount: 25000,
-    status: 'pending',
-    requestedAt: '2025-01-15T10:30:00',
-    payoutMethod: 'Bank Transfer',
-    accountNumber: '****1234',
-    bankName: 'State Bank of India',
-    ifscCode: 'SBIN0001234',
-    accountHolderName: 'Dr. Rajesh Kumar',
-    availableBalance: 98000,
-    totalEarnings: 125000,
-    totalWithdrawals: 112000,
-    transactionId: 'TXN-2025-001-001',
-  },
-  {
-    id: 'wd-2',
-    providerName: 'City Pharmacy',
-    providerType: 'pharmacy',
-    providerEmail: 'citypharmacy@example.com',
-    amount: 15000,
-    status: 'pending',
-    requestedAt: '2025-01-15T09:15:00',
-    payoutMethod: 'Bank Transfer',
-    accountNumber: '****5678',
-    bankName: 'HDFC Bank',
-    ifscCode: 'HDFC0005678',
-    accountHolderName: 'City Pharmacy',
-    availableBalance: 65000,
-    totalEarnings: 85000,
-    totalWithdrawals: 70000,
-    transactionId: 'TXN-2025-001-002',
-  },
-  {
-    id: 'wd-3',
-    providerName: 'Test Lab Services',
-    providerType: 'laboratory',
-    providerEmail: 'testlab@example.com',
-    amount: 12000,
-    status: 'approved',
-    requestedAt: '2025-01-14T14:20:00',
-    payoutMethod: 'Bank Transfer',
-    accountNumber: '****9012',
-    bankName: 'ICICI Bank',
-    ifscCode: 'ICIC0009012',
-    accountHolderName: 'Test Lab Services',
-    availableBalance: 52000,
-    totalEarnings: 68000,
-    totalWithdrawals: 60000,
-    transactionId: 'TXN-2025-001-003',
-    approvedAt: '2025-01-14T15:30:00',
-    approvedBy: 'Admin User',
-  },
-]
-
-// Mock transactions data
-const mockTransactions = [
-  {
-    id: 'txn-1',
-    transactionId: 'TXN-2025-001-001',
-    type: 'commission',
-    category: 'doctor_commission',
-    providerName: 'Dr. Rajesh Kumar',
-    providerType: 'doctor',
-    amount: 500,
-    status: 'completed',
-    description: 'Commission from consultation fee',
-    createdAt: '2025-01-15T10:30:00',
-    orderId: 'ORD-2025-001',
-  },
-  {
-    id: 'txn-2',
-    transactionId: 'TXN-2025-001-002',
-    type: 'commission',
-    category: 'pharmacy_commission',
-    providerName: 'City Pharmacy',
-    providerType: 'pharmacy',
-    amount: 250,
-    status: 'completed',
-    description: 'Commission from medicine order',
-    createdAt: '2025-01-15T09:15:00',
-    orderId: 'ORD-2025-002',
-  },
-  {
-    id: 'txn-3',
-    transactionId: 'TXN-2025-001-003',
-    type: 'withdrawal',
-    category: 'withdrawal_approved',
-    providerName: 'Test Lab Services',
-    providerType: 'laboratory',
-    amount: -12000,
-    status: 'completed',
-    description: 'Withdrawal approved and processed',
-    createdAt: '2025-01-14T15:30:00',
-    orderId: null,
-  },
-  {
-    id: 'txn-4',
-    transactionId: 'TXN-2025-001-004',
-    type: 'commission',
-    category: 'laboratory_commission',
-    providerName: 'Health Diagnostics',
-    providerType: 'laboratory',
-    amount: 300,
-    status: 'completed',
-    description: 'Commission from lab test order',
-    createdAt: '2025-01-14T14:20:00',
-    orderId: 'LAB-2025-001',
-  },
-  {
-    id: 'txn-5',
-    transactionId: 'TXN-2025-001-005',
-    type: 'commission',
-    category: 'doctor_commission',
-    providerName: 'Dr. Priya Sharma',
-    providerType: 'doctor',
-    amount: 750,
-    status: 'completed',
-    description: 'Commission from consultation fee',
-    createdAt: '2025-01-14T11:00:00',
-    orderId: 'ORD-2025-003',
-  },
-  {
-    id: 'txn-6',
-    transactionId: 'TXN-2025-001-006',
-    type: 'commission',
-    category: 'pharmacy_commission',
-    providerName: 'MediCare Pharmacy',
-    providerType: 'pharmacy',
-    amount: 400,
-    status: 'completed',
-    description: 'Commission from medicine order',
-    createdAt: '2025-01-13T16:45:00',
-    orderId: 'ORD-2025-004',
-  },
-  {
-    id: 'txn-7',
-    transactionId: 'TXN-2025-001-007',
-    type: 'withdrawal',
-    category: 'withdrawal_pending',
-    providerName: 'Dr. Rajesh Kumar',
-    providerType: 'doctor',
-    amount: -25000,
-    status: 'pending',
-    description: 'Withdrawal request pending approval',
-    createdAt: '2025-01-15T10:30:00',
-    orderId: null,
-  },
-  {
-    id: 'txn-8',
-    transactionId: 'TXN-2025-001-008',
-    type: 'commission',
-    category: 'laboratory_commission',
-    providerName: 'Test Lab Services',
-    providerType: 'laboratory',
-    amount: 200,
-    status: 'completed',
-    description: 'Commission from lab test order',
-    createdAt: '2025-01-13T09:30:00',
-    orderId: 'LAB-2025-002',
-  },
-  {
-    id: 'txn-9',
-    transactionId: 'TXN-2025-001-009',
-    type: 'commission',
-    category: 'doctor_commission',
-    providerName: 'Dr. Amit Patel',
-    providerType: 'doctor',
-    amount: 600,
-    status: 'completed',
-    description: 'Commission from consultation fee',
-    createdAt: '2025-01-12T14:15:00',
-    orderId: 'ORD-2025-005',
-  },
-  {
-    id: 'txn-10',
-    transactionId: 'TXN-2025-001-010',
-    type: 'withdrawal',
-    category: 'withdrawal_pending',
-    providerName: 'City Pharmacy',
-    providerType: 'pharmacy',
-    amount: -15000,
-    status: 'pending',
-    description: 'Withdrawal request pending approval',
-    createdAt: '2025-01-15T09:15:00',
-    orderId: null,
-  },
-]
+const defaultWithdrawals = []
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -384,149 +116,200 @@ const getProviderIcon = (type) => {
 
 const AdminWallet = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState('overview')
   const [selectedProviderType, setSelectedProviderType] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [viewingWithdrawal, setViewingWithdrawal] = useState(null)
-  const [withdrawals, setWithdrawals] = useState(mockWithdrawals)
+  const [withdrawals, setWithdrawals] = useState(defaultWithdrawals)
+  const [walletOverview, setWalletOverview] = useState(defaultWalletOverview)
+  const [providers, setProviders] = useState(defaultProviders)
   const [notification, setNotification] = useState(null)
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectingWithdrawalId, setRejectingWithdrawalId] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [transactionFilter, setTransactionFilter] = useState('all') // all, commission, withdrawal
   const [transactionSearchTerm, setTransactionSearchTerm] = useState('')
-  const [transactions, setTransactions] = useState(mockTransactions)
+  const [transactions, setTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Load transactions from localStorage
+  // Fetch wallet data from API
   useEffect(() => {
-    const loadTransactions = () => {
-      const allTransactions = []
-
+    const fetchWalletData = async () => {
       try {
-        // Load from patientOrders - payment confirmed orders
-        const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-        patientOrders.forEach((order) => {
-          // Only include payment confirmed orders
-          if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
-            const paidDate = new Date(order.paidAt)
-            const dateStr = paidDate.toISOString().split('T')[0]
-            const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-            
-            // Calculate commission (10% of total amount)
-            const commissionAmount = order.totalAmount * 0.1
-            
-            allTransactions.push({
-              id: `order-${order.id}`,
-              transactionId: `TXN-${order.type === 'lab' ? 'LAB' : 'PHAR'}-${order.id?.substring(0, 8) || Date.now()}`,
-              type: 'commission',
-              category: order.type === 'lab' ? 'laboratory_commission' : 'pharmacy_commission',
-              providerName: order.type === 'lab' 
-                ? (order.labName || order.providerNames?.join(', ') || 'Laboratory')
-                : (order.pharmacyName || order.providerNames?.join(', ') || 'Pharmacy'),
-              providerType: order.type === 'lab' ? 'laboratory' : 'pharmacy',
-              amount: commissionAmount,
-              status: 'completed',
-              description: `Commission from ${order.type === 'lab' ? 'lab test' : 'medicine'} order`,
-              createdAt: `${dateStr}T${timeStr}`,
-              orderId: order.requestId || order.id,
-              patientName: order.patientName || 'Patient',
-            })
+        setLoading(true)
+        setError(null)
+        const [overviewResponse, providersResponse, withdrawalsResponse, transactionsResponse] = await Promise.all([
+          getAdminWalletOverview(),
+          getProviderSummaries(),
+          getWithdrawals(),
+          getAdminWalletTransactions(),
+        ])
+        
+        if (overviewResponse.success && overviewResponse.data) {
+          const overview = overviewResponse.data
+          const withdrawalsData = withdrawalsResponse.success && withdrawalsResponse.data
+            ? (Array.isArray(withdrawalsResponse.data) 
+                ? withdrawalsResponse.data 
+                : withdrawalsResponse.data.withdrawals || [])
+            : []
+          
+          setWalletOverview({
+            totalEarnings: overview.totalEarnings || 0,
+            totalCommission: overview.totalCommission || (overview.totalPatientPayments || 0) - (overview.totalEarnings || 0),
+            availableBalance: overview.adminWalletBalance || overview.availableBalance || 0,
+            pendingWithdrawals: overview.pendingWithdrawals || 0,
+            thisMonthEarnings: overview.thisMonthEarnings || 0,
+            lastMonthEarnings: overview.lastMonthEarnings || 0,
+            totalWithdrawals: overview.totalWithdrawals || 0,
+            pendingWithdrawalRequests: withdrawalsData.filter(w => (w.status || w.originalData?.status) === 'pending').length,
+            totalTransactions: overview.totalTransactions || 0,
+          })
+        }
+        
+        if (providersResponse.success && providersResponse.data) {
+          const providersData = providersResponse.data
+          // Backend returns data directly as array, not wrapped in summaries
+          const summaries = Array.isArray(providersData) ? providersData : providersData.summaries || providersData.data || []
+          
+          // Group by role
+          const grouped = {
+            doctors: summaries.filter(p => p.role === 'doctor' || p.type === 'doctor').map(p => ({
+              id: p.providerId || p.id,
+              name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+              email: p.email || '',
+              totalEarnings: p.totalEarnings || 0,
+              availableBalance: p.availableBalance || p.balance || 0,
+              pendingBalance: p.pendingBalance || 0,
+              totalWithdrawals: p.totalWithdrawals || 0,
+              totalTransactions: p.totalTransactions || 0,
+              status: p.status || 'active',
+            })),
+            pharmacies: summaries.filter(p => p.role === 'pharmacy' || p.type === 'pharmacy').map(p => ({
+              id: p.providerId || p.id,
+              name: p.name || p.pharmacyName || '',
+              email: p.email || '',
+              totalEarnings: p.totalEarnings || 0,
+              availableBalance: p.availableBalance || p.balance || 0,
+              pendingBalance: p.pendingBalance || 0,
+              totalWithdrawals: p.totalWithdrawals || 0,
+              totalTransactions: p.totalTransactions || 0,
+              status: p.status || 'active',
+            })),
+            laboratories: summaries.filter(p => p.role === 'laboratory' || p.type === 'laboratory').map(p => ({
+              id: p.providerId || p.id,
+              name: p.name || p.labName || '',
+              email: p.email || '',
+              totalEarnings: p.totalEarnings || 0,
+              availableBalance: p.availableBalance || p.balance || 0,
+              pendingBalance: p.pendingBalance || 0,
+              totalWithdrawals: p.totalWithdrawals || 0,
+              totalTransactions: p.totalTransactions || 0,
+              status: p.status || 'active',
+            })),
           }
-        })
-
-        // Load from pharmacyOrders - all pharmacies
-        const allPharmacyAvailability = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
-        allPharmacyAvailability.forEach((pharmacy) => {
-          const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacy.id}`) || '[]')
-          pharmacyOrders.forEach((order) => {
-            if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
-              const paidDate = new Date(order.paidAt)
-              const dateStr = paidDate.toISOString().split('T')[0]
-              const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-              const commissionAmount = order.totalAmount * 0.1
-              
-              // Check if already exists
-              const exists = allTransactions.find(txn => txn.orderId === order.requestId && txn.providerType === 'pharmacy')
-              if (!exists) {
-                allTransactions.push({
-                  id: `pharm-order-${order.id}`,
-                  transactionId: `TXN-PHAR-${order.id?.substring(0, 8) || Date.now()}`,
-                  type: 'commission',
-                  category: 'pharmacy_commission',
-                  providerName: pharmacy.name || 'Pharmacy',
-                  providerType: 'pharmacy',
-                  amount: commissionAmount,
-                  status: 'completed',
-                  description: `Commission from medicine order`,
-                  createdAt: `${dateStr}T${timeStr}`,
-                  orderId: order.requestId || order.id,
-                  patientName: order.patientName || 'Patient',
-                })
-              }
-            }
-          })
-        })
-
-        // Load from labOrders - all labs
-        const allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
-        allLabAvailability.forEach((lab) => {
-          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.id}`) || '[]')
-          labOrders.forEach((order) => {
-            if (order.paymentConfirmed && order.totalAmount && order.paidAt) {
-              const paidDate = new Date(order.paidAt)
-              const dateStr = paidDate.toISOString().split('T')[0]
-              const timeStr = paidDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-              const commissionAmount = order.totalAmount * 0.1
-              
-              // Check if already exists
-              const exists = allTransactions.find(txn => txn.orderId === order.requestId && txn.providerType === 'laboratory')
-              if (!exists) {
-                allTransactions.push({
-                  id: `lab-order-${order.id}`,
-                  transactionId: `TXN-LAB-${order.id?.substring(0, 8) || Date.now()}`,
-                  type: 'commission',
-                  category: 'laboratory_commission',
-                  providerName: lab.name || 'Laboratory',
-                  providerType: 'laboratory',
-                  amount: commissionAmount,
-                  status: 'completed',
-                  description: `Commission from lab test order`,
-                  createdAt: `${dateStr}T${timeStr}`,
-                  orderId: order.requestId || order.id,
-                  patientName: order.patientName || 'Patient',
-                })
-              }
-            }
-          })
-        })
-
-        // Add mock withdrawals
-        allTransactions.push(...mockTransactions.filter(txn => txn.type === 'withdrawal'))
-
-        // Sort by date (newest first)
-        allTransactions.sort((a, b) => {
-          const dateA = new Date(a.createdAt)
-          const dateB = new Date(b.createdAt)
-          return dateB - dateA
-        })
-
-        setTransactions(allTransactions)
-      } catch (error) {
-        console.error('Error loading transactions:', error)
-        setTransactions(mockTransactions)
+          
+          setProviders(grouped)
+        }
+        
+        if (withdrawalsResponse.success && withdrawalsResponse.data) {
+          const withdrawalsData = Array.isArray(withdrawalsResponse.data) 
+            ? withdrawalsResponse.data 
+            : withdrawalsResponse.data.withdrawals || []
+          setWithdrawals(withdrawalsData.map(wd => ({
+            id: wd._id || wd.id,
+            providerName: wd.providerId?.name || wd.providerName || 'Provider',
+            providerType: wd.providerType || 'doctor',
+            providerEmail: wd.providerId?.email || wd.providerEmail || '',
+            amount: wd.amount || 0,
+            status: wd.status || 'pending',
+            requestedAt: wd.createdAt || wd.requestedAt || new Date().toISOString(),
+            payoutMethod: wd.paymentMethod || 'Bank Transfer',
+            accountNumber: wd.bankAccount?.accountNumber || wd.accountNumber || '****',
+            bankName: wd.bankAccount?.bankName || wd.bankName || '',
+            ifscCode: wd.bankAccount?.ifscCode || wd.ifscCode || '',
+            accountHolderName: wd.bankAccount?.accountHolderName || wd.accountHolderName || '',
+            availableBalance: wd.availableBalance || 0,
+            totalEarnings: wd.totalEarnings || 0,
+            totalWithdrawals: wd.totalWithdrawals || 0,
+            transactionId: wd.transactionId || wd._id || wd.id,
+            originalData: wd,
+          })))
+        }
+        
+        console.log('🔍 Full admin transactions API response:', transactionsResponse) // Debug log
+        
+        if (transactionsResponse && transactionsResponse.success && transactionsResponse.data) {
+          const data = transactionsResponse.data
+          console.log('✅ Admin transactions data received:', data) // Debug log
+          
+          // Handle both array and object with items property
+          const transactionsData = Array.isArray(data) 
+            ? data 
+            : (data.items || data.transactions || [])
+          
+          console.log('📊 Transactions list:', {
+            count: transactionsData.length,
+            firstTransaction: transactionsData[0],
+          }) // Debug log
+          
+          const transformed = transactionsData.map(txn => ({
+            id: txn._id || txn.id,
+            transactionId: txn.transactionId || txn._id || txn.id,
+            type: txn.type || 'payment',
+            category: txn.category || '',
+            providerName: txn.providerId?.name || txn.providerName || txn.patientName || (txn.patient?.firstName && txn.patient?.lastName ? `${txn.patient.firstName} ${txn.patient.lastName}` : '') || 'Provider',
+            providerType: txn.providerType || txn.userType || 'patient',
+            amount: Number(txn.amount || 0),
+            status: txn.status || 'completed',
+            description: txn.description || txn.notes || 'Transaction',
+            createdAt: txn.createdAt || new Date().toISOString(),
+            orderId: txn.orderId || txn.orderId?._id || null,
+            patientName: txn.patientName || (txn.patient?.firstName && txn.patient?.lastName ? `${txn.patient.firstName} ${txn.patient.lastName}` : '') || (txn.userId?.firstName && txn.userId?.lastName ? `${txn.userId.firstName} ${txn.userId.lastName}` : '') || '',
+            originalData: txn,
+          }))
+          
+          console.log('💰 Setting transactions:', {
+            count: transformed.length,
+            types: transformed.map(t => t.type),
+          }) // Debug log
+          
+          setTransactions(transformed)
+        } else {
+          console.error('❌ Admin transactions API response error:', transactionsResponse) // Debug log
+        }
+      } catch (err) {
+        console.error('Error fetching wallet data:', err)
+        setError(err.message || 'Failed to load wallet data')
+        toast.error('Failed to load wallet data')
+      } finally {
+        setLoading(false)
       }
     }
 
-    loadTransactions()
-    // Refresh every 2 seconds to get new transactions
-    const interval = setInterval(loadTransactions, 2000)
-    return () => clearInterval(interval)
-  }, [])
+    fetchWalletData()
+    
+    // Listen for appointment booking event to refresh wallet
+    const handleAppointmentBooked = () => {
+      fetchWalletData()
+    }
+    window.addEventListener('appointmentBooked', handleAppointmentBooked)
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchWalletData, 30000)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('appointmentBooked', handleAppointmentBooked)
+    }
+  }, [toast])
+
+  // Legacy localStorage loading removed - using API now
 
   const allProviders = [
-    ...mockProviders.doctors.map(p => ({ ...p, type: 'doctor' })),
-    ...mockProviders.pharmacies.map(p => ({ ...p, type: 'pharmacy' })),
-    ...mockProviders.laboratories.map(p => ({ ...p, type: 'laboratory' })),
+    ...(providers.doctors || []).map(p => ({ ...p, type: 'doctor' })),
+    ...(providers.pharmacies || []).map(p => ({ ...p, type: 'pharmacy' })),
+    ...(providers.laboratories || []).map(p => ({ ...p, type: 'laboratory' })),
   ]
 
   const filteredProviders = allProviders.filter((provider) => {
@@ -538,68 +321,68 @@ const AdminWallet = () => {
   })
 
   const earningsByRole = {
-    doctors: mockProviders.doctors.reduce((sum, p) => sum + p.totalEarnings, 0),
-    pharmacies: mockProviders.pharmacies.reduce((sum, p) => sum + p.totalEarnings, 0),
-    laboratories: mockProviders.laboratories.reduce((sum, p) => sum + p.totalEarnings, 0),
+    doctors: (providers.doctors || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
+    pharmacies: (providers.pharmacies || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
+    laboratories: (providers.laboratories || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
   }
 
   const handleApprove = async (withdrawalId) => {
-    const withdrawal = withdrawals.find(w => w.id === withdrawalId)
-    if (!withdrawal) return
-
     try {
-      // Update withdrawal status
-      const updatedWithdrawals = withdrawals.map(w => 
-        w.id === withdrawalId 
-          ? {
-              ...w,
-              status: 'approved',
-              approvedAt: new Date().toISOString(),
-              approvedBy: 'Admin User', // In real app, get from auth context
-            }
-          : w
-      )
-      setWithdrawals(updatedWithdrawals)
-
-      // Send notification/request to provider
-      const notificationData = {
-        providerId: withdrawal.providerEmail,
-        providerType: withdrawal.providerType,
-        providerName: withdrawal.providerName,
-        withdrawalId: withdrawalId,
-        amount: withdrawal.amount,
-        message: `Your withdrawal request of ${formatCurrency(withdrawal.amount)} has been approved. The amount will be transferred to your account within 2-3 business days.`,
-        type: 'withdrawal_approved',
-        timestamp: new Date().toISOString(),
+      await updateWithdrawalStatus(withdrawalId, { status: 'approved' })
+      
+      // Update local state
+      setWithdrawals(prev => prev.map(wd => 
+        wd.id === withdrawalId ? { ...wd, status: 'approved' } : wd
+      ))
+      
+      toast.success('Withdrawal approved successfully!')
+      
+      // Refresh wallet data
+      const [overviewResponse, withdrawalsResponse] = await Promise.all([
+        getAdminWalletOverview(),
+        getWithdrawals(),
+      ])
+      
+      if (overviewResponse.success && overviewResponse.data) {
+        const overview = overviewResponse.data
+        setWalletOverview(prev => ({
+          ...prev,
+          pendingWithdrawals: overview.pendingWithdrawals || 0,
+          pendingWithdrawalRequests: overview.pendingWithdrawalRequests || withdrawalsResponse.data?.filter(w => w.status === 'pending').length || 0,
+        }))
       }
-
-      // In real app, make API call to send notification
-      // await adminService.sendProviderNotification(notificationData)
-      console.log('Notification sent to provider:', notificationData)
-
-      // Show success notification
-      setNotification({
-        type: 'success',
-        message: `Withdrawal request approved. Notification sent to ${withdrawal.providerName}.`,
-      })
-
-      // Update modal if open
-      if (viewingWithdrawal?.id === withdrawalId) {
-        const updated = updatedWithdrawals.find(w => w.id === withdrawalId)
-        setViewingWithdrawal(updated)
+      
+      if (withdrawalsResponse.success && withdrawalsResponse.data) {
+        const withdrawalsData = Array.isArray(withdrawalsResponse.data) 
+          ? withdrawalsResponse.data 
+          : withdrawalsResponse.data.withdrawals || []
+        setWithdrawals(withdrawalsData.map(wd => ({
+          id: wd._id || wd.id,
+          providerName: wd.providerId?.name || wd.providerName || 'Provider',
+          providerType: wd.providerType || 'doctor',
+          providerEmail: wd.providerId?.email || wd.providerEmail || '',
+          amount: wd.amount || 0,
+          status: wd.status || 'pending',
+          requestedAt: wd.createdAt || wd.requestedAt || new Date().toISOString(),
+          payoutMethod: wd.paymentMethod || 'Bank Transfer',
+          accountNumber: wd.bankAccount?.accountNumber || wd.accountNumber || '****',
+          bankName: wd.bankAccount?.bankName || wd.bankName || '',
+          ifscCode: wd.bankAccount?.ifscCode || wd.ifscCode || '',
+          accountHolderName: wd.bankAccount?.accountHolderName || wd.accountHolderName || '',
+          availableBalance: wd.availableBalance || 0,
+          totalEarnings: wd.totalEarnings || 0,
+          totalWithdrawals: wd.totalWithdrawals || 0,
+          transactionId: wd.transactionId || wd._id || wd.id,
+          originalData: wd,
+        })))
       }
-
-      // Auto-hide notification after 5 seconds
-      setTimeout(() => setNotification(null), 5000)
-    } catch (error) {
-      console.error('Error approving withdrawal:', error)
-      setNotification({
-        type: 'error',
-        message: 'Failed to approve withdrawal. Please try again.',
-      })
-      setTimeout(() => setNotification(null), 5000)
+    } catch (err) {
+      console.error('Error approving withdrawal:', err)
+      toast.error(err.message || 'Failed to approve withdrawal')
     }
   }
+
+  // Legacy handleApproveOld removed - using handleApprove with API now
 
   const handleRejectClick = (withdrawalId) => {
     setRejectingWithdrawalId(withdrawalId)
@@ -610,11 +393,7 @@ const AdminWallet = () => {
   const handleReject = async () => {
     if (!rejectingWithdrawalId) return
     if (!rejectionReason.trim()) {
-      setNotification({
-        type: 'error',
-        message: 'Please provide a reason for rejection.',
-      })
-      setTimeout(() => setNotification(null), 3000)
+      toast.error('Please provide a reason for rejection.')
       return
     }
 
@@ -622,8 +401,14 @@ const AdminWallet = () => {
     if (!withdrawal) return
 
     try {
-      // Update withdrawal status
-      const updatedWithdrawals = withdrawals.map(w => 
+      // Call API to reject withdrawal
+      await updateWithdrawalStatus(rejectingWithdrawalId, { 
+        status: 'rejected',
+        rejectionReason: rejectionReason.trim(),
+      })
+      
+      // Update local state
+      setWithdrawals(prev => prev.map(w => 
         w.id === rejectingWithdrawalId 
           ? {
               ...w,
@@ -633,8 +418,7 @@ const AdminWallet = () => {
               rejectionReason: rejectionReason.trim(),
             }
           : w
-      )
-      setWithdrawals(updatedWithdrawals)
+      ))
 
       // Send notification to provider
       const notificationData = {
@@ -648,33 +432,69 @@ const AdminWallet = () => {
         timestamp: new Date().toISOString(),
       }
 
-      // In real app, make API call
-      console.log('Notification sent to provider:', notificationData)
-
-      setNotification({
-        type: 'error',
-        message: `Withdrawal request rejected. Notification sent to ${withdrawal.providerName}.`,
-      })
+      toast.success(`Withdrawal request rejected. Notification sent to ${withdrawal.providerName}.`)
 
       // Update modal if open
       if (viewingWithdrawal?.id === rejectingWithdrawalId) {
-        const updated = updatedWithdrawals.find(w => w.id === rejectingWithdrawalId)
-        setViewingWithdrawal(updated)
+        const updated = withdrawals.find(w => w.id === rejectingWithdrawalId)
+        if (updated) {
+          setViewingWithdrawal({
+            ...updated,
+            status: 'rejected',
+            rejectedAt: new Date().toISOString(),
+            rejectedBy: 'Admin User',
+            rejectionReason: rejectionReason.trim(),
+          })
+        }
       }
 
       // Close reject modal
       setShowRejectModal(false)
       setRejectingWithdrawalId(null)
       setRejectionReason('')
-
-      setTimeout(() => setNotification(null), 5000)
-    } catch (error) {
-      console.error('Error rejecting withdrawal:', error)
-      setNotification({
-        type: 'error',
-        message: 'Failed to reject withdrawal. Please try again.',
-      })
-      setTimeout(() => setNotification(null), 5000)
+      
+      // Refresh wallet data
+      const [overviewResponse, withdrawalsResponse] = await Promise.all([
+        getAdminWalletOverview(),
+        getWithdrawals(),
+      ])
+      
+      if (overviewResponse.success && overviewResponse.data) {
+        const overview = overviewResponse.data
+        setWalletOverview(prev => ({
+          ...prev,
+          pendingWithdrawals: overview.pendingWithdrawals || 0,
+          pendingWithdrawalRequests: overview.pendingWithdrawalRequests || withdrawalsResponse.data?.filter(w => w.status === 'pending').length || 0,
+        }))
+      }
+      
+      if (withdrawalsResponse.success && withdrawalsResponse.data) {
+        const withdrawalsData = Array.isArray(withdrawalsResponse.data) 
+          ? withdrawalsResponse.data 
+          : withdrawalsResponse.data.withdrawals || []
+        setWithdrawals(withdrawalsData.map(wd => ({
+          id: wd._id || wd.id,
+          providerName: wd.providerId?.name || wd.providerName || 'Provider',
+          providerType: wd.providerType || 'doctor',
+          providerEmail: wd.providerId?.email || wd.providerEmail || '',
+          amount: wd.amount || 0,
+          status: wd.status || 'pending',
+          requestedAt: wd.createdAt || wd.requestedAt || new Date().toISOString(),
+          payoutMethod: wd.paymentMethod || 'Bank Transfer',
+          accountNumber: wd.bankAccount?.accountNumber || wd.accountNumber || '****',
+          bankName: wd.bankAccount?.bankName || wd.bankName || '',
+          ifscCode: wd.bankAccount?.ifscCode || wd.ifscCode || '',
+          accountHolderName: wd.bankAccount?.accountHolderName || wd.accountHolderName || '',
+          availableBalance: wd.availableBalance || 0,
+          totalEarnings: wd.totalEarnings || 0,
+          totalWithdrawals: wd.totalWithdrawals || 0,
+          transactionId: wd.transactionId || wd._id || wd.id,
+          originalData: wd,
+        })))
+      }
+    } catch (err) {
+      console.error('Error rejecting withdrawal:', err)
+      toast.error(err.message || 'Failed to reject withdrawal. Please try again.')
     }
   }
 
@@ -724,15 +544,15 @@ const AdminWallet = () => {
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1">
               <p className="text-sm font-medium text-white/80 mb-1">Total Platform Earnings</p>
-              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(mockWalletOverview.totalEarnings)}</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(walletOverview.totalEarnings)}</p>
               <div className="mt-4 flex flex-wrap items-center gap-3 text-xs sm:text-sm">
                 <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
                   <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-medium">Available: {formatCurrency(mockWalletOverview.availableBalance)}</span>
+                  <span className="font-medium">Available: {formatCurrency(walletOverview.availableBalance)}</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
                   <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="font-medium">Pending: {formatCurrency(mockWalletOverview.pendingWithdrawals)}</span>
+                  <span className="font-medium">Pending: {formatCurrency(walletOverview.pendingWithdrawals)}</span>
                 </div>
               </div>
             </div>
@@ -755,7 +575,7 @@ const AdminWallet = () => {
               </div>
             </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-1">Total Commission</p>
-            <p className="text-xl sm:text-2xl font-bold text-slate-900">{formatCurrency(mockWalletOverview.totalCommission)}</p>
+            <p className="text-xl sm:text-2xl font-bold text-slate-900">{loading ? '...' : formatCurrency(walletOverview.totalCommission)}</p>
             <p className="mt-1 text-[10px] text-slate-500">Platform commission</p>
           </div>
         </article>
@@ -770,8 +590,8 @@ const AdminWallet = () => {
               </div>
             </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Total Withdrawals</p>
-            <p className="text-xl sm:text-2xl font-bold text-slate-900">{formatCurrency(mockWalletOverview.totalWithdrawals)}</p>
-            <p className="mt-1 text-[10px] text-slate-500">{mockWalletOverview.pendingWithdrawalRequests} pending requests</p>
+            <p className="text-xl sm:text-2xl font-bold text-slate-900">{loading ? '...' : formatCurrency(walletOverview.totalWithdrawals)}</p>
+            <p className="mt-1 text-[10px] text-slate-500">{loading ? '...' : walletOverview.pendingWithdrawalRequests} pending requests</p>
           </div>
         </article>
       </div>
@@ -794,7 +614,7 @@ const AdminWallet = () => {
                 <p className="text-lg font-bold text-slate-900">{formatCurrency(earningsByRole.doctors)}</p>
               </div>
             </div>
-            <p className="text-xs text-slate-500">{mockProviders.doctors.length} active doctors</p>
+            <p className="text-xs text-slate-500">{loading ? '...' : (providers.doctors || []).length} active doctors</p>
           </article>
 
           {/* Pharmacies Earnings */}
@@ -808,7 +628,7 @@ const AdminWallet = () => {
                 <p className="text-lg font-bold text-slate-900">{formatCurrency(earningsByRole.pharmacies)}</p>
               </div>
             </div>
-            <p className="text-xs text-slate-500">{mockProviders.pharmacies.length} active pharmacies</p>
+            <p className="text-xs text-slate-500">{loading ? '...' : (providers.pharmacies || []).length} active pharmacies</p>
           </article>
 
           {/* Laboratories Earnings */}
@@ -822,7 +642,7 @@ const AdminWallet = () => {
                 <p className="text-lg font-bold text-slate-900">{formatCurrency(earningsByRole.laboratories)}</p>
               </div>
             </div>
-            <p className="text-xs text-slate-500">{mockProviders.laboratories.length} active laboratories</p>
+            <p className="text-xs text-slate-500">{loading ? '...' : (providers.laboratories || []).length} active laboratories</p>
           </article>
         </div>
       </section>

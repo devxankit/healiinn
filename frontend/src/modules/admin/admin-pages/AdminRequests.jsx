@@ -26,6 +26,8 @@ import {
   IoChatbubbleOutline,
   IoHomeOutline,
 } from 'react-icons/io5'
+import { getAdminRequests, acceptAdminRequest, respondToAdminRequest, cancelAdminRequest, getPharmacies, getLaboratories } from '../admin-services/adminService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -39,8 +41,11 @@ const formatDate = (dateString) => {
 }
 
 const AdminRequests = () => {
+  const toast = useToast()
   const [labRequests, setLabRequests] = useState([])
   const [pharmacyRequests, setPharmacyRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [activeSection, setActiveSection] = useState('pharmacy') // 'lab' or 'pharmacy'
   const [filter, setFilter] = useState('all') // all, pending, completed
@@ -74,12 +79,12 @@ const AdminRequests = () => {
     loadRequests()
     loadPharmacies()
     loadLabs()
-    // Refresh every 2 seconds to get new requests
+    // Refresh every 30 seconds
     const interval = setInterval(() => {
       loadRequests()
       loadPharmacies()
       loadLabs()
-    }, 2000)
+    }, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -108,188 +113,69 @@ const AdminRequests = () => {
     }
   }, [showPharmacyDropdown, showLabDropdown])
 
-  const loadLabs = () => {
+  const loadLabs = async () => {
     try {
-      let labList = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
+      const response = await getLaboratories({ status: 'approved', page: 1, limit: 100 })
       
-      // If no data, use dummy data
-      if (labList.length === 0) {
-        labList = [
-          {
-            labId: 'lab-1',
-            labName: 'MediCare Diagnostics',
-            status: 'approved',
-            isActive: true,
-            phone: '+91 98765 11111',
-            email: 'medicare@lab.com',
-            address: '123 Health Street, Pune, Maharashtra 411001',
-            rating: 4.9,
-            tests: [
-              { name: 'Complete Blood Count (CBC)', price: 500 },
-              { name: 'Lipid Profile', price: 800 },
-              { name: 'ECG', price: 300 },
-            ],
-          },
-          {
-            labId: 'lab-2',
-            labName: 'HealthFirst Lab',
-            status: 'approved',
-            isActive: true,
-            phone: '+91 98765 22222',
-            email: 'healthfirst@lab.com',
-            address: '456 Test Avenue, Mumbai, Maharashtra 400001',
-            rating: 4.7,
-            tests: [
-              { name: 'Blood Pressure Monitoring', price: 200 },
-              { name: 'Blood Sugar Test', price: 250 },
-            ],
-          },
-        ]
-        localStorage.setItem('allLabAvailability', JSON.stringify(labList))
+      if (response.success && response.data) {
+        const labsData = Array.isArray(response.data) 
+          ? response.data 
+          : response.data.items || []
+        
+        const transformed = labsData
+          .filter(lab => lab.status === 'approved' && lab.isActive)
+          .map(lab => ({
+            labId: lab._id || lab.id,
+            labName: lab.labName || '',
+            status: lab.status || 'pending',
+            isActive: lab.isActive !== false,
+            phone: lab.phone || '',
+            email: lab.email || '',
+            address: lab.address ? `${lab.address.line1 || ''}, ${lab.address.city || ''}, ${lab.address.state || ''}`.trim() : '',
+            rating: lab.rating || 0,
+            tests: lab.tests || [],
+            originalData: lab,
+          }))
+        
+        setLabs(transformed)
       }
-      
-      // Get only approved and active labs
-      const approvedLabs = labList.filter(
-        (lab) => lab.status === 'approved' && lab.isActive
-      )
-      setLabs(approvedLabs)
     } catch (error) {
       console.error('Error loading labs:', error)
+      toast.error('Failed to load laboratories')
       setLabs([])
     }
   }
 
-  const loadPharmacies = () => {
+  const loadPharmacies = async () => {
     try {
-      let availabilityList = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
+      const response = await getPharmacies({ status: 'approved', page: 1, limit: 100 })
       
-      // If no data, use dummy data
-      if (availabilityList.length === 0) {
-        availabilityList = [
-          {
-            pharmacyId: 'pharm-1',
-            pharmacyName: 'Apollo Pharmacy',
-            status: 'approved',
-            isActive: true,
-            phone: '+91 98765 12345',
-            email: 'apollo@pharmacy.com',
-            address: '123 Main Street, Pune, Maharashtra 411001',
-            rating: 4.8,
-            medicines: [
-              { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 150, price: 25 },
-              { name: 'Amoxicillin', dosage: '250mg', manufacturer: 'Sun Pharma', quantity: 80, price: 45 },
-              { name: 'Cetirizine', dosage: '10mg', manufacturer: 'Dr. Reddy\'s', quantity: 120, price: 30 },
-            ],
-          },
-          {
-            pharmacyId: 'pharm-2',
-            pharmacyName: 'MedPlus Pharmacy',
-            status: 'approved',
-            isActive: true,
-            phone: '+91 98765 23456',
-            email: 'medplus@pharmacy.com',
-            address: '456 Market Road, Mumbai, Maharashtra 400001',
-            rating: 4.6,
-            medicines: [
-              { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 200, price: 24 },
-              { name: 'Ibuprofen', dosage: '400mg', manufacturer: 'Mankind', quantity: 90, price: 35 },
-              { name: 'Azithromycin', dosage: '500mg', manufacturer: 'Pfizer', quantity: 60, price: 120 },
-            ],
-          },
-          {
-            pharmacyId: 'pharm-3',
-            pharmacyName: 'Wellness Forever',
-            status: 'approved',
-            isActive: true,
-            phone: '+91 98765 34567',
-            email: 'wellness@pharmacy.com',
-            address: '789 Health Avenue, Delhi, Delhi 110001',
-            rating: 4.7,
-            medicines: [
-              { name: 'Cetirizine', dosage: '10mg', manufacturer: 'Dr. Reddy\'s', quantity: 100, price: 32 },
-              { name: 'Omeprazole', dosage: '20mg', manufacturer: 'Torrent', quantity: 75, price: 55 },
-            ],
-          },
-          {
-            pharmacyId: 'pharm-4',
-            pharmacyName: 'Health Plus Pharmacy',
-            status: 'approved',
-            isActive: true,
-            phone: '+91 98765 45678',
-            email: 'healthplus@pharmacy.com',
-            address: '321 Care Street, Bangalore, Karnataka 560001',
-            rating: 4.9,
-            medicines: [
-              { name: 'Amoxicillin', dosage: '250mg', manufacturer: 'Sun Pharma', quantity: 110, price: 48 },
-              { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 180, price: 26 },
-              { name: 'Metformin', dosage: '500mg', manufacturer: 'USV', quantity: 95, price: 40 },
-            ],
-          },
-        ]
-        localStorage.setItem('allPharmacyAvailability', JSON.stringify(availabilityList))
-      }
-      
-      // Get only approved and active pharmacies
-      const approvedPharmacies = availabilityList.filter(
-        (pharm) => pharm.status === 'approved' && pharm.isActive
-      )
-      
-      // Ensure we always have pharmacies (use dummy data if filter returns empty)
-      if (approvedPharmacies.length === 0 && availabilityList.length > 0) {
-        // If filter returned empty but we have data, use all pharmacies
-        setPharmacies(availabilityList)
-      } else {
-        setPharmacies(approvedPharmacies)
+      if (response.success && response.data) {
+        const pharmaciesData = Array.isArray(response.data) 
+          ? response.data 
+          : response.data.items || []
+        
+        const transformed = pharmaciesData
+          .filter(pharm => pharm.status === 'approved' && pharm.isActive)
+          .map(pharm => ({
+            pharmacyId: pharm._id || pharm.id,
+            pharmacyName: pharm.pharmacyName || '',
+            status: pharm.status || 'pending',
+            isActive: pharm.isActive !== false,
+            phone: pharm.phone || '',
+            email: pharm.email || '',
+            address: pharm.address ? `${pharm.address.line1 || ''}, ${pharm.address.city || ''}, ${pharm.address.state || ''}`.trim() : '',
+            rating: pharm.rating || 0,
+            medicines: pharm.medicines || [],
+            originalData: pharm,
+          }))
+        
+        setPharmacies(transformed)
       }
     } catch (error) {
       console.error('Error loading pharmacies:', error)
-      // Set dummy data on error
-      setPharmacies([
-        {
-          pharmacyId: 'pharm-1',
-          pharmacyName: 'Apollo Pharmacy',
-          status: 'approved',
-          isActive: true,
-          phone: '+91 98765 12345',
-          email: 'apollo@pharmacy.com',
-          address: '123 Main Street, Pune, Maharashtra 411001',
-          rating: 4.8,
-          medicines: [
-            { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 150, price: 25 },
-            { name: 'Amoxicillin', dosage: '250mg', manufacturer: 'Sun Pharma', quantity: 80, price: 45 },
-            { name: 'Cetirizine', dosage: '10mg', manufacturer: 'Dr. Reddy\'s', quantity: 120, price: 30 },
-          ],
-        },
-        {
-          pharmacyId: 'pharm-2',
-          pharmacyName: 'MedPlus Pharmacy',
-          status: 'approved',
-          isActive: true,
-          phone: '+91 98765 23456',
-          email: 'medplus@pharmacy.com',
-          address: '456 Market Road, Mumbai, Maharashtra 400001',
-          rating: 4.6,
-          medicines: [
-            { name: 'Paracetamol', dosage: '500mg', manufacturer: 'Cipla', quantity: 200, price: 24 },
-            { name: 'Ibuprofen', dosage: '400mg', manufacturer: 'Mankind', quantity: 90, price: 35 },
-            { name: 'Azithromycin', dosage: '500mg', manufacturer: 'Pfizer', quantity: 60, price: 120 },
-          ],
-        },
-        {
-          pharmacyId: 'pharm-3',
-          pharmacyName: 'Wellness Forever',
-          status: 'approved',
-          isActive: true,
-          phone: '+91 98765 34567',
-          email: 'wellness@pharmacy.com',
-          address: '789 Health Avenue, Delhi, Delhi 110001',
-          rating: 4.7,
-          medicines: [
-            { name: 'Cetirizine', dosage: '10mg', manufacturer: 'Dr. Reddy\'s', quantity: 100, price: 32 },
-            { name: 'Omeprazole', dosage: '20mg', manufacturer: 'Torrent', quantity: 75, price: 55 },
-          ],
-        },
-      ])
+      toast.error('Failed to load pharmacies')
+      setPharmacies([])
     }
   }
 
@@ -314,24 +200,76 @@ const AdminRequests = () => {
     return stars
   }
 
-  const loadRequests = () => {
+  const loadRequests = async () => {
     try {
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
+      setLoading(true)
+      setError(null)
       
-      // Separate lab and pharmacy requests
-      const labReqs = allRequests.filter((req) => req.type === 'book_test_visit')
-      const pharmacyReqs = allRequests.filter((req) => req.type === 'order_medicine')
+      const response = await getAdminRequests()
       
-      // Sort by creation date (newest first)
-      labReqs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      pharmacyReqs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      
-      setLabRequests(labReqs)
-      setPharmacyRequests(pharmacyReqs)
-    } catch (error) {
-      console.error('Error loading requests:', error)
+      if (response.success && response.data) {
+        const requestsData = Array.isArray(response.data) 
+          ? response.data 
+          : response.data.items || []
+        
+        // Separate lab and pharmacy requests
+        const labReqs = requestsData
+          .filter((req) => req.type === 'book_test_visit' || req.requestType === 'lab' || req.providerType === 'laboratory')
+          .map(req => ({
+            id: req._id || req.id,
+            _id: req._id || req.id,
+            type: 'book_test_visit',
+            patientName: req.patientId?.firstName && req.patientId?.lastName
+              ? `${req.patientId.firstName} ${req.patientId.lastName}`
+              : req.patientId?.name || req.patientName || 'Unknown Patient',
+            patientPhone: req.patientId?.phone || req.patientPhone || '',
+            patientEmail: req.patientId?.email || req.patientEmail || '',
+            address: req.address || req.deliveryAddress || '',
+            date: req.requestedDate || req.date || '',
+            time: req.requestedTime || req.time || '',
+            status: req.status || 'pending',
+            totalAmount: req.totalAmount || req.amount || 0,
+            investigations: req.investigations || req.tests || [],
+            createdAt: req.createdAt || new Date().toISOString(),
+            originalData: req,
+          }))
+        
+        const pharmacyReqs = requestsData
+          .filter((req) => req.type === 'order_medicine' || req.requestType === 'pharmacy' || req.providerType === 'pharmacy')
+          .map(req => ({
+            id: req._id || req.id,
+            _id: req._id || req.id,
+            type: 'order_medicine',
+            patientName: req.patientId?.firstName && req.patientId?.lastName
+              ? `${req.patientId.firstName} ${req.patientId.lastName}`
+              : req.patientId?.name || req.patientName || 'Unknown Patient',
+            patientPhone: req.patientId?.phone || req.patientPhone || '',
+            patientEmail: req.patientId?.email || req.patientEmail || '',
+            address: req.address || req.deliveryAddress || '',
+            date: req.requestedDate || req.date || '',
+            time: req.requestedTime || req.time || '',
+            status: req.status || 'pending',
+            totalAmount: req.totalAmount || req.amount || 0,
+            medicines: req.medicines || req.items || [],
+            createdAt: req.createdAt || new Date().toISOString(),
+            originalData: req,
+          }))
+        
+        // Sort by creation date (newest first)
+        labReqs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        pharmacyReqs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        
+        setLabRequests(labReqs)
+        setPharmacyRequests(pharmacyReqs)
+      }
+    } catch (err) {
+      console.error('Error loading requests:', err)
+      setError(err.message || 'Failed to load requests')
+      toast.error('Failed to load requests')
       setLabRequests([])
       setPharmacyRequests([])
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -342,19 +280,18 @@ const AdminRequests = () => {
     })
   }
 
-  const handleStatusChange = (requestId, newStatus) => {
+  const handleStatusChange = async (requestId, newStatus) => {
     try {
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map((req) =>
-        req.id === requestId ? { ...req, status: newStatus } : req
-      )
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      // Update via API
+      await respondToAdminRequest(requestId, { status: newStatus })
       loadRequests()
       if (selectedRequest?.id === requestId) {
         setSelectedRequest({ ...selectedRequest, status: newStatus })
       }
+      toast.success('Request status updated')
     } catch (error) {
       console.error('Error updating request status:', error)
+      toast.error('Failed to update request status')
     }
   }
 
@@ -363,70 +300,15 @@ const AdminRequests = () => {
       const request = filteredRequests.find(req => req.id === requestId)
       if (!request) return
 
-      // Update admin request status to accepted
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map((req) => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            status: 'accepted',
-            acceptedAt: new Date().toISOString(),
-            acceptedBy: 'Admin',
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-
-      // Create patient request notification
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const existingIndex = patientRequests.findIndex(req => req.id === requestId)
+      // Accept request via API
+      await acceptAdminRequest(requestId)
       
-      const patientRequestData = {
-        id: requestId,
-        type: activeSection === 'pharmacy' ? 'pharmacy' : 'lab',
-        providerName: 'Healiinn',
-        providerId: 'admin',
-        medicineName: activeSection === 'pharmacy' ? 'Prescription Medicines' : 'Lab Tests',
-        testName: activeSection === 'lab' ? 'Lab Test Request' : undefined,
-        status: 'accepted',
-        requestDate: request.createdAt,
-        responseDate: new Date().toISOString(),
-        totalAmount: 0, // Will be set when admin adds medicines
-        message: `Your ${activeSection === 'pharmacy' ? 'medicine order' : 'lab test'} request has been accepted by admin. Please wait for further details.`,
-        prescriptionId: request.prescriptionId,
-        patient: {
-          name: request.patientName,
-          phone: request.patientPhone,
-          email: request.patientEmail || 'patient@example.com',
-          address: request.patientAddress,
-          age: 32,
-          gender: 'Male',
-        },
-        providerResponse: {
-          message: `Your request has been accepted. Admin will add ${activeSection === 'pharmacy' ? 'medicines' : 'test details'} shortly.`,
-          responseBy: 'Healiinn Team',
-          responseTime: new Date().toISOString(),
-        },
-        doctor: {
-          name: request.prescription?.doctorName || 'Doctor',
-          specialty: request.prescription?.doctorSpecialty || 'Specialty',
-          phone: '+91 98765 43210',
-        },
-        prescription: request.prescription,
-      }
-
-      if (existingIndex >= 0) {
-        patientRequests[existingIndex] = patientRequestData
-      } else {
-        patientRequests.push(patientRequestData)
-      }
-      localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
-
-      // Don't open modal - just update status. Admin can click "Add Medicine"/"Add Lab" button to open modal
+      // Reload requests to get updated status
       loadRequests()
+      toast.success('Request accepted successfully')
     } catch (error) {
       console.error('Error accepting request:', error)
+      toast.error(error.message || 'Failed to accept request')
     }
   }
 
@@ -440,78 +322,26 @@ const AdminRequests = () => {
 
   const handleConfirmCancel = async () => {
     if (!requestToCancel || !cancelReason.trim()) {
-      alert('Please provide a reason for cancellation')
+      toast.error('Please provide a reason for cancellation')
       return
     }
 
     try {
-      // Update admin request status to cancelled
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map((req) => {
-        if (req.id === requestToCancel.id) {
-          return {
-            ...req,
-            status: 'cancelled',
-            cancelledAt: new Date().toISOString(),
-            cancelledBy: 'Admin',
-            cancelReason: cancelReason.trim(),
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-
-      // Update patient request with cancellation message
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const existingIndex = patientRequests.findIndex(req => req.id === requestToCancel.id)
+      // Cancel via API
+      await cancelAdminRequest(requestToCancel.id, cancelReason.trim())
       
-      const cancelledRequestData = {
-        id: requestToCancel.id,
-        type: activeSection === 'pharmacy' ? 'pharmacy' : 'lab',
-        providerName: 'Admin',
-        providerId: 'admin',
-        medicineName: activeSection === 'pharmacy' ? 'Prescription Medicines' : 'Lab Tests',
-        status: 'cancelled',
-        requestDate: requestToCancel.createdAt,
-        responseDate: new Date().toISOString(),
-        totalAmount: 0,
-        message: `Your ${activeSection === 'pharmacy' ? 'medicine order' : 'lab test'} request has been cancelled. Reason: ${cancelReason.trim()}`,
-        prescriptionId: requestToCancel.prescriptionId,
-        patient: {
-          name: requestToCancel.patientName,
-          phone: requestToCancel.patientPhone,
-          email: requestToCancel.patientEmail || 'patient@example.com',
-          address: requestToCancel.patientAddress,
-        },
-        providerResponse: {
-          message: `Your request has been cancelled. Reason: ${cancelReason.trim()}`,
-          responseBy: 'Admin',
-          responseTime: new Date().toISOString(),
-        },
-        doctor: {
-          name: requestToCancel.prescription?.doctorName || 'Doctor',
-          specialty: requestToCancel.prescription?.doctorSpecialty || 'Specialty',
-        },
-        prescription: requestToCancel.prescription,
-        cancelReason: cancelReason.trim(),
-      }
-
-      if (existingIndex >= 0) {
-        patientRequests[existingIndex] = cancelledRequestData
-      } else {
-        patientRequests.push(cancelledRequestData)
-      }
-      localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
-
+      // Reload requests to get updated status
+      loadRequests()
+      toast.success('Request cancelled successfully')
+      
       // Close modal and reset
       setShowCancelModal(false)
       setCancelReason('')
       setRequestToCancel(null)
       setSelectedRequest(null)
-      
-      loadRequests()
     } catch (error) {
       console.error('Error cancelling request:', error)
+      toast.error('Failed to cancel request')
     }
   }
 
@@ -1077,64 +907,45 @@ const AdminRequests = () => {
         }
       }
 
-      // Update request with admin response
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map((req) => {
-        if (req.id === selectedRequest.id) {
-          if (isAssignment && req.paymentConfirmed) {
-            // Order assigned after payment
-            return {
-              ...req,
-              status: 'completed',
-              orderAssigned: true,
-              assignedAt: new Date().toISOString(),
-              readyForAssignment: false,
-            }
-          } else {
-            // Bill generated, waiting for patient payment
-            return {
-              ...req,
-              status: 'bill_generated',
-              paymentPending: true,
-              paymentConfirmed: false,
-              adminResponse: adminResponseData,
-              billGeneratedAt: new Date().toISOString(),
-            }
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-
-      // Update patient requests only if generating bill (not assigning)
-      if (!isAssignment) {
-        const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-        const existingIndex = patientRequests.findIndex(req => req.id === selectedRequest.id)
-        if (existingIndex >= 0) {
-          // Update existing request
-          patientRequests[existingIndex] = {
-            ...patientRequests[existingIndex],
-            ...patientRequest,
-            adminResponse: adminResponseData, // Include admin response with labs and investigations
-            status: 'accepted',
-            paymentPending: true, // Enable payment directly
-          }
-        } else {
-          // Create new entry if doesn't exist
-          patientRequests.push({
-            ...patientRequest,
-            adminResponse: adminResponseData, // Include admin response with labs and investigations
-            paymentPending: true, // Enable payment directly
-          })
-        }
-        localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
+      // Send response to backend API
+      const requestId = selectedRequest.id || selectedRequest._id
+      if (!requestId) {
+        throw new Error('Request ID not found')
       }
 
-      // Don't create pharmacy/lab orders yet - wait for patient payment
-      // After payment, admin will assign orders to pharmacy/lab
+      // Prepare API payload
+      const apiPayload = {
+        ...(activeSection === 'pharmacy' && selectedPharmacies.length > 0 ? {
+          pharmacies: selectedPharmacies.map(p => p.pharmacyId || p._id),
+        } : {}),
+        ...(activeSection === 'lab' && selectedLabs.length > 0 ? {
+          labs: selectedLabs.map(l => l.labId || l._id),
+        } : {}),
+        medicines: activeSection === 'pharmacy' ? selectedMedicinesFromPharmacy.map(item => ({
+          pharmacyId: item.pharmacyId,
+          pharmacyName: item.pharmacyName,
+          name: item.medicine.name,
+          dosage: item.medicine.dosage || '',
+          quantity: item.quantity,
+          price: item.price,
+        })) : [],
+        tests: activeSection === 'lab' ? selectedTestsFromLab.map(item => ({
+          labId: item.labId,
+          labName: item.labName,
+          testName: item.test.name || item.test.testName,
+          price: item.price,
+        })) : [],
+        message: adminResponse || '',
+      }
 
-      // Show success message
-      // Response sent to patient and provider successfully
+      // Call backend API
+      const response = await respondToAdminRequest(requestId, apiPayload)
+      
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to send response')
+      }
+
+      toast.success('Response sent successfully! Patient can now view and pay for the request.')
       
       // Close modal and reload
       setSelectedRequest(null)

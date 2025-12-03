@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getPatientProfile, updatePatientProfile } from '../patient-services/patientService'
+import { getPatientProfile, updatePatientProfile, uploadProfileImage } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
 import {
@@ -83,7 +83,11 @@ const PatientProfile = () => {
             lastName: cachedProfile.lastName || '',
             email: cachedProfile.email || '',
             phone: cachedProfile.phone || '',
-            dateOfBirth: cachedProfile.dateOfBirth || '',
+            dateOfBirth: cachedProfile.dateOfBirth 
+              ? (cachedProfile.dateOfBirth.includes('T') 
+                  ? cachedProfile.dateOfBirth.split('T')[0] 
+                  : cachedProfile.dateOfBirth)
+              : '',
             gender: cachedProfile.gender || '',
             bloodGroup: cachedProfile.bloodGroup || '',
             profileImage: cachedProfile.profileImage || '',
@@ -117,7 +121,11 @@ const PatientProfile = () => {
             lastName: patient.lastName || '',
             email: patient.email || '',
             phone: patient.phone || '',
-            dateOfBirth: patient.dateOfBirth || '',
+            dateOfBirth: patient.dateOfBirth 
+              ? (patient.dateOfBirth.includes('T') 
+                  ? patient.dateOfBirth.split('T')[0] 
+                  : patient.dateOfBirth)
+              : '',
             gender: patient.gender || '',
             bloodGroup: patient.bloodGroup || '',
             profileImage: patient.profileImage || '',
@@ -254,7 +262,11 @@ const PatientProfile = () => {
           lastName: patient.lastName || '',
           email: patient.email || '',
           phone: patient.phone || '',
-          dateOfBirth: patient.dateOfBirth || '',
+          dateOfBirth: patient.dateOfBirth 
+            ? (patient.dateOfBirth.includes('T') 
+                ? patient.dateOfBirth.split('T')[0] 
+                : patient.dateOfBirth)
+            : '',
           gender: patient.gender || '',
           bloodGroup: patient.bloodGroup || '',
           profileImage: patient.profileImage || '',
@@ -284,38 +296,46 @@ const PatientProfile = () => {
     setActiveSection(null)
   }
 
-  const handleProfileImageChange = (event) => {
+  const handleProfileImageChange = async (event) => {
     const file = event.target.files?.[0]
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast.warning('Please select an image file')
-        return
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.warning('Image size should be less than 5MB')
-        return
-      }
+    if (!file) return
 
-      // Create a FileReader to convert image to data URL
-      const reader = new FileReader()
-      reader.onloadend = () => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.warning('Please select an image file')
+      return
+    }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.warning('Image size should be less than 5MB')
+      return
+    }
+
+    try {
+      toast.info('Uploading image...')
+      const response = await uploadProfileImage(file)
+      
+      if (response.success && response.data?.url) {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        const imageUrl = response.data.url.startsWith('http') 
+          ? response.data.url 
+          : `${apiBaseUrl}${response.data.url}`
+        
         setFormData((prev) => ({
           ...prev,
-          profileImage: reader.result,
+          profileImage: imageUrl,
         }))
-        // Profile image will be saved when user clicks Save button
+        toast.success('Profile image uploaded successfully!')
       }
-      reader.onerror = () => {
-        toast.error('Error reading image file')
+    } catch (error) {
+      console.error('Error uploading profile image:', error)
+      toast.error(error.message || 'Failed to upload profile image')
+    } finally {
+      // Reset input value to allow selecting the same file again
+      if (event.target) {
+        event.target.value = ''
       }
-      reader.readAsDataURL(file)
-    }
-    // Reset input value to allow selecting the same file again
-    if (event.target) {
-      event.target.value = ''
     }
   }
 
@@ -453,14 +473,18 @@ const PatientProfile = () => {
                           // Import logout function from patientService
                           const { logoutPatient } = await import('../patient-services/patientService')
                           await logoutPatient()
+                          toast.success('Logged out successfully')
                         } catch (error) {
                           console.error('Error during logout:', error)
                           // Clear tokens manually if API call fails
                           const { clearPatientTokens } = await import('../patient-services/patientService')
                           clearPatientTokens()
+                          toast.success('Logged out successfully')
                         }
                         // Navigate to login page
-                        window.location.href = '/patient/login'
+                        setTimeout(() => {
+                          window.location.href = '/patient/login'
+                        }, 500)
                       }
                     }}
                     className="flex items-center justify-center gap-2 rounded-lg border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white px-4 py-2.5 text-sm font-semibold transition hover:bg-white/20 active:scale-95"
@@ -923,28 +947,31 @@ const PatientProfile = () => {
 // Support History Component
 const SupportHistory = ({ role }) => {
   const [supportRequests, setSupportRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const toast = useToast()
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    // const fetchSupportHistory = async () => {
-    //   const response = await fetch(`/api/${role}/support/history`)
-    //   const data = await response.json()
-    //   setSupportRequests(data)
-    // }
-    // fetchSupportHistory()
+    const fetchSupportHistory = async () => {
+      try {
+        setLoading(true)
+        const { getSupportHistory } = await import('../patient-services/patientService')
+        const response = await getSupportHistory()
+        
+        if (response.success && response.data) {
+          const items = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          setSupportRequests(items)
+        }
+      } catch (error) {
+        console.error('Error fetching support history:', error)
+        setSupportRequests([])
+      } finally {
+        setLoading(false)
+      }
+    }
 
-    // Mock data
-    const mockRequests = [
-      {
-        id: '1',
-        note: 'Unable to book appointment with doctor.',
-        status: 'resolved',
-        createdAt: '2024-01-14T14:20:00Z',
-        updatedAt: '2024-01-15T09:15:00Z',
-        adminNote: 'Issue resolved. Appointment booking system updated.',
-      },
-    ]
-    setSupportRequests(mockRequests)
+    fetchSupportHistory()
   }, [role])
 
   const getStatusBadge = (status) => {
@@ -973,6 +1000,14 @@ const SupportHistory = ({ role }) => {
     })
   }
 
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+        <p className="text-sm font-medium text-slate-600">Loading support history...</p>
+      </div>
+    )
+  }
+
   if (supportRequests.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
@@ -985,20 +1020,23 @@ const SupportHistory = ({ role }) => {
   return (
     <div className="space-y-3">
       {supportRequests.map((request) => (
-        <div key={request.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
+        <div key={request._id || request.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
           <div className="flex items-start justify-between gap-2 mb-2">
-            <p className="text-sm font-medium text-slate-900 flex-1">{request.note}</p>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-slate-900 mb-1">{request.subject || 'Support Request'}</p>
+              <p className="text-sm font-medium text-slate-700">{request.message || request.note || ''}</p>
+            </div>
             {getStatusBadge(request.status)}
           </div>
-          {request.adminNote && (
+          {request.adminResponse && (
             <div className="mt-2 rounded bg-blue-50 p-2">
               <p className="text-xs font-semibold text-blue-900">Admin Response:</p>
-              <p className="mt-1 text-xs text-blue-800">{request.adminNote}</p>
+              <p className="mt-1 text-xs text-blue-800">{request.adminResponse}</p>
             </div>
           )}
           <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
             <span>Submitted: {formatDate(request.createdAt)}</span>
-            {request.updatedAt !== request.createdAt && (
+            {request.updatedAt && request.updatedAt !== request.createdAt && (
               <span>Updated: {formatDate(request.updatedAt)}</span>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoSearchOutline,
@@ -23,111 +23,49 @@ import {
   IoReceiptOutline,
   IoArchiveOutline,
 } from 'react-icons/io5'
+import PatientNavbar from '../patient-components/PatientNavbar'
 import PatientSidebar from '../patient-components/PatientSidebar'
+import { useToast } from '../../../contexts/ToastContext'
+import { getPatientDashboard, getPatientProfile } from '../patient-services/patientService'
+import NotificationBell from '../../../components/NotificationBell'
 
-// Category cards data
-const categoryCards = [
+// Category cards configuration (values will be populated from API)
+const categoryCardsConfig = [
   {
     id: 'appointments',
     title: 'APPOINTMENTS',
-    value: '12',
     description: 'Upcoming',
-    iconBgColor: '#1976D2', // dark blue
+    iconBgColor: '#1976D2',
     icon: IoCalendarOutline,
     route: '/patient/appointments',
+    dataKey: 'upcomingAppointmentsCount', // Use count instead of array
   },
   {
     id: 'prescriptions',
     title: 'PRESCRIPTION AND LAB REPORT',
-    value: '8',
     description: 'Active',
-    iconBgColor: '#14B8A6', // teal-green
+    iconBgColor: '#14B8A6',
     icon: IoDocumentTextOutline,
     route: '/patient/prescriptions',
+    dataKey: 'activePrescriptions',
   },
   {
     id: 'orders',
     title: 'ORDERS',
-    value: '3',
     description: 'Recent',
-    iconBgColor: '#3B82F6', // blue
+    iconBgColor: '#3B82F6',
     icon: IoBagHandleOutline,
     route: '/patient/orders',
+    dataKey: 'recentOrders',
   },
   {
     id: 'requests',
     title: 'REQUESTS',
-    value: '2',
     description: 'Responses',
-    iconBgColor: '#8B5CF6', // purple
+    iconBgColor: '#8B5CF6',
     icon: IoChatbubbleOutline,
     route: '/patient/requests',
-  },
-]
-
-// Mock upcoming appointments data
-const mockUpcomingAppointments = [
-  {
-    id: 'apt-1',
-    doctorName: 'Dr. Rajesh Kumar',
-    doctorImage: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-    specialty: 'General Physician',
-    clinic: 'Shivaji Nagar Clinic',
-    date: '2025-01-15',
-    time: '10:00 AM',
-    status: 'confirmed',
-  },
-  {
-    id: 'apt-2',
-    doctorName: 'Dr. Priya Sharma',
-    doctorImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    specialty: 'Pediatrician',
-    clinic: 'Central Hospital',
-    date: '2025-01-16',
-    time: '02:30 PM',
-    status: 'confirmed',
-  },
-  {
-    id: 'apt-3',
-    doctorName: 'Dr. Amit Patel',
-    doctorImage: 'https://images.unsplash.com/photo-1622253692010-333f2da6031a?auto=format&fit=crop&w=400&q=80',
-    specialty: 'Cardiologist',
-    clinic: 'Heart Care Center',
-    date: '2025-01-17',
-    time: '11:00 AM',
-    status: 'pending',
-  },
-]
-
-// Mock doctors data matching the image
-const mockDoctors = [
-  {
-    id: 'doc-1',
-    name: 'Dr. Rajesh Kumar',
-    specialty: 'General Physician',
-    clinic: 'Shivaji Nagar Clinic',
-    rating: 4.8,
-    reviewCount: 245,
-    fee: 500,
-    distance: '2.3 km',
-    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-    isServing: true,
-    currentToken: 18,
-    eta: '11:35',
-  },
-  {
-    id: 'doc-2',
-    name: 'Dr. Priya Sharma',
-    specialty: 'Pediatrician',
-    clinic: 'Central Hospital',
-    rating: 4.9,
-    reviewCount: 189,
-    fee: 600,
-    distance: '1.8 km',
-    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    isServing: true,
-    currentToken: 12,
-    eta: '10:20',
+    dataKey: 'pendingRequests',
   },
 ]
 
@@ -213,30 +151,153 @@ const isDoctorActive = (doctorName) => {
 
 const PatientDashboard = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const toggleButtonRef = useRef(null)
+  
+  // Dashboard data state
+  const [dashboardData, setDashboardData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [upcomingAppointments, setUpcomingAppointments] = useState([])
+  const [doctors, setDoctors] = useState([])
+  const [profile, setProfile] = useState(null)
+
+  // Fetch profile data for location
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const { getAuthToken } = await import('../../../utils/apiClient')
+        const token = getAuthToken('patient')
+        if (!token) return
+
+        const response = await getPatientProfile()
+        if (response.success && response.data) {
+          const patient = response.data.patient || response.data
+          setProfile({
+            address: patient.address || {},
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching profile:', err)
+        // Don't show error toast as it's not critical
+      }
+    }
+    fetchProfile()
+  }, [])
+
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      // Check if user is authenticated before making API call
+      const { getAuthToken } = await import('../../../utils/apiClient')
+      const token = getAuthToken('patient')
+      
+      if (!token) {
+        // No token, redirect to login
+        navigate('/patient/login')
+        return
+      }
+      
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPatientDashboard()
+        
+        if (response.success && response.data) {
+          setDashboardData(response.data)
+          
+          // Set category card values
+          const data = response.data
+          
+          // Set upcoming appointments
+          if (data.upcomingAppointments) {
+            setUpcomingAppointments(data.upcomingAppointments)
+          }
+          
+          // Set doctors (if available in dashboard response)
+          if (data.recommendedDoctors) {
+            setDoctors(data.recommendedDoctors)
+          }
+        }
+      } catch (err) {
+        // Handle 401 Unauthorized - user logged out
+        if (err.message && (err.message.includes('Authentication token missing') || err.message.includes('Unauthorized') || err.message.includes('401') || err.message.includes('Session expired'))) {
+          // Don't show error toast for auth errors - user is being redirected
+          // Clear tokens and redirect to login (apiClient should handle this, but ensure it happens)
+          const { clearTokens } = await import('../../../utils/apiClient')
+          clearTokens('patient')
+          // Don't navigate if already on login page or if redirect is happening
+          if (!window.location.pathname.includes('/login')) {
+            navigate('/patient/login')
+          }
+          return
+        }
+        
+        console.error('Error fetching dashboard data:', err)
+        setError(err.message || 'Failed to load dashboard data')
+        toast.error('Failed to load dashboard data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [toast, navigate])
+
+  // Get category cards with real data
+  const categoryCards = useMemo(() => {
+    if (!dashboardData) return categoryCardsConfig.map(card => ({ ...card, value: '0' }))
+    
+    return categoryCardsConfig.map(card => {
+      let value = dashboardData[card.dataKey]
+      
+      // Handle arrays - get length instead of array itself
+      if (Array.isArray(value)) {
+        value = value.length
+      }
+      
+      // Handle objects - try to get count property or default to 0
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        value = value.count || value.length || 0
+      }
+      
+      return {
+      ...card,
+        value: String(value || 0),
+      }
+    })
+  }, [dashboardData])
 
   const filteredDoctors = useMemo(() => {
-    let doctors = [...mockDoctors]
+    let filtered = [...doctors]
 
     // Filter by active status
-    doctors = doctors.filter((doctor) => isDoctorActive(doctor.name))
+    filtered = filtered.filter((doctor) => isDoctorActive(doctor.name || `${doctor.firstName} ${doctor.lastName}`))
 
     if (searchTerm.trim()) {
       const normalizedSearch = searchTerm.trim().toLowerCase()
-      doctors = doctors.filter(
-        (doctor) =>
-          doctor.name.toLowerCase().includes(normalizedSearch) ||
-          doctor.specialty.toLowerCase().includes(normalizedSearch) ||
-          doctor.clinic.toLowerCase().includes(normalizedSearch)
+      filtered = filtered.filter(
+        (doctor) => {
+          const name = doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim()
+          const specialty = doctor.specialty || doctor.specialization || ''
+          return (
+            name.toLowerCase().includes(normalizedSearch) ||
+            specialty.toLowerCase().includes(normalizedSearch)
+          )
+        }
       )
     }
 
-    return doctors
-  }, [searchTerm])
+    return filtered
+  }, [searchTerm, doctors])
 
   const handleTakeToken = (doctorId, fee) => {
+    if (!doctorId) {
+      toast.error('Doctor information is not available. Please try again.')
+      return
+    }
     navigate(`/patient/doctors/${doctorId}?book=true`)
   }
 
@@ -259,14 +320,18 @@ const PatientDashboard = () => {
       // Import logout function from patientService
       const { logoutPatient } = await import('../patient-services/patientService')
       await logoutPatient()
+      toast.success('Logged out successfully')
     } catch (error) {
       console.error('Error during logout:', error)
       // Clear tokens manually if API call fails
       const { clearPatientTokens } = await import('../patient-services/patientService')
       clearPatientTokens()
+      toast.success('Logged out successfully')
     }
     // Navigate to login page
-    navigate('/patient/login', { replace: true })
+    setTimeout(() => {
+      navigate('/patient/login', { replace: true })
+    }, 500)
   }
 
   return (
@@ -286,7 +351,7 @@ const PatientDashboard = () => {
               <p className="text-sm font-normal text-white/95 leading-tight">Digital Healthcare</p>
             </div>
             <div className="flex items-center gap-4 pt-0.5">
-              <IoNotificationsOutline className="h-6 w-6 text-white" strokeWidth={1.5} />
+              <NotificationBell className="text-white" />
               <button
                 type="button"
                 ref={toggleButtonRef}
@@ -301,7 +366,11 @@ const PatientDashboard = () => {
           {/* Location Row */}
           <div className="flex items-center gap-1.5">
             <IoLocationOutline className="h-4 w-4 text-white" strokeWidth={2} />
-            <span className="text-xs font-normal text-white">Pune, Maharashtra • 15 km radius</span>
+            <span className="text-xs font-normal text-white">
+              {profile?.address?.city && profile?.address?.state
+                ? `${profile.address.city}, ${profile.address.state}`
+                : profile?.address?.city || profile?.address?.state || profile?.address?.line1 || 'Location not set'}
+            </span>
           </div>
         </div>
       </header>
@@ -373,41 +442,65 @@ const PatientDashboard = () => {
         </div>
 
         <div className="space-y-3">
-          {mockUpcomingAppointments.slice(0, 2).map((appointment) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-sm text-slate-500">Loading appointments...</div>
+            </div>
+          ) : error ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-sm text-red-500">Failed to load appointments</div>
+            </div>
+          ) : upcomingAppointments.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-sm text-slate-500">No upcoming appointments</div>
+            </div>
+          ) : (
+            upcomingAppointments.slice(0, 2).map((appointment) => {
+              const doctorName = appointment.doctorId?.firstName && appointment.doctorId?.lastName
+                ? `Dr. ${appointment.doctorId.firstName} ${appointment.doctorId.lastName}`
+                : appointment.doctorName || 'Dr. Unknown'
+              const specialty = appointment.doctorId?.specialization || appointment.specialty || ''
+              const appointmentDate = new Date(appointment.appointmentDate || appointment.date)
+              const time = appointment.time || appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+              
+              return (
             <div
-              key={appointment.id}
+                  key={appointment._id || appointment.id}
               onClick={() => {
-                // Navigate to appointment details or appointments page with appointment ID
-                navigate(`/patient/appointments?appointment=${appointment.id}`)
+                    navigate(`/patient/appointments?appointment=${appointment._id || appointment.id}`)
               }}
               className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-white hover:border-[#11496c] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
             >
               <img
-                src={appointment.doctorImage}
-                alt={appointment.doctorName}
+                    src={appointment.doctorId?.profileImage || appointment.doctorImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=11496c&color=fff&size=128&bold=true`}
+                    alt={doctorName}
                 className="h-12 w-12 rounded-full object-cover border-2 border-slate-200 flex-shrink-0"
                 onError={(e) => {
                   e.target.onerror = null
-                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.doctorName)}&background=11496c&color=fff&size=128&bold=true`
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=11496c&color=fff&size=128&bold=true`
                 }}
               />
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-slate-900 mb-0.5 leading-tight">{appointment.doctorName}</h3>
-                <p className="text-xs text-slate-600 mb-1.5">{appointment.specialty}</p>
+                    <h3 className="text-sm font-bold text-slate-900 mb-0.5 leading-tight">{doctorName}</h3>
+                    <p className="text-xs text-slate-600 mb-1.5">{specialty}</p>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mb-1">
                   <div className="flex items-center gap-1">
                     <IoCalendarOutline className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{new Date(appointment.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        <span>{appointmentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <IoTimeOutline className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{appointment.time}</span>
+                        <span>{time}</span>
+                      </div>
+                    </div>
+                    {appointment.clinic && (
+                      <p className="text-xs text-slate-500">{appointment.clinic}</p>
+                    )}
                   </div>
                 </div>
-                <p className="text-xs text-slate-500">{appointment.clinic}</p>
-              </div>
-            </div>
-          ))}
+              )
+            })
+          )}
         </div>
       </div>
 
@@ -432,8 +525,8 @@ const PatientDashboard = () => {
           ) : (
             filteredDoctors.map((doctor) => (
             <div
-              key={doctor.id}
-              onClick={() => navigate(`/patient/doctors/${doctor.id}`)}
+              key={doctor._id || doctor.id}
+              onClick={() => navigate(`/patient/doctors/${doctor._id || doctor.id}`)}
               className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
             >
               <div className="p-4">
@@ -441,28 +534,32 @@ const PatientDashboard = () => {
                 <div className="flex items-start gap-3 mb-3">
                   <div className="relative flex-shrink-0">
                     <img
-                      src={doctor.image}
-                      alt={doctor.name}
+                      src={doctor.image || doctor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim())}&background=11496c&color=fff&size=128&bold=true`}
+                      alt={doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim()}
                       className="h-16 w-16 rounded-lg object-cover border border-slate-200"
                       onError={(e) => {
                         e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=11496c&color=fff&size=128&bold=true`
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim())}&background=11496c&color=fff&size=128&bold=true`
                       }}
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-bold text-slate-900 mb-0.5 leading-tight">{doctor.name}</h3>
-                    <p className="text-xs text-slate-600 mb-0.5">{doctor.specialty}</p>
+                    <h3 className="text-base font-bold text-slate-900 mb-0.5 leading-tight">
+                      {doctor.name || `Dr. ${doctor.firstName || ''} ${doctor.lastName || ''}`.trim()}
+                    </h3>
+                    <p className="text-xs text-slate-600 mb-0.5">{doctor.specialty || doctor.specialization || ''}</p>
+                    {doctor.clinic && (
                     <p className="text-xs text-slate-500 mb-1.5">{doctor.clinic}</p>
+                    )}
                     <div className="flex items-center gap-1.5">
-                      <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
+                      <div className="flex items-center gap-0.5">{renderStars(doctor.rating || doctor.averageRating || 0)}</div>
                       <span className="text-xs font-semibold text-slate-700">
-                        {doctor.rating} ({doctor.reviewCount} reviews)
+                        {(doctor.rating || doctor.averageRating || 0).toFixed(1)} ({doctor.reviewCount || doctor.totalReviews || 0} reviews)
                       </span>
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <div className="text-base font-bold text-slate-900">₹{doctor.fee}</div>
+                    <div className="text-base font-bold text-slate-900">₹{doctor.fee || doctor.consultationFee || 0}</div>
                   </div>
                 </div>
 
@@ -488,7 +585,7 @@ const PatientDashboard = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleTakeToken(doctor.id, doctor.fee)
+                    handleTakeToken(doctor._id || doctor.id, doctor.fee || doctor.consultationFee || 0)
                   }}
                   className="w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors shadow-sm"
                   style={{ 
@@ -507,7 +604,7 @@ const PatientDashboard = () => {
                     e.target.style.backgroundColor = '#11496c'
                   }}
                 >
-                  Take Token • ₹{doctor.fee}
+                  Take Token • ₹{doctor.fee || doctor.consultationFee || 0}
                 </button>
               </div>
             </div>

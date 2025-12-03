@@ -15,7 +15,9 @@ const app = express();
 const path = require('path');
 
 // Middleware
-app.use(helmet()); // Security headers (includes XSS protection)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+})); // Security headers (includes XSS protection)
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
@@ -26,10 +28,29 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-enc
 app.use(cookieParser()); // Parse cookies
 app.use(rateLimiter); // General rate limiting
 
-// Serve static files from upload directory
-app.use('/uploads', express.static(path.join(__dirname, 'upload'), {
+// Serve static files from upload directory with CORS headers
+app.use('/uploads', (req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
+  
+  if (origin === allowedOrigin || !origin) {
+    res.header('Access-Control-Allow-Origin', allowedOrigin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+}, express.static(path.join(__dirname, 'upload'), {
   maxAge: '1y', // Cache for 1 year
   etag: true,
+  setHeaders: (res, path) => {
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
 }));
 
 // Connect to database
@@ -43,6 +64,8 @@ app.use('/api/pharmacies/auth', require('./routes/pharmacy-routes/auth.routes'))
 app.use('/api/admin/auth', require('./routes/admin-routes/auth.routes'));
 
 // Patient Routes (Profile is handled in auth.routes.js)
+app.use('/api/patients/dashboard', require('./routes/patient-routes/dashboard.routes'));
+app.use('/api/patients/upload', require('./routes/patient-routes/upload.routes'));
 app.use('/api/patients/appointments', require('./routes/patient-routes/appointment.routes'));
 app.use('/api/patients/consultations', require('./routes/patient-routes/consultation.routes'));
 app.use('/api/patients/doctors', require('./routes/patient-routes/doctor.routes'));
@@ -57,6 +80,7 @@ app.use('/api/patients/notifications', require('./routes/patient-routes/notifica
 
 // Doctor Routes (Profile is handled in auth.routes.js)
 app.use('/api/doctors/dashboard', require('./routes/doctor-routes/dashboard.routes'));
+app.use('/api/doctors/upload', require('./routes/doctor-routes/upload.routes'));
 app.use('/api/doctors/patients', require('./routes/doctor-routes/patient.routes'));
 app.use('/api/doctors/consultations', require('./routes/doctor-routes/consultation.routes'));
 app.use('/api/doctors/prescriptions', require('./routes/doctor-routes/prescription.routes'));
@@ -71,6 +95,7 @@ app.use('/api/doctors/notifications', require('./routes/doctor-routes/notificati
 
 // Pharmacy Routes (Profile is handled in auth.routes.js)
 app.use('/api/pharmacy/dashboard', require('./routes/pharmacy-routes/dashboard.routes'));
+app.use('/api/pharmacy/upload', require('./routes/pharmacy-routes/upload.routes'));
 app.use('/api/pharmacy/orders', require('./routes/pharmacy-routes/order.routes'));
 app.use('/api/pharmacy/medicines', require('./routes/pharmacy-routes/medicine.routes'));
 app.use('/api/pharmacy/patients', require('./routes/pharmacy-routes/patient.routes'));
@@ -83,6 +108,7 @@ app.use('/api/pharmacy/notifications', require('./routes/pharmacy-routes/notific
 
 // Laboratory Routes (Profile is handled in auth.routes.js)
 app.use('/api/laboratory/dashboard', require('./routes/laboratory-routes/dashboard.routes'));
+app.use('/api/laboratory/upload', require('./routes/laboratory-routes/upload.routes'));
 app.use('/api/labs/leads', require('./routes/laboratory-routes/order.routes'));
 app.use('/api/laboratory/tests', require('./routes/laboratory-routes/test.routes'));
 app.use('/api/laboratory/reports', require('./routes/laboratory-routes/report.routes'));
@@ -102,14 +128,16 @@ app.use('/api/admin/appointments', require('./routes/admin-routes/appointment.ro
 app.use('/api/admin/orders', require('./routes/admin-routes/order.routes'));
 app.use('/api/admin/inventory', require('./routes/admin-routes/inventory.routes'));
 app.use('/api/admin/wallet', require('./routes/admin-routes/wallet.routes'));
+app.use('/api/admin/revenue', require('./routes/admin-routes/revenue.routes'));
 app.use('/api/admin/settings', require('./routes/admin-routes/settings.routes'));
 app.use('/api/admin/support', require('./routes/admin-routes/support.routes'));
 app.use('/api/admin/verifications', require('./routes/admin-routes/verification.routes'));
 app.use('/api/admin/pharmacy-medicines', require('./routes/admin-routes/pharmacy-medicines.routes'));
+app.use('/api/admin/notifications', require('./routes/admin-routes/notification.routes'));
 
 // Public Routes (Discovery)
 app.use('/api/pharmacies', require('./routes/patient-routes/pharmacy-discovery.routes'));
-app.use('/api/hospitals', require('./routes/patient-routes/hospital.routes'));
+app.use('/api/laboratories', require('./routes/patient-routes/laboratory-discovery.routes'));
 app.use('/api/specialties', require('./routes/patient-routes/specialty.routes'));
 
 app.get('/', (req, res) => {
@@ -140,8 +168,21 @@ app.use((req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(err.status || 500).json({
+  const status = err.status || 500;
+  
+  // Silently handle 401 errors (authentication failures are expected after logout)
+  // Only log non-401 errors or if in development mode
+  if (status !== 401 || process.env.NODE_ENV === 'development') {
+    if (status === 401) {
+      // Log 401 errors only in development with less verbosity
+      console.log(`[401] ${req.method} ${req.path} - Authentication required`);
+    } else {
+      // Log other errors normally
+      console.error('Error:', err);
+    }
+  }
+  
+  res.status(status).json({
     success: false,
     message: err.message || 'Internal server error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })

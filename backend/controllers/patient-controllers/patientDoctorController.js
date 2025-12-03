@@ -1,6 +1,5 @@
 const asyncHandler = require('../../middleware/asyncHandler');
 const Doctor = require('../../models/Doctor');
-const Hospital = require('../../models/Hospital');
 const Specialty = require('../../models/Specialty');
 const Review = require('../../models/Review');
 const Session = require('../../models/Session');
@@ -29,17 +28,22 @@ exports.getDoctors = asyncHandler(async (req, res) => {
 
   const filter = { status: APPROVAL_STATUS.APPROVED, isActive: true };
 
-  if (specialty) filter.specialization = new RegExp(specialty.trim(), 'i');
+  if (specialty && specialty !== 'undefined' && specialty.trim()) {
+    filter.specialization = new RegExp(specialty.trim(), 'i');
+  }
   if (city) filter['clinicDetails.address.city'] = new RegExp(city.trim(), 'i');
   if (state) filter['clinicDetails.address.state'] = new RegExp(state.trim(), 'i');
   if (rating) filter.rating = { $gte: parseFloat(rating) };
 
-  const searchFilter = buildSearchFilter(search, [
-    'firstName',
-    'lastName',
-    'specialization',
-    'clinicDetails.name',
-  ]);
+  // Only build search filter if search is provided and not "undefined"
+  const searchFilter = (search && search !== 'undefined' && search.trim()) 
+    ? buildSearchFilter(search, [
+        'firstName',
+        'lastName',
+        'specialization',
+        'clinicDetails.name',
+      ])
+    : {};
 
   const finalFilter = Object.keys(searchFilter).length
     ? { $and: [filter, searchFilter] }
@@ -47,12 +51,18 @@ exports.getDoctors = asyncHandler(async (req, res) => {
 
   const [doctors, total] = await Promise.all([
     Doctor.find(finalFilter)
-      .select('firstName lastName specialization profileImage consultationFee rating clinicDetails bio')
+      .select('firstName lastName specialization profileImage consultationFee rating clinicDetails bio experienceYears reviewCount')
       .sort({ rating: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit),
     Doctor.countDocuments(finalFilter),
   ]);
+  
+  console.log(`📋 Fetched ${doctors.length} doctors for patient`, {
+    specialty: specialty || 'all',
+    search: search || 'none',
+    total,
+  });
 
   return res.status(200).json({
     success: true,
@@ -72,7 +82,7 @@ exports.getDoctors = asyncHandler(async (req, res) => {
 exports.getDoctorById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const doctor = await Doctor.findById(id).select('-password');
+  const doctor = await Doctor.findById(id).select('-password -otp -otpExpires');
 
   if (!doctor || doctor.status !== APPROVAL_STATUS.APPROVED) {
     return res.status(404).json({
@@ -142,107 +152,6 @@ exports.getDoctorById = asyncHandler(async (req, res) => {
         currentToken,
         isServing,
         eta,
-      },
-    },
-  });
-});
-
-// GET /api/patients/hospitals
-exports.getHospitals = asyncHandler(async (req, res) => {
-  const { search, city, state } = req.query;
-  const { page, limit, skip } = buildPagination(req);
-
-  const filter = { isActive: true };
-  if (city) filter['address.city'] = new RegExp(city.trim(), 'i');
-  if (state) filter['address.state'] = new RegExp(state.trim(), 'i');
-
-  const searchFilter = buildSearchFilter(search, ['name', 'address.city', 'address.state']);
-
-  const finalFilter = Object.keys(searchFilter).length
-    ? { $and: [filter, searchFilter] }
-    : filter;
-
-  const [hospitals, total] = await Promise.all([
-    Hospital.find(finalFilter)
-      .select('name address image rating reviewCount specialties')
-      .sort({ rating: -1, name: 1 })
-      .skip(skip)
-      .limit(limit),
-    Hospital.countDocuments(finalFilter),
-  ]);
-
-  return res.status(200).json({
-    success: true,
-    data: {
-      items: hospitals,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit) || 1,
-      },
-    },
-  });
-});
-
-// GET /api/patients/hospitals/:id
-exports.getHospitalById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  const hospital = await Hospital.findById(id).populate('doctors', 'firstName lastName specialization profileImage');
-
-  if (!hospital || !hospital.isActive) {
-    return res.status(404).json({
-      success: false,
-      message: 'Hospital not found',
-    });
-  }
-
-  return res.status(200).json({
-    success: true,
-    data: hospital,
-  });
-});
-
-// GET /api/patients/hospitals/:id/doctors
-exports.getHospitalDoctors = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { page, limit, skip } = buildPagination(req);
-
-  const hospital = await Hospital.findById(id);
-  if (!hospital) {
-    return res.status(404).json({
-      success: false,
-      message: 'Hospital not found',
-    });
-  }
-
-  const [doctors, total] = await Promise.all([
-    Doctor.find({
-      _id: { $in: hospital.doctors },
-      status: APPROVAL_STATUS.APPROVED,
-      isActive: true,
-    })
-      .select('firstName lastName specialization profileImage consultationFee rating')
-      .sort({ rating: -1 })
-      .skip(skip)
-      .limit(limit),
-    Doctor.countDocuments({
-      _id: { $in: hospital.doctors },
-      status: APPROVAL_STATUS.APPROVED,
-      isActive: true,
-    }),
-  ]);
-
-  return res.status(200).json({
-    success: true,
-    data: {
-      items: doctors,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit) || 1,
       },
     },
   });

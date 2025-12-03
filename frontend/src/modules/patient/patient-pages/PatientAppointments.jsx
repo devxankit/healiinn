@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoArrowBackOutline,
@@ -9,130 +9,11 @@ import {
   IoCloseCircleOutline,
   IoCallOutline,
 } from 'react-icons/io5'
+import { getPatientAppointments, cancelAppointment, rescheduleAppointment } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
-const mockAppointments = [
-  {
-    id: 'appt-1',
-    doctor: {
-      id: 'doc-1',
-      name: 'Dr. Rajesh Kumar',
-      specialty: 'General Physician',
-      image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-    },
-    date: '2025-01-15',
-    time: '10:00 AM',
-    status: 'scheduled', // Backend status - will display as 'scheduled'
-    type: 'In-Person',
-    clinic: 'Shivaji Nagar Clinic',
-    location: '123 Market Street, Pune, Maharashtra',
-    token: 'Token #12',
-    fee: 500,
-  },
-  {
-    id: 'appt-2',
-    doctor: {
-      id: 'doc-2',
-      name: 'Dr. Priya Sharma',
-      specialty: 'Pediatrician',
-      image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    },
-    date: '2025-01-16',
-    time: '02:30 PM',
-    status: 'scheduled', // Backend status - will display as 'scheduled'
-    type: 'In-Person',
-    clinic: 'Central Hospital',
-    location: '77 Elm Avenue, Pune, Maharashtra',
-    token: 'Token #8',
-    fee: 600,
-  },
-  {
-    id: 'appt-3',
-    doctor: {
-      id: 'doc-3',
-      name: 'Dr. Amit Patel',
-      specialty: 'Cardiologist',
-      image: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80',
-    },
-    date: '2025-01-17',
-    time: '11:00 AM',
-    status: 'scheduled', // Backend status - will display as 'scheduled'
-    type: 'In-Person',
-    clinic: 'Heart Care Center',
-    location: '200 Park Ave, Pune, Maharashtra',
-    token: 'Token #15',
-    fee: 800,
-  },
-  {
-    id: 'appt-4',
-    doctor: {
-      id: 'doc-4',
-      name: 'Dr. Sarah Mitchell',
-      specialty: 'Cardiology',
-      image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    },
-    date: '2024-12-20',
-    time: '10:30 AM',
-    status: 'completed',
-    type: 'In-Person',
-    clinic: 'Heart Care Center',
-    location: '200 Park Ave, New York, NY',
-    token: 'Token #8',
-    fee: 800,
-  },
-  {
-    id: 'appt-5',
-    doctor: {
-      id: 'doc-5',
-      name: 'Dr. James Wilson',
-      specialty: 'Orthopedic',
-      image: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80',
-    },
-    date: '2024-12-18',
-    time: '02:00 PM',
-    status: 'completed',
-    type: 'In-Person',
-    clinic: 'Bone & Joint Clinic',
-    location: '150 Broadway, New York, NY',
-    token: null,
-    fee: 750,
-  },
-  {
-    id: 'appt-6',
-    doctor: {
-      id: 'doc-6',
-      name: 'Dr. Emily Chen',
-      specialty: 'Neurology',
-      image: 'https://images.unsplash.com/photo-1594824476968-48fd8d2d7dc2?auto=format&fit=crop&w=400&q=80',
-    },
-    date: '2025-01-15',
-    time: '11:15 AM',
-    status: 'cancelled',
-    type: 'In-Person',
-    clinic: 'Neuro Care Institute',
-    location: '100 Main St, New York, NY',
-    token: null,
-    fee: 900,
-    cancelledBy: 'doctor',
-    cancelReason: 'Doctor unavailable due to emergency',
-  },
-  {
-    id: 'appt-7',
-    doctor: {
-      id: 'doc-7',
-      name: 'Dr. Michael Brown',
-      specialty: 'General',
-      image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031a?auto=format&fit=crop&w=400&q=80',
-    },
-    date: '2024-12-12',
-    time: '03:30 PM',
-    status: 'completed',
-    type: 'In-Person',
-    clinic: 'Family Health Clinic',
-    location: '50 State St, New York, NY',
-    token: 'Token #5',
-    fee: 600,
-  },
-]
+// Default appointments (will be replaced by API data)
+const defaultAppointments = []
 
 // Map backend status to frontend display status
 const mapBackendStatusToDisplay = (backendStatus) => {
@@ -194,18 +75,170 @@ const getStatusIcon = (status) => {
 
 const PatientAppointments = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [filter, setFilter] = useState('all')
+  const [appointments, setAppointments] = useState(defaultAppointments)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [cancellingId, setCancellingId] = useState(null)
+
+  // Fetch appointments from API
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPatientAppointments()
+        
+        if (response.success && response.data) {
+          // Handle both array and object with items/appointments property
+          const appointmentsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || response.data.appointments || []
+          
+          // Transform API data to match component structure
+          const transformedAppointments = appointmentsData.map(apt => ({
+            id: apt._id || apt.id,
+            _id: apt._id || apt.id,
+            doctor: apt.doctorId ? {
+              id: apt.doctorId._id || apt.doctorId.id,
+              name: apt.doctorId.firstName && apt.doctorId.lastName
+                ? `Dr. ${apt.doctorId.firstName} ${apt.doctorId.lastName}`
+                : apt.doctorId.name || 'Dr. Unknown',
+              specialty: apt.doctorId.specialization || apt.doctorId.specialty || '',
+              image: apt.doctorId.profileImage || apt.doctorId.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.doctorId.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
+            } : apt.doctor || {},
+            date: apt.appointmentDate || apt.date,
+            time: apt.time || '',
+            status: apt.status || 'scheduled',
+            type: apt.appointmentType || apt.type || 'In-Person',
+            clinic: apt.clinicDetails?.name || apt.clinic || '',
+            location: apt.clinicDetails?.address 
+              ? `${apt.clinicDetails.address.line1 || ''}, ${apt.clinicDetails.address.city || ''}, ${apt.clinicDetails.address.state || ''}`.trim()
+              : apt.location || '',
+            token: apt.tokenNumber ? `Token #${apt.tokenNumber}` : apt.token || null,
+            fee: apt.fee || apt.consultationFee || 0,
+            cancelledBy: apt.cancelledBy,
+            cancelReason: apt.cancelReason,
+          }))
+          
+          setAppointments(transformedAppointments)
+        }
+      } catch (err) {
+        console.error('Error fetching appointments:', err)
+        setError(err.message || 'Failed to load appointments')
+        toast.error('Failed to load appointments')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAppointments()
+    
+    // Listen for appointment booking event to refresh
+    const handleAppointmentBooked = () => {
+      fetchAppointments()
+    }
+    window.addEventListener('appointmentBooked', handleAppointmentBooked)
+    
+    return () => {
+      window.removeEventListener('appointmentBooked', handleAppointmentBooked)
+    }
+  }, [toast])
 
   const filteredAppointments = filter === 'all'
-    ? mockAppointments
-    : mockAppointments.filter(apt => {
+    ? appointments
+    : appointments.filter(apt => {
         const displayStatus = mapBackendStatusToDisplay(apt.status)
         // Support both backend status and legacy 'upcoming' status
         return displayStatus === filter || (filter === 'scheduled' && apt.status === 'upcoming')
       })
 
+  const handleRescheduleAppointment = (appointmentId, doctorId) => {
+    navigate(`/patient/doctors/${doctorId}?reschedule=${appointmentId}`)
+  }
+
+  const handleCancelAppointment = async (appointmentId) => {
+    if (!window.confirm('Are you sure you want to cancel this appointment?')) {
+      return
+    }
+
+    try {
+      setCancellingId(appointmentId)
+      const response = await cancelAppointment(appointmentId)
+      
+      if (response.success) {
+        toast.success('Appointment cancelled successfully')
+        // Refresh appointments list
+        const updatedResponse = await getPatientAppointments()
+        if (updatedResponse.success && updatedResponse.data) {
+          const appointmentsData = Array.isArray(updatedResponse.data) 
+            ? updatedResponse.data 
+            : updatedResponse.data.appointments || []
+          
+          const transformedAppointments = appointmentsData.map(apt => ({
+            id: apt._id || apt.id,
+            _id: apt._id || apt.id,
+            doctor: apt.doctorId ? {
+              id: apt.doctorId._id || apt.doctorId.id,
+              name: apt.doctorId.firstName && apt.doctorId.lastName
+                ? `Dr. ${apt.doctorId.firstName} ${apt.doctorId.lastName}`
+                : apt.doctorId.name || 'Dr. Unknown',
+              specialty: apt.doctorId.specialization || apt.doctorId.specialty || '',
+              image: apt.doctorId.profileImage || apt.doctorId.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.doctorId.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
+            } : apt.doctor || {},
+            date: apt.appointmentDate || apt.date,
+            time: apt.time || '',
+            status: apt.status || 'scheduled',
+            type: apt.appointmentType || apt.type || 'In-Person',
+            clinic: apt.clinicDetails?.name || apt.clinic || '',
+            location: apt.clinicDetails?.address 
+              ? `${apt.clinicDetails.address.line1 || ''}, ${apt.clinicDetails.address.city || ''}, ${apt.clinicDetails.address.state || ''}`.trim()
+              : apt.location || '',
+            token: apt.tokenNumber ? `Token #${apt.tokenNumber}` : apt.token || null,
+            fee: apt.fee || apt.consultationFee || 0,
+            cancelledBy: apt.cancelledBy,
+            cancelReason: apt.cancelReason,
+          }))
+          
+          setAppointments(transformedAppointments)
+        }
+      } else {
+        toast.error(response.message || 'Failed to cancel appointment')
+      }
+    } catch (err) {
+      console.error('Error cancelling appointment:', err)
+      toast.error(err.message || 'Failed to cancel appointment')
+    } finally {
+      setCancellingId(null)
+    }
+  }
+
+  // Show loading state
+  if (loading) {
+    return (
+      <section className="flex flex-col gap-4 pb-4">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-lg font-semibold text-slate-700">Loading appointments...</p>
+        </div>
+      </section>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <section className="flex flex-col gap-4 pb-4">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-lg font-semibold text-red-700">Error loading appointments</p>
+          <p className="text-sm text-slate-500 mt-2">{error}</p>
+        </div>
+      </section>
+    )
+  }
+
   // Ensure we have data
-  if (!mockAppointments || mockAppointments.length === 0) {
+  if (!appointments || appointments.length === 0) {
     return (
       <section className="flex flex-col gap-4 pb-4">
         <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -337,8 +370,7 @@ const PatientAppointments = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        // Navigate to doctor details page with booking modal open for rescheduling
-                        navigate(`/patient/doctors/${appointment.doctor.id}?book=true&reschedule=${appointment.id}`)
+                        handleRescheduleAppointment(appointment.id, appointment.doctor.id)
                       }}
                       className="flex-1 w-full rounded-xl bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"
                     >
@@ -346,7 +378,7 @@ const PatientAppointments = () => {
                     </button>
                   </div>
                 )}
-                {(appointment.status === 'confirmed' || appointment.status === 'upcoming') && (
+                {(appointment.status === 'confirmed' || appointment.status === 'scheduled' || appointment.status === 'upcoming') && (
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={() => navigate(`/patient/doctors/${appointment.doctor.id}`)}
@@ -355,9 +387,21 @@ const PatientAppointments = () => {
                       View Details
                     </button>
                     <button
-                      className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-600 transition hover:bg-slate-50 active:scale-95"
+                      onClick={() => handleRescheduleAppointment(appointment.id, appointment.doctor.id)}
+                      className="flex-1 rounded-xl border border-[#11496c] bg-white px-3 py-2 text-xs font-semibold text-[#11496c] transition hover:bg-[#11496c]/5 active:scale-95"
                     >
-                      <IoCallOutline className="h-4 w-4" />
+                      Reschedule
+                    </button>
+                    <button
+                      onClick={() => handleCancelAppointment(appointment.id)}
+                      disabled={cancellingId === appointment.id}
+                      className="flex items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2 text-red-600 transition hover:bg-red-50 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {cancellingId === appointment.id ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+                      ) : (
+                        <IoCloseCircleOutline className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
                 )}

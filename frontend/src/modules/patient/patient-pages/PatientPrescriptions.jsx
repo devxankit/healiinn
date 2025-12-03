@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
+import { 
+  getPatientPrescriptions, 
+  getDoctors, 
+  getDiscoveryPharmacies, 
+  getDiscoveryLaboratories,
+  createPatientRequest
+} from '../patient-services/patientService'
 import {
   IoDocumentTextOutline,
   IoCalendarOutline,
@@ -23,194 +30,8 @@ import {
   IoBusinessOutline,
 } from 'react-icons/io5'
 
-const mockPrescriptions = [
-  {
-    id: 'presc-1',
-    doctor: {
-      name: 'Dr. Sarah Mitchell',
-      specialty: 'Cardiology',
-      image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    },
-    issuedAt: '2025-01-10',
-    status: 'active',
-    diagnosis: 'Hypertension',
-    symptoms: 'High blood pressure\nHeadaches\nChest discomfort',
-    medications: [
-      { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', duration: '30 days', instructions: 'Take with food. Monitor blood pressure regularly.' },
-      { name: 'Losartan', dosage: '50mg', frequency: 'Once daily', duration: '30 days', instructions: 'Take in the morning. Avoid potassium supplements.' },
-    ],
-    investigations: [
-      { name: 'ECG', notes: 'Routine checkup' },
-      { name: 'Blood Pressure Monitoring', notes: 'Daily' },
-    ],
-    advice: 'Maintain a low-sodium diet and regular exercise. Monitor blood pressure daily.',
-    followUpAt: '2025-02-10',
-    pdfUrl: '#',
-    sharedWith: {
-      pharmacies: ['Rx Care Pharmacy'],
-      laboratories: ['MediCare Diagnostics'],
-    },
-  },
-  {
-    id: 'presc-2',
-    doctor: {
-      name: 'Dr. Alana Rueter',
-      specialty: 'Dentist',
-      image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-    },
-    issuedAt: '2025-01-08',
-    status: 'active',
-    diagnosis: 'Dental Caries',
-    symptoms: 'Tooth pain\nSensitivity to hot and cold',
-    medications: [
-      { name: 'Amoxicillin', dosage: '500mg', frequency: 'Three times daily', duration: '7 days', instructions: 'Complete the full course. Take with meals to avoid stomach upset.' },
-      { name: 'Ibuprofen', dosage: '400mg', frequency: 'As needed for pain', duration: '5 days', instructions: 'Take with food. Do not exceed recommended dosage.' },
-    ],
-    investigations: [],
-    advice: 'Maintain good oral hygiene. Avoid hard foods for the next few days.',
-    followUpAt: '2025-01-22',
-    pdfUrl: '#',
-    sharedWith: {
-      pharmacies: ['HealthHub Pharmacy'],
-      laboratories: [],
-    },
-  },
-  {
-    id: 'presc-3',
-    doctor: {
-      name: 'Dr. Michael Brown',
-      specialty: 'General Medicine',
-      image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031a?auto=format&fit=crop&w=400&q=80',
-    },
-    issuedAt: '2025-01-05',
-    status: 'completed',
-    diagnosis: 'Common Cold',
-    medications: [
-      { name: 'Paracetamol', dosage: '500mg', frequency: 'As needed', duration: '5 days' },
-    ],
-    investigations: [],
-    advice: 'Rest and stay hydrated. If symptoms persist, consult again.',
-    followUpAt: null,
-    pdfUrl: '#',
-    sharedWith: {
-      pharmacies: ['Neighborhood Family Pharmacy'],
-      laboratories: [],
-    },
-  },
-]
-
-const mockPharmacies = [
-  {
-    id: 'pharm-1',
-    name: 'Rx Care Pharmacy',
-    distance: '0.9 km',
-    location: '123 Market Street, New York',
-    rating: 4.8,
-    phone: '+1-555-214-0098',
-  },
-  {
-    id: 'pharm-2',
-    name: 'HealthHub Pharmacy',
-    distance: '1.5 km',
-    location: '77 Elm Avenue, New York',
-    rating: 4.6,
-    phone: '+1-555-909-4433',
-  },
-  {
-    id: 'pharm-3',
-    name: 'Neighborhood Family Pharmacy',
-    distance: '2.6 km',
-    location: '452 Cedar Lane, New York',
-    rating: 4.2,
-    phone: '+1-555-712-0080',
-  },
-  {
-    id: 'pharm-4',
-    name: 'City Center Wellness Pharmacy',
-    distance: '3.1 km',
-    location: '15 Harbor Road, New York',
-    rating: 4.9,
-    phone: '+1-555-367-5511',
-  },
-]
-
-const mockLabs = [
-  {
-    id: 'lab-1',
-    name: 'MediCare Diagnostics',
-    distance: '1.2 km',
-    location: '123 Health Street, New York',
-    rating: 4.8,
-    phone: '+1-555-123-4567',
-  },
-  {
-    id: 'lab-2',
-    name: 'HealthFirst Lab',
-    distance: '2.5 km',
-    location: '456 Medical Avenue, New York',
-    rating: 4.6,
-    phone: '+1-555-234-5678',
-  },
-  {
-    id: 'lab-3',
-    name: 'Precision Labs',
-    distance: '0.8 km',
-    location: '789 Wellness Boulevard, New York',
-    rating: 4.9,
-    phone: '+1-555-345-6789',
-  },
-  {
-    id: 'lab-4',
-    name: 'City Lab Center',
-    distance: '3.1 km',
-    location: '321 Diagnostic Road, New York',
-    rating: 4.5,
-    phone: '+1-555-456-7890',
-  },
-]
-
-const mockDoctors = [
-  {
-    id: 'doc-1',
-    name: 'Dr. Alana Rueter',
-    specialty: 'Dentist',
-    distance: '1.2 km',
-    location: 'Sunrise Dental Care, New York',
-    rating: 4.8,
-    consultationFee: 500,
-    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    id: 'doc-2',
-    name: 'Dr. James Wilson',
-    specialty: 'Orthopedic',
-    distance: '3.1 km',
-    location: 'Bone & Joint Clinic, New York',
-    rating: 4.7,
-    consultationFee: 750,
-    image: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    id: 'doc-3',
-    name: 'Dr. Emily Chen',
-    specialty: 'Neurology',
-    distance: '1.8 km',
-    location: 'Neuro Care Institute, New York',
-    rating: 4.6,
-    consultationFee: 900,
-    image: 'https://images.unsplash.com/photo-1594824476968-48fd8d2d7dc2?auto=format&fit=crop&w=400&q=80',
-  },
-  {
-    id: 'doc-4',
-    name: 'Dr. Michael Brown',
-    specialty: 'General Medicine',
-    distance: '0.9 km',
-    location: 'Family Health Clinic, New York',
-    rating: 4.9,
-    consultationFee: 600,
-    image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031a?auto=format&fit=crop&w=400&q=80',
-  },
-]
+// Default prescriptions (will be replaced by API data)
+const defaultPrescriptions = []
 
 const renderStars = (rating) => {
   const stars = []
@@ -281,52 +102,70 @@ const PatientPrescriptions = () => {
     }
   }, [searchParams])
 
-  const filteredPrescriptions = mockPrescriptions.filter((presc) => {
+  const [prescriptions, setPrescriptions] = useState(defaultPrescriptions)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Fetch prescriptions from API
+  useEffect(() => {
+    const fetchPrescriptions = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPatientPrescriptions()
+        
+        if (response.success && response.data) {
+          const prescriptionsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.prescriptions || []
+          
+          // Transform API data to match component structure
+          const transformed = prescriptionsData.map(presc => ({
+            id: presc._id || presc.id,
+            _id: presc._id || presc.id,
+            doctor: presc.doctorId ? {
+              name: presc.doctorId.firstName && presc.doctorId.lastName
+                ? `Dr. ${presc.doctorId.firstName} ${presc.doctorId.lastName}`
+                : presc.doctorId.name || 'Dr. Unknown',
+              specialty: presc.doctorId.specialization || presc.doctorId.specialty || '',
+              image: presc.doctorId.profileImage || presc.doctorId.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(presc.doctorId.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
+            } : presc.doctor || {},
+            issuedAt: presc.createdAt ? new Date(presc.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: presc.status || 'active',
+            diagnosis: presc.diagnosis || '',
+            symptoms: presc.symptoms || '',
+            medications: presc.medicines || presc.medications || [],
+            investigations: presc.investigations || [],
+            advice: presc.advice || presc.notes || '',
+            followUpAt: presc.followUpDate || presc.followUpAt || null,
+            pdfUrl: presc.pdfUrl || '#',
+            sharedWith: presc.sharedWith || {
+              pharmacies: [],
+              laboratories: [],
+            },
+            originalData: presc,
+          }))
+          
+          setPrescriptions(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching prescriptions:', err)
+        setError(err.message || 'Failed to load prescriptions')
+        toast.error('Failed to load prescriptions')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPrescriptions()
+  }, [toast])
+
+  const filteredPrescriptions = prescriptions.filter((presc) => {
     if (filter === 'all') return true
     return presc.status === filter
   })
 
-  const currentPrescription = mockPrescriptions.find((p) => p.id === sharePrescriptionId)
-
-  // Helper function to check if doctor is active
-  const isDoctorActive = (doctorName) => {
-    try {
-      const saved = localStorage.getItem('doctorProfile')
-      if (saved) {
-        const profile = JSON.parse(saved)
-        const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
-        if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
-          return profile.isActive !== false
-        }
-      }
-      const activeStatus = localStorage.getItem('doctorProfileActive')
-      if (activeStatus !== null && saved) {
-        const isActive = JSON.parse(activeStatus)
-        const profile = JSON.parse(saved)
-        const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
-        if (doctorName.includes(profile.firstName) || doctorName.includes(profile.lastName) || doctorName === fullName) {
-          return isActive
-        }
-      }
-    } catch (error) {
-      console.error('Error checking doctor active status:', error)
-    }
-    return true
-  }
-
-  const filteredDoctors = mockDoctors.filter((doctor) => {
-    // Filter by active status first
-    if (!isDoctorActive(doctor.name)) {
-      return false
-    }
-    
-    const search = shareSearchTerm.toLowerCase()
-    return (
-      doctor.name.toLowerCase().includes(search) ||
-      doctor.specialty.toLowerCase().includes(search) ||
-      doctor.location.toLowerCase().includes(search)
-    )
-  })
+  const currentPrescription = prescriptions.find((p) => p.id === sharePrescriptionId)
 
   useEffect(() => {
     if (showShareModal) {
@@ -756,107 +595,35 @@ const PatientPrescriptions = () => {
     if (!testVisitPrescription) return
 
     try {
-      // Get patient info from localStorage or use defaults
-      const patientProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
-      const patientPhone = patientProfile.phone || testVisitPrescription.patientPhone || '+1-555-000-0000'
-      const patientAddress = patientProfile.address 
-        ? `${patientProfile.address.line1 || ''} ${patientProfile.address.line2 || ''} ${patientProfile.address.city || ''} ${patientProfile.address.state || ''} ${patientProfile.address.postalCode || ''}`.trim()
-        : testVisitPrescription.patientAddress || 'Address not provided'
+      setIsSharing(true)
       
-      // Get prescription PDF URL if available
-      let prescriptionPdfUrl = testVisitPrescription.pdfUrl || null
-      if (!prescriptionPdfUrl || prescriptionPdfUrl === '#') {
-        try {
-          const patientPrescriptionsKey = `patientPrescriptions_${testVisitPrescription.patientId || 'pat-current'}`
-          const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
-          const matchingPrescription = patientPrescriptions.find(p => p.id === testVisitPrescription.id || p.consultationId === testVisitPrescription.id)
-          if (matchingPrescription?.pdfUrl && matchingPrescription.pdfUrl !== '#') {
-            prescriptionPdfUrl = matchingPrescription.pdfUrl
-          }
-        } catch (error) {
-          console.error('Error loading prescription PDF:', error)
-        }
+      // Get prescription ID
+      const prescriptionId = testVisitPrescription._id || testVisitPrescription.id
+      
+      if (!prescriptionId) {
+        toast.error('Prescription ID not found')
+        setIsSharing(false)
+        return
       }
 
-      // Create request data for home sample collection (goes to admin first)
-      const requestData = {
-        id: `test-request-home-${Date.now()}`,
+      // Create request via API
+      const response = await createPatientRequest({
         type: 'book_test_visit',
-        visitType: 'home', // Mark as home visit
-        prescriptionId: testVisitPrescription.id,
-        prescriptionPdfUrl: prescriptionPdfUrl, // Include prescription PDF URL
-        prescription: {
-          doctorName: testVisitPrescription.doctor.name,
-          doctorSpecialty: testVisitPrescription.doctor.specialty,
-          diagnosis: testVisitPrescription.diagnosis,
-          issuedAt: testVisitPrescription.issuedAt,
-          investigations: testVisitPrescription.investigations || [],
-          medications: testVisitPrescription.medications || [],
-          advice: testVisitPrescription.advice || '',
-          lifestyleAdvice: testVisitPrescription.lifestyleAdvice || '',
-          patientName: testVisitPrescription.patientName || patientProfile.name || 'Current Patient',
-          patientPhone: patientPhone,
-          patientAddress: patientAddress,
-          pdfUrl: prescriptionPdfUrl, // Include in prescription object too
-        },
-        patientId: 'pat-current', // In real app, get from auth
-        patientName: testVisitPrescription.patientName || patientProfile.name || 'Current Patient',
-        patientPhone: patientPhone,
-        patientAddress: patientAddress,
-        patientEmail: patientProfile.email || 'patient@example.com',
-        status: 'pending', // Goes to admin first
-        createdAt: new Date().toISOString(),
-      }
-
-      // Save to localStorage for admin to see
-      const existingRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      existingRequests.push(requestData)
-      localStorage.setItem('adminRequests', JSON.stringify(existingRequests))
-
-      // Also create entry in patientRequests so patient can see it immediately
-      const patientRequestData = {
-        id: requestData.id,
-        type: 'lab',
+        prescriptionId,
         visitType: 'home',
-        providerName: 'Healiinn',
-        providerId: 'admin',
-        testName: 'Lab Test Request (Home Sample Collection)',
-        status: 'pending',
-        requestDate: requestData.createdAt,
-        responseDate: null,
-        totalAmount: null,
-        message: 'Your home sample collection request has been sent to admin. Waiting for approval...',
-        prescriptionId: testVisitPrescription.id,
-        patient: {
-          name: requestData.patientName,
-          phone: requestData.patientPhone,
-          email: requestData.patientEmail,
-          address: requestData.patientAddress,
-          age: patientProfile.age || 32,
-          gender: patientProfile.gender || 'Male',
-        },
-        providerResponse: null,
-        doctor: {
-          name: testVisitPrescription.doctor.name,
-          specialty: testVisitPrescription.doctor.specialty,
-          phone: '+91 98765 43210',
-        },
-        prescription: requestData.prescription,
+      })
+
+      if (response.success) {
+        // Close modal
+        setShowTestVisitModal(false)
+        setTestVisitPrescription(null)
+        toast.success('Home sample collection request sent successfully! Admin will review and approve your request.')
       }
-
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      patientRequests.push(patientRequestData)
-      localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
-
-      // Close modal
-      setShowTestVisitModal(false)
-      setTestVisitPrescription(null)
-
-      // Show success message
-      toast.success('Home sample collection request sent to admin successfully! Admin will review and approve your request.')
     } catch (error) {
       console.error('Error sending home test visit request:', error)
-      toast.error('Error sending request. Please try again.')
+      toast.error(error.message || 'Error sending request. Please try again.')
+    } finally {
+      setIsSharing(false)
     }
   }
 
@@ -864,273 +631,230 @@ const PatientPrescriptions = () => {
     if (!testVisitPrescription) return
 
     try {
-      // Get patient info from localStorage or use defaults
-      const patientProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
-      const patientPhone = patientProfile.phone || testVisitPrescription.patientPhone || '+1-555-000-0000'
-      const patientAddress = patientProfile.address 
-        ? `${patientProfile.address.line1 || ''} ${patientProfile.address.line2 || ''} ${patientProfile.address.city || ''} ${patientProfile.address.state || ''} ${patientProfile.address.postalCode || ''}`.trim()
-        : testVisitPrescription.patientAddress || 'Address not provided'
+      setIsSharing(true)
       
-      // Get prescription PDF URL if available
-      let prescriptionPdfUrl = testVisitPrescription.pdfUrl || null
-      if (!prescriptionPdfUrl || prescriptionPdfUrl === '#') {
-        try {
-          const patientPrescriptionsKey = `patientPrescriptions_${testVisitPrescription.patientId || 'pat-current'}`
-          const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
-          const matchingPrescription = patientPrescriptions.find(p => p.id === testVisitPrescription.id || p.consultationId === testVisitPrescription.id)
-          if (matchingPrescription?.pdfUrl && matchingPrescription.pdfUrl !== '#') {
-            prescriptionPdfUrl = matchingPrescription.pdfUrl
-          }
-        } catch (error) {
-          console.error('Error loading prescription PDF:', error)
-        }
+      // Get prescription ID
+      const prescriptionId = testVisitPrescription._id || testVisitPrescription.id
+      
+      if (!prescriptionId) {
+        toast.error('Prescription ID not found')
+        setIsSharing(false)
+        return
       }
 
-      // Create request data for lab visit (goes to admin first, just like home)
-      const requestData = {
-        id: `test-request-lab-${Date.now()}`,
+      // Create request via API
+      const response = await createPatientRequest({
         type: 'book_test_visit',
-        visitType: 'lab', // Mark as lab visit
-        prescriptionId: testVisitPrescription.id,
-        prescriptionPdfUrl: prescriptionPdfUrl, // Include prescription PDF URL
-        prescription: {
-          doctorName: testVisitPrescription.doctor.name,
-          doctorSpecialty: testVisitPrescription.doctor.specialty,
-          diagnosis: testVisitPrescription.diagnosis,
-          issuedAt: testVisitPrescription.issuedAt,
-          investigations: testVisitPrescription.investigations || [],
-          medications: testVisitPrescription.medications || [],
-          advice: testVisitPrescription.advice || '',
-          lifestyleAdvice: testVisitPrescription.lifestyleAdvice || '',
-          patientName: testVisitPrescription.patientName || patientProfile.name || 'Current Patient',
-          patientPhone: patientPhone,
-          patientAddress: patientAddress,
-          pdfUrl: prescriptionPdfUrl, // Include in prescription object too
-        },
-        patientId: 'pat-current', // In real app, get from auth
-        patientName: testVisitPrescription.patientName || patientProfile.name || 'Current Patient',
-        patientPhone: patientPhone,
-        patientAddress: patientAddress,
-        patientEmail: patientProfile.email || 'patient@example.com',
-        status: 'pending', // Goes to admin first
-        createdAt: new Date().toISOString(),
-      }
-
-      // Save to localStorage for admin to see
-      const existingRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      existingRequests.push(requestData)
-      localStorage.setItem('adminRequests', JSON.stringify(existingRequests))
-
-      // Also create entry in patientRequests so patient can see it immediately
-      const patientRequestData = {
-        id: requestData.id,
-        type: 'lab',
+        prescriptionId,
         visitType: 'lab',
-        providerName: 'Healiinn',
-        providerId: 'admin',
-        testName: 'Lab Test Request (Lab Visit)',
-        status: 'pending',
-        requestDate: requestData.createdAt,
-        responseDate: null,
-        totalAmount: null,
-        message: 'Your lab visit request has been sent to admin. Waiting for approval...',
-        prescriptionId: testVisitPrescription.id,
-        patient: {
-          name: requestData.patientName,
-          phone: requestData.patientPhone,
-          email: requestData.patientEmail,
-          address: requestData.patientAddress,
-          age: patientProfile.age || 32,
-          gender: patientProfile.gender || 'Male',
-        },
-        providerResponse: null,
-        doctor: {
-          name: testVisitPrescription.doctor.name,
-          specialty: testVisitPrescription.doctor.specialty,
-          phone: '+91 98765 43210',
-        },
-        prescription: requestData.prescription,
+      })
+
+      if (response.success) {
+        // Close modal
+        setShowTestVisitModal(false)
+        setTestVisitPrescription(null)
+        toast.success('Lab visit request sent successfully! Admin will review and approve your request.')
       }
-
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      patientRequests.push(patientRequestData)
-      localStorage.setItem('patientRequests', JSON.stringify(patientRequests))
-
-      // Close modal
-      setShowTestVisitModal(false)
-      setTestVisitPrescription(null)
-
-      // Show success message
-      toast.success('Lab visit request sent to admin successfully! Admin will review and approve your request.')
     } catch (error) {
       console.error('Error sending lab visit request:', error)
-      toast.error('Error sending request. Please try again.')
+      toast.error(error.message || 'Error sending request. Please try again.')
+    } finally {
+      setIsSharing(false)
     }
   }
 
   const handleOrderMedicine = async (prescription) => {
     try {
-      // Get patient info from localStorage or use defaults
-      const patientProfile = JSON.parse(localStorage.getItem('patientProfile') || '{}')
-      const patientPhone = patientProfile.phone || prescription.patientPhone || '+1-555-000-0000'
-      const patientAddress = patientProfile.address 
-        ? `${patientProfile.address.line1 || ''} ${patientProfile.address.line2 || ''} ${patientProfile.address.city || ''} ${patientProfile.address.state || ''} ${patientProfile.address.postalCode || ''}`.trim()
-        : prescription.patientAddress || 'Address not provided'
+      setIsSharing(true)
       
-      // Create request data
-      const requestData = {
-        id: `medicine-request-${Date.now()}`,
-        type: 'order_medicine',
-        prescriptionId: prescription.id,
-        prescription: {
-          doctorName: prescription.doctor.name,
-          doctorSpecialty: prescription.doctor.specialty,
-          diagnosis: prescription.diagnosis,
-          issuedAt: prescription.issuedAt,
-          medications: prescription.medications || [],
-          investigations: prescription.investigations || [], // Include investigations for complete prescription
-          advice: prescription.advice || '',
-          lifestyleAdvice: prescription.lifestyleAdvice || '',
-          patientName: prescription.patientName || patientProfile.name || 'Current Patient',
-          patientPhone: patientPhone,
-          patientAddress: patientAddress,
-        },
-        patientId: 'pat-current', // In real app, get from auth
-        patientName: prescription.patientName || patientProfile.name || 'Current Patient', // In real app, get from auth
-        patientPhone: patientPhone,
-        patientAddress: patientAddress,
-        patientEmail: patientProfile.email || 'patient@example.com',
-        status: 'pending',
-        createdAt: new Date().toISOString(),
+      // Get prescription ID
+      const prescriptionId = prescription._id || prescription.id
+      
+      if (!prescriptionId) {
+        toast.error('Prescription ID not found')
+        setIsSharing(false)
+        return
       }
 
-      // Save to localStorage for admin to see
-      const existingRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      existingRequests.push(requestData)
-      localStorage.setItem('adminRequests', JSON.stringify(existingRequests))
+      // Create request via API
+      const response = await createPatientRequest({
+        type: 'order_medicine',
+        prescriptionId,
+      })
 
-      // Show success message
-      toast.success('Medicine order request sent to admin successfully!')
+      if (response.success) {
+        toast.success('Medicine order request sent successfully!')
+      }
     } catch (error) {
       console.error('Error sending medicine order request:', error)
-      toast.error('Error sending request. Please try again.')
+      toast.error(error.message || 'Error sending request. Please try again.')
+    } finally {
+      setIsSharing(false)
     }
   }
 
   // Calculate prescription counts
-  const activePrescriptionsCount = mockPrescriptions.filter((p) => p.status === 'active').length
-  const totalPrescriptionsCount = mockPrescriptions.length
+  const activePrescriptionsCount = prescriptions.filter((p) => p.status === 'active').length
+  const totalPrescriptionsCount = prescriptions.length
 
-  // Mock lab reports data (same as PatientReports page)
-  const mockLabReports = [
-    {
-      id: 'report-1',
-      testName: 'Complete Blood Count (CBC)',
-      labName: 'MediCare Diagnostics',
-      labId: 'lab-1',
-      date: '2025-01-10',
-      status: 'ready',
-      downloadUrl: '#',
-      doctorId: 'doc-1',
-      doctorName: 'Dr. Sarah Mitchell',
-      doctorSpecialty: 'Cardiology',
-      doctorImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-      // PDF file uploaded by lab
-      pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
-      pdfFileName: 'CBC_Report_2025-01-10.pdf',
-    },
-    {
-      id: 'report-2',
-      testName: 'Lipid Profile',
-      labName: 'HealthFirst Lab',
-      labId: 'lab-2',
-      date: '2025-01-08',
-      status: 'ready',
-      downloadUrl: '#',
-      doctorId: 'doc-2',
-      doctorName: 'Dr. John Smith',
-      doctorSpecialty: 'General Medicine',
-      doctorImage: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-      // PDF file uploaded by lab
-      pdfFileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Example PDF URL - in real app, this comes from lab
-      pdfFileName: 'Lipid_Profile_2025-01-08.pdf',
-    },
-  ]
-
-  // Load lab reports from localStorage (from laboratory) and merge with mock data
+  // Load lab reports from API
   const [labReports, setLabReports] = useState([])
+  const [loadingReports, setLoadingReports] = useState(false)
   
+  // State for doctors, pharmacies, and labs
+  const [doctors, setDoctors] = useState([])
+  const [pharmacies, setPharmacies] = useState([])
+  const [labs, setLabs] = useState([])
+  const [loadingDoctors, setLoadingDoctors] = useState(false)
+  const [loadingPharmacies, setLoadingPharmacies] = useState(false)
+  const [loadingLabs, setLoadingLabs] = useState(false)
+  
+  // Filter doctors for sharing (must be after doctors state declaration)
+  const filteredDoctors = doctors.filter((doctor) => {
+    if (!doctor.isActive) return false
+    
+    const search = shareSearchTerm.toLowerCase()
+    const doctorName = doctor.firstName && doctor.lastName 
+      ? `Dr. ${doctor.firstName} ${doctor.lastName}`
+      : doctor.name || ''
+    const specialty = doctor.specialization || doctor.specialty || ''
+    const location = doctor.clinicDetails?.clinicName || doctor.location || ''
+    
+    return (
+      doctorName.toLowerCase().includes(search) ||
+      specialty.toLowerCase().includes(search) ||
+      location.toLowerCase().includes(search)
+    )
+  })
+  
+  // Fetch doctors for sharing
   useEffect(() => {
-    const loadLabReports = () => {
+    const fetchDoctors = async () => {
       try {
-        const patientId = 'pat-current' // In real app, get from auth
-        
-        // Load from patientLabReports
-        const patientLabReportsKey = `patientLabReports_${patientId}`
-        const reportsFromStorage = JSON.parse(localStorage.getItem(patientLabReportsKey) || '[]')
-        
-        // Also load from sharedLabReports for backward compatibility
-        const sharedReportsKey = `sharedLabReports_${patientId}`
-        const sharedReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
-        
-        // Merge all reports
-        const allReports = [...reportsFromStorage, ...sharedReports, ...mockLabReports]
-        
-        // Deduplicate based on id or orderId
-        const uniqueReports = allReports.filter((report, idx, self) => {
-          const firstIndex = self.findIndex(r => {
-            if (r.id && report.id && r.id === report.id) return true
-            if (r.orderId && report.orderId && r.orderId === report.orderId) return true
-            return false
-          })
-          return idx === firstIndex
-        })
-        
-        // Sort by date (newest first)
-        uniqueReports.sort((a, b) => {
-          const dateA = new Date(a.date || a.sharedAt || 0)
-          const dateB = new Date(b.date || b.sharedAt || 0)
-          return dateB - dateA
-        })
-        
-        setLabReports(uniqueReports)
+        setLoadingDoctors(true)
+        const response = await getDoctors({ limit: 50 })
+        if (response.success && response.data) {
+          const items = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          setDoctors(items)
+        }
       } catch (error) {
-        console.error('Error loading lab reports:', error)
-        setLabReports(mockLabReports)
+        console.error('Error fetching doctors:', error)
+        setDoctors([])
+      } finally {
+        setLoadingDoctors(false)
       }
     }
     
-    loadLabReports()
-    // Refresh every 2 seconds to get new reports
-    const interval = setInterval(loadLabReports, 2000)
+    if (showShareModal || showLabShareModal) {
+      fetchDoctors()
+    }
+  }, [showShareModal, showLabShareModal])
+  
+  // Fetch pharmacies
+  useEffect(() => {
+    const fetchPharmacies = async () => {
+      try {
+        setLoadingPharmacies(true)
+        const response = await getDiscoveryPharmacies({ limit: 20 })
+        if (response.success && response.data) {
+          const items = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          setPharmacies(items)
+        }
+      } catch (error) {
+        console.error('Error fetching pharmacies:', error)
+        setPharmacies([])
+      } finally {
+        setLoadingPharmacies(false)
+      }
+    }
+    
+    fetchPharmacies()
+  }, [])
+  
+  // Fetch labs
+  useEffect(() => {
+    const fetchLabs = async () => {
+      try {
+        setLoadingLabs(true)
+        const response = await getDiscoveryLaboratories({ limit: 20 })
+        if (response.success && response.data) {
+          const items = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          setLabs(items)
+        }
+      } catch (error) {
+        console.error('Error fetching labs:', error)
+        setLabs([])
+      } finally {
+        setLoadingLabs(false)
+      }
+    }
+    
+    fetchLabs()
+  }, [])
+  
+  useEffect(() => {
+    const fetchLabReports = async () => {
+      try {
+        setLoadingReports(true)
+        // Lab reports are fetched from PatientReports page API
+        // For now, we'll keep it empty or fetch from API if needed
+        setLabReports([])
+      } catch (error) {
+        console.error('Error loading lab reports:', error)
+        setLabReports([])
+      } finally {
+        setLoadingReports(false)
+      }
+    }
+    
+    fetchLabReports()
+    // Refresh every 30 seconds to get new reports
+    const interval = setInterval(fetchLabReports, 30000)
     return () => clearInterval(interval)
   }, [])
 
   // Calculate lab reports count
   const labReportsCount = labReports.length
 
+  // State for patient appointments
+  const [patientAppointments, setPatientAppointments] = useState([])
+  
+  // Fetch patient appointments to check if doctor has appointment
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        const { getPatientAppointments } = await import('../patient-services/patientService')
+        const response = await getPatientAppointments({ limit: 100 })
+        if (response.success && response.data) {
+          const items = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          setPatientAppointments(items)
+        }
+      } catch (error) {
+        console.error('Error fetching appointments:', error)
+        setPatientAppointments([])
+      }
+    }
+    
+    if (showShareModal || showLabShareModal) {
+      fetchAppointments()
+    }
+  }, [showShareModal, showLabShareModal])
+  
   // Check if patient has appointment with a doctor
   const checkPatientHasAppointment = (doctorId) => {
-    try {
-      const patientId = 'pat-current' // In real app, get from auth
-      const allAppointments = [
-        ...JSON.parse(localStorage.getItem('patientAppointments') || '[]'),
-        ...JSON.parse(localStorage.getItem('doctorAppointments') || '[]'),
-      ]
-      
-      // Check if there's any appointment (scheduled, confirmed, or completed) with this doctor
-      const hasAppointment = allAppointments.some(
-        (apt) =>
-          apt.doctorId === doctorId &&
-          apt.patientId === patientId &&
-          (apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'completed' || apt.status === 'waiting' || apt.status === 'visited')
-      )
-      
-      return hasAppointment
-    } catch (error) {
-      console.error('Error checking appointment:', error)
-      return false
-    }
+    return patientAppointments.some(
+      (apt) =>
+        (apt.doctorId?._id || apt.doctorId?.id || apt.doctorId) === doctorId &&
+        (apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'completed')
+    )
   }
 
   // Lab report handlers
@@ -1173,82 +897,35 @@ const PatientPrescriptions = () => {
 
     setIsSharingLabReport(true)
     
-    const patientId = 'pat-current' // In real app, get from auth
-    const selectedDoctor = mockDoctors.find(doc => doc.id === selectedLabDoctorId)
+    const selectedDoctor = doctors.find(doc => (doc._id || doc.id) === selectedLabDoctorId)
     
     if (!selectedDoctor) {
       setIsSharingLabReport(false)
+      toast.error('Doctor not found')
       return
     }
+    
+    const doctorName = selectedDoctor.firstName && selectedDoctor.lastName 
+      ? `Dr. ${selectedDoctor.firstName} ${selectedDoctor.lastName}`
+      : selectedDoctor.name || 'Doctor'
 
     // Check if patient has appointment with this doctor
     const hasAppointment = checkPatientHasAppointment(selectedLabDoctorId)
     
     if (hasAppointment || (selectedLabReport.doctorId && selectedLabDoctorId === selectedLabReport.doctorId)) {
-      // Direct share - save to localStorage for doctor to access
-      try {
-        const sharedReport = {
-          ...selectedLabReport,
-          sharedWithDoctorId: selectedLabDoctorId,
-          sharedAt: new Date().toISOString(),
-          patientId: patientId,
-          pdfFileUrl: selectedLabReport.pdfFileUrl || selectedLabReport.downloadUrl,
-          pdfFileName: selectedLabReport.pdfFileName || `${selectedLabReport.testName?.replace(/\s+/g, '_') || 'Report'}_${selectedLabReport.date || 'Report'}.pdf`,
-        }
-        
-        // Save to patient-specific key
-        const sharedReportsKey = `sharedLabReports_${patientId}`
-        const existingReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
-        // Check if already shared
-        const alreadyShared = existingReports.find(r => r.id === selectedLabReport.id && r.sharedWithDoctorId === selectedLabDoctorId)
-        if (!alreadyShared) {
-          existingReports.push(sharedReport)
-          localStorage.setItem(sharedReportsKey, JSON.stringify(existingReports))
-        }
-        
-        // Also save to doctor-specific key for easy access
-        const doctorSharedReportsKey = `doctorSharedLabReports_${selectedLabDoctorId}`
-        const doctorReports = JSON.parse(localStorage.getItem(doctorSharedReportsKey) || '[]')
-        if (!doctorReports.find(r => r.id === selectedLabReport.id && r.patientId === patientId)) {
-          doctorReports.push(sharedReport)
-          localStorage.setItem(doctorSharedReportsKey, JSON.stringify(doctorReports))
-        }
-      } catch (error) {
-        console.error('Error saving shared report:', error)
-      }
-      
+      // Direct share - TODO: Implement API for sharing reports with doctors
+      // For now, just show success message
       setTimeout(() => {
         setIsSharingLabReport(false)
         handleCloseLabShareModal()
-        toast.success(`Report shared successfully with ${selectedDoctor.name}`)
+        toast.success(`Report will be shared with ${doctorName}. Note: This feature will be available via API soon.`)
       }, 1000)
     } else {
       // Share with other doctor - requires booking
-      try {
-        const sharedReport = {
-          ...selectedLabReport,
-          sharedWithDoctorId: selectedLabDoctorId,
-          sharedAt: new Date().toISOString(),
-          patientId: patientId,
-          pendingAppointment: true, // Mark as pending appointment
-        }
-        
-        // Save to patient-specific key
-        const sharedReportsKey = `sharedLabReports_${patientId}`
-        const existingReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
-        const alreadyShared = existingReports.find(r => r.id === selectedLabReport.id && r.sharedWithDoctorId === selectedLabDoctorId)
-        if (!alreadyShared) {
-          existingReports.push(sharedReport)
-          localStorage.setItem(sharedReportsKey, JSON.stringify(existingReports))
-        }
-      } catch (error) {
-        console.error('Error saving shared report:', error)
-      }
-      
       setTimeout(() => {
         setIsSharingLabReport(false)
         handleCloseLabShareModal()
-        toast.info(`Report "${selectedLabReport.testName}" will be shared with ${selectedDoctor.name} after booking appointment.`)
+        toast.info(`To share with ${doctorName}, please book an appointment first.`)
         // Navigate to doctor details page with booking modal
         navigate(`/patient/doctors/${selectedLabDoctorId}?book=true`)
       }, 1000)
@@ -1950,43 +1627,61 @@ const PatientPrescriptions = () => {
                   Other Doctors:
                 </p>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {mockDoctors
-                    .filter((doc) => !selectedLabReport.doctorId || doc.id !== selectedLabReport.doctorId)
-                    .map((doctor) => {
-                      const hasAppointment = checkPatientHasAppointment(doctor.id)
-                      return (
-                        <button
-                          key={doctor.id}
-                          type="button"
-                          onClick={() => setSelectedLabDoctorId(doctor.id)}
-                          className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
-                            selectedLabDoctorId === doctor.id
-                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                              : 'border-slate-200 bg-white hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={doctor.image}
-                              alt={doctor.name}
-                              className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100"
-                            />
-                            <div className="flex-1">
-                              <h3 className="font-semibold text-slate-900">{doctor.name}</h3>
-                              <p className="text-xs text-slate-600">{doctor.specialty}</p>
+                  {loadingDoctors ? (
+                    <p className="text-xs text-slate-500 text-center py-4">Loading doctors...</p>
+                  ) : filteredDoctors.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-4">No doctors found</p>
+                  ) : (
+                    filteredDoctors
+                      .filter((doc) => {
+                        const docId = doc._id || doc.id
+                        return !selectedLabReport?.doctorId || docId !== selectedLabReport.doctorId
+                      })
+                      .map((doctor) => {
+                        const doctorId = doctor._id || doctor.id
+                        const doctorName = doctor.firstName && doctor.lastName 
+                          ? `Dr. ${doctor.firstName} ${doctor.lastName}`
+                          : doctor.name || 'Doctor'
+                        const specialty = doctor.specialization || doctor.specialty || ''
+                        const hasAppointment = checkPatientHasAppointment(doctorId)
+                        return (
+                          <button
+                            key={doctorId}
+                            type="button"
+                            onClick={() => setSelectedLabDoctorId(doctorId)}
+                            className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
+                              selectedLabDoctorId === doctorId
+                                ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                                : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={doctor.profileImage || doctor.image || ''}
+                                alt={doctorName}
+                                className="h-12 w-12 rounded-xl object-cover ring-2 ring-slate-100"
+                                onError={(e) => {
+                                  e.target.onerror = null
+                                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=3b82f6&color=fff&size=128&bold=true`
+                                }}
+                              />
+                              <div className="flex-1">
+                                <h3 className="font-semibold text-slate-900">{doctorName}</h3>
+                                <p className="text-xs text-slate-600">{specialty}</p>
+                              </div>
+                              {selectedLabDoctorId === doctorId && (
+                                <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
+                              )}
                             </div>
-                            {selectedLabDoctorId === doctor.id && (
-                              <IoCheckmarkCircleOutline className="h-5 w-5 text-[#11496c] shrink-0" />
+                            {hasAppointment ? (
+                              <p className="mt-2 text-xs text-[#11496c]">✓ Can share directly (appointment already booked)</p>
+                            ) : (
+                              <p className="mt-2 text-xs text-amber-600">⚠ Requires booking appointment</p>
                             )}
-                          </div>
-                          {hasAppointment ? (
-                            <p className="mt-2 text-xs text-[#11496c]">✓ Can share directly (appointment already booked)</p>
-                          ) : (
-                            <p className="mt-2 text-xs text-amber-600">⚠ Requires booking appointment</p>
-                          )}
-                        </button>
-                      )
-                    })}
+                          </button>
+                        )
+                      })
+                  )}
                 </div>
               </div>
 
@@ -1995,7 +1690,7 @@ const PatientPrescriptions = () => {
                   <p className="text-xs text-[#0a2d3f]">
                     {(selectedLabReport.doctorId && selectedLabDoctorId === selectedLabReport.doctorId) || checkPatientHasAppointment(selectedLabDoctorId) ? (
                       <>
-                        <strong>Direct Share:</strong> Report will be shared immediately with {mockDoctors.find(d => d.id === selectedLabDoctorId)?.name || selectedLabReport.doctorName}.
+                        <strong>Direct Share:</strong> Report will be shared immediately with {doctors.find(d => (d._id || d.id) === selectedLabDoctorId) ? (doctors.find(d => (d._id || d.id) === selectedLabDoctorId).firstName && doctors.find(d => (d._id || d.id) === selectedLabDoctorId).lastName ? `Dr. ${doctors.find(d => (d._id || d.id) === selectedLabDoctorId).firstName} ${doctors.find(d => (d._id || d.id) === selectedLabDoctorId).lastName}` : doctors.find(d => (d._id || d.id) === selectedLabDoctorId).name) : selectedLabReport?.doctorName || 'Doctor'}.
                       </>
                     ) : (
                       <>

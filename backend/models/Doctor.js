@@ -50,7 +50,16 @@ const doctorSchema = new mongoose.Schema(
       },
     },
     bio: { type: String, trim: true },
-    consultationFee: { type: Number, min: 0 },
+    consultationFee: { 
+      type: Number, 
+      min: 0,
+      set: function(v) {
+        // Preserve exact value without rounding
+        if (v === null || v === undefined || v === '') return undefined;
+        const num = typeof v === 'string' ? parseFloat(v) : v;
+        return isNaN(num) ? undefined : num;
+      }
+    },
     averageConsultationMinutes: {
       type: Number,
       min: 5,
@@ -104,6 +113,10 @@ const doctorSchema = new mongoose.Schema(
       },
     ],
     profileImage: { type: String, trim: true },
+    digitalSignature: {
+      imageUrl: { type: String, trim: true },
+      uploadedAt: { type: Date },
+    },
     documents: {
       license: { type: String, trim: true },
       identityProof: { type: String, trim: true },

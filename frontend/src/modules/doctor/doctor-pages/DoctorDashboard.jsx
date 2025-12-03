@@ -2,6 +2,9 @@ import { useNavigate } from 'react-router-dom'
 import { useState, useMemo, useEffect } from 'react'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import DoctorSidebar from '../doctor-components/DoctorSidebar'
+import { useToast } from '../../../contexts/ToastContext'
+import { getDoctorDashboard, getDoctorAppointments, getDoctorQueue, getDoctorConsultations, getDoctorProfile, getDoctorWalletBalance } from '../doctor-services/doctorService'
+import NotificationBell from '../../../components/NotificationBell'
 import {
   IoPeopleOutline,
   IoDocumentTextOutline,
@@ -25,17 +28,18 @@ import {
   IoMailOutline,
 } from 'react-icons/io5'
 
-const mockStats = {
-  totalPatients: 156,
-  totalConsultations: 342,
-  todayAppointments: 8,
-  totalEarnings: 15750.50,
-  pendingConsultations: 12,
-  averageRating: 4.8,
-  thisMonthEarnings: 8250.00,
-  lastMonthEarnings: 6890.50,
-  thisMonthConsultations: 45,
-  lastMonthConsultations: 38,
+// Default stats (will be replaced by API data)
+const defaultStats = {
+  totalPatients: 0,
+  totalConsultations: 0,
+  todayAppointments: 0,
+  totalEarnings: 0,
+  pendingConsultations: 0,
+  averageRating: 0,
+  thisMonthEarnings: 0,
+  lastMonthEarnings: 0,
+  thisMonthConsultations: 0,
+  lastMonthConsultations: 0,
 }
 
 // Helper function to get today's date string in YYYY-MM-DD format
@@ -47,188 +51,7 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`
 }
 
-// All appointments data (includes today and future appointments)
-const allAppointments = [
-  {
-    id: 'apt-1',
-    patientName: 'John Doe',
-    patientImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-    date: getTodayDateString(),
-    time: '09:00 AM',
-    type: 'In-person',
-    status: 'confirmed',
-    duration: '30 min',
-    reason: 'Follow-up consultation',
-  },
-  {
-    id: 'apt-2',
-    patientName: 'Sarah Smith',
-    patientImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
-    date: getTodayDateString(),
-    time: '10:30 AM',
-    type: 'In-person',
-    status: 'confirmed',
-    duration: '45 min',
-    reason: 'Initial consultation',
-  },
-  {
-    id: 'apt-3',
-    patientName: 'Mike Johnson',
-    patientImage: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
-    date: getTodayDateString(),
-    time: '02:00 PM',
-    type: 'In-person',
-    status: 'pending',
-    duration: '20 min',
-    reason: 'Quick check-up',
-  },
-  {
-    id: 'apt-4',
-    patientName: 'Emily Brown',
-    patientImage: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=400&q=80',
-    date: getTodayDateString(),
-    time: '03:30 PM',
-    type: 'In-person',
-    status: 'confirmed',
-    duration: '30 min',
-    reason: 'Routine check-up',
-  },
-  {
-    id: 'apt-5',
-    patientName: 'Michael Chen',
-    patientImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
-    date: getTodayDateString(),
-    time: '11:00 AM',
-    type: 'In-person',
-    status: 'confirmed',
-    duration: '25 min',
-    reason: 'General consultation',
-  },
-  {
-    id: 'apt-6',
-    patientName: 'Priya Sharma',
-    patientImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    date: getTodayDateString(),
-    time: '12:15 PM',
-    type: 'In-person',
-    status: 'pending',
-    duration: '35 min',
-    reason: 'Health check-up',
-  },
-  {
-    id: 'apt-7',
-    patientName: 'Robert Williams',
-    patientImage: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-    date: getTodayDateString(),
-    time: '04:00 PM',
-    type: 'In-person',
-    status: 'confirmed',
-    duration: '40 min',
-    reason: 'Follow-up visit',
-  },
-  {
-    id: 'apt-8',
-    patientName: 'Emma Davis',
-    patientImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-    date: getTodayDateString(),
-    time: '05:30 PM',
-    type: 'In-person',
-    status: 'confirmed',
-    duration: '30 min',
-    reason: 'Regular consultation',
-  },
-]
-
-const recentConsultations = [
-  {
-    id: 'cons-1',
-    patientName: 'David Wilson',
-    patientImage: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-    date: '2025-01-15',
-    time: '10:00 AM',
-    type: 'In-person',
-    status: 'completed',
-    fee: 1500,
-    notes: 'Follow-up required in 2 weeks',
-  },
-  {
-    id: 'cons-2',
-    patientName: 'Lisa Anderson',
-    patientImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-    date: '2025-01-14',
-    time: '02:30 PM',
-    type: 'In-person',
-    status: 'completed',
-    fee: 2000,
-    notes: 'Prescription provided',
-  },
-  {
-    id: 'cons-3',
-    patientName: 'Robert Taylor',
-    patientImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80',
-    date: '2025-01-14',
-    time: '11:00 AM',
-    type: 'In-person',
-    status: 'completed',
-    fee: 1200,
-    notes: 'Lab tests recommended',
-  },
-  {
-    id: 'cons-4',
-    patientName: 'Jennifer Martinez',
-    patientImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    date: '2025-01-13',
-    time: '09:30 AM',
-    type: 'In-person',
-    status: 'pending',
-    fee: 1500,
-    notes: 'Awaiting payment',
-  },
-  {
-    id: 'cons-5',
-    patientName: 'James Wilson',
-    patientImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-    date: '2025-01-12',
-    time: '03:00 PM',
-    type: 'In-person',
-    status: 'completed',
-    fee: 1800,
-    notes: 'Medication prescribed',
-  },
-  {
-    id: 'cons-6',
-    patientName: 'Maria Garcia',
-    patientImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80',
-    date: '2025-01-11',
-    time: '11:30 AM',
-    type: 'In-person',
-    status: 'completed',
-    fee: 1600,
-    notes: 'Follow-up scheduled',
-  },
-  {
-    id: 'cons-7',
-    patientName: 'Thomas Anderson',
-    patientImage: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
-    date: '2025-01-10',
-    time: '02:15 PM',
-    type: 'In-person',
-    status: 'completed',
-    fee: 1400,
-    notes: 'Health check completed',
-  },
-  {
-    id: 'cons-8',
-    patientName: 'Sophia Lee',
-    patientImage: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=400&q=80',
-    date: '2025-01-09',
-    time: '10:45 AM',
-    type: 'In-person',
-    status: 'completed',
-    fee: 1700,
-    notes: 'Test results reviewed',
-  },
-]
+// Mock data removed - using API data now
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -269,8 +92,14 @@ const getTypeIcon = (type) => {
 
 const DoctorDashboard = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [appointments, setAppointments] = useState([])
+  const [recentConsultations, setRecentConsultations] = useState([])
+  const [stats, setStats] = useState(defaultStats)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [profile, setProfile] = useState(null)
 
   const todayLabel = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
@@ -278,84 +107,187 @@ const DoctorDashboard = () => {
     day: 'numeric',
   }).format(new Date())
 
-  const earningsChange = ((mockStats.thisMonthEarnings - mockStats.lastMonthEarnings) / mockStats.lastMonthEarnings) * 100
-  const consultationsChange = ((mockStats.thisMonthConsultations - mockStats.lastMonthConsultations) / mockStats.lastMonthConsultations) * 100
-
-  // Load appointments from localStorage
+  // Fetch profile data
   useEffect(() => {
-    const loadAppointments = () => {
+    const fetchProfile = async () => {
       try {
-        // Get current doctor ID from profile
-        const doctorProfile = JSON.parse(localStorage.getItem('doctorProfile') || '{}')
-        const doctorId = doctorProfile.id || 'doc-current'
-        const doctorName = `${doctorProfile.firstName || ''} ${doctorProfile.lastName || ''}`.trim() || doctorProfile.name || 'Dr. Rajesh Kumar'
+        const response = await getDoctorProfile()
+        if (response.success && response.data) {
+          const doctor = response.data.doctor || response.data
+          setProfile({
+            firstName: doctor.firstName || '',
+            lastName: doctor.lastName || '',
+            clinicName: doctor.clinicDetails?.name || '',
+            clinicAddress: doctor.clinicDetails?.address || {},
+            isActive: doctor.isActive !== undefined ? doctor.isActive : true,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching profile:', err)
+        // Don't show error toast as it's not critical
+      }
+    }
+    fetchProfile()
+  }, [])
+
+  // Fetch dashboard data from API
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getDoctorDashboard()
         
-        // Load from allAppointments (shared by patient bookings)
-        const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
-        // Also check doctorAppointments for backward compatibility
-        const doctorAppts = JSON.parse(localStorage.getItem('doctorAppointments') || '[]')
+        console.log('🔍 Full dashboard API response:', response) // Debug log
         
-        // Filter appointments for this doctor
-        const doctorFilteredAppts = [
-          ...allAppts.filter(apt => 
-            apt.doctorId === doctorId || 
-            apt.doctorName === doctorName ||
-            apt.doctorName?.includes(doctorName.split(' ')[0]) ||
-            doctorName.includes(apt.doctorName?.split(' ')[0] || '')
-          ),
-          ...doctorAppts.filter(apt => apt.doctorId === doctorId),
-        ]
+        if (response && response.success && response.data) {
+          const data = response.data
+          console.log('✅ Dashboard data received:', data) // Debug log
+          
+          const statsUpdate = {
+            totalPatients: Number(data.totalPatients || 0),
+            totalConsultations: Number(data.totalConsultations || 0),
+            todayAppointments: Number(data.todayAppointments || 0),
+            totalEarnings: Number(data.totalEarnings || 0),
+            pendingConsultations: Number(data.pendingConsultations || 0),
+            averageRating: Number(data.averageRating || 0),
+            thisMonthEarnings: Number(data.thisMonthEarnings || 0),
+            lastMonthEarnings: Number(data.lastMonthEarnings || 0),
+            thisMonthConsultations: Number(data.thisMonthConsultations || 0),
+            lastMonthConsultations: Number(data.lastMonthConsultations || 0),
+          }
+          
+          console.log('💰 Setting dashboard stats:', statsUpdate) // Debug log
+          setStats(statsUpdate)
+        } else {
+          console.error('❌ Dashboard API response error:', response) // Debug log
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err)
+        setError(err.message || 'Failed to load dashboard data')
+        toast.error('Failed to load dashboard data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+    
+    // Listen for appointment booking event to refresh dashboard
+    const handleAppointmentBooked = () => {
+      fetchDashboardData()
+    }
+    window.addEventListener('appointmentBooked', handleAppointmentBooked)
+    
+    return () => {
+      window.removeEventListener('appointmentBooked', handleAppointmentBooked)
+    }
+  }, [toast])
+
+  const earningsChange = stats.lastMonthEarnings > 0 
+    ? ((stats.thisMonthEarnings - stats.lastMonthEarnings) / stats.lastMonthEarnings) * 100 
+    : 0
+  const consultationsChange = stats.lastMonthConsultations > 0
+    ? ((stats.thisMonthConsultations - stats.lastMonthConsultations) / stats.lastMonthConsultations) * 100
+    : 0
+
+  // Fetch appointments from API
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      try {
+        const response = await getDoctorAppointments()
         
-        // Remove duplicates
-        const unique = doctorFilteredAppts.filter((apt, idx, self) => 
-          idx === self.findIndex(a => a.id === apt.id)
-        )
-        
-        // Merge with mock data for backward compatibility, but prioritize localStorage data
-        const merged = [...unique, ...allAppointments]
-        const finalUnique = merged.filter((apt, idx, self) => 
-          idx === self.findIndex(a => a.id === apt.id)
-        )
-        
-        // Transform to match expected format, preserving all data
-        const transformed = finalUnique.map(apt => ({
-          id: apt.id,
-          patientId: apt.patientId || apt.patient?.id || 'pat-unknown',
-          patientName: apt.patientName || apt.patient?.name || 'Unknown Patient',
-          patientImage: apt.patientImage || apt.patient?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
-          date: apt.appointmentDate || apt.date || getTodayDateString(),
-          time: apt.time || '10:00 AM',
-          type: apt.appointmentType || apt.type || 'In-person',
-          status: apt.status || 'scheduled',
-          duration: apt.duration || '30 min',
-          reason: apt.reason || 'Consultation',
-          appointmentType: apt.appointmentType || 'New',
-          // Preserve additional patient data
-          patientPhone: apt.patientPhone || apt.patient?.phone || '+1-555-000-0000',
-          patientEmail: apt.patientEmail || apt.patient?.email || `${(apt.patientName || 'patient').toLowerCase().replace(/\s+/g, '.')}@example.com`,
-          patientAddress: apt.patientAddress || apt.patient?.address || 'Address not provided',
-          age: apt.age || apt.patient?.age || 30,
-          gender: apt.gender || apt.patient?.gender || 'male',
-          // Preserve original appointment data for reference
-          originalData: apt,
-        }))
-        
-        setAppointments(transformed)
-      } catch (error) {
-        console.error('Error loading appointments:', error)
-        // Fallback to mock data
-        const transformed = allAppointments.map(apt => ({
-          ...apt,
-          date: apt.date || getTodayDateString(),
-        }))
-        setAppointments(transformed)
+        if (response.success && response.data) {
+          // Handle both array and object with items/appointments property
+          const appointmentsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || response.data.appointments || []
+          
+          // Transform API data to match component structure
+          const transformed = appointmentsData.map(apt => ({
+            id: apt._id || apt.id,
+            patientId: apt.patientId?._id || apt.patientId || 'pat-unknown',
+            patientName: apt.patientId?.firstName && apt.patientId?.lastName
+              ? `${apt.patientId.firstName} ${apt.patientId.lastName}`
+              : apt.patientId?.name || apt.patientName || 'Unknown Patient',
+            patientImage: apt.patientId?.profileImage || apt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.patientId?.firstName || apt.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            date: apt.appointmentDate || apt.date || getTodayDateString(),
+            time: apt.time || apt.slotTime || '10:00 AM',
+            type: apt.appointmentType || apt.type || 'In-person',
+            status: apt.status || 'scheduled',
+            duration: apt.duration || '30 min',
+            reason: apt.reason || apt.consultationReason || 'Consultation',
+            appointmentType: apt.appointmentType || 'New',
+            patientPhone: apt.patientId?.phone || apt.patientPhone || '',
+            patientEmail: apt.patientId?.email || apt.patientEmail || '',
+            patientAddress: apt.patientId?.address ? 
+              `${apt.patientId.address.line1 || ''}, ${apt.patientId.address.city || ''}`.trim() : 
+              apt.patientAddress || '',
+            age: apt.patientId?.age || apt.age || null,
+            gender: apt.patientId?.gender || apt.gender || '',
+            originalData: apt,
+          }))
+          
+          setAppointments(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching appointments:', err)
+        setError(err.message || 'Failed to load appointments')
+        // Don't show toast here as it's not critical
       }
     }
     
-    loadAppointments()
-    // Refresh every 2 seconds to get new appointments
-    const interval = setInterval(loadAppointments, 2000)
-    return () => clearInterval(interval)
+    fetchAppointments()
+    
+    // Listen for appointment booking event to refresh appointments
+    const handleAppointmentBooked = () => {
+      fetchAppointments()
+    }
+    window.addEventListener('appointmentBooked', handleAppointmentBooked)
+    
+    // Refresh every 30 seconds to get new appointments
+    const interval = setInterval(fetchAppointments, 30000)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('appointmentBooked', handleAppointmentBooked)
+    }
+  }, [])
+
+  // Fetch recent consultations from API
+  useEffect(() => {
+    const fetchConsultations = async () => {
+      try {
+        const response = await getDoctorConsultations({ limit: 8, sort: '-createdAt' })
+        
+        if (response.success && response.data) {
+          const consultationsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.consultations || []
+          
+          // Transform API data to match component structure
+          const transformed = consultationsData.map(cons => ({
+            id: cons._id || cons.id,
+            patientName: cons.patientId?.firstName && cons.patientId?.lastName
+              ? `${cons.patientId.firstName} ${cons.patientId.lastName}`
+              : cons.patientId?.name || cons.patientName || 'Unknown Patient',
+            patientImage: cons.patientId?.profileImage || cons.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(cons.patientId?.firstName || cons.patientName || 'Patient')}&background=3b82f6&color=fff&size=128`,
+            date: cons.consultationDate || cons.date || new Date().toISOString().split('T')[0],
+            time: cons.time || cons.slotTime || '10:00 AM',
+            type: cons.consultationType || cons.type || 'In-person',
+            status: cons.status || 'pending',
+            fee: cons.fee || cons.consultationFee || 0,
+            notes: cons.notes || cons.summary || '',
+          }))
+          
+          setRecentConsultations(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching consultations:', err)
+        // Don't show error toast as it's not critical
+      }
+    }
+    
+    fetchConsultations()
   }, [])
 
   // Helper function to normalize date to YYYY-MM-DD format
@@ -476,11 +408,23 @@ const DoctorDashboard = () => {
     setIsSidebarOpen(false)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleSidebarClose()
-    localStorage.removeItem('doctorAuthToken')
-    sessionStorage.removeItem('doctorAuthToken')
-    navigate('/', { replace: true })
+    try {
+      const { logoutDoctor } = await import('../doctor-services/doctorService')
+      await logoutDoctor()
+      toast.success('Logged out successfully')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      // Clear tokens manually if API call fails
+      const { clearDoctorTokens } = await import('../doctor-services/doctorService')
+      clearDoctorTokens()
+      toast.success('Logged out successfully')
+    }
+    // Force navigation to login page - full page reload to clear all state
+    setTimeout(() => {
+      window.location.href = '/doctor/login'
+    }, 500)
   }
 
   const handleViewAppointment = (appointment) => {
@@ -536,20 +480,18 @@ const DoctorDashboard = () => {
             <div className="flex items-start justify-between mb-3.5">
               <div className="flex-1">
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight mb-0.5">
-                  Dr. Rajesh Kumar
+                  {profile?.firstName || profile?.lastName
+                    ? `Dr. ${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+                    : 'Doctor'}
                 </h1>
                 <p className="text-sm font-normal text-white/95 leading-tight">
-                  Shivaji Nagar Clinic • <span className="text-white font-medium">Online</span>
+                  {profile?.clinicName || 'Clinic'} • <span className="text-white font-medium">{profile?.isActive ? 'Online' : 'Offline'}</span>
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
-                  aria-label="Notifications"
-                >
-                  <IoNotificationsOutline className="h-5 w-5 sm:h-6 sm:w-6" />
-                </button>
+                <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
+                  <NotificationBell className="text-white" />
+                </div>
                 <button
                   type="button"
                   onClick={handleSidebarToggle}
@@ -602,7 +544,7 @@ const DoctorDashboard = () => {
               <div className="relative flex items-start justify-between mb-2 lg:mb-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1 lg:mb-2 group-hover:text-[#0d3a52] transition-colors">Total Patients</p>
-                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-[#11496c] transition-colors duration-300">{mockStats.totalPatients}</p>
+                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-[#11496c] transition-colors duration-300">{loading ? '...' : stats.totalPatients}</p>
                 </div>
                 <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-[#11496c] text-white group-hover:bg-[#0d3a52] group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
                   <IoPeopleOutline className="text-base lg:text-2xl" aria-hidden="true" />
@@ -625,7 +567,7 @@ const DoctorDashboard = () => {
               <div className="relative flex items-start justify-between mb-2 lg:mb-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1 lg:mb-2 group-hover:text-emerald-800 transition-colors">Total Consultations</p>
-                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-emerald-700 transition-colors duration-300">{mockStats.totalConsultations}</p>
+                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-emerald-700 transition-colors duration-300">{loading ? '...' : stats.totalConsultations}</p>
                 </div>
                 <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-emerald-500 text-white group-hover:bg-emerald-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
                   <IoDocumentTextOutline className="text-base lg:text-2xl" aria-hidden="true" />
@@ -633,7 +575,7 @@ const DoctorDashboard = () => {
               </div>
               <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">All time</p>
               <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-emerald-200 transition-colors">
-                <p className="text-xs text-slate-500 group-hover:text-emerald-700 font-medium transition-colors">This month: <span className="text-emerald-600 font-semibold">{mockStats.thisMonthConsultations}</span></p>
+                <p className="text-xs text-slate-500 group-hover:text-emerald-700 font-medium transition-colors">This month: <span className="text-emerald-600 font-semibold">{loading ? '...' : stats.thisMonthConsultations}</span></p>
               </div>
             </article>
 
@@ -648,7 +590,7 @@ const DoctorDashboard = () => {
               <div className="relative flex items-start justify-between mb-2 lg:mb-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1 lg:mb-2 group-hover:text-purple-800 transition-colors">Appointment</p>
-                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-purple-700 transition-colors duration-300">{appointmentStats.todayCount}</p>
+                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-purple-700 transition-colors duration-300">{stats.todayAppointments || appointmentStats.todayCount}</p>
                 </div>
                 <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-purple-500 text-white group-hover:bg-purple-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
                   <IoCalendarOutline className="text-base lg:text-2xl" aria-hidden="true" />
@@ -657,13 +599,13 @@ const DoctorDashboard = () => {
               <div className="relative space-y-0.5">
                 <p className="text-[10px] lg:text-xs text-slate-600 leading-tight font-medium group-hover:text-slate-700 transition-colors">Today</p>
                 <div className="flex items-center gap-2 text-[9px] lg:text-xs text-slate-500 group-hover:text-slate-600 transition-colors">
-                  <span>Month: {appointmentStats.monthCount}</span>
+                  <span>Month: {appointmentStats.monthCount || 0}</span>
                   <span>•</span>
-                  <span>Year: {appointmentStats.yearCount}</span>
+                  <span>Year: {appointmentStats.yearCount || 0}</span>
                 </div>
               </div>
               <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-purple-200 transition-colors">
-                <p className="text-xs text-slate-500 group-hover:text-purple-700 font-medium transition-colors">Pending: <span className="text-amber-600 font-semibold">{mockStats.pendingConsultations}</span></p>
+                <p className="text-xs text-slate-500 group-hover:text-purple-700 font-medium transition-colors">Pending: <span className="text-amber-600 font-semibold">{loading ? '...' : stats.pendingConsultations}</span></p>
               </div>
             </article>
 
@@ -678,7 +620,7 @@ const DoctorDashboard = () => {
               <div className="relative flex items-start justify-between mb-2 lg:mb-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-amber-700 leading-tight mb-1 lg:mb-2 group-hover:text-amber-800 transition-colors">Total Earnings</p>
-                  <p className="text-lg lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-amber-700 transition-colors duration-300">{formatCurrency(mockStats.totalEarnings)}</p>
+                  <p className="text-lg lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-amber-700 transition-colors duration-300">{loading ? '...' : formatCurrency(stats.totalEarnings)}</p>
                   <div className="flex items-center gap-1 mt-1 lg:mt-2 text-[10px] lg:text-xs group-hover:scale-105 transition-transform">
                     {earningsChange >= 0 ? (
                       <>
@@ -699,7 +641,7 @@ const DoctorDashboard = () => {
               </div>
               <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">vs last month</p>
               <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-amber-200 transition-colors">
-                <p className="text-xs text-slate-500 group-hover:text-amber-700 font-medium transition-colors">This month: <span className="text-emerald-600 font-semibold">{formatCurrency(mockStats.thisMonthEarnings)}</span></p>
+                <p className="text-xs text-slate-500 group-hover:text-amber-700 font-medium transition-colors">This month: <span className="text-emerald-600 font-semibold">{loading ? '...' : formatCurrency(stats.thisMonthEarnings)}</span></p>
               </div>
             </article>
           </div>

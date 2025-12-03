@@ -8,124 +8,73 @@ import {
   IoPencilOutline,
   IoBagHandleOutline,
 } from 'react-icons/io5'
+import { getLaboratoryTests, addLaboratoryTest, updateLaboratoryTest, deleteLaboratoryTest } from '../laboratory-services/laboratoryService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const LaboratoryAvailableTests = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [tests, setTests] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  // Load tests from localStorage and sync to admin inventory
+  // Fetch tests from API
   useEffect(() => {
-    let savedTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
-    
-    // Add default mock data if no tests exist
-    if (savedTests.length === 0) {
-      savedTests = [
-        { id: '1', name: 'Complete Blood Count (CBC)', price: '350' },
-        { id: '2', name: 'Lipid Profile', price: '600' },
-        { id: '3', name: 'Liver Function Test (LFT)', price: '800' },
-        { id: '4', name: 'Kidney Function Test (KFT)', price: '750' },
-        { id: '5', name: 'Thyroid Function Test', price: '900' },
-        { id: '6', name: 'Blood Sugar (Fasting)', price: '200' },
-        { id: '7', name: 'HbA1c Test', price: '500' },
-        { id: '8', name: 'Vitamin D Test', price: '1200' },
-        { id: '9', name: 'Vitamin B12 Test', price: '800' },
-        { id: '10', name: 'Iron Studies', price: '600' },
-        { id: '11', name: 'Serum Creatinine', price: '300' },
-        { id: '12', name: 'Urine Analysis', price: '250' },
-        { id: '13', name: 'ECG (Electrocardiogram)', price: '400' },
-        { id: '14', name: 'Chest X-Ray', price: '500' },
-        { id: '15', name: 'Ultrasound Abdomen', price: '800' },
-        { id: '16', name: 'CT Scan Head', price: '3000' },
-      ]
-      localStorage.setItem('laboratoryAvailableTests', JSON.stringify(savedTests))
-    }
-    
-    setTests(savedTests)
-    
-    // Sync tests to admin inventory on load
-    if (savedTests.length > 0) {
-      const labId = localStorage.getItem('labId') || sessionStorage.getItem('labId') || 'lab-1'
-      const labName = localStorage.getItem('labName') || sessionStorage.getItem('labName') || 'Laboratory'
-      
-      let allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
-      let labIndex = allLabAvailability.findIndex(lab => lab.labId === labId)
-      
-      const testsForAdmin = savedTests.map(test => ({
-        name: test.name,
-        price: parseFloat(test.price) || 0,
-      }))
-      
-      if (labIndex >= 0) {
-        allLabAvailability[labIndex].tests = testsForAdmin
-        allLabAvailability[labIndex].status = allLabAvailability[labIndex].status || 'approved'
-        allLabAvailability[labIndex].isActive = allLabAvailability[labIndex].isActive !== false
-      } else {
-        allLabAvailability.push({
-          labId: labId,
-          labName: labName,
-          status: 'approved',
-          isActive: true,
-          phone: localStorage.getItem('labPhone') || '+91 00000 00000',
-          email: localStorage.getItem('labEmail') || 'lab@example.com',
-          address: localStorage.getItem('labAddress') || 'Address not provided',
-          rating: 4.5,
-          tests: testsForAdmin,
-        })
+    const fetchTests = async () => {
+      try {
+        setLoading(true)
+        
+        console.log('🔍 Fetching laboratory tests...') // Debug log
+        
+        // Pass a high limit to fetch all tests (backend default is 20, max is 10000)
+        // Fetch all tests at once to avoid pagination issues
+        const response = await getLaboratoryTests({ limit: 10000, page: 1 })
+        
+        console.log('📊 Laboratory tests API response:', response) // Debug log
+        
+        if (response && response.success && response.data) {
+          // Backend returns tests in data.items (with pagination)
+          const testsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || response.data.tests || []
+          
+          console.log('✅ Tests received:', {
+            count: testsData.length,
+            total: response.data.pagination?.total || testsData.length,
+            firstTest: testsData[0],
+          }) // Debug log
+          
+          const transformed = testsData.map(test => ({
+            id: test._id || test.id,
+            name: test.name || '',
+            price: Number(test.price || 0),
+            description: test.description || '',
+            category: test.category || '',
+            duration: test.duration || '',
+            sampleType: test.sampleType || '',
+          }))
+          
+          console.log('💰 Setting tests:', {
+            count: transformed.length,
+            totalValue: transformed.reduce((sum, t) => sum + (Number(t.price) || 0), 0),
+          }) // Debug log
+          
+          setTests(transformed)
+        } else {
+          console.error('❌ Invalid API response:', response) // Debug log
+          setTests([])
+        }
+      } catch (err) {
+        console.error('❌ Error fetching tests:', err)
+        toast.error('Failed to load tests')
+        setTests([])
+      } finally {
+        setLoading(false)
       }
-      
-      localStorage.setItem('allLabAvailability', JSON.stringify(allLabAvailability))
     }
-  }, [])
 
-  // Helper function to sync tests to admin inventory
-  const syncTestsToAdminInventory = (testsToSync) => {
-    const labId = localStorage.getItem('labId') || sessionStorage.getItem('labId') || 'lab-1'
-    const labName = localStorage.getItem('labName') || sessionStorage.getItem('labName') || 'Laboratory'
-    
-    // Get or create allLabAvailability
-    let allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
-    
-    // Find or create lab entry
-    let labIndex = allLabAvailability.findIndex(lab => lab.labId === labId)
-    
-    // Convert laboratory tests to admin inventory format
-    const testsForAdmin = testsToSync.map(test => ({
-      name: test.name,
-      price: parseFloat(test.price) || 0,
-    }))
-    
-    if (labIndex >= 0) {
-      // Update existing lab's tests
-      allLabAvailability[labIndex].tests = testsForAdmin
-      // Ensure status is approved and active
-      allLabAvailability[labIndex].status = allLabAvailability[labIndex].status || 'approved'
-      allLabAvailability[labIndex].isActive = allLabAvailability[labIndex].isActive !== false
-    } else {
-      // Create new lab entry
-      allLabAvailability.push({
-        labId: labId,
-        labName: labName,
-        status: 'approved',
-        isActive: true,
-        phone: localStorage.getItem('labPhone') || '+91 00000 00000',
-        email: localStorage.getItem('labEmail') || 'lab@example.com',
-        address: localStorage.getItem('labAddress') || 'Address not provided',
-        rating: 4.5,
-        tests: testsForAdmin,
-      })
-    }
-    
-    localStorage.setItem('allLabAvailability', JSON.stringify(allLabAvailability))
-  }
-
-  // Save tests to localStorage
-  const saveTests = (updatedTests) => {
-    localStorage.setItem('laboratoryAvailableTests', JSON.stringify(updatedTests))
-    setTests(updatedTests)
-    // Sync to admin inventory
-    syncTestsToAdminInventory(updatedTests)
-  }
+    fetchTests()
+  }, [toast])
 
   const handleAddTest = () => {
     navigate('/laboratory/available-tests/add')
@@ -135,10 +84,18 @@ const LaboratoryAvailableTests = () => {
     navigate(`/laboratory/available-tests/edit/${test.id}`)
   }
 
-  const handleDeleteTest = (testId) => {
-    if (window.confirm('Are you sure you want to delete this test?')) {
-      const updatedTests = tests.filter(test => test.id !== testId)
-      saveTests(updatedTests)
+  const handleDeleteTest = async (testId) => {
+    if (!window.confirm('Are you sure you want to delete this test?')) {
+      return
+    }
+
+    try {
+      await deleteLaboratoryTest(testId)
+      setTests(prev => prev.filter(test => test.id !== testId))
+      toast.success('Test deleted successfully')
+    } catch (err) {
+      console.error('Error deleting test:', err)
+      toast.error(err.message || 'Failed to delete test')
     }
   }
 

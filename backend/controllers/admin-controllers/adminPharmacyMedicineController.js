@@ -55,7 +55,7 @@ exports.getPharmacyMedicines = asyncHandler(async (req, res) => {
 
 // GET /api/admin/pharmacy-medicines/:id
 exports.getPharmacyMedicineById = asyncHandler(async (req, res) => {
-  const { medicineId } = req.params;
+  const { id: medicineId } = req.params;
 
   const medicine = await Medicine.findById(medicineId)
     .populate('pharmacyId', 'pharmacyName address contactPerson');
@@ -75,7 +75,7 @@ exports.getPharmacyMedicineById = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/pharmacy-medicines/:id
 exports.updatePharmacyMedicine = asyncHandler(async (req, res) => {
-  const { medicineId } = req.params;
+  const { id: medicineId } = req.params;
   const updateData = req.body;
 
   const medicine = await Medicine.findById(medicineId);

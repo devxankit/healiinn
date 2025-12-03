@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import LaboratoryNavbar from '../laboratory-components/LaboratoryNavbar'
 import LaboratorySidebar from '../laboratory-components/LaboratorySidebar'
 import { useToast } from '../../../contexts/ToastContext'
+import { getLaboratoryDashboard, getLaboratoryOrders, getLaboratoryTests, getLaboratoryPatients, getLaboratoryReports, getLaboratoryProfile } from '../laboratory-services/laboratoryService'
+import NotificationBell from '../../../components/NotificationBell'
 import {
   IoBagHandleOutline,
   IoDocumentTextOutline,
@@ -29,258 +31,20 @@ import {
   IoSearchOutline,
 } from 'react-icons/io5'
 
-const mockStats = {
-  totalOrders: 18,
-  testReports: 45,
-  notifications: 7,
-  recentOrders: 3,
-  requestResponses: 2,
-  thisMonthEarnings: 18500.00,
-  lastMonthEarnings: 16200.50,
-  thisMonthOrders: 18,
-  lastMonthOrders: 15,
+// Default stats (will be replaced by API data)
+const defaultStats = {
+  totalOrders: 0,
+  testReports: 0,
+  notifications: 0,
+  recentOrders: 0,
+  requestResponses: 0,
+  thisMonthEarnings: 0,
+  lastMonthEarnings: 0,
+  thisMonthOrders: 0,
+  lastMonthOrders: 0,
 }
 
-const todayOrders = [
-  {
-    id: 'order-1',
-    patientName: 'John Doe',
-    patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-    time: '09:00 AM',
-    status: 'pending',
-    totalAmount: 700.0,
-    deliveryType: 'home',
-    testRequestId: 'test-3021',
-    tests: ['Complete Blood Count (CBC)', 'Blood Glucose (Fasting)'],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'order-2',
-    patientName: 'Sarah Smith',
-    patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
-    time: '10:30 AM',
-    status: 'ready',
-    totalAmount: 600.0,
-    deliveryType: 'pickup',
-    testRequestId: 'test-3022',
-    tests: ['Lipid Profile'],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'order-3',
-    patientName: 'Mike Johnson',
-    patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
-    time: '02:00 PM',
-    status: 'pending',
-    totalAmount: 1550.0,
-    deliveryType: 'home',
-    testRequestId: 'test-3023',
-    tests: ['Liver Function Test (LFT)', 'Kidney Function Test (KFT)'],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'order-4',
-    patientName: 'Emily Brown',
-    patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true',
-    time: '03:30 PM',
-    status: 'ready',
-    totalAmount: 450.0,
-    deliveryType: 'pickup',
-    testRequestId: 'test-3024',
-    tests: ['Thyroid Function Test'],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'order-5',
-    patientName: 'David Wilson',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true',
-    time: '11:15 AM',
-    status: 'pending',
-    totalAmount: 850.0,
-    deliveryType: 'home',
-    testRequestId: 'test-3025',
-    tests: ['Hemoglobin A1C', 'Vitamin D'],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'order-6',
-    patientName: 'Lisa Anderson',
-    patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=8b5cf6&color=fff&size=128&bold=true',
-    time: '01:45 PM',
-    status: 'ready',
-    totalAmount: 1200.0,
-    deliveryType: 'pickup',
-    testRequestId: 'test-3026',
-    tests: ['Complete Metabolic Panel (CMP)'],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'order-7',
-    patientName: 'Robert Taylor',
-    patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=ef4444&color=fff&size=128&bold=true',
-    time: '04:00 PM',
-    status: 'pending',
-    totalAmount: 950.0,
-    deliveryType: 'home',
-    testRequestId: 'test-3027',
-    tests: ['Urine Analysis', 'Stool Test'],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'order-8',
-    patientName: 'Jennifer Martinez',
-    patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=128&bold=true',
-    time: '05:30 PM',
-    status: 'ready',
-    totalAmount: 1100.0,
-    deliveryType: 'pickup',
-    testRequestId: 'test-3028',
-    tests: ['ECG', 'Chest X-Ray'],
-    createdAt: new Date().toISOString(),
-  },
-]
-
-const recentTestReports = [
-  {
-    id: 'report-1',
-    patientName: 'David Wilson',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true',
-    testName: 'Complete Blood Count (CBC)',
-    reportDate: '2025-01-15',
-    status: 'completed',
-    orderId: 'ORD-2025-001',
-  },
-  {
-    id: 'report-2',
-    patientName: 'Lisa Anderson',
-    patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=8b5cf6&color=fff&size=128&bold=true',
-    testName: 'Lipid Profile',
-    reportDate: '2025-01-14',
-    status: 'completed',
-    orderId: 'ORD-2025-002',
-  },
-  {
-    id: 'report-3',
-    patientName: 'Robert Taylor',
-    patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=ef4444&color=fff&size=128&bold=true',
-    testName: 'Liver Function Test (LFT)',
-    reportDate: '2025-01-14',
-    status: 'completed',
-    orderId: 'ORD-2025-003',
-  },
-  {
-    id: 'report-4',
-    patientName: 'Jennifer Martinez',
-    patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=128&bold=true',
-    testName: 'Thyroid Function Test',
-    reportDate: '2025-01-13',
-    status: 'completed',
-    orderId: 'ORD-2025-004',
-  },
-  {
-    id: 'report-5',
-    patientName: 'Michael Chen',
-    patientImage: 'https://ui-avatars.com/api/?name=Michael+Chen&background=06b6d4&color=fff&size=128&bold=true',
-    testName: 'Hemoglobin A1C',
-    reportDate: '2025-01-13',
-    status: 'completed',
-    orderId: 'ORD-2025-005',
-  },
-  {
-    id: 'report-6',
-    patientName: 'Priya Sharma',
-    patientImage: 'https://ui-avatars.com/api/?name=Priya+Sharma&background=a855f7&color=fff&size=128&bold=true',
-    testName: 'Complete Metabolic Panel (CMP)',
-    reportDate: '2025-01-12',
-    status: 'completed',
-    orderId: 'ORD-2025-006',
-  },
-  {
-    id: 'report-7',
-    patientName: 'James Wilson',
-    patientImage: 'https://ui-avatars.com/api/?name=James+Wilson&background=f97316&color=fff&size=128&bold=true',
-    testName: 'Urine Analysis',
-    reportDate: '2025-01-12',
-    status: 'completed',
-    orderId: 'ORD-2025-007',
-  },
-  {
-    id: 'report-8',
-    patientName: 'Maria Garcia',
-    patientImage: 'https://ui-avatars.com/api/?name=Maria+Garcia&background=ec4899&color=fff&size=128&bold=true',
-    testName: 'ECG Report',
-    reportDate: '2025-01-11',
-    status: 'completed',
-    orderId: 'ORD-2025-008',
-  },
-]
-
-const recentPatients = [
-  {
-    id: 'pat-1',
-    name: 'John Doe',
-    image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-15',
-    totalTests: 5,
-    status: 'active',
-  },
-  {
-    id: 'pat-2',
-    name: 'Sarah Smith',
-    image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-14',
-    totalTests: 3,
-    status: 'active',
-  },
-  {
-    id: 'pat-3',
-    name: 'Mike Johnson',
-    image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-12',
-    totalTests: 8,
-    status: 'active',
-  },
-  {
-    id: 'pat-4',
-    name: 'Emily Brown',
-    image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-11',
-    totalTests: 2,
-    status: 'active',
-  },
-  {
-    id: 'pat-5',
-    name: 'David Wilson',
-    image: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-10',
-    totalTests: 6,
-    status: 'active',
-  },
-  {
-    id: 'pat-6',
-    name: 'Lisa Anderson',
-    image: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=8b5cf6&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-09',
-    totalTests: 4,
-    status: 'active',
-  },
-  {
-    id: 'pat-7',
-    name: 'Robert Taylor',
-    image: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=ef4444&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-08',
-    totalTests: 7,
-    status: 'active',
-  },
-  {
-    id: 'pat-8',
-    name: 'Jennifer Martinez',
-    image: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=128&bold=true',
-    lastTestDate: '2025-01-07',
-    totalTests: 3,
-    status: 'active',
-  },
-]
+// Mock data removed - now using backend API
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -341,221 +105,273 @@ const LaboratoryDashboard = () => {
   const [uploadStatus, setUploadStatus] = useState(null) // 'uploading', 'success', 'error'
   const [uploadProgress, setUploadProgress] = useState(0)
   const [availableTestsCount, setAvailableTestsCount] = useState(0)
-  // Mock data for Today's Orders
-  const mockTodayOrdersData = [
-    {
-      id: 'order-1',
-      _id: 'order-1',
-      patientName: 'John Doe',
-      patient: { firstName: 'John', lastName: 'Doe', profileImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true' },
-      patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-      time: '09:00 AM',
-      status: 'pending',
-      totalAmount: 700.0,
-      amount: 700.0,
-      deliveryType: 'home',
-      testRequestId: 'test-3021',
-      tests: ['Complete Blood Count (CBC)', 'Blood Glucose (Fasting)'],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'order-2',
-      _id: 'order-2',
-      patientName: 'Sarah Smith',
-      patient: { firstName: 'Sarah', lastName: 'Smith', profileImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true' },
-      patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
-      time: '10:30 AM',
-      status: 'ready',
-      totalAmount: 600.0,
-      amount: 600.0,
-      deliveryType: 'pickup',
-      testRequestId: 'test-3022',
-      tests: ['Lipid Profile'],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'order-3',
-      _id: 'order-3',
-      patientName: 'Mike Johnson',
-      patient: { firstName: 'Mike', lastName: 'Johnson', profileImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true' },
-      patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
-      time: '02:00 PM',
-      status: 'pending',
-      totalAmount: 1550.0,
-      amount: 1550.0,
-      deliveryType: 'home',
-      testRequestId: 'test-3023',
-      tests: ['Liver Function Test (LFT)', 'Kidney Function Test (KFT)'],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'order-4',
-      _id: 'order-4',
-      patientName: 'Emily Brown',
-      patient: { firstName: 'Emily', lastName: 'Brown', profileImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true' },
-      patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true',
-      time: '03:30 PM',
-      status: 'ready',
-      totalAmount: 450.0,
-      amount: 450.0,
-      deliveryType: 'pickup',
-      testRequestId: 'test-3024',
-      tests: ['Thyroid Function Test'],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'order-5',
-      _id: 'order-5',
-      patientName: 'David Wilson',
-      patient: { firstName: 'David', lastName: 'Wilson', profileImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true' },
-      patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true',
-      time: '11:15 AM',
-      status: 'pending',
-      totalAmount: 850.0,
-      amount: 850.0,
-      deliveryType: 'home',
-      testRequestId: 'test-3025',
-      tests: ['Hemoglobin A1C', 'Vitamin D'],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'order-6',
-      _id: 'order-6',
-      patientName: 'Lisa Anderson',
-      patient: { firstName: 'Lisa', lastName: 'Anderson', profileImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=8b5cf6&color=fff&size=128&bold=true' },
-      patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=8b5cf6&color=fff&size=128&bold=true',
-      time: '01:45 PM',
-      status: 'ready',
-      totalAmount: 1200.0,
-      amount: 1200.0,
-      deliveryType: 'pickup',
-      testRequestId: 'test-3026',
-      tests: ['Complete Metabolic Panel (CMP)'],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'order-7',
-      _id: 'order-7',
-      patientName: 'Robert Taylor',
-      patient: { firstName: 'Robert', lastName: 'Taylor', profileImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=ef4444&color=fff&size=128&bold=true' },
-      patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=ef4444&color=fff&size=128&bold=true',
-      time: '04:00 PM',
-      status: 'pending',
-      totalAmount: 950.0,
-      amount: 950.0,
-      deliveryType: 'home',
-      testRequestId: 'test-3027',
-      tests: ['Urine Analysis', 'Stool Test'],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'order-8',
-      _id: 'order-8',
-      patientName: 'Jennifer Martinez',
-      patient: { firstName: 'Jennifer', lastName: 'Martinez', profileImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=128&bold=true' },
-      patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=128&bold=true',
-      time: '05:30 PM',
-      status: 'ready',
-      totalAmount: 1100.0,
-      amount: 1100.0,
-      deliveryType: 'pickup',
-      testRequestId: 'test-3028',
-      tests: ['ECG', 'Chest X-Ray'],
-      createdAt: new Date().toISOString(),
-    },
-  ]
+  const [recentPatients, setRecentPatients] = useState([])
+  const [patients, setPatients] = useState([]) // For patient selection dropdown
+  const [stats, setStats] = useState(defaultStats)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [profile, setProfile] = useState(null)
 
-  const [todayOrders, setTodayOrders] = useState(mockTodayOrdersData)
+  // Fetch profile data
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await getLaboratoryProfile()
+        if (response.success && response.data) {
+          const lab = response.data.laboratory || response.data
+          setProfile({
+            name: lab.labName || lab.name || '',
+            address: lab.address || {},
+            isActive: lab.isActive !== undefined ? lab.isActive : true,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching profile:', err)
+        // Don't show error toast as it's not critical
+      }
+    }
+    fetchProfile()
+  }, [])
+
+  // Fetch dashboard data from API
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getLaboratoryDashboard()
+        
+        if (response.success && response.data) {
+          const data = response.data
+          setStats({
+            totalOrders: data.totalOrders || 0,
+            testReports: data.totalReports || 0,
+            notifications: 0, // Not in API response yet
+            recentOrders: data.todayOrders || 0,
+            requestResponses: 0, // Not in API response yet
+            thisMonthEarnings: data.todayEarnings || data.thisMonthEarnings || 0,
+            lastMonthEarnings: data.lastMonthEarnings || 0,
+            thisMonthOrders: data.todayOrders || data.thisMonthOrders || 0,
+            lastMonthOrders: data.lastMonthOrders || 0,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err)
+        setError(err.message || 'Failed to load dashboard data')
+        toast.error('Failed to load dashboard data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [toast])
+  const [todayOrders, setTodayOrders] = useState([])
   const [loadingOrders, setLoadingOrders] = useState(true)
+  const [recentTestReports, setRecentTestReports] = useState([])
+  const [loadingReports, setLoadingReports] = useState(false)
 
-  // Fetch today's orders
+  // Fetch today's orders from API
   useEffect(() => {
     const fetchTodayOrders = async () => {
       try {
-        const token = localStorage.getItem('laboratoryAuthToken') || sessionStorage.getItem('laboratoryAuthToken')
-        if (!token) {
-          // If no token, use mock data
-          setTodayOrders(mockTodayOrdersData)
-          setLoadingOrders(false)
-          return
-        }
-
+        setLoadingOrders(true)
         const today = new Date()
         today.setHours(0, 0, 0, 0)
         const todayStart = today.toISOString()
         const todayEnd = new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString()
 
-        // TODO: Backend endpoint not implemented yet - using mock data
-        // When backend implements: GET /api/laboratories/orders or /api/laboratories/leads
-        // const response = await fetch(
-        //   `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/laboratories/orders?startDate=${todayStart}&endDate=${todayEnd}&limit=10&status=new,accepted`,
-        //   {
-        //     headers: {
-        //       'Authorization': `Bearer ${token}`,
-        //       'Content-Type': 'application/json',
-        //     },
-        //   }
-        // )
-        // if (response.ok) {
-        //   const data = await response.json()
-        //   if (data.success && data.orders && data.orders.length > 0) {
-        //     setTodayOrders(data.orders)
-        //   } else {
-        //     setTodayOrders(mockTodayOrdersData)
-        //   }
-        // } else {
-        //   setTodayOrders(mockTodayOrdersData)
-        // }
+        const response = await getLaboratoryOrders({ 
+          startDate: todayStart, 
+          endDate: todayEnd, 
+          limit: 10,
+          status: 'new,accepted,pending'
+        })
         
-        // Using mock data until backend endpoint is implemented
-        setTodayOrders(mockTodayOrdersData)
+        if (response.success && response.data) {
+          const ordersData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.orders || []
+          
+          const transformed = ordersData.map(order => ({
+            id: order._id || order.id,
+            _id: order._id || order.id,
+            patientName: order.patientId?.firstName && order.patientId?.lastName
+              ? `${order.patientId.firstName} ${order.patientId.lastName}`
+              : order.patientId?.name || order.patientName || 'Unknown Patient',
+            patient: order.patientId || { firstName: order.patientName?.split(' ')[0] || '', lastName: order.patientName?.split(' ')[1] || '' },
+            patientImage: order.patientId?.profileImage || order.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientId?.firstName || order.patientName || 'Patient')}&background=3b82f6&color=fff&size=128`,
+            time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
+            status: order.status || 'pending',
+            totalAmount: order.totalAmount || order.amount || 0,
+            amount: order.totalAmount || order.amount || 0,
+            deliveryType: order.deliveryType || order.deliveryOption || 'home',
+            testRequestId: order._id || order.id,
+            tests: order.tests?.map(t => t.name || t) || order.testNames || [],
+            createdAt: order.createdAt || new Date().toISOString(),
+          }))
+          
+          setTodayOrders(transformed)
+        }
       } catch (error) {
         console.error('Error fetching today orders:', error)
-        // Fallback to mock data on error
-        setTodayOrders(mockTodayOrdersData)
+        // Don't show error toast as it's not critical
       } finally {
         setLoadingOrders(false)
       }
     }
 
     fetchTodayOrders()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchTodayOrders, 30000)
+    return () => clearInterval(interval)
   }, [])
 
-  // Load available tests count
+  // Fetch available tests count from API
   useEffect(() => {
-    const tests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
-    setAvailableTestsCount(tests.length)
-    
-    // Listen for storage changes to update count
-    const handleStorageChange = () => {
-      const updatedTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
-      setAvailableTestsCount(updatedTests.length)
-    }
-    
-    window.addEventListener('storage', handleStorageChange)
-    
-    // Also check periodically (for same-tab updates)
-    const interval = setInterval(() => {
-      const updatedTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
-      if (updatedTests.length !== availableTestsCount) {
-        setAvailableTestsCount(updatedTests.length)
+    const fetchTestsCount = async () => {
+      try {
+        const response = await getLaboratoryTests({ limit: 1 })
+        if (response.success && response.data) {
+          // Backend returns total in data.pagination.total
+          setAvailableTestsCount(response.data.pagination?.total || response.data.total || 0)
+        }
+      } catch (error) {
+        console.error('Error fetching tests count:', error)
+        // Don't show error toast as it's not critical
       }
-    }, 1000)
+    }
+
+    fetchTestsCount()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchTestsCount, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Fetch recent test reports from API
+  useEffect(() => {
+    let isMounted = true
+    
+    const fetchRecentReports = async () => {
+      try {
+        // Use AbortController to prevent slow requests from blocking
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+        
+        setLoadingReports(true)
+        const response = await getLaboratoryReports({ limit: 8, status: 'shared' })
+        
+        clearTimeout(timeoutId)
+        
+        if (!isMounted) return
+        
+        if (response.success && response.data) {
+          const reportsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || response.data.reports || []
+          
+          const transformed = reportsData.map(report => {
+            const patient = report.patientId || report.patient || {}
+            const order = report.orderId || report.order || {}
+            const patientName = patient.firstName && patient.lastName
+              ? `${patient.firstName} ${patient.lastName}`
+              : patient.name || 'Unknown Patient'
+            
+            return {
+              id: report._id || report.id,
+              patientName: patientName,
+              patientImage: patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=6366f1&color=fff&size=128&bold=true`,
+              testName: report.testName || report.test?.name || 'Test Report',
+              reportDate: report.createdAt || report.reportDate || new Date().toISOString(),
+              status: report.status || 'completed',
+              orderId: order._id || order.id || report.orderId || `ORD-${(report._id || report.id).toString().slice(-6)}`,
+            }
+          })
+          
+          // Sort by date (newest first)
+          transformed.sort((a, b) => {
+            const dateA = new Date(a.reportDate).getTime()
+            const dateB = new Date(b.reportDate).getTime()
+            return dateB - dateA
+          })
+          
+          if (isMounted) {
+            setRecentTestReports(transformed)
+          }
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.log('Request aborted due to timeout')
+        } else {
+          console.error('Error fetching recent test reports:', error)
+        }
+        // Don't show error toast as it's not critical
+        if (isMounted) {
+          setRecentTestReports([])
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingReports(false)
+        }
+      }
+    }
+
+    fetchRecentReports()
+    // Refresh every 30 seconds, but only if component is still mounted
+    const interval = setInterval(() => {
+      if (isMounted) {
+        fetchRecentReports()
+      }
+    }, 30000)
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange)
+      isMounted = false
       clearInterval(interval)
     }
-  }, [availableTestsCount])
+  }, [])
 
+  // Fetch patients from API
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const response = await getLaboratoryPatients({ limit: 20 })
+        
+        if (response.success && response.data) {
+          const patientsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.patients || []
+          
+          // Transform for recent patients display
+          const transformedRecent = patientsData.slice(0, 8).map(patient => ({
+            id: patient._id || patient.id,
+            name: patient.firstName && patient.lastName
+              ? `${patient.firstName} ${patient.lastName}`
+              : patient.name || 'Unknown Patient',
+            image: patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.firstName || patient.name || 'Patient')}&background=3b82f6&color=fff&size=128`,
+            lastTestDate: patient.lastOrderDate || patient.lastTestDate || '',
+            totalTests: patient.totalOrders || patient.totalTests || 0,
+            status: patient.status || 'active',
+          }))
+          setRecentPatients(transformedRecent)
+          
+          // Transform for patient selection dropdown
+          const transformedForDropdown = patientsData.map(patient => ({
+            id: patient._id || patient.id,
+            name: patient.firstName && patient.lastName
+              ? `${patient.firstName} ${patient.lastName}`
+              : patient.name || 'Unknown Patient',
+            email: patient.email || '',
+          }))
+          setPatients(transformedForDropdown)
+        }
+      } catch (error) {
+        console.error('Error fetching patients:', error)
+        // Don't show error toast as it's not critical
+      }
+    }
 
-  // Mock patients list
-  const mockPatients = [
-    { id: 'pat-1', name: 'John Doe', email: 'john.doe@example.com' },
-    { id: 'pat-2', name: 'Sarah Smith', email: 'sarah.smith@example.com' },
-    { id: 'pat-3', name: 'Mike Johnson', email: 'mike.johnson@example.com' },
-    { id: 'pat-4', name: 'Emily Brown', email: 'emily.brown@example.com' },
-  ]
+    fetchPatients()
+  }, [])
 
   const sidebarNavItems = [
     { id: 'home', label: 'Home', to: '/laboratory/dashboard', Icon: IoHomeOutline },
@@ -573,11 +389,23 @@ const LaboratoryDashboard = () => {
     setIsSidebarOpen(false)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleSidebarClose()
-    localStorage.removeItem('laboratoryAuthToken')
-    sessionStorage.removeItem('laboratoryAuthToken')
-    navigate('/doctor/login', { replace: true })
+    try {
+      const { logoutLaboratory } = await import('../laboratory-services/laboratoryService')
+      await logoutLaboratory()
+      toast.success('Logged out successfully')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      // Clear tokens manually if API call fails
+      const { clearLaboratoryTokens } = await import('../laboratory-services/laboratoryService')
+      clearLaboratoryTokens()
+      toast.success('Logged out successfully')
+    }
+    // Force navigation to login page - full page reload to clear all state
+    setTimeout(() => {
+      window.location.href = '/laboratory/login'
+    }, 500)
   }
 
   const handleTestReportsClick = (e) => {
@@ -605,7 +433,7 @@ const LaboratoryDashboard = () => {
       return
     }
 
-    const patient = mockPatients.find(p => p.id === selectedPatient)
+    const patient = patients.find(p => p.id === selectedPatient)
     if (!patient) {
       toast.error('Patient not found')
       return
@@ -701,21 +529,17 @@ const LaboratoryDashboard = () => {
             <div className="flex items-start justify-between mb-3.5">
               <div className="flex-1">
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight mb-0.5">
-                  MediLab Diagnostics
+                  {profile?.name || 'Laboratory'}
                 </h1>
                 <p className="text-sm font-normal text-white/95 leading-tight">
-                  Medical Street • <span className="text-white font-medium">Online</span>
+                  {profile?.address?.city || profile?.address?.line1 || 'Address'} • <span className="text-white font-medium">{profile?.isActive ? 'Online' : 'Offline'}</span>
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 {/* Notification Icon */}
-                <button
-                  type="button"
-                  className="relative flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
-                  aria-label="Notifications"
-                >
-                  <IoNotificationsOutline className="h-5 w-5 sm:h-6 sm:w-6" />
-                </button>
+                <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
+                  <NotificationBell className="text-white" />
+                </div>
                 <button
                   type="button"
                   onClick={handleSidebarToggle}
@@ -759,7 +583,7 @@ const LaboratoryDashboard = () => {
             <div className="relative flex items-start justify-between mb-2 lg:mb-4">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] lg:text-sm font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1 lg:mb-3 group-hover:text-emerald-800 transition-colors">Total Orders</p>
-                <p className="text-xl lg:text-5xl font-bold text-slate-900 leading-none group-hover:text-emerald-700 transition-colors duration-300">{mockStats.totalOrders}</p>
+                <p className="text-xl lg:text-5xl font-bold text-slate-900 leading-none group-hover:text-emerald-700 transition-colors duration-300">{loading ? '...' : stats.totalOrders}</p>
               </div>
               <div className="flex h-8 w-8 lg:h-16 lg:w-16 items-center justify-center rounded-lg lg:rounded-xl bg-emerald-500 text-white group-hover:bg-emerald-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
                 <IoBagHandleOutline className="text-base lg:text-3xl" aria-hidden="true" />
@@ -767,7 +591,7 @@ const LaboratoryDashboard = () => {
             </div>
             <p className="relative text-[10px] lg:text-sm text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">This month</p>
             <div className="hidden lg:block mt-4 pt-4 border-t border-slate-100 group-hover:border-emerald-200 transition-colors">
-              <p className="text-sm text-slate-500 group-hover:text-emerald-700 font-medium transition-colors">New this month: <span className="text-emerald-600 font-semibold">+{mockStats.totalOrders}</span></p>
+              <p className="text-sm text-slate-500 group-hover:text-emerald-700 font-medium transition-colors">New this month: <span className="text-emerald-600 font-semibold">+{loading ? '...' : stats.thisMonthOrders}</span></p>
             </div>
           </article>
 
@@ -782,7 +606,7 @@ const LaboratoryDashboard = () => {
             <div className="relative flex items-start justify-between mb-2 lg:mb-4">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] lg:text-sm font-semibold uppercase tracking-wide text-orange-700 leading-tight mb-1 lg:mb-3 group-hover:text-orange-800 transition-colors">Test Reports</p>
-                <p className="text-xl lg:text-5xl font-bold text-slate-900 leading-none group-hover:text-orange-700 transition-colors duration-300">{mockStats.testReports}</p>
+                <p className="text-xl lg:text-5xl font-bold text-slate-900 leading-none group-hover:text-orange-700 transition-colors duration-300">{loading ? '...' : stats.testReports}</p>
               </div>
               <div className="flex h-8 w-8 lg:h-16 lg:w-16 items-center justify-center rounded-lg lg:rounded-xl bg-orange-500 text-white group-hover:bg-orange-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
                 <IoDocumentTextOutline className="text-base lg:text-3xl" aria-hidden="true" />
@@ -790,7 +614,7 @@ const LaboratoryDashboard = () => {
             </div>
             <p className="relative text-[10px] lg:text-sm text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">Pending review</p>
             <div className="hidden lg:block mt-4 pt-4 border-t border-slate-100 group-hover:border-orange-200 transition-colors">
-              <p className="text-sm text-slate-500 group-hover:text-orange-700 font-medium transition-colors">Completed: <span className="text-orange-600 font-semibold">{mockStats.testReports - 5}</span></p>
+              <p className="text-sm text-slate-500 group-hover:text-orange-700 font-medium transition-colors">Completed: <span className="text-orange-600 font-semibold">{loading ? '...' : Math.max(0, stats.testReports - 5)}</span></p>
             </div>
           </article>
 
@@ -805,14 +629,7 @@ const LaboratoryDashboard = () => {
             <div className="relative flex items-start justify-between mb-2 lg:mb-4">
               <div className="flex-1 min-w-0">
                 <p className="text-[9px] lg:text-sm font-semibold uppercase tracking-wide text-blue-700 leading-tight mb-1 lg:mb-3 group-hover:text-blue-800 transition-colors">Request</p>
-                <p className="text-xl lg:text-5xl font-bold text-slate-900 leading-none group-hover:text-blue-700 transition-colors duration-300">{(() => {
-                  try {
-                    const requests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-                    return requests.filter(r => r.type === 'book_test_visit').length
-                  } catch {
-                    return 0
-                  }
-                })()}</p>
+                <p className="text-xl lg:text-5xl font-bold text-slate-900 leading-none group-hover:text-blue-700 transition-colors duration-300">{stats.requestResponses || 0}</p>
               </div>
               <div className="flex h-8 w-8 lg:h-16 lg:w-16 items-center justify-center rounded-lg lg:rounded-xl bg-blue-500 text-white group-hover:bg-blue-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
                 <IoListOutline className="text-base lg:text-3xl" aria-hidden="true" />
@@ -820,14 +637,7 @@ const LaboratoryDashboard = () => {
             </div>
             <p className="relative text-[10px] lg:text-sm text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">Patient requests</p>
             <div className="hidden lg:block mt-4 pt-4 border-t border-slate-100 group-hover:border-blue-200 transition-colors">
-              <p className="text-sm text-slate-500 group-hover:text-blue-700 font-medium transition-colors">Pending: <span className="text-blue-600 font-semibold">{(() => {
-                try {
-                  const requests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-                  return requests.filter(r => r.type === 'book_test_visit').length
-                } catch {
-                  return 0
-                }
-              })()}</span></p>
+              <p className="text-sm text-slate-500 group-hover:text-blue-700 font-medium transition-colors">Pending: <span className="text-blue-600 font-semibold">{stats.requestResponses || 0}</span></p>
             </div>
           </article>
 
@@ -998,7 +808,18 @@ const LaboratoryDashboard = () => {
           </header>
 
           <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
-            {recentTestReports.map((report) => {
+            {loadingReports ? (
+              <div className="lg:col-span-4 text-center py-8">
+                <p className="text-sm text-slate-500">Loading reports...</p>
+              </div>
+            ) : recentTestReports.length === 0 ? (
+              <div className="lg:col-span-4 text-center py-8">
+                <IoDocumentTextOutline className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-sm font-medium text-slate-500">No test reports yet</p>
+                <p className="text-xs text-slate-400 mt-1">Test reports will appear here once generated</p>
+              </div>
+            ) : (
+              recentTestReports.map((report) => {
               return (
                 <article
                   key={report.id}
@@ -1046,7 +867,8 @@ const LaboratoryDashboard = () => {
                   </div>
                 </article>
               )
-            })}
+            }))
+            }
           </div>
         </section>
 
@@ -1262,7 +1084,7 @@ const LaboratoryDashboard = () => {
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)] transition-all"
                     >
                       <option value="">Choose a patient...</option>
-                      {mockPatients.map((patient) => (
+                      {patients.map((patient) => (
                         <option key={patient.id} value={patient.id}>
                           {patient.name} ({patient.email})
                         </option>

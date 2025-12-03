@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
@@ -10,9 +10,11 @@ import {
   IoTrendingUpOutline,
   IoTrendingDownOutline,
 } from 'react-icons/io5'
+import { getDoctorWalletEarnings } from '../doctor-services/doctorService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data
-const mockEarningData = {
+// Default earning data (will be replaced by API data)
+const defaultEarningData = {
   totalEarnings: 156420.75,
   thisMonthEarnings: 8250.00,
   lastMonthEarnings: 6890.50,
@@ -89,11 +91,71 @@ const formatDateTime = (dateString) => {
 
 const WalletEarning = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [filterType, setFilterType] = useState('all') // all, today, year, month
+  const [earningData, setEarningData] = useState(defaultEarningData)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const earningsChange = ((mockEarningData.thisMonthEarnings - mockEarningData.lastMonthEarnings) / mockEarningData.lastMonthEarnings) * 100
+  // Fetch earnings from API
+  useEffect(() => {
+    const fetchEarnings = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getDoctorWalletEarnings()
+        
+        console.log('🔍 Full earnings API response:', response) // Debug log
+        
+        if (response && response.success && response.data) {
+          const data = response.data
+          console.log('✅ Earnings data received:', data) // Debug log
+          
+          // Handle both array and object with items property
+          const earningsList = Array.isArray(data) 
+            ? data 
+            : (data.items || data.earnings || [])
+          
+          setEarningData({
+            totalEarnings: Number(data.totalEarnings || 0),
+            thisMonthEarnings: Number(data.thisMonthEarnings || 0),
+            lastMonthEarnings: Number(data.lastMonthEarnings || 0),
+            thisYearEarnings: Number(data.thisYearEarnings || 0),
+            todayEarnings: Number(data.todayEarnings || 0),
+            earnings: earningsList.map(earn => ({
+              id: earn._id || earn.id,
+              amount: Number(earn.amount || 0),
+              description: earn.description || earn.notes || 'Earning',
+              date: earn.createdAt || earn.date || new Date().toISOString(),
+              status: earn.status || 'completed',
+              category: earn.category || 'Consultation',
+            })),
+          })
+          
+          console.log('💰 Setting earnings data:', {
+            totalEarnings: Number(data.totalEarnings || 0),
+            earningsCount: earningsList.length,
+          }) // Debug log
+        } else {
+          console.error('❌ Earnings API response error:', response) // Debug log
+        }
+      } catch (err) {
+        console.error('Error fetching earnings:', err)
+        setError(err.message || 'Failed to load earnings')
+        toast.error('Failed to load earnings')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const filteredEarnings = mockEarningData.earnings.filter((earning) => {
+    fetchEarnings()
+  }, [toast])
+
+  const earningsChange = earningData.lastMonthEarnings > 0
+    ? ((earningData.thisMonthEarnings - earningData.lastMonthEarnings) / earningData.lastMonthEarnings) * 100
+    : 0
+
+  const filteredEarnings = earningData.earnings.filter((earning) => {
     if (filterType === 'all') return true
     // In a real app, you would filter by date range
     return true
@@ -130,7 +192,7 @@ const WalletEarning = () => {
               <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-white/80 mb-1">Total Earnings</p>
-                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(mockEarningData.totalEarnings)}</p>
+                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{loading ? '...' : formatCurrency(earningData.totalEarnings)}</p>
                 </div>
                 <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
                   <IoArrowDownOutline className="h-8 w-8 sm:h-10 sm:w-10" />
@@ -151,7 +213,7 @@ const WalletEarning = () => {
                   </div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">Today</p>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{formatCurrency(mockEarningData.todayEarnings)}</p>
+                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(earningData.todayEarnings)}</p>
               </div>
             </div>
 
@@ -165,7 +227,7 @@ const WalletEarning = () => {
                   </div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">This Month</p>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{formatCurrency(mockEarningData.thisMonthEarnings)}</p>
+                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(earningData.thisMonthEarnings)}</p>
                 <div className="mt-4 flex items-center gap-2 text-xs">
                   {earningsChange >= 0 ? (
                     <>
@@ -193,7 +255,7 @@ const WalletEarning = () => {
                   </div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">This Year</p>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{formatCurrency(mockEarningData.thisYearEarnings)}</p>
+                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(earningData.thisYearEarnings)}</p>
               </div>
             </div>
           </div>

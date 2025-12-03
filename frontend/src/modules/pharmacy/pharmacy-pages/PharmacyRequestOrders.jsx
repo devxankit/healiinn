@@ -21,6 +21,8 @@ import {
   IoFilterOutline,
   IoWalletOutline,
 } from 'react-icons/io5'
+import { getPharmacyRequestOrders, confirmPharmacyRequestOrder, updatePharmacyRequestOrderStatus, getPharmacyProfile } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -97,71 +99,42 @@ const getDeliveryStatusColor = (status, deliveryStatus) => {
 
 const PharmacyRequestOrders = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [requests, setRequests] = useState([])
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [filter, setFilter] = useState('all') // all, pending, completed
   const [pharmacyInfo, setPharmacyInfo] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadPharmacyInfo()
     loadRequests()
-    // Refresh every 2 seconds to get new requests
+    // Refresh every 30 seconds to get new requests
     const interval = setInterval(() => {
       loadRequests()
-    }, 2000)
+    }, 30000)
     return () => clearInterval(interval)
   }, [])
 
-  const loadPharmacyInfo = () => {
+  const loadPharmacyInfo = async () => {
     try {
-      // Get pharmacy ID (in real app, get from auth)
-      const pharmacyId = 'pharm-1' // Mock pharmacy ID
-      
-      // Try to load from localStorage first
-      const storedPharmacy = JSON.parse(localStorage.getItem(`pharmacy_${pharmacyId}`) || 'null')
-      
-      if (storedPharmacy) {
-        setPharmacyInfo(storedPharmacy)
-      } else {
-        // Use mock data if not found in localStorage
-        const mockPharmacyData = {
-          pharmacyName: 'Rx Care Pharmacy',
-          ownerName: 'John Doe',
-          email: 'john.doe@example.com',
-          phone: '+1-555-214-0098',
-          licenseNumber: 'RX-45287',
-          address: {
-            line1: '123 Market Street',
-            line2: 'Suite 210',
-            city: 'Springfield',
-            state: 'IL',
-            postalCode: '62701',
-            country: 'USA',
-          },
-          contactPerson: {
-            name: 'Lauren Patel',
-            phone: '+1-555-211-0800',
-            email: 'lauren.patel@rxcare.com',
-          },
-        }
-        setPharmacyInfo(mockPharmacyData)
+      const response = await getPharmacyProfile()
+      if (response.success && response.data) {
+        const profile = response.data
+        setPharmacyInfo({
+          pharmacyName: profile.pharmacyName || profile.name || '',
+          ownerName: profile.ownerName || profile.owner?.name || '',
+          email: profile.email || '',
+          phone: profile.phone || '',
+          licenseNumber: profile.licenseNumber || '',
+          address: profile.address || {},
+          contactPerson: profile.contactPerson || {},
+        })
       }
     } catch (error) {
       console.error('Error loading pharmacy info:', error)
-      // Fallback to mock data
-      setPharmacyInfo({
-        pharmacyName: 'Rx Care Pharmacy',
-        ownerName: 'John Doe',
-        email: 'john.doe@example.com',
-        phone: '+1-555-214-0098',
-        address: {
-          line1: '123 Market Street',
-          city: 'Springfield',
-          state: 'IL',
-          postalCode: '62701',
-        },
-      })
+      // Don't show error toast as it's not critical
     }
   }
 
@@ -176,159 +149,56 @@ const PharmacyRequestOrders = () => {
     return parts.join(', ') || 'Address not available'
   }
 
-  // Dummy data for pharmacy requests
-  const mockPharmacyRequests = [
-    {
-      id: 'pharm-req-1',
-      requestId: 'pharm-req-1',
-      patientName: 'Current Patient',
-      patientPhone: '+1-555-000-0000',
-      patientAddress: 'Address not provided',
-      patientEmail: 'patient@example.com',
-      status: 'completed',
-      createdAt: '2025-11-26T17:59:00',
-      paymentConfirmed: true,
-      paidAt: '2025-11-26T17:59:00',
-      prescription: {
-        doctorName: 'Dr. Sarah Mitchell',
-        doctorSpecialty: 'Cardiology',
-        diagnosis: 'Hypertension',
-        issuedAt: '2025-11-26',
-        medications: [
-          { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', duration: '30 days', quantity: 30, price: 16.3 },
-          { name: 'Losartan', dosage: '50mg', frequency: 'Once daily', duration: '30 days', quantity: 30, price: 26.2 },
-        ],
-      },
-      medicines: [
-        { name: 'Amlodipine', dosage: '5mg', quantity: 30, price: 16.3 },
-        { name: 'Losartan', dosage: '50mg', quantity: 30, price: 26.2 },
-      ],
-      totalAmount: 1275,
-      deliveryType: 'home',
-    },
-    {
-      id: 'pharm-req-2',
-      requestId: 'pharm-req-2',
-      patientName: 'Current Patient',
-      patientPhone: '+1-555-000-0000',
-      patientAddress: 'Address not provided',
-      patientEmail: 'patient@example.com',
-      status: 'payment_pending',
-      createdAt: '2025-11-26T17:31:00',
-      paymentConfirmed: false,
-      prescription: {
-        doctorName: 'Dr. Sarah Mitchell',
-        doctorSpecialty: 'Cardiology',
-        diagnosis: 'Hypertension',
-        issuedAt: '2025-11-26',
-        medications: [
-          { name: 'Lipid Profile Medicine', dosage: '10mg', frequency: 'Once daily', duration: '15 days', quantity: 15, price: 25 },
-        ],
-      },
-      medicines: [
-        { name: 'Lipid Profile Medicine', dosage: '10mg', quantity: 15, price: 25 },
-      ],
-      totalAmount: 375,
-      deliveryType: 'home',
-    },
-    {
-      id: 'pharm-req-3',
-      requestId: 'pharm-req-3',
-      patientName: 'John Doe',
-      patientPhone: '+91 98765 12345',
-      patientAddress: '123 Main Street, Pune, Maharashtra 411001',
-      patientEmail: 'john.doe@example.com',
-      status: 'pending',
-      createdAt: '2025-11-25T10:00:00',
-      paymentConfirmed: false,
-      prescription: {
-        doctorName: 'Dr. Rajesh Kumar',
-        doctorSpecialty: 'General Physician',
-        diagnosis: 'Fever',
-        issuedAt: '2025-11-25',
-        medications: [
-          { name: 'Paracetamol', dosage: '500mg', frequency: '3 times daily', duration: '5 days', quantity: 15, price: 2.5 },
-          { name: 'Cetirizine', dosage: '10mg', frequency: 'Once daily', duration: '5 days', quantity: 5, price: 3 },
-        ],
-      },
-      medicines: [
-        { name: 'Paracetamol', dosage: '500mg', quantity: 15, price: 2.5 },
-        { name: 'Cetirizine', dosage: '10mg', quantity: 5, price: 3 },
-      ],
-      totalAmount: 52.5,
-      deliveryType: 'home',
-    },
-  ]
-
-  const loadRequests = () => {
+  const loadRequests = async () => {
     try {
-      // Get pharmacy ID (in real app, get from auth)
-      const pharmacyId = 'pharm-1' // Mock pharmacy ID - in real app, get from auth
+      setLoading(true)
+      const response = await getPharmacyRequestOrders()
       
-      // Load orders from pharmacy-specific localStorage key
-      const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
-      
-      // Also load from adminRequests - check both single pharmacy and multiple pharmacies structure
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const medicineRequests = allRequests.filter(r => {
-        if (r.type !== 'order_medicine') return false
-        // Check if this pharmacy is in the response (single pharmacy or multiple pharmacies)
-        if (r.adminResponse?.pharmacy?.id === pharmacyId) return true
-        if (r.adminResponse?.pharmacies && Array.isArray(r.adminResponse.pharmacies)) {
-          return r.adminResponse.pharmacies.some(p => p.id === pharmacyId)
-        }
-        // Check medicines for this pharmacy
-        if (r.adminResponse?.medicines && Array.isArray(r.adminResponse.medicines)) {
-          return r.adminResponse.medicines.some(m => m.pharmacyId === pharmacyId)
-        }
-        return false
-      })
-      
-      // Transform adminRequests to order format
-      const transformedRequests = medicineRequests.map(req => {
-        // Get medicines for this specific pharmacy
-        const pharmacyMedicines = req.adminResponse?.medicines?.filter(m => m.pharmacyId === pharmacyId) || []
-        const pharmacyTotal = pharmacyMedicines.reduce((sum, med) => sum + ((med.quantity || 0) * (med.price || 0)), 0)
+      if (response.success && response.data) {
+        const requestsData = Array.isArray(response.data) 
+          ? response.data 
+          : response.data.requests || response.data.orders || []
         
-        return {
-          id: req.id,
-          requestId: req.id,
-          patientName: req.patientName,
-          patientPhone: req.patientPhone,
-          patientAddress: req.patientAddress,
-          prescription: req.prescription,
-          medicines: pharmacyMedicines,
-          totalAmount: pharmacyTotal,
-          status: req.deliveryStatus || (req.status === 'confirmed' && req.paymentPending ? 'payment_pending' : req.status === 'confirmed' ? 'confirmed' : req.status === 'rejected' ? 'rejected' : req.status === 'accepted' ? 'accepted' : 'pending'),
+        const transformed = requestsData.map(req => ({
+          id: req._id || req.id,
+          requestId: req._id || req.id,
+          patientName: req.patientId?.firstName && req.patientId?.lastName
+            ? `${req.patientId.firstName} ${req.patientId.lastName}`
+            : req.patientId?.name || req.patientName || 'Unknown Patient',
+          patientPhone: req.patientId?.phone || req.patientPhone || '',
+          patientAddress: req.patientId?.address 
+            ? `${req.patientId.address.line1 || ''}, ${req.patientId.address.city || ''}, ${req.patientId.address.state || ''}`.trim()
+            : req.patientAddress || 'Address not provided',
+          patientEmail: req.patientId?.email || req.patientEmail || '',
+          prescription: req.prescription || req.prescriptionId || null,
+          medicines: req.medicines || req.items || [],
+          totalAmount: req.totalAmount || req.amount || 0,
+          status: req.status || 'pending',
           deliveryStatus: req.deliveryStatus || null,
-          createdAt: req.createdAt || req.responseDate,
+          createdAt: req.createdAt || new Date().toISOString(),
           paymentConfirmed: req.paymentConfirmed || false,
-          paidAt: req.paidAt,
-          preparingAt: req.preparingAt,
-          outForDeliveryAt: req.outForDeliveryAt,
-          deliveredAt: req.deliveredAt,
-          estimatedDeliveryTime: req.estimatedDeliveryTime,
+          paidAt: req.paidAt || null,
+          preparingAt: req.preparingAt || null,
+          outForDeliveryAt: req.outForDeliveryAt || null,
+          deliveredAt: req.deliveredAt || null,
+          estimatedDeliveryTime: req.estimatedDeliveryTime || null,
           pharmacyAccepted: req.pharmacyAccepted || false,
           pharmacyRejected: req.pharmacyRejected || false,
-          acceptedAt: req.acceptedAt,
-          rejectedAt: req.rejectedAt,
-        }
-      })
-      
-      // Combine with dummy data, pharmacy orders, and transformed requests
-      const combined = [...mockPharmacyRequests, ...pharmacyOrders, ...transformedRequests]
-      const unique = combined.filter((req, idx, self) => 
-        idx === self.findIndex(r => (r.id === req.id || r.requestId === req.requestId || r.id === req.requestId) && 
-                                    (r.requestId === req.requestId || r.requestId === req.id))
-      )
-      
-      // Sort by date (newest first)
-      unique.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-      
-      setRequests(unique)
+          acceptedAt: req.acceptedAt || null,
+          rejectedAt: req.rejectedAt || null,
+          deliveryType: req.deliveryOption || req.deliveryType || 'home',
+        }))
+        
+        // Sort by date (newest first)
+        transformed.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        
+        setRequests(transformed)
+      }
     } catch (error) {
       console.error('Error loading requests:', error)
-      setRequests(mockPharmacyRequests)
+      toast.error('Failed to load request orders')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -340,539 +210,98 @@ const PharmacyRequestOrders = () => {
       )
       if (!confirmReject) return
 
-      const pharmacyId = 'pharm-1' // Mock pharmacy ID
-      const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
-      const orderToUpdate = pharmacyOrders.find(o => o.id === orderId || o.requestId === orderId)
-      const requestId = orderToUpdate?.requestId || orderId
+      await updatePharmacyRequestOrderStatus(orderId, 'rejected')
       
-      // Update pharmacy orders - set status as 'rejected'
-      const updatedOrders = pharmacyOrders.map(order => {
-        if (order.id === orderId || order.requestId === orderId) {
-          return {
-            ...order,
-            status: 'rejected',
-            rejectedAt: new Date().toISOString(),
-            rejectedBy: 'Pharmacy',
-            pharmacyRejected: true,
-          }
-        }
-        return order
-      })
-      localStorage.setItem(`pharmacyOrders_${pharmacyId}`, JSON.stringify(updatedOrders))
+      // Update local state
+      setRequests(prev => prev.map(r => 
+        r.id === orderId || r.requestId === orderId
+          ? { ...r, status: 'rejected', rejectedAt: new Date().toISOString(), pharmacyRejected: true }
+          : r
+      ))
       
-      // Update admin requests
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            pharmacyRejected: true,
-            pharmacyRejectedAt: new Date().toISOString(),
-            rejectedBy: 'Pharmacy',
-            rejectionMessage: `Order rejected by pharmacy ${pharmacyInfo?.pharmacyName || 'Pharmacy'}`,
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-      
-      // Create notification for admin
-      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
-      const request = allRequests.find(r => r.id === requestId)
-      adminNotifications.unshift({
-        id: `notif-${Date.now()}`,
-        type: 'pharmacy_rejected',
-        title: 'Pharmacy Order Rejected',
-        message: `Pharmacy ${pharmacyInfo?.pharmacyName || 'Pharmacy'} has rejected the order for patient ${request?.patientName || 'Patient'}. Order ID: ${requestId}`,
-        requestId: requestId,
-        patientName: request?.patientName || 'Patient',
-        pharmacyName: pharmacyInfo?.pharmacyName || 'Pharmacy',
-        orderType: 'pharmacy',
-        createdAt: new Date().toISOString(),
-        read: false,
-      })
-      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
-      
-      // Update patient requests
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const updatedPatientRequests = patientRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            pharmacyRejected: true,
-            pharmacyRejectedAt: new Date().toISOString(),
-            rejectedBy: 'Pharmacy',
-            status: 'rejected',
-          }
-        }
-        return req
-      })
-      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
-      
-      // Update patient orders
-      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-      const updatedPatientOrders = patientOrders.map(order => {
-        if (order.requestId === requestId && order.type === 'pharmacy') {
-          return {
-            ...order,
-            status: 'rejected',
-            pharmacyRejected: true,
-            pharmacyRejectedAt: new Date().toISOString(),
-            rejectedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
-      
-      // Update current state
-      const updatedRequestsState = requests.map(r => {
-        if (r.id === orderId || r.requestId === orderId) {
-          return {
-            ...r,
-            status: 'rejected',
-            rejectedAt: new Date().toISOString(),
-            pharmacyRejected: true,
-          }
-        }
-        return r
-      })
-      setRequests(updatedRequestsState)
-      
+      toast.success('Order rejected successfully')
       loadRequests()
-      alert('Order rejected successfully. Admin and patient have been notified.')
     } catch (error) {
       console.error('Error rejecting order:', error)
-      alert('Error rejecting order. Please try again.')
+      toast.error(error.message || 'Failed to reject order')
     }
   }
 
   const handleAcceptOrder = async (orderId) => {
     try {
-      const pharmacyId = 'pharm-1' // Mock pharmacy ID
-      const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
-      const orderToUpdate = pharmacyOrders.find(o => o.id === orderId || o.requestId === orderId)
-      const requestId = orderToUpdate?.requestId || orderId
+      await confirmPharmacyRequestOrder(orderId)
       
-      // Update pharmacy orders - set status as 'accepted'
-      const updatedOrders = pharmacyOrders.map(order => {
-        if (order.id === orderId || order.requestId === orderId) {
-          return {
-            ...order,
-            status: 'accepted',
-            acceptedAt: new Date().toISOString(),
-            acceptedBy: 'Pharmacy',
-            pharmacyAccepted: true,
-          }
-        }
-        return order
-      })
-      localStorage.setItem(`pharmacyOrders_${pharmacyId}`, JSON.stringify(updatedOrders))
+      // Update local state
+      setRequests(prev => prev.map(r => 
+        r.id === orderId || r.requestId === orderId
+          ? { ...r, status: 'accepted', acceptedAt: new Date().toISOString(), pharmacyAccepted: true }
+          : r
+      ))
       
-      // Update admin requests
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            pharmacyAccepted: true,
-            pharmacyAcceptedAt: new Date().toISOString(),
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-      
-      // Create notification for admin
-      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
-      const request = allRequests.find(r => r.id === requestId)
-      adminNotifications.unshift({
-        id: `notif-${Date.now()}`,
-        type: 'pharmacy_accepted',
-        title: 'Pharmacy Order Accepted',
-        message: `Pharmacy ${pharmacyInfo?.pharmacyName || 'Pharmacy'} has accepted the order for patient ${request?.patientName || 'Patient'}. Order ID: ${requestId}`,
-        requestId: requestId,
-        patientName: request?.patientName || 'Patient',
-        pharmacyName: pharmacyInfo?.pharmacyName || 'Pharmacy',
-        orderType: 'pharmacy',
-        createdAt: new Date().toISOString(),
-        read: false,
-      })
-      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications))
-      
-      // Update patient requests
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const updatedPatientRequests = patientRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            pharmacyAccepted: true,
-            pharmacyAcceptedAt: new Date().toISOString(),
-          }
-        }
-        return req
-      })
-      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
-      
-      // Update patient orders
-      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-      const updatedPatientOrders = patientOrders.map(order => {
-        if (order.requestId === requestId && order.type === 'pharmacy') {
-          return {
-            ...order,
-            pharmacyAccepted: true,
-            pharmacyAcceptedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
-      
-      // Update current state
-      const updatedRequestsState = requests.map(r => {
-        if (r.id === orderId || r.requestId === orderId) {
-          return {
-            ...r,
-            status: 'accepted',
-            acceptedAt: new Date().toISOString(),
-            pharmacyAccepted: true,
-          }
-        }
-        return r
-      })
-      setRequests(updatedRequestsState)
-      
+      toast.success('Order accepted successfully! You can now confirm and prepare the order.')
       loadRequests()
-      alert('Order accepted successfully! You can now confirm and prepare the order.')
     } catch (error) {
       console.error('Error accepting order:', error)
-      alert('Error accepting order. Please try again.')
+      toast.error(error.message || 'Failed to accept order')
     }
   }
 
+
   const handleConfirmOrder = async (orderId) => {
     try {
-      const pharmacyId = 'pharm-1' // Mock pharmacy ID
-      const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
-      const orderToUpdate = pharmacyOrders.find(o => o.id === orderId || o.requestId === orderId)
-      const requestId = orderToUpdate?.requestId || orderId
+      await updatePharmacyRequestOrderStatus(orderId, 'preparing')
       
-      // Update pharmacy orders - set status as 'preparing' for delivery
-      const updatedOrders = pharmacyOrders.map(order => {
-        if (order.id === orderId || order.requestId === orderId) {
-          return {
-            ...order,
-            status: 'preparing',
-            deliveryStatus: 'preparing',
-            confirmedAt: new Date().toISOString(),
-            confirmedBy: 'Pharmacy',
-            preparingAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem(`pharmacyOrders_${pharmacyId}`, JSON.stringify(updatedOrders))
+      // Update local state
+      setRequests(prev => prev.map(r => 
+        r.id === orderId || r.requestId === orderId
+          ? { ...r, status: 'preparing', deliveryStatus: 'preparing', confirmedAt: new Date().toISOString(), preparingAt: new Date().toISOString() }
+          : r
+      ))
       
-      // Also update the request in the current state
-      const currentRequest = requests.find(r => r.id === orderId || r.requestId === orderId)
-      if (currentRequest) {
-        const updatedRequests = requests.map(r => {
-          if (r.id === orderId || r.requestId === orderId) {
-            return {
-              ...r,
-              status: 'preparing',
-              deliveryStatus: 'preparing',
-              confirmedAt: new Date().toISOString(),
-              preparingAt: new Date().toISOString(),
-            }
-          }
-          return r
-        })
-        setRequests(updatedRequests)
-      }
-      
-      // Update admin requests
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(req => {
-        if (req.id === requestId) {
-          // Check if all pharmacies for this request are confirmed
-          const providerIds = req.adminResponse?.pharmacies?.map(p => p.id) || 
-                            (req.adminResponse?.pharmacy?.id ? [req.adminResponse.pharmacy.id] : [])
-          const allPharmacyConfirmed = providerIds.every(pid => {
-            const pharmOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pid}`) || '[]')
-            const pharmOrder = pharmOrders.find(o => o.requestId === requestId)
-            return pharmOrder?.status === 'completed' || pharmOrder?.pharmacyConfirmed
-          })
-          
-          return {
-            ...req,
-            pharmacyConfirmed: true,
-            pharmacyConfirmedAt: new Date().toISOString(),
-            status: req.paymentConfirmed && allPharmacyConfirmed ? 'completed' : req.status,
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-      
-      // Update patient requests
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const updatedPatientRequests = patientRequests.map(req => {
-        if (req.id === requestId) {
-          // Check if all pharmacies for this request are confirmed
-          const providerIds = (req.providerId || '').split(',').filter(Boolean)
-          const allPharmacyConfirmed = providerIds.every(pid => {
-            const pharmOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pid}`) || '[]')
-            const pharmOrder = pharmOrders.find(o => o.requestId === requestId)
-            return pharmOrder?.status === 'completed' || pharmOrder?.pharmacyConfirmed
-          })
-          
-          return {
-            ...req,
-            pharmacyConfirmed: true,
-            pharmacyConfirmedAt: new Date().toISOString(),
-            status: req.paymentConfirmed && allPharmacyConfirmed ? 'completed' : req.status,
-          }
-        }
-        return req
-      })
-      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
-      
-      // Update patient orders
-      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-      const updatedPatientOrders = patientOrders.map(order => {
-        if (order.requestId === requestId && order.type === 'pharmacy') {
-          const providerIds = order.providerIds || (order.providerId ? [order.providerId] : [])
-          const allPharmacyConfirmed = providerIds.every(pid => {
-            const pharmOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pid}`) || '[]')
-            const pharmOrder = pharmOrders.find(o => o.requestId === requestId)
-            return pharmOrder?.status === 'completed' || pharmOrder?.pharmacyConfirmed
-          })
-          
-          return {
-            ...order,
-            status: order.paymentConfirmed && allPharmacyConfirmed ? 'completed' : order.status,
-            pharmacyConfirmed: true,
-            pharmacyConfirmedAt: new Date().toISOString(),
-            completedAt: order.paymentConfirmed && allPharmacyConfirmed ? new Date().toISOString() : order.completedAt,
-          }
-        }
-        return order
-      })
-      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
-      
-      // Update admin orders
-      const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
-      const updatedAdminOrders = adminOrders.map(order => {
-        if (order.requestId === requestId && order.type === 'pharmacy' && order.pharmacyId === pharmacyId) {
-          return {
-            ...order,
-            status: 'completed',
-            pharmacyConfirmed: true,
-            pharmacyConfirmedAt: new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem('adminOrders', JSON.stringify(updatedAdminOrders))
-      
+      toast.success('Order confirmed and marked as preparing')
       loadRequests()
-      alert('Order confirmed! Order is now being prepared for delivery.')
     } catch (error) {
       console.error('Error confirming order:', error)
-      alert('Error confirming order. Please try again.')
+      toast.error(error.message || 'Failed to confirm order')
+    }
+  }
+
+  const handleUpdateDeliveryStatus = async (orderId, status) => {
+    try {
+      await updatePharmacyRequestOrderStatus(orderId, status)
+      
+      // Update local state
+      setRequests(prev => prev.map(r => 
+        r.id === orderId || r.requestId === orderId
+          ? { ...r, status, deliveryStatus: status, [`${status}At`]: new Date().toISOString() }
+          : r
+      ))
+      
+      toast.success(`Order status updated to ${status}`)
+      loadRequests()
+    } catch (error) {
+      console.error('Error updating delivery status:', error)
+      toast.error(error.message || 'Failed to update delivery status')
     }
   }
 
   const handleOutForDelivery = async (orderId) => {
     try {
-      const pharmacyId = 'pharm-1' // Mock pharmacy ID
-      const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
-      const orderToUpdate = pharmacyOrders.find(o => o.id === orderId || o.requestId === orderId)
-      const requestId = orderToUpdate?.requestId || orderId
-      
-      // Update pharmacy orders - set status as 'out_for_delivery'
-      const updatedOrders = pharmacyOrders.map(order => {
-        if (order.id === orderId || order.requestId === orderId) {
-          return {
-            ...order,
-            status: 'out_for_delivery',
-            deliveryStatus: 'out_for_delivery',
-            outForDeliveryAt: new Date().toISOString(),
-            estimatedDeliveryTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes from now
-          }
-        }
-        return order
-      })
-      localStorage.setItem(`pharmacyOrders_${pharmacyId}`, JSON.stringify(updatedOrders))
-      
-      // Update admin requests
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            deliveryStatus: 'out_for_delivery',
-            outForDeliveryAt: new Date().toISOString(),
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-      
-      // Update patient orders
-      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-      const updatedPatientOrders = patientOrders.map(order => {
-        if (order.requestId === requestId && order.type === 'pharmacy') {
-          return {
-            ...order,
-            deliveryStatus: 'out_for_delivery',
-            outForDeliveryAt: new Date().toISOString(),
-            estimatedDeliveryTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
-      
-      // Update current state
-      const updatedRequestsState = requests.map(r => {
-        if (r.id === orderId || r.requestId === orderId) {
-          return {
-            ...r,
-            status: 'out_for_delivery',
-            deliveryStatus: 'out_for_delivery',
-            outForDeliveryAt: new Date().toISOString(),
-            estimatedDeliveryTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-          }
-        }
-        return r
-      })
-      setRequests(updatedRequestsState)
-      
-      loadRequests()
-      alert('Order is now out for delivery!')
+      await handleUpdateDeliveryStatus(orderId, 'out_for_delivery')
+      toast.success('Order is now out for delivery!')
     } catch (error) {
       console.error('Error updating delivery status:', error)
-      alert('Error updating delivery status. Please try again.')
+      toast.error(error.message || 'Failed to update delivery status')
     }
   }
 
   const handleMarkAsDelivered = async (orderId) => {
     try {
-      const pharmacyId = 'pharm-1' // Mock pharmacy ID
-      const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacyId}`) || '[]')
-      const orderToUpdate = pharmacyOrders.find(o => o.id === orderId || o.requestId === orderId)
-      const requestId = orderToUpdate?.requestId || orderId
-      
-      // Update pharmacy orders - set status as 'delivered' (completed)
-      const updatedOrders = pharmacyOrders.map(order => {
-        if (order.id === orderId || order.requestId === orderId) {
-          return {
-            ...order,
-            status: 'completed',
-            deliveryStatus: 'delivered',
-            deliveredAt: new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem(`pharmacyOrders_${pharmacyId}`, JSON.stringify(updatedOrders))
-      
-      // Update admin requests
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            deliveryStatus: 'delivered',
-            deliveredAt: new Date().toISOString(),
-            pharmacyConfirmed: true,
-            pharmacyConfirmedAt: new Date().toISOString(),
-            status: req.paymentConfirmed ? 'completed' : req.status,
-          }
-        }
-        return req
-      })
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
-      
-      // Update patient requests
-      const patientRequests = JSON.parse(localStorage.getItem('patientRequests') || '[]')
-      const updatedPatientRequests = patientRequests.map(req => {
-        if (req.id === requestId) {
-          return {
-            ...req,
-            deliveryStatus: 'delivered',
-            deliveredAt: new Date().toISOString(),
-            pharmacyConfirmed: true,
-            pharmacyConfirmedAt: new Date().toISOString(),
-            status: req.paymentConfirmed ? 'completed' : req.status,
-          }
-        }
-        return req
-      })
-      localStorage.setItem('patientRequests', JSON.stringify(updatedPatientRequests))
-      
-      // Update patient orders
-      const patientOrders = JSON.parse(localStorage.getItem('patientOrders') || '[]')
-      const updatedPatientOrders = patientOrders.map(order => {
-        if (order.requestId === requestId && order.type === 'pharmacy') {
-          return {
-            ...order,
-            status: order.paymentConfirmed ? 'completed' : order.status,
-            deliveryStatus: 'delivered',
-            deliveredAt: new Date().toISOString(),
-            pharmacyConfirmed: true,
-            pharmacyConfirmedAt: new Date().toISOString(),
-            completedAt: order.paymentConfirmed ? new Date().toISOString() : order.completedAt,
-          }
-        }
-        return order
-      })
-      localStorage.setItem('patientOrders', JSON.stringify(updatedPatientOrders))
-      
-      // Update admin orders
-      const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
-      const updatedAdminOrders = adminOrders.map(order => {
-        if (order.requestId === requestId && order.type === 'pharmacy' && order.pharmacyId === pharmacyId) {
-          return {
-            ...order,
-            status: 'completed',
-            deliveryStatus: 'delivered',
-            deliveredAt: new Date().toISOString(),
-            pharmacyConfirmed: true,
-            pharmacyConfirmedAt: new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-          }
-        }
-        return order
-      })
-      localStorage.setItem('adminOrders', JSON.stringify(updatedAdminOrders))
-      
-      // Update current state
-      const updatedRequestsState = requests.map(r => {
-        if (r.id === orderId || r.requestId === orderId) {
-          return {
-            ...r,
-            status: 'completed',
-            deliveryStatus: 'delivered',
-            deliveredAt: new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-            pharmacyConfirmed: true,
-            pharmacyConfirmedAt: new Date().toISOString(),
-          }
-        }
-        return r
-      })
-      setRequests(updatedRequestsState)
-      
-      loadRequests()
-      alert('Order marked as delivered successfully!')
+      await handleUpdateDeliveryStatus(orderId, 'delivered')
+      toast.success('Order marked as delivered successfully!')
     } catch (error) {
       console.error('Error marking order as delivered:', error)
-      alert('Error marking order as delivered. Please try again.')
+      toast.error(error.message || 'Failed to mark order as delivered')
     }
   }
 
@@ -1063,17 +492,15 @@ const PharmacyRequestOrders = () => {
     doc.save(fileName)
   }
 
-  const handleMarkCompleted = (requestId) => {
+  const handleMarkCompleted = async (requestId) => {
     try {
-      const allRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-      const updatedRequests = allRequests.map(r => 
-        r.id === requestId ? { ...r, status: 'completed' } : r
-      )
-      localStorage.setItem('adminRequests', JSON.stringify(updatedRequests))
+      await updatePharmacyRequestOrderStatus(requestId, 'completed')
+      toast.success('Order marked as completed successfully!')
       loadRequests()
       setSelectedRequest(null)
     } catch (error) {
       console.error('Error updating request:', error)
+      toast.error(error.message || 'Failed to mark order as completed')
     }
   }
 

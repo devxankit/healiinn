@@ -20,6 +20,7 @@ import {
   getLaboratories,
   verifyLaboratory,
   rejectLaboratory,
+  getLaboratoryTestsByLaboratory,
 } from '../admin-services/adminService'
 
 // Mock data removed - using real API now
@@ -44,7 +45,33 @@ const AdminLaboratories = () => {
       // First, load ALL laboratories for stats (no filters)
       const allLabsResponse = await getLaboratories({ page: 1, limit: 1000 })
       if (allLabsResponse.success && allLabsResponse.data) {
-        const allTransformed = (allLabsResponse.data.items || []).map(lab => ({
+        const allLabsData = allLabsResponse.data.items || []
+        
+        // Load tests count for all laboratories (for stats)
+        const allLabsWithTests = await Promise.all(
+          allLabsData.map(async (lab) => {
+            try {
+              const testsResponse = await getLaboratoryTestsByLaboratory(lab._id || lab.id, { limit: 1 })
+              const testsCount = testsResponse.success && testsResponse.data
+                ? (testsResponse.data.pagination?.total || testsResponse.data.items?.length || 0)
+                : 0
+              
+              return {
+                id: lab._id || lab.id,
+                name: lab.labName || '',
+                ownerName: lab.ownerName || '',
+                email: lab.email || '',
+                phone: lab.phone || '',
+                address: lab.address ? `${lab.address.line1 || ''}, ${lab.address.city || ''}, ${lab.address.state || ''}`.trim() : '',
+                licenseNumber: lab.licenseNumber || '',
+                status: lab.status === 'approved' ? 'verified' : lab.status || 'pending',
+                registeredAt: lab.createdAt || new Date().toISOString(),
+                totalTests: testsCount,
+                rejectionReason: lab.rejectionReason || '',
+              }
+            } catch (err) {
+              console.error(`Error loading tests count for laboratory ${lab._id}:`, err)
+              return {
           id: lab._id || lab.id,
           name: lab.labName || '',
           ownerName: lab.ownerName || '',
@@ -54,23 +81,63 @@ const AdminLaboratories = () => {
           licenseNumber: lab.licenseNumber || '',
           status: lab.status === 'approved' ? 'verified' : lab.status || 'pending',
           registeredAt: lab.createdAt || new Date().toISOString(),
-          totalTests: 0, // TODO: Add when tests API is ready
+                totalTests: 0,
           rejectionReason: lab.rejectionReason || '',
-        }))
-        setAllLaboratories(allTransformed)
+              }
+            }
+          })
+        )
+        
+        setAllLaboratories(allLabsWithTests)
       }
       
       // Then, load filtered laboratories for display
-      const filters = {
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        search: searchTerm || undefined,
-        page: 1,
-        limit: 100,
+      const filters = {}
+      if (statusFilter !== 'all') {
+        // Map 'verified' to 'approved' for backend compatibility
+        filters.status = statusFilter === 'verified' ? 'approved' : statusFilter
       }
+      if (searchTerm && searchTerm.trim()) {
+        filters.search = searchTerm.trim()
+      }
+      filters.page = 1
+      filters.limit = 100
+      
+      console.log('🔍 Loading laboratories with filters:', filters) // Debug log
       const response = await getLaboratories(filters)
+      console.log('📊 Laboratories API response:', response) // Debug log
       
       if (response.success && response.data) {
-        const transformedLabs = (response.data.items || []).map(lab => ({
+        const labsData = response.data.items || response.data || []
+        console.log('📋 Raw laboratories data from API:', labsData) // Debug log
+        console.log('📋 Transformed laboratories count:', labsData.length) // Debug log
+        
+        // Load tests for each laboratory
+        const labsWithTests = await Promise.all(
+          labsData.map(async (lab) => {
+            try {
+              const testsResponse = await getLaboratoryTestsByLaboratory(lab._id || lab.id, { limit: 1000 })
+              const tests = testsResponse.success && testsResponse.data
+                ? (testsResponse.data.items || testsResponse.data || [])
+                : []
+              
+              return {
+                id: lab._id || lab.id,
+                name: lab.labName || '',
+                ownerName: lab.ownerName || '',
+                email: lab.email || '',
+                phone: lab.phone || '',
+                address: lab.address ? `${lab.address.line1 || ''}, ${lab.address.city || ''}, ${lab.address.state || ''}`.trim() : '',
+                licenseNumber: lab.licenseNumber || '',
+                status: lab.status === 'approved' ? 'verified' : lab.status || 'pending',
+                registeredAt: lab.createdAt || new Date().toISOString(),
+                totalTests: tests.length,
+                tests: tests,
+                rejectionReason: lab.rejectionReason || '',
+              }
+            } catch (err) {
+              console.error(`Error loading tests for laboratory ${lab._id}:`, err)
+              return {
           id: lab._id || lab.id,
           name: lab.labName || '',
           ownerName: lab.ownerName || '',
@@ -80,10 +147,19 @@ const AdminLaboratories = () => {
           licenseNumber: lab.licenseNumber || '',
           status: lab.status === 'approved' ? 'verified' : lab.status || 'pending',
           registeredAt: lab.createdAt || new Date().toISOString(),
-          totalTests: 0, // TODO: Add when tests API is ready
+                totalTests: 0,
+                tests: [],
           rejectionReason: lab.rejectionReason || '',
-        }))
-        setLaboratories(transformedLabs)
+              }
+            }
+          })
+        )
+        
+        console.log('📋 Transformed laboratories:', labsWithTests) // Debug log
+        setLaboratories(labsWithTests)
+      } else {
+        console.error('❌ Invalid response from API:', response) // Debug log
+        setLaboratories([])
       }
     } catch (error) {
       console.error('Error loading laboratories:', error)
@@ -157,13 +233,23 @@ const AdminLaboratories = () => {
   }
 
   const filteredLaboratories = laboratories.filter((lab) => {
-    const matchesSearch =
-      lab.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lab.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lab.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lab.address.toLowerCase().includes(searchTerm.toLowerCase())
+    // Filter by status first
+    const matchesStatus = statusFilter === 'all' || lab.status === statusFilter || (statusFilter === 'verified' && lab.status === 'approved')
     
-    return matchesSearch
+    // If no search term, return status match
+    if (!searchTerm.trim()) {
+      return matchesStatus
+    }
+    
+    // Search in multiple fields
+    const searchLower = searchTerm.toLowerCase().trim()
+    const matchesSearch =
+      lab.name.toLowerCase().includes(searchLower) ||
+      lab.ownerName.toLowerCase().includes(searchLower) ||
+      lab.email.toLowerCase().includes(searchLower) ||
+      lab.address.toLowerCase().includes(searchLower)
+    
+    return matchesSearch && matchesStatus
   })
 
   const formatDate = (dateString) => {

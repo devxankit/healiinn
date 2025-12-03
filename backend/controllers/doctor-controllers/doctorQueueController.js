@@ -203,6 +203,23 @@ exports.skipPatient = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
+  // Create notification for patient
+  try {
+    const { createAppointmentNotification } = require('../../services/notificationService');
+    const Doctor = require('../../models/Doctor');
+    const doctor = await Doctor.findById(id);
+
+    await createAppointmentNotification({
+      userId: appointment.patientId,
+      userType: 'patient',
+      appointment,
+      eventType: 'skipped',
+      doctor,
+    }).catch((error) => console.error('Error creating skip notification:', error));
+  } catch (error) {
+    console.error('Error creating notifications:', error);
+  }
+
   // Recalculate ETAs after skip
   try {
     if (appointment.sessionId) {
@@ -226,6 +243,111 @@ exports.skipPatient = asyncHandler(async (req, res) => {
   return res.status(200).json({
     success: true,
     message: 'Patient skipped',
+  });
+});
+
+// PATCH /api/doctors/queue/:appointmentId/recall - Re-call a patient
+exports.recallPatient = asyncHandler(async (req, res) => {
+  const { id } = req.auth;
+  const { appointmentId } = req.params;
+
+  const appointment = await Appointment.findOne({
+    _id: appointmentId,
+    doctorId: id,
+  });
+
+  if (!appointment) {
+    return res.status(404).json({
+      success: false,
+      message: 'Appointment not found',
+    });
+  }
+
+  // Can only recall skipped or no-show patients
+  if (!['skipped', 'no-show'].includes(appointment.queueStatus)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Can only recall skipped or no-show patients',
+    });
+  }
+
+  // Change status back to waiting
+  appointment.queueStatus = 'waiting';
+  await appointment.save();
+
+  // Recalculate ETAs
+  try {
+    if (appointment.sessionId) {
+      const etas = await recalculateSessionETAs(appointment.sessionId);
+      const io = getIO();
+
+      for (const eta of etas) {
+        io.to(`patient-${eta.patientId}`).emit('token:eta:update', {
+          appointmentId: eta.appointmentId,
+          estimatedWaitMinutes: eta.estimatedWaitMinutes,
+          estimatedCallTime: eta.estimatedCallTime,
+          patientsAhead: eta.patientsAhead,
+          tokenNumber: eta.tokenNumber,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error recalculating ETAs:', error);
+  }
+
+  // Emit real-time event
+  try {
+    const io = getIO();
+    io.to(`doctor-${id}`).emit('queue:updated', {
+      appointmentId: appointment._id,
+      status: 'waiting',
+    });
+    io.to(`patient-${appointment.patientId}`).emit('token:recalled', {
+      appointmentId: appointment._id,
+      tokenNumber: appointment.tokenNumber,
+    });
+  } catch (error) {
+    console.error('Socket.IO error:', error);
+  }
+
+  // Create notification for patient
+  try {
+    const { createAppointmentNotification } = require('../../services/notificationService');
+    const Doctor = require('../../models/Doctor');
+    const doctor = await Doctor.findById(id);
+
+    await createAppointmentNotification({
+      userId: appointment.patientId,
+      userType: 'patient',
+      appointment,
+      eventType: 'token_recalled',
+      doctor,
+    }).catch((error) => console.error('Error creating recall notification:', error));
+  } catch (error) {
+    console.error('Error creating notifications:', error);
+  }
+
+        // Create notification for patient
+        try {
+          const { createAppointmentNotification } = require('../../services/notificationService');
+          const Doctor = require('../../models/Doctor');
+          const doctor = await Doctor.findById(id);
+
+          await createAppointmentNotification({
+            userId: appointment.patientId,
+            userType: 'patient',
+            appointment,
+            eventType: 'token_recalled',
+            doctor,
+          }).catch((error) => console.error('Error creating recall notification:', error));
+        } catch (error) {
+          console.error('Error creating notifications:', error);
+        }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Patient recalled to waiting queue',
+    data: appointment,
   });
 });
 
@@ -261,6 +383,25 @@ exports.updateQueueStatus = asyncHandler(async (req, res) => {
     appointment.status = 'cancelled';
   }
   await appointment.save();
+
+  // Create notification for patient if status is completed
+  if (status === 'completed') {
+    try {
+      const { createAppointmentNotification } = require('../../services/notificationService');
+      const Doctor = require('../../models/Doctor');
+      const doctor = await Doctor.findById(id);
+
+      await createAppointmentNotification({
+        userId: appointment.patientId,
+        userType: 'patient',
+        appointment,
+        eventType: 'completed',
+        doctor,
+      }).catch((error) => console.error('Error creating completion notification:', error));
+    } catch (error) {
+      console.error('Error creating notifications:', error);
+    }
+  }
 
   // Update session current token if completed or no-show
   if ((status === 'completed' || status === 'no-show') && appointment.sessionId) {
@@ -435,6 +576,19 @@ exports.pauseSession = asyncHandler(async (req, res) => {
       });
     }
 
+    // Create notification for doctor
+    try {
+      const { createSessionNotification } = require('../../services/notificationService');
+      await createSessionNotification({
+        userId: id,
+        userType: 'doctor',
+        session,
+        eventType: 'paused',
+      }).catch((error) => console.error('Error creating pause notification:', error));
+    } catch (error) {
+      console.error('Error creating notifications:', error);
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Session paused successfully',
@@ -491,6 +645,19 @@ exports.resumeSession = asyncHandler(async (req, res) => {
         tokenNumber: eta.tokenNumber,
         isPaused: false,
       });
+    }
+
+    // Create notification for doctor
+    try {
+      const { createSessionNotification } = require('../../services/notificationService');
+      await createSessionNotification({
+        userId: id,
+        userType: 'doctor',
+        session,
+        eventType: 'resumed',
+      }).catch((error) => console.error('Error creating resume notification:', error));
+    } catch (error) {
+      console.error('Error creating notifications:', error);
     }
 
     return res.status(200).json({

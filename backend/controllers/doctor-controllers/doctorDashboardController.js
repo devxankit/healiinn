@@ -8,10 +8,28 @@ const WalletTransaction = require('../../models/WalletTransaction');
 // GET /api/doctors/dashboard/stats
 exports.getDashboardStats = asyncHandler(async (req, res) => {
   const { id } = req.auth;
+  
+  // Convert id to ObjectId to ensure proper matching
+  const mongoose = require('mongoose');
+  const doctorObjectId = mongoose.Types.ObjectId.isValid(id) 
+    ? new mongoose.Types.ObjectId(id) 
+    : id;
+  
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  console.log(`🔍 Fetching dashboard stats for doctor:`, {
+    id,
+    doctorObjectId: doctorObjectId.toString(),
+  });
+
+  // Calculate month start and end
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+  lastMonthEnd.setHours(23, 59, 59, 999);
 
   const [
     totalAppointments,
@@ -20,22 +38,27 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
     totalPatients,
     totalEarnings,
     todayEarnings,
+    thisMonthEarnings,
+    lastMonthEarnings,
+    thisMonthConsultations,
+    lastMonthConsultations,
   ] = await Promise.all([
-    Appointment.countDocuments({ doctorId: id }),
+    Appointment.countDocuments({ doctorId: doctorObjectId }),
     Appointment.countDocuments({
-      doctorId: id,
+      doctorId: doctorObjectId,
       appointmentDate: { $gte: today, $lt: tomorrow },
+      status: { $ne: 'cancelled' }, // Exclude cancelled appointments
     }),
-    Consultation.countDocuments({ doctorId: id, status: 'completed' }),
-    Appointment.distinct('patientId', { doctorId: id }).then(ids => ids.length),
+    Consultation.countDocuments({ doctorId: doctorObjectId, status: 'completed' }),
+    Appointment.distinct('patientId', { doctorId: doctorObjectId }).then(ids => ids.length),
     WalletTransaction.aggregate([
-      { $match: { userId: id, userType: 'doctor', type: 'earning', status: 'completed' } },
+      { $match: { userId: doctorObjectId, userType: 'doctor', type: 'earning', status: 'completed' } },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]).then(result => result[0]?.total || 0),
     WalletTransaction.aggregate([
       {
         $match: {
-          userId: id,
+          userId: doctorObjectId,
           userType: 'doctor',
           type: 'earning',
           status: 'completed',
@@ -44,7 +67,54 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
       },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]).then(result => result[0]?.total || 0),
+    // This month earnings
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          userId: doctorObjectId,
+          userType: 'doctor',
+          type: 'earning',
+          status: 'completed',
+          createdAt: { $gte: currentMonthStart },
+        },
+      },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]).then(result => result[0]?.total || 0),
+    // Last month earnings
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          userId: doctorObjectId,
+          userType: 'doctor',
+          type: 'earning',
+          status: 'completed',
+          createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd },
+        },
+      },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]).then(result => result[0]?.total || 0),
+    // This month consultations
+    Consultation.countDocuments({
+      doctorId: doctorObjectId,
+      status: 'completed',
+      createdAt: { $gte: currentMonthStart },
+    }),
+    // Last month consultations
+    Consultation.countDocuments({
+      doctorId: doctorObjectId,
+      status: 'completed',
+      createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd },
+    }),
   ]);
+  
+  console.log(`📊 Dashboard stats calculated:`, {
+    doctorId: doctorObjectId.toString(),
+    totalAppointments,
+    todayAppointments,
+    totalEarnings,
+    thisMonthEarnings,
+    lastMonthEarnings,
+  });
 
   return res.status(200).json({
     success: true,
@@ -55,6 +125,10 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
       totalPatients,
       totalEarnings,
       todayEarnings,
+      thisMonthEarnings,
+      lastMonthEarnings,
+      thisMonthConsultations,
+      lastMonthConsultations,
     },
   });
 });

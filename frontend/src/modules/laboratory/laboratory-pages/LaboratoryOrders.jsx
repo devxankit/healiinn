@@ -14,220 +14,10 @@ import {
   IoMailOutline,
   IoFlaskOutline,
 } from 'react-icons/io5'
+import { getLaboratoryOrders, updateLaboratoryOrder } from '../laboratory-services/laboratoryService'
 
-const mockOrders = [
-  {
-    id: 'order-1',
-    type: 'laboratory',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    patientPhone: '+1-555-123-4567',
-    patientEmail: 'john.doe@example.com',
-    status: 'pending',
-    createdAt: '2024-01-15T10:30:00.000Z',
-    testRequestId: 'test-3021',
-    tests: [
-      { name: 'Complete Blood Count (CBC)', price: 450.0 },
-      { name: 'Blood Glucose (Fasting)', price: 250.0 },
-    ],
-    totalAmount: 700.0,
-    deliveryType: 'home',
-    address: '123 Main St, New York, NY',
-  },
-  {
-    id: 'order-2',
-    type: 'laboratory',
-    patientId: 'pat-2',
-    patientName: 'Sarah Smith',
-    patientPhone: '+1-555-234-5678',
-    patientEmail: 'sarah.smith@example.com',
-    status: 'ready',
-    createdAt: '2024-01-14T14:15:00.000Z',
-    testRequestId: 'test-3022',
-    tests: [
-      { name: 'Lipid Profile', price: 600.0 },
-    ],
-    totalAmount: 600.0,
-    deliveryType: 'pickup',
-    address: '456 Oak Ave, New York, NY',
-  },
-  {
-    id: 'order-3',
-    type: 'laboratory',
-    patientId: 'pat-3',
-    patientName: 'Mike Johnson',
-    patientPhone: '+1-555-345-6789',
-    patientEmail: 'mike.johnson@example.com',
-    status: 'completed',
-    createdAt: '2024-01-13T16:45:00.000Z',
-    testRequestId: 'test-3023',
-    tests: [
-      { name: 'Liver Function Test (LFT)', price: 800.0 },
-      { name: 'Kidney Function Test (KFT)', price: 750.0 },
-    ],
-    totalAmount: 1550.0,
-    deliveryType: 'home',
-    address: '789 Pine St, New York, NY',
-  },
-  {
-    id: 'order-4',
-    type: 'laboratory',
-    patientId: 'pat-4',
-    patientName: 'Emily Brown',
-    patientPhone: '+1-555-456-7890',
-    patientEmail: 'emily.brown@example.com',
-    status: 'pending',
-    createdAt: '2024-01-12T09:20:00.000Z',
-    testRequestId: 'test-3024',
-    tests: [
-      { name: 'Thyroid Function Test', price: 450.0 },
-    ],
-    totalAmount: 450.0,
-    deliveryType: 'pickup',
-    address: '321 Elm St, New York, NY',
-  },
-  {
-    id: 'order-5',
-    type: 'laboratory',
-    patientId: 'pat-5',
-    patientName: 'David Wilson',
-    patientPhone: '+1-555-567-8901',
-    patientEmail: 'david.wilson@example.com',
-    status: 'ready',
-    createdAt: '2024-01-11T11:30:00.000Z',
-    testRequestId: 'test-3025',
-    tests: [
-      { name: 'Hemoglobin A1C', price: 500.0 },
-      { name: 'Vitamin D', price: 350.0 },
-    ],
-    totalAmount: 850.0,
-    deliveryType: 'home',
-    address: '654 Maple Ave, New York, NY',
-  },
-  {
-    id: 'order-6',
-    type: 'laboratory',
-    patientId: 'pat-6',
-    patientName: 'Lisa Anderson',
-    patientPhone: '+1-555-678-9012',
-    patientEmail: 'lisa.anderson@example.com',
-    status: 'completed',
-    createdAt: '2024-01-10T15:45:00.000Z',
-    testRequestId: 'test-3026',
-    tests: [
-      { name: 'Complete Metabolic Panel (CMP)', price: 1200.0 },
-    ],
-    totalAmount: 1200.0,
-    deliveryType: 'pickup',
-    address: '987 Cedar Blvd, New York, NY',
-  },
-  {
-    id: 'order-7',
-    type: 'laboratory',
-    patientId: 'pat-7',
-    patientName: 'Robert Taylor',
-    patientPhone: '+1-555-789-0123',
-    patientEmail: 'robert.taylor@example.com',
-    status: 'pending',
-    createdAt: '2024-01-09T08:15:00.000Z',
-    testRequestId: 'test-3027',
-    tests: [
-      { name: 'Urine Analysis', price: 300.0 },
-      { name: 'Stool Test', price: 650.0 },
-    ],
-    totalAmount: 950.0,
-    deliveryType: 'home',
-    address: '147 Birch Ln, New York, NY',
-  },
-  {
-    id: 'order-8',
-    type: 'laboratory',
-    patientId: 'pat-8',
-    patientName: 'Jennifer Martinez',
-    patientPhone: '+1-555-890-1234',
-    patientEmail: 'jennifer.martinez@example.com',
-    status: 'ready',
-    createdAt: '2024-01-08T13:20:00.000Z',
-    testRequestId: 'test-3028',
-    tests: [
-      { name: 'ECG', price: 600.0 },
-      { name: 'Chest X-Ray', price: 500.0 },
-    ],
-    totalAmount: 1100.0,
-    deliveryType: 'pickup',
-    address: '258 Spruce Dr, New York, NY',
-  },
-  {
-    id: 'order-9',
-    type: 'laboratory',
-    patientId: 'pat-9',
-    patientName: 'Michael Chen',
-    patientPhone: '+1-555-901-2345',
-    patientEmail: 'michael.chen@example.com',
-    status: 'pending',
-    createdAt: '2024-01-07T10:00:00.000Z',
-    testRequestId: 'test-3029',
-    tests: [
-      { name: 'PSA Test', price: 800.0 },
-    ],
-    totalAmount: 800.0,
-    deliveryType: 'home',
-    address: '369 Willow Way, New York, NY',
-  },
-  {
-    id: 'order-10',
-    type: 'laboratory',
-    patientId: 'pat-10',
-    patientName: 'Priya Sharma',
-    patientPhone: '+1-555-012-3456',
-    patientEmail: 'priya.sharma@example.com',
-    status: 'completed',
-    createdAt: '2024-01-06T14:30:00.000Z',
-    testRequestId: 'test-3030',
-    tests: [
-      { name: 'HbA1c', price: 550.0 },
-      { name: 'Lipid Panel', price: 600.0 },
-    ],
-    totalAmount: 1150.0,
-    deliveryType: 'pickup',
-    address: '741 Ash St, New York, NY',
-  },
-  {
-    id: 'order-11',
-    type: 'laboratory',
-    patientId: 'pat-11',
-    patientName: 'James Wilson',
-    patientPhone: '+1-555-123-4568',
-    patientEmail: 'james.wilson@example.com',
-    status: 'ready',
-    createdAt: '2024-01-05T16:00:00.000Z',
-    testRequestId: 'test-3031',
-    tests: [
-      { name: 'Bone Density Test', price: 900.0 },
-    ],
-    totalAmount: 900.0,
-    deliveryType: 'home',
-    address: '852 Poplar Ave, New York, NY',
-  },
-  {
-    id: 'order-12',
-    type: 'laboratory',
-    patientId: 'pat-12',
-    patientName: 'Maria Garcia',
-    patientPhone: '+1-555-234-5679',
-    patientEmail: 'maria.garcia@example.com',
-    status: 'pending',
-    createdAt: '2024-01-04T09:45:00.000Z',
-    testRequestId: 'test-3032',
-    tests: [
-      { name: 'Pap Smear', price: 400.0 },
-      { name: 'Mammogram', price: 750.0 },
-    ],
-    totalAmount: 1150.0,
-    deliveryType: 'pickup',
-    address: '963 Oakwood Dr, New York, NY',
-  },
-]
+// Default orders (will be replaced by API data)
+const defaultOrders = []
 
 const statusConfig = {
   pending: { label: 'Pending', color: 'bg-amber-100 text-amber-700', icon: IoTimeOutline },
@@ -263,75 +53,58 @@ const LaboratoryOrders = () => {
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrder, setSelectedOrder] = useState(null)
-  const [orders, setOrders] = useState(mockOrders)
+  const [orders, setOrders] = useState(defaultOrders)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   // Fetch orders from API
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const token = localStorage.getItem('laboratoryAuthToken') || sessionStorage.getItem('laboratoryAuthToken')
-        if (!token) {
-          // If no token, use mock data
-          setOrders(mockOrders)
-          setLoading(false)
-          return
+        setLoading(true)
+        setError(null)
+        const response = await getLaboratoryOrders({ limit: 50 })
+        
+        if (response.success && response.data) {
+          const ordersData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.leads || response.data.orders || []
+          
+          // Transform leads to orders format
+          const transformedOrders = ordersData.map(lead => {
+            const patientName = lead.patientId?.firstName && lead.patientId?.lastName
+              ? `${lead.patientId.firstName} ${lead.patientId.lastName}`
+              : lead.patientId?.name || lead.patientName || 'Unknown Patient'
+            
+            return {
+              id: lead._id || lead.id,
+              _id: lead._id || lead.id,
+              type: 'laboratory',
+              patientId: lead.patientId?._id || lead.patientId?.id || lead.patientId || 'pat-unknown',
+              patientName: patientName,
+              patientPhone: lead.patientId?.phone || lead.patientPhone || '',
+              patientEmail: lead.patientId?.email || lead.patientEmail || '',
+              status: lead.status === 'accepted' ? 'ready' : lead.status === 'new' ? 'pending' : lead.status === 'test_completed' ? 'completed' : lead.status || 'pending',
+              createdAt: lead.createdAt || new Date().toISOString(),
+              testRequestId: lead._id || lead.id,
+              tests: (lead.tests || lead.investigations || lead.items || []).map(test => ({
+                name: typeof test === 'string' ? test : test.name || test.testName || 'Test',
+                price: typeof test === 'object' && test.price ? test.price : 0,
+              })),
+              totalAmount: lead.billingSummary?.totalAmount || lead.totalAmount || lead.amount || 0,
+              deliveryType: lead.homeCollectionRequested || lead.deliveryOption === 'home' ? 'home' : 'pickup',
+              address: lead.patientId?.address 
+                ? `${lead.patientId.address.line1 || ''} ${lead.patientId.address.city || ''} ${lead.patientId.address.state || ''}`.trim() || 'Address not provided'
+                : lead.deliveryAddress || lead.address || 'Address not provided',
+              originalData: lead,
+            }
+          })
+          setOrders(transformedOrders)
         }
-
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/labs/leads?limit=50`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.leads && data.leads.length > 0) {
-            // Transform leads to orders format
-            const transformedOrders = data.leads.map(lead => {
-              const patientName = lead.patient?.firstName && lead.patient?.lastName
-                ? `${lead.patient.firstName} ${lead.patient.lastName}`
-                : lead.patient?.name || 'Unknown Patient'
-              
-              return {
-                id: lead._id,
-                _id: lead._id,
-                type: 'laboratory',
-                patientId: lead.patient?._id || lead.patient,
-                patientName: patientName,
-                patientPhone: lead.patient?.phone || '+91-000-000-0000',
-                patientEmail: lead.patient?.email || 'patient@example.com',
-                status: lead.status === 'accepted' ? 'ready' : lead.status === 'new' ? 'pending' : lead.status === 'test_completed' ? 'completed' : lead.status,
-                createdAt: lead.createdAt || new Date().toISOString(),
-                testRequestId: lead._id,
-                tests: (lead.tests || lead.investigations || []).map(test => ({
-                  name: typeof test === 'string' ? test : test.name || test.testName || 'Test',
-                  price: typeof test === 'object' && test.price ? test.price : 0,
-                })),
-                totalAmount: lead.billingSummary?.totalAmount || lead.amount || 0,
-                deliveryType: lead.homeCollectionRequested ? 'home' : 'pickup',
-                address: lead.patient?.address ? 
-                  `${lead.patient.address.line1 || ''} ${lead.patient.address.city || ''} ${lead.patient.address.state || ''}`.trim() || 'Address not provided'
-                  : 'Address not provided',
-              }
-            })
-            setOrders(transformedOrders)
-          } else {
-            // If no data from API, use mock data
-            setOrders(mockOrders)
-          }
-        } else {
-          // If API fails, use mock data
-          setOrders(mockOrders)
-        }
-      } catch (error) {
-        console.error('Error fetching orders:', error)
-        // Fallback to mock data on error
-        setOrders(mockOrders)
+      } catch (err) {
+        console.error('Error fetching orders:', err)
+        setError(err.message || 'Failed to load orders')
+        toast.error('Failed to load orders')
       } finally {
         setLoading(false)
       }
@@ -378,6 +151,9 @@ const LaboratoryOrders = () => {
     }
 
     try {
+      // Call API to update status
+      await updateLaboratoryOrder(orderId, { status: newStatus })
+      
       // Update order status in state
       setOrders(prevOrders => 
         prevOrders.map(o => 
@@ -387,22 +163,18 @@ const LaboratoryOrders = () => {
         )
       )
       
-      // TODO: Call API to update status
-      // const token = localStorage.getItem('laboratoryAuthToken') || sessionStorage.getItem('laboratoryAuthToken')
-      // await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/labs/leads/${orderId}/status`, {
-      //   method: 'PATCH',
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ status: newStatus }),
-      // })
-      
-      await new Promise((resolve) => setTimeout(resolve, 1000))
       toast.success(`Order status updated to "${statusLabel}"! Notification sent to ${patientName}`)
     } catch (error) {
       console.error('Error updating order status:', error)
       toast.error('Failed to update order status. Please try again.')
+      // Revert status change on error
+      setOrders(prevOrders => 
+        prevOrders.map(o => 
+          (o.id === orderId || o._id === orderId) 
+            ? { ...o, status: order.status }
+            : o
+        )
+      )
     }
   }
 

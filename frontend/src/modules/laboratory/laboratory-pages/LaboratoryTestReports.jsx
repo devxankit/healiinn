@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../../contexts/ToastContext'
 import {
@@ -18,6 +18,7 @@ import {
   IoChevronUpOutline,
   IoSearchOutline,
 } from 'react-icons/io5'
+import { getLaboratoryOrders, shareLaboratoryReport, createLaboratoryReport } from '../laboratory-services/laboratoryService'
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -33,90 +34,57 @@ const formatDate = (dateString) => {
 const LaboratoryTestReports = () => {
   const navigate = useNavigate()
   const toast = useToast()
-  // Mock confirmed orders (orders that are confirmed/ready/completed)
-  const [confirmedOrders, setConfirmedOrders] = useState([
-    {
-      id: 'order-1',
-      orderId: 'ORD-2025-001',
-      patientId: 'pat-1',
-      patientName: 'John Doe',
-      patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160&bold=true',
-      patientPhone: '+1-555-123-4567',
-      patientEmail: 'john.doe@example.com',
-      status: 'ready',
-      testName: 'Complete Blood Count (CBC)',
-      orderDate: '2025-01-15T10:30:00.000Z',
-      hasReport: false,
-    },
-    {
-      id: 'order-2',
-      orderId: 'ORD-2025-002',
-      patientId: 'pat-2',
-      patientName: 'Sarah Smith',
-      patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160&bold=true',
-      patientPhone: '+1-555-234-5678',
-      patientEmail: 'sarah.smith@example.com',
-      status: 'completed',
-      testName: 'Lipid Profile',
-      orderDate: '2025-01-14T14:15:00.000Z',
-      hasReport: true,
-      reportShared: true,
-    },
-    {
-      id: 'order-3',
-      orderId: 'ORD-2025-003',
-      patientId: 'pat-3',
-      patientName: 'Mike Johnson',
-      patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160&bold=true',
-      patientPhone: '+1-555-345-6789',
-      patientEmail: 'mike.johnson@example.com',
-      status: 'ready',
-      testName: 'Liver Function Test (LFT)',
-      orderDate: '2025-01-13T16:45:00.000Z',
-      hasReport: false,
-    },
-    {
-      id: 'order-4',
-      orderId: 'ORD-2025-004',
-      patientId: 'pat-4',
-      patientName: 'Emily Brown',
-      patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=8b5cf6&color=fff&size=160&bold=true',
-      patientPhone: '+1-555-456-7890',
-      patientEmail: 'emily.brown@example.com',
-      status: 'completed',
-      testName: 'Kidney Function Test (KFT)',
-      orderDate: '2024-12-20T11:00:00.000Z',
-      hasReport: true,
-      reportShared: false,
-    },
-    {
-      id: 'order-5',
-      orderId: 'ORD-2025-005',
-      patientId: 'pat-5',
-      patientName: 'David Wilson',
-      patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=f59e0b&color=fff&size=160&bold=true',
-      patientPhone: '+1-555-567-8901',
-      patientEmail: 'david.wilson@example.com',
-      status: 'completed',
-      testName: 'Thyroid Function Test',
-      orderDate: '2024-11-15T09:30:00.000Z',
-      hasReport: true,
-      reportShared: true,
-    },
-    {
-      id: 'order-6',
-      orderId: 'ORD-2025-006',
-      patientId: 'pat-6',
-      patientName: 'Lisa Anderson',
-      patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=ef4444&color=fff&size=160&bold=true',
-      patientPhone: '+1-555-678-9012',
-      patientEmail: 'lisa.anderson@example.com',
-      status: 'ready',
-      testName: 'Vitamin D Test',
-      orderDate: new Date().toISOString(), // Today
-      hasReport: false,
-    },
-  ])
+  const [confirmedOrders, setConfirmedOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  // Fetch confirmed orders from API
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true)
+        const response = await getLaboratoryOrders({ 
+          status: 'accepted,ready,completed,test_completed',
+          limit: 100 
+        })
+        
+        if (response.success && response.data) {
+          const ordersData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.orders || response.data.leads || []
+          
+          const transformed = ordersData.map(order => ({
+            id: order._id || order.id,
+            orderId: order.orderId || order._id || order.id,
+            patientId: order.patientId?._id || order.patientId?.id || order.patientId || '',
+            patientName: order.patientId?.firstName && order.patientId?.lastName
+              ? `${order.patientId.firstName} ${order.patientId.lastName}`
+              : order.patientId?.name || order.patientName || 'Unknown Patient',
+            patientImage: order.patientId?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientId?.firstName || order.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            patientPhone: order.patientId?.phone || order.patientPhone || '',
+            patientEmail: order.patientId?.email || order.patientEmail || '',
+            status: order.status === 'test_completed' ? 'completed' : order.status === 'accepted' ? 'ready' : order.status || 'ready',
+            testName: order.tests?.[0]?.name || order.tests?.[0] || order.testName || 'Test',
+            orderDate: order.createdAt || order.orderDate || new Date().toISOString(),
+            hasReport: order.reportId ? true : false,
+            reportShared: order.reportShared || false,
+            reportId: order.reportId || null,
+          }))
+          
+          setConfirmedOrders(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching orders:', err)
+        toast.error('Failed to load orders')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchOrders()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchOrders, 30000)
+    return () => clearInterval(interval)
+  }, [toast])
 
   const [historyFilter, setHistoryFilter] = useState('all') // 'all', 'day', 'month', 'year'
   const [showDropdown, setShowDropdown] = useState(false)
@@ -201,21 +169,10 @@ const LaboratoryTestReports = () => {
   }
 
   const handleAddReport = (order) => {
-    // Store order in localStorage for the new page to access
-    try {
-      const storedOrders = JSON.parse(localStorage.getItem('laboratoryConfirmedOrders') || '[]')
-      const existingIndex = storedOrders.findIndex(o => o.id === order.id || o.orderId === order.orderId)
-      if (existingIndex >= 0) {
-        storedOrders[existingIndex] = order
-      } else {
-        storedOrders.push(order)
-      }
-      localStorage.setItem('laboratoryConfirmedOrders', JSON.stringify(storedOrders))
-    } catch (error) {
-      console.error('Error storing order:', error)
-    }
-    // Navigate to add report page
-    navigate(`/laboratory/test-reports/add/${order.id || order.orderId}`)
+    // Navigate to add report page with order data in state
+    navigate(`/laboratory/test-reports/add/${order.id || order.orderId}`, {
+      state: { order }
+    })
   }
 
   const handleShareReport = async (order) => {
@@ -230,68 +187,13 @@ const LaboratoryTestReports = () => {
 
     setIsSending(true)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      
-      // Get PDF from order (should be base64 from LaboratoryAddReport)
-      const pdfFileUrl = order.reportUrl || order.pdfFileUrl
-      const pdfFileName = order.reportFileName || `${order.testName.replace(/\s+/g, '_')}_${order.orderId}.pdf`
-      
-      // Prepare report data
-      const reportData = {
-        id: order.id,
-        orderId: order.orderId,
-        patientId: order.patientId,
-        patientName: order.patientName,
-        patientEmail: order.patientEmail,
-        patientPhone: order.patientPhone,
-        testName: order.testName,
-        labName: 'MediLab Diagnostics', // Current laboratory name
-        labId: 'lab-1', // Current lab ID
-        date: new Date(order.orderDate || new Date()).toISOString().split('T')[0],
-        status: 'ready',
-        orderDate: order.orderDate,
-        sharedAt: new Date().toISOString(),
-        sharedBy: 'laboratory',
-        pdfFileUrl: pdfFileUrl, // Base64 PDF from laboratory
-        pdfFileName: pdfFileName,
+      if (!order.reportId) {
+        toast.error('Report ID not found. Please add report first.')
+        return
       }
 
-      // Share with Patient - Save to patient's localStorage
-      const patientId = order.patientId || 'pat-current'
-      
-      // Store in patientLabReports
-      const patientLabReportsKey = `patientLabReports_${patientId}`
-      const existingPatientReports = JSON.parse(localStorage.getItem(patientLabReportsKey) || '[]')
-      const existingIndex = existingPatientReports.findIndex(r => r.id === order.id || r.orderId === order.orderId)
-      if (existingIndex >= 0) {
-        existingPatientReports[existingIndex] = reportData
-      } else {
-        existingPatientReports.push(reportData)
-      }
-      localStorage.setItem(patientLabReportsKey, JSON.stringify(existingPatientReports))
-      
-      // Also store in sharedLabReports for backward compatibility
-      const sharedReportsKey = `sharedLabReports_${patientId}`
-      const existingSharedReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
-      const sharedIndex = existingSharedReports.findIndex(r => r.id === order.id || r.orderId === order.orderId)
-      if (sharedIndex >= 0) {
-        existingSharedReports[sharedIndex] = reportData
-      } else {
-        existingSharedReports.push(reportData)
-      }
-      localStorage.setItem(sharedReportsKey, JSON.stringify(existingSharedReports))
-
-      // Share with Admin - Save to admin's localStorage
-      const adminReportsKey = 'adminSharedLabReports'
-      const existingAdminReports = JSON.parse(localStorage.getItem(adminReportsKey) || '[]')
-      const alreadySharedWithAdmin = existingAdminReports.find(r => r.id === order.id)
-      if (!alreadySharedWithAdmin) {
-        existingAdminReports.push({
-          ...reportData,
-          laboratoryName: 'MediLab Diagnostics', // Current laboratory name
-        })
-        localStorage.setItem(adminReportsKey, JSON.stringify(existingAdminReports))
-      }
+      // Call API to share report
+      await shareLaboratoryReport(order.reportId)
       
       // Update order to mark as shared
       setConfirmedOrders((prev) =>
@@ -321,11 +223,6 @@ const LaboratoryTestReports = () => {
   }
 
   const handleSaveReport = async () => {
-    if (!selectedFile) {
-      toast.warning('Please select a PDF file')
-      return
-    }
-
     if (!selectedOrderForReport) {
       return
     }
@@ -335,52 +232,49 @@ const LaboratoryTestReports = () => {
     setUploadProgress(0)
 
     try {
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval)
-            return 90
-          }
-          return prev + 10
-        })
-      }, 150)
-
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // Create report using API
+      // Backend generates PDF automatically, so we send orderId and testName
+      const reportData = {
+        orderId: selectedOrderForReport.id || selectedOrderForReport.orderId,
+        testName: selectedOrderForReport.testName || 'Lab Test Report',
+        notes: selectedFile ? `Report file: ${selectedFile.name}` : '',
+      }
       
-      clearInterval(progressInterval)
-      setUploadProgress(100)
-      setUploadStatus('success')
+      const response = await createLaboratoryReport(reportData)
       
-      // Create report URL (in real app, this would come from the upload response)
-      const reportUrl = URL.createObjectURL(selectedFile)
-      const reportFileName = selectedFile.name
-
-      // Update order to have report
-      setConfirmedOrders((prev) =>
-        prev.map((order) =>
-          order.id === selectedOrderForReport.id
-            ? { 
-                ...order, 
-                hasReport: true,
-                reportUrl: reportUrl,
-                reportFileName: reportFileName,
-              }
-            : order
+      if (response.success && response.data) {
+        setUploadProgress(100)
+        setUploadStatus('success')
+        
+        // Update order to have report
+        setConfirmedOrders((prev) =>
+          prev.map((order) =>
+            order.id === selectedOrderForReport.id
+              ? { 
+                  ...order, 
+                  hasReport: true,
+                  reportId: response.data._id || response.data.id,
+                  reportUrl: response.data.pdfFileUrl || response.data.fileUrl || response.data.url || '',
+                  reportFileName: response.data.pdfFileUrl ? 'Report.pdf' : selectedFile?.name || 'Report.pdf',
+                }
+              : order
+          )
         )
-      )
-      
-      setTimeout(() => {
-        setShowAddReportModal(false)
-        setSelectedOrderForReport(null)
-        setSelectedFile(null)
-        setUploadStatus(null)
-        setUploadProgress(0)
-        toast.success('Report added successfully!')
-      }, 1500)
+        
+        setTimeout(() => {
+          setShowAddReportModal(false)
+          setSelectedOrderForReport(null)
+          setSelectedFile(null)
+          setUploadStatus(null)
+          setUploadProgress(0)
+          toast.success('Report added successfully!')
+        }, 1500)
+      }
     } catch (error) {
+      console.error('Error creating report:', error)
       setUploadStatus('error')
       setUploadProgress(0)
-      toast.error('Failed to add report. Please try again.')
+      toast.error(error.message || 'Failed to add report')
     } finally {
       setIsSending(false)
     }
@@ -742,7 +636,7 @@ const LaboratoryTestReports = () => {
                 </button>
                 <button
                   onClick={handleSaveReport}
-                  disabled={!selectedFile || isSending}
+                  disabled={isSending}
                   className="flex-1 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSending ? 'Adding...' : 'Add Report'}

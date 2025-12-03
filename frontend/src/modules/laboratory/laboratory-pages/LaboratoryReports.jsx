@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   IoSearchOutline,
   IoDocumentTextOutline,
@@ -12,63 +12,8 @@ import {
   IoEyeOutline,
   IoMailOutline,
 } from 'react-icons/io5'
-
-// Mock test reports data
-const mockTestReports = [
-  {
-    id: 'report-1',
-    orderId: 'order-1',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    patientEmail: 'john.doe@example.com',
-    patientPhone: '+1-555-123-4567',
-    testName: 'Complete Blood Count (CBC)',
-    status: 'completed', // completed, pending
-    completedDate: '2025-01-15T10:00:00.000Z',
-    results: {
-      hemoglobin: '14.5 g/dL',
-      wbc: '7.2 x 10^9/L',
-      platelets: '250 x 10^9/L',
-      rbc: '4.8 x 10^12/L',
-    },
-    sharedWithPatient: false,
-  },
-  {
-    id: 'report-2',
-    orderId: 'order-2',
-    patientId: 'pat-2',
-    patientName: 'Sarah Smith',
-    patientEmail: 'sarah.smith@example.com',
-    patientPhone: '+1-555-234-5678',
-    testName: 'Blood Glucose (Fasting)',
-    status: 'completed',
-    completedDate: '2025-01-14T09:30:00.000Z',
-    results: {
-      glucose: '95 mg/dL',
-      status: 'Normal',
-    },
-    sharedWithPatient: true,
-    sharedDate: '2025-01-14T10:00:00.000Z',
-  },
-  {
-    id: 'report-3',
-    orderId: 'order-3',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    patientEmail: 'john.doe@example.com',
-    patientPhone: '+1-555-123-4567',
-    testName: 'Lipid Profile',
-    status: 'completed',
-    completedDate: '2025-01-13T14:00:00.000Z',
-    results: {
-      totalCholesterol: '180 mg/dL',
-      hdl: '55 mg/dL',
-      ldl: '110 mg/dL',
-      triglycerides: '120 mg/dL',
-    },
-    sharedWithPatient: false,
-  },
-]
+import { getLaboratoryReports, shareLaboratoryReport } from '../laboratory-services/laboratoryService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const formatDateTime = (value) => {
   if (!value) return '—'
@@ -95,10 +40,54 @@ const formatDate = (value) => {
 }
 
 const LaboratoryReports = () => {
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
-  const [testReports, setTestReports] = useState(mockTestReports)
+  const [testReports, setTestReports] = useState([])
   const [selectedReport, setSelectedReport] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  // Fetch reports from API
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        setLoading(true)
+        const response = await getLaboratoryReports()
+        
+        if (response.success && response.data) {
+          const reportsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.reports || []
+          
+          const transformed = reportsData.map(report => ({
+            id: report._id || report.id,
+            orderId: report.orderId?._id || report.orderId?.id || report.orderId || '',
+            patientId: report.patientId?._id || report.patientId?.id || report.patientId || '',
+            patientName: report.patientId?.firstName && report.patientId?.lastName
+              ? `${report.patientId.firstName} ${report.patientId.lastName}`
+              : report.patientId?.name || report.patientName || 'Unknown Patient',
+            patientEmail: report.patientId?.email || report.patientEmail || '',
+            patientPhone: report.patientId?.phone || report.patientPhone || '',
+            testName: report.testName || report.test?.name || 'Test Report',
+            status: report.status || 'completed',
+            completedDate: report.completedDate || report.createdAt || new Date().toISOString(),
+            results: report.results || {},
+            sharedWithPatient: report.sharedWithPatient || false,
+            sharedDate: report.sharedDate || null,
+          }))
+          
+          setTestReports(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching reports:', err)
+        toast.error('Failed to load reports')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchReports()
+  }, [toast])
 
   const filteredReports = useMemo(() => {
     if (!searchTerm.trim()) return testReports
@@ -119,8 +108,7 @@ const LaboratoryReports = () => {
 
     setIsProcessing(true)
     try {
-      // Simulate API call to share report with patient
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await shareLaboratoryReport(report.id)
       
       setTestReports((prev) =>
         prev.map((r) =>
@@ -130,9 +118,10 @@ const LaboratoryReports = () => {
         )
       )
       
-      alert(`Test report shared with ${report.patientName} successfully!`)
+      toast.success(`Test report shared with ${report.patientName} successfully!`)
     } catch (error) {
-      alert('Failed to share report. Please try again.')
+      console.error('Error sharing report:', error)
+      toast.error(error.message || 'Failed to share report')
     } finally {
       setIsProcessing(false)
     }

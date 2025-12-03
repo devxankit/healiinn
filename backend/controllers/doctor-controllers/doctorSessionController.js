@@ -154,6 +154,33 @@ exports.updateSession = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
+  // Create notification for doctor based on status
+  if (status) {
+    try {
+      const { createSessionNotification } = require('../../services/notificationService');
+      let eventType = null;
+      
+      if (status === SESSION_STATUS.LIVE) {
+        eventType = 'started';
+      } else if (status === SESSION_STATUS.PAUSED) {
+        eventType = 'paused';
+      } else if (status === SESSION_STATUS.COMPLETED) {
+        eventType = 'completed';
+      }
+
+      if (eventType) {
+        await createSessionNotification({
+          userId: id,
+          userType: 'doctor',
+          session,
+          eventType,
+        }).catch((error) => console.error('Error creating session notification:', error));
+      }
+    } catch (error) {
+      console.error('Error creating notifications:', error);
+    }
+  }
+
   return res.status(200).json({
     success: true,
     message: 'Session updated successfully',
@@ -218,6 +245,20 @@ exports.deleteSession = asyncHandler(async (req, res) => {
         appointmentId: appointment._id,
         reason: 'Session cancelled by doctor',
       });
+
+      // Create in-app notification for patient
+      try {
+        const { createAppointmentNotification } = require('../../services/notificationService');
+        await createAppointmentNotification({
+          userId: appointment.patientId._id,
+          userType: 'patient',
+          appointment,
+          eventType: 'cancelled',
+          doctor: appointment.doctorId,
+        }).catch((error) => console.error('Error creating cancellation notification:', error));
+      } catch (error) {
+        console.error('Error creating notifications:', error);
+      }
     }
   } catch (error) {
     console.error('Error sending notifications:', error);

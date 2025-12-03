@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoPeopleOutline,
@@ -11,93 +11,10 @@ import {
   IoPersonOutline,
   IoMedicalOutline,
 } from 'react-icons/io5'
+import { getPharmacyPatients } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 
-const mockPatients = [
-  {
-    id: 'pat-1',
-    name: 'John Doe',
-    age: 45,
-    gender: 'male',
-    phone: '+1-555-123-4567',
-    email: 'john.doe@example.com',
-    lastOrderDate: '2025-01-12T10:15:00.000Z',
-    totalOrders: 12,
-    totalSpent: 1250.50,
-    address: {
-      line1: '123 Main Street',
-      line2: 'Apt 4B',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10001',
-    },
-    medicalHistory: ['Hypertension', 'Type 2 Diabetes'],
-    allergies: ['Penicillin'],
-    image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
-  },
-  {
-    id: 'pat-2',
-    name: 'Sarah Smith',
-    age: 32,
-    gender: 'female',
-    phone: '+1-555-234-5678',
-    email: 'sarah.smith@example.com',
-    lastOrderDate: '2025-01-12T09:30:00.000Z',
-    totalOrders: 8,
-    totalSpent: 890.25,
-    address: {
-      line1: '456 Oak Avenue',
-      line2: '',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10002',
-    },
-    medicalHistory: [],
-    allergies: [],
-    image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160',
-  },
-  {
-    id: 'pat-3',
-    name: 'Mike Johnson',
-    age: 28,
-    gender: 'male',
-    phone: '+1-555-345-6789',
-    email: 'mike.johnson@example.com',
-    lastOrderDate: '2025-01-11T14:20:00.000Z',
-    totalOrders: 15,
-    totalSpent: 2100.75,
-    address: {
-      line1: '789 Pine Street',
-      line2: 'Suite 5',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10003',
-    },
-    medicalHistory: ['Type 2 Diabetes'],
-    allergies: ['Peanuts'],
-    image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
-  },
-  {
-    id: 'pat-4',
-    name: 'Emily Brown',
-    age: 55,
-    gender: 'female',
-    phone: '+1-555-456-7890',
-    email: 'emily.brown@example.com',
-    lastOrderDate: '2025-01-10T11:00:00.000Z',
-    totalOrders: 20,
-    totalSpent: 3200.00,
-    address: {
-      line1: '321 Elm Street',
-      line2: '',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10004',
-    },
-    medicalHistory: ['Osteoarthritis'],
-    allergies: [],
-    image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
-  },
-]
+// Removed mock data - now using backend API
 
 const formatDateTime = (value) => {
   if (!value) return 'Never'
@@ -129,20 +46,63 @@ const formatAddress = (address = {}) => {
 
 const PharmacyPatients = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState(null)
+  const [patients, setPatients] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Fetch patients from API
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPharmacyPatients({ search: searchTerm || undefined })
+        
+        if (response.success && response.data) {
+          const patientsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          
+          // Transform API data to match component structure
+          const transformed = patientsData.map(patient => {
+            const fullName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim()
+            return {
+              id: patient._id || patient.id,
+              name: fullName || 'Unknown Patient',
+              age: patient.dateOfBirth ? new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear() : 'N/A',
+              gender: patient.gender || 'N/A',
+              phone: patient.phone || 'N/A',
+              email: patient.email || 'N/A',
+              lastOrderDate: patient.lastOrderDate || null,
+              totalOrders: patient.totalOrders || 0,
+              totalSpent: patient.totalSpent || 0,
+              address: patient.address || {},
+              medicalHistory: patient.medicalHistory || [],
+              allergies: patient.allergies || [],
+              image: patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=3b82f6&color=fff&size=160`,
+            }
+          })
+          
+          setPatients(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching patients:', err)
+        setError(err.message || 'Failed to load patients')
+        toast.error('Failed to load patients')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPatients()
+  }, [searchTerm, toast])
 
   const filteredPatients = useMemo(() => {
-    if (!searchTerm.trim()) return mockPatients
-
-    const normalizedSearch = searchTerm.trim().toLowerCase()
-    return mockPatients.filter(
-      (patient) =>
-        patient.name.toLowerCase().includes(normalizedSearch) ||
-        patient.phone.includes(normalizedSearch) ||
-        patient.email.toLowerCase().includes(normalizedSearch)
-    )
-  }, [searchTerm])
+    return patients
+  }, [patients])
 
   return (
     <section className="flex flex-col gap-4 pb-4">
@@ -160,9 +120,25 @@ const PharmacyPatients = () => {
         />
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm font-medium text-slate-600">Loading patients...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm font-medium text-red-600">Error: {error}</p>
+          <p className="mt-1 text-xs text-red-500">Please try again later.</p>
+        </div>
+      )}
+
       {/* Patients List */}
-      <div className="space-y-3">
-        {filteredPatients.length === 0 ? (
+      {!loading && !error && (
+        <div className="space-y-3">
+          {filteredPatients.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 text-center">
             No patients found matching your search.
           </p>
@@ -284,8 +260,9 @@ const PharmacyPatients = () => {
               </div>
             </article>
           ))
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Patient Details Modal */}
       {selectedPatient && (

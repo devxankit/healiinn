@@ -10,6 +10,7 @@ const {
   pauseSession,
   resumeSession,
   getAppointmentETA,
+  recallPatient,
 } = require('../../controllers/doctor-controllers/doctorQueueController');
 
 router.get('/', protect('doctor'), getQueue);
@@ -19,6 +20,7 @@ router.post('/resume', protect('doctor'), resumeSession);
 router.get('/:appointmentId/eta', protect('doctor'), getAppointmentETA);
 router.patch('/:appointmentId/move', protect('doctor'), moveInQueue);
 router.patch('/:appointmentId/skip', protect('doctor'), skipPatient);
+router.patch('/:appointmentId/recall', protect('doctor'), recallPatient);
 router.patch('/:appointmentId/status', protect('doctor'), updateQueueStatus);
 
 module.exports = router;

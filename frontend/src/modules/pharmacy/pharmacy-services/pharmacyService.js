@@ -73,27 +73,109 @@ export const getPharmacyById = async (pharmacyId) => {
 }
 
 /**
- * Get pharmacy orders
+ * Get pharmacy orders/leads
  */
 export const getPharmacyOrders = async (filters = {}) => {
   try {
-    const queryParams = new URLSearchParams()
-    if (filters.status) queryParams.append('status', filters.status)
-    if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom)
-    if (filters.dateTo) queryParams.append('dateTo', filters.dateTo)
-
-    const response = await fetch(`${API_BASE_URL}/pharmacy/orders?${queryParams}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch orders: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/pharmacy/orders', filters)
   } catch (error) {
     console.error('Error fetching orders:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy request orders
+ */
+export const getPharmacyRequestOrders = async (filters = {}) => {
+  try {
+    return await apiClient.get('/pharmacy/request-orders', filters)
+  } catch (error) {
+    console.error('Error fetching request orders:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy request order by ID
+ */
+export const getPharmacyRequestOrderById = async (orderId) => {
+  try {
+    return await apiClient.get(`/pharmacy/request-orders/${orderId}`)
+  } catch (error) {
+    console.error('Error fetching request order:', error)
+    throw error
+  }
+}
+
+/**
+ * Confirm pharmacy request order
+ */
+export const confirmPharmacyRequestOrder = async (orderId) => {
+  try {
+    return await apiClient.patch(`/pharmacy/request-orders/${orderId}/confirm`)
+  } catch (error) {
+    console.error('Error confirming request order:', error)
+    throw error
+  }
+}
+
+/**
+ * Update pharmacy request order status
+ */
+export const updatePharmacyRequestOrderStatus = async (orderId, status) => {
+  try {
+    return await apiClient.patch(`/pharmacy/request-orders/${orderId}/status`, { status })
+  } catch (error) {
+    console.error('Error updating request order status:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy medicines
+ */
+export const getPharmacyMedicines = async (filters = {}) => {
+  try {
+    return await apiClient.get('/pharmacy/medicines', filters)
+  } catch (error) {
+    console.error('Error fetching medicines:', error)
+    throw error
+  }
+}
+
+/**
+ * Add pharmacy medicine
+ */
+export const addPharmacyMedicine = async (medicineData) => {
+  try {
+    return await apiClient.post('/pharmacy/medicines', medicineData)
+  } catch (error) {
+    console.error('Error adding medicine:', error)
+    throw error
+  }
+}
+
+/**
+ * Update pharmacy medicine
+ */
+export const updatePharmacyMedicine = async (medicineId, medicineData) => {
+  try {
+    return await apiClient.patch(`/pharmacy/medicines/${medicineId}`, medicineData)
+  } catch (error) {
+    console.error('Error updating medicine:', error)
+    throw error
+  }
+}
+
+/**
+ * Delete pharmacy medicine
+ */
+export const deletePharmacyMedicine = async (medicineId) => {
+  try {
+    return await apiClient.delete(`/pharmacy/medicines/${medicineId}`)
+  } catch (error) {
+    console.error('Error deleting medicine:', error)
     throw error
   }
 }
@@ -103,19 +185,138 @@ export const getPharmacyOrders = async (filters = {}) => {
  */
 export const updateOrderStatus = async (orderId, status) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/pharmacy/orders/${orderId}/status`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ status }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to update order status: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch(`/pharmacy/orders/${orderId}`, { status })
   } catch (error) {
     console.error('Error updating order status:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy wallet balance
+ * @returns {Promise<object>} Wallet balance data
+ */
+export const getPharmacyWalletBalance = async () => {
+  try {
+    return await apiClient.get('/pharmacy/wallet/balance')
+  } catch (error) {
+    console.error('Error fetching wallet balance:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy wallet earnings
+ * @param {object} filters - Filter options
+ * @returns {Promise<object>} Earnings data
+ */
+export const getPharmacyWalletEarnings = async (filters = {}) => {
+  try {
+    return await apiClient.get('/pharmacy/wallet/earnings', filters)
+  } catch (error) {
+    console.error('Error fetching wallet earnings:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy wallet transactions
+ * @param {object} filters - Filter options
+ * @returns {Promise<object>} Transactions data
+ */
+export const getPharmacyWalletTransactions = async (filters = {}) => {
+  try {
+    return await apiClient.get('/pharmacy/wallet/transactions', filters)
+  } catch (error) {
+    console.error('Error fetching wallet transactions:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy withdrawals
+ * @param {object} filters - Filter options (status, page, limit)
+ * @returns {Promise<object>} Withdrawals data
+ */
+export const getPharmacyWithdrawals = async (filters = {}) => {
+  try {
+    return await apiClient.get('/pharmacy/wallet/withdrawals', filters)
+  } catch (error) {
+    console.error('Error fetching withdrawals:', error)
+    throw error
+  }
+}
+
+/**
+ * Request withdrawal
+ * @param {object} withdrawalData - Withdrawal request data
+ * @returns {Promise<object>} Created withdrawal request data
+ */
+export const requestPharmacyWithdrawal = async (withdrawalData) => {
+  try {
+    return await apiClient.post('/pharmacy/wallet/withdraw', withdrawalData)
+  } catch (error) {
+    console.error('Error requesting withdrawal:', error)
+    throw error
+  }
+}
+
+/**
+ * Create support ticket
+ * @param {object} ticketData - Support ticket data (subject, message, priority)
+ * @returns {Promise<object>} Created ticket data
+ */
+export const createSupportTicket = async (ticketData) => {
+  try {
+    return await apiClient.post('/pharmacy/support', ticketData)
+  } catch (error) {
+    console.error('Error creating support ticket:', error)
+    throw error
+  }
+}
+
+/**
+ * Get support tickets
+ * @param {object} filters - Optional filters (status, priority, page, limit)
+ * @returns {Promise<object>} Support tickets data
+ */
+export const getSupportTickets = async (filters = {}) => {
+  try {
+    return await apiClient.get('/pharmacy/support', filters)
+  } catch (error) {
+    console.error('Error fetching support tickets:', error)
+    throw error
+  }
+}
+
+/**
+ * Get support history
+ * @param {object} filters - Optional filters (page, limit)
+ * @returns {Promise<object>} Support history data
+ */
+export const getSupportHistory = async (filters = {}) => {
+  try {
+    return await apiClient.get('/pharmacy/support/history', filters)
+  } catch (error) {
+    console.error('Error fetching support history:', error)
+    throw error
+  }
+}
+
+/**
+ * Upload profile image
+ * @param {File} file - Image file
+ * @returns {Promise<object>} Response data with URL
+ */
+export const uploadProfileImage = async (file) => {
+  try {
+    const formData = new FormData()
+    formData.append('image', file)
+    
+    const data = await apiClient.upload('/pharmacy/upload/profile-image', formData)
+    return data
+  } catch (error) {
+    console.error('Error uploading profile image:', error)
     throw error
   }
 }
@@ -140,6 +341,90 @@ export const getPharmacyPatients = async (filters = {}) => {
     return await response.json()
   } catch (error) {
     console.error('Error fetching patients:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy patient statistics
+ */
+export const getPharmacyPatientStatistics = async () => {
+  try {
+    return await apiClient.get('/pharmacy/patients/statistics')
+  } catch (error) {
+    console.error('Error fetching patient statistics:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy services
+ */
+export const getPharmacyServices = async (filters = {}) => {
+  try {
+    return await apiClient.get('/pharmacy/services', filters)
+  } catch (error) {
+    console.error('Error fetching pharmacy services:', error)
+    throw error
+  }
+}
+
+/**
+ * Add pharmacy service
+ */
+export const addPharmacyService = async (serviceData) => {
+  try {
+    return await apiClient.post('/pharmacy/services', serviceData)
+  } catch (error) {
+    console.error('Error adding pharmacy service:', error)
+    throw error
+  }
+}
+
+/**
+ * Update pharmacy service
+ */
+export const updatePharmacyService = async (serviceId, serviceData) => {
+  try {
+    return await apiClient.patch(`/pharmacy/services/${serviceId}`, serviceData)
+  } catch (error) {
+    console.error('Error updating pharmacy service:', error)
+    throw error
+  }
+}
+
+/**
+ * Delete pharmacy service
+ */
+export const deletePharmacyService = async (serviceId) => {
+  try {
+    return await apiClient.delete(`/pharmacy/services/${serviceId}`)
+  } catch (error) {
+    console.error('Error deleting pharmacy service:', error)
+    throw error
+  }
+}
+
+/**
+ * Toggle pharmacy service availability
+ */
+export const togglePharmacyService = async (serviceId) => {
+  try {
+    return await apiClient.patch(`/pharmacy/services/${serviceId}/toggle`)
+  } catch (error) {
+    console.error('Error toggling pharmacy service:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy prescriptions
+ */
+export const getPharmacyPrescriptions = async (filters = {}) => {
+  try {
+    return await apiClient.get('/pharmacy/prescriptions', filters)
+  } catch (error) {
+    console.error('Error fetching prescriptions:', error)
     throw error
   }
 }
@@ -238,13 +523,37 @@ export const updatePharmacyProfile = async (profileData) => {
  */
 export const logoutPharmacy = async () => {
   try {
-    return await apiClient.post('/pharmacies/auth/logout')
+    // Call backend logout API to blacklist tokens
+    await apiClient.post('/pharmacies/auth/logout').catch((error) => {
+      // Even if backend call fails, we still clear tokens on frontend
+      console.error('Error calling logout API:', error)
+    })
+    
+    // Clear all tokens from storage
+    clearPharmacyTokens()
+    
+    return { success: true, message: 'Logout successful' }
   } catch (error) {
     console.error('Error logging out:', error)
+    // Clear tokens even if there's an error
+    clearPharmacyTokens()
     throw error
   }
 }
 
+
+/**
+ * Get pharmacy dashboard data
+ * @returns {Promise<object>} Dashboard data
+ */
+export const getPharmacyDashboard = async () => {
+  try {
+    return await apiClient.get('/pharmacy/dashboard/stats')
+  } catch (error) {
+    console.error('Error fetching pharmacy dashboard:', error)
+    throw error
+  }
+}
 
 export default {
   fetchPharmacies,

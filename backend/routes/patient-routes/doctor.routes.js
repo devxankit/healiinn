@@ -4,9 +4,6 @@ const { protect } = require('../../middleware/authMiddleware');
 const {
   getDoctors,
   getDoctorById,
-  getHospitals,
-  getHospitalById,
-  getHospitalDoctors,
   getSpecialties,
   getSpecialtyDoctors,
   getLocations,
@@ -14,14 +11,7 @@ const {
 } = require('../../controllers/patient-controllers/patientDoctorController');
 
 // Public routes (no auth required for discovery)
-router.get('/', getDoctors);
-router.get('/:id', getDoctorById);
-router.get('/:id/slots', checkDoctorSlotAvailability);
-
-// Hospital routes
-router.get('/hospitals', getHospitals);
-router.get('/hospitals/:id', getHospitalById);
-router.get('/hospitals/:id/doctors', getHospitalDoctors);
+// IMPORTANT: Specific routes must come BEFORE parameterized routes
 
 // Specialty routes
 router.get('/specialties', getSpecialties);
@@ -29,6 +19,11 @@ router.get('/specialties/:id/doctors', getSpecialtyDoctors);
 
 // Location routes
 router.get('/locations', getLocations);
+
+// Parameterized routes (must come after specific routes)
+router.get('/:id/slots', checkDoctorSlotAvailability);
+router.get('/:id', getDoctorById);
+router.get('/', getDoctors);
 
 module.exports = router;
 

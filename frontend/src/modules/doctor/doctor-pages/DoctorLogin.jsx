@@ -557,6 +557,20 @@ const DoctorLogin = () => {
       return
     }
 
+    // Handle consultationFee - preserve exact value as string to avoid precision loss
+    if (name === 'consultationFee') {
+      // Remove any non-numeric characters except decimal point
+      const cleanedValue = value.replace(/[^\d.]/g, '')
+      // Ensure only one decimal point
+      const parts = cleanedValue.split('.')
+      const finalValue = parts.length > 1 ? parts[0] + '.' + parts.slice(1).join('') : parts[0]
+      setDoctorSignupData((prev) => ({
+        ...prev,
+        [name]: finalValue,
+      }))
+      return
+    }
+
     setDoctorSignupData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
@@ -631,7 +645,19 @@ const DoctorLogin = () => {
         experienceYears: doctorSignupData.experienceYears ? Number(doctorSignupData.experienceYears) : undefined,
         qualification: doctorSignupData.qualification || undefined,
         bio: doctorSignupData.bio || undefined,
-        consultationFee: doctorSignupData.consultationFee ? Number(doctorSignupData.consultationFee) : undefined,
+        consultationFee: doctorSignupData.consultationFee && doctorSignupData.consultationFee !== '' 
+          ? (() => {
+              const feeStr = String(doctorSignupData.consultationFee).trim()
+              const feeNum = parseFloat(feeStr)
+              console.log('💰 Frontend Fee Conversion:', {
+                original: doctorSignupData.consultationFee,
+                string: feeStr,
+                parsed: feeNum,
+                isValid: !isNaN(feeNum) && isFinite(feeNum)
+              })
+              return !isNaN(feeNum) && isFinite(feeNum) ? feeNum : undefined
+            })()
+          : undefined,
         languages: doctorSignupData.languages.length > 0 ? doctorSignupData.languages : undefined,
         consultationModes: doctorSignupData.consultationModes.length > 0 ? doctorSignupData.consultationModes : undefined,
         education: doctorSignupData.education.filter((edu) => edu.institution || edu.degree || edu.year).length > 0
@@ -1578,6 +1604,7 @@ const DoctorLogin = () => {
                       name="consultationFee"
                       type="number"
                       min="0"
+                      step="1"
                       value={doctorSignupData.consultationFee}
                       onChange={handleDoctorSignupChange}
                       placeholder="500"

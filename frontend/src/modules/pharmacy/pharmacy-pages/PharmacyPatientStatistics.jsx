@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoPeopleOutline,
@@ -12,103 +12,171 @@ import {
   IoPersonCircleOutline,
   IoCloseOutline,
 } from 'react-icons/io5'
+import { getPharmacyPatients, getPharmacyPatientStatistics } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 
-const mockStats = {
-  totalPatients: 180,
-  activePatients: 156,
-  inactivePatients: 24,
-}
-
-// Mock patient details
-const mockPatientDetails = {
-  total: [
-    { id: 'pat-1', name: 'John Doe', phone: '+1-555-0101', email: 'john.doe@example.com', status: 'active', age: 45, gender: 'Male', address: '123 Main Street, New York, NY 10001', image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true' },
-    { id: 'pat-2', name: 'Sarah Smith', phone: '+1-555-0102', email: 'sarah.smith@example.com', status: 'active', age: 32, gender: 'Female', address: '456 Oak Avenue, Los Angeles, CA 90001', image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true' },
-    { id: 'pat-3', name: 'Mike Johnson', phone: '+1-555-0103', email: 'mike.johnson@example.com', status: 'active', age: 28, gender: 'Male', address: '789 Pine Road, Chicago, IL 60601', image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true' },
-    { id: 'pat-4', name: 'Emily Brown', phone: '+1-555-0104', email: 'emily.brown@example.com', status: 'inactive', age: 35, gender: 'Female', address: '321 Elm Street, Houston, TX 77001', image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true' },
-    { id: 'pat-5', name: 'David Wilson', phone: '+1-555-0105', email: 'david.wilson@example.com', status: 'active', age: 52, gender: 'Male', address: '654 Maple Drive, Phoenix, AZ 85001', image: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true' },
-  ],
-  active: [
-    { id: 'pat-1', name: 'John Doe', phone: '+1-555-0101', email: 'john.doe@example.com', status: 'active', age: 45, gender: 'Male', address: '123 Main Street, New York, NY 10001', image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true' },
-    { id: 'pat-2', name: 'Sarah Smith', phone: '+1-555-0102', email: 'sarah.smith@example.com', status: 'active', age: 32, gender: 'Female', address: '456 Oak Avenue, Los Angeles, CA 90001', image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true' },
-    { id: 'pat-3', name: 'Mike Johnson', phone: '+1-555-0103', email: 'mike.johnson@example.com', status: 'active', age: 28, gender: 'Male', address: '789 Pine Road, Chicago, IL 60601', image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true' },
-    { id: 'pat-5', name: 'David Wilson', phone: '+1-555-0105', email: 'david.wilson@example.com', status: 'active', age: 52, gender: 'Male', address: '654 Maple Drive, Phoenix, AZ 85001', image: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true' },
-  ],
-  inactive: [
-    { id: 'pat-4', name: 'Emily Brown', phone: '+1-555-0104', email: 'emily.brown@example.com', status: 'inactive', age: 35, gender: 'Female', address: '321 Elm Street, Houston, TX 77001', image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true' },
-  ],
-}
+// Removed mock data - now using backend API
 
 const PharmacyPatientStatistics = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState('total')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState(null)
+  const [patients, setPatients] = useState([])
+  const [stats, setStats] = useState({ totalPatients: 0, activePatients: 0, inactivePatients: 0 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Get patients based on active tab
-  const patients = mockPatientDetails[activeTab] || mockPatientDetails.total
+  // Fetch patients and statistics from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const [patientsResponse, statsResponse] = await Promise.all([
+          getPharmacyPatients(),
+          getPharmacyPatientStatistics().catch(() => ({ success: false, data: {} })),
+        ])
+        
+        if (patientsResponse.success && patientsResponse.data) {
+          const patientsData = Array.isArray(patientsResponse.data) 
+            ? patientsResponse.data 
+            : patientsResponse.data.items || []
+          
+          // Transform API data
+          const transformed = patientsData.map(patient => {
+            const fullName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim()
+            return {
+              id: patient._id || patient.id,
+              name: fullName || 'Unknown Patient',
+              phone: patient.phone || 'N/A',
+              email: patient.email || 'N/A',
+              status: patient.status || 'active', // Determine from last order date
+              age: patient.dateOfBirth ? new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear() : 'N/A',
+              gender: patient.gender || 'N/A',
+              address: patient.address ? 
+                `${patient.address.line1 || ''}, ${patient.address.city || ''}, ${patient.address.state || ''}`.trim() 
+                : 'N/A',
+              image: patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=11496c&color=fff&size=128&bold=true`,
+            }
+          })
+          
+          setPatients(transformed)
+        }
+        
+        if (statsResponse.success && statsResponse.data) {
+          const statsData = statsResponse.data
+          setStats({
+            totalPatients: statsData.totalPatients || 0,
+            activePatients: statsData.activePatients || 0,
+            inactivePatients: (statsData.totalPatients || 0) - (statsData.activePatients || 0),
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching patient statistics:', err)
+        setError(err.message || 'Failed to load patient statistics')
+        toast.error('Failed to load patient statistics')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [toast])
+
+  // Filter patients based on active tab
+  const filteredPatientsByTab = useMemo(() => {
+    if (activeTab === 'active') {
+      return patients.filter(p => p.status === 'active')
+    } else if (activeTab === 'inactive') {
+      return patients.filter(p => p.status === 'inactive')
+    }
+    return patients
+  }, [patients, activeTab])
 
   // Filter patients based on search term - only by name
   const filteredPatients = useMemo(() => {
-    if (!searchTerm.trim()) return patients
+    if (!searchTerm.trim()) return filteredPatientsByTab
     
     const searchLower = searchTerm.toLowerCase()
-    return patients.filter(patient => 
+    return filteredPatientsByTab.filter(patient => 
       patient.name.toLowerCase().includes(searchLower)
     )
-  }, [patients, searchTerm])
+  }, [filteredPatientsByTab, searchTerm])
 
   return (
     <section className="flex flex-col gap-4 pb-4">
+      {/* Loading State */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm font-medium text-slate-600">Loading patient statistics...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm font-medium text-red-600">Error: {error}</p>
+          <p className="mt-1 text-xs text-red-500">Please try again later.</p>
+        </div>
+      )}
+
       {/* Patient Statistics Cards - Parallel in One Row (Above Search Bar) */}
-      <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
-        {/* Total Patients Card */}
-        <button
-          onClick={() => {
-            setActiveTab('total')
-            setSearchTerm('')
-          }}
-          className={`shrink-0 flex-1 rounded-xl p-4 border-2 transition-all shadow-sm hover:shadow-md text-left ${
-            activeTab === 'total'
-              ? 'bg-slate-50 border-slate-300'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-          }`}
-        >
-          <p className="text-sm font-semibold text-slate-900">Total</p>
-        </button>
+      {!loading && !error && (
+        <>
+          <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
+            {/* Total Patients Card */}
+            <button
+              onClick={() => {
+                setActiveTab('total')
+                setSearchTerm('')
+              }}
+              className={`shrink-0 flex-1 rounded-xl p-4 border-2 transition-all shadow-sm hover:shadow-md text-left ${
+                activeTab === 'total'
+                  ? 'bg-slate-50 border-slate-300'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <p className="text-sm font-semibold text-slate-900">Total</p>
+              <p className="text-lg font-bold text-slate-900 mt-1">{stats.totalPatients}</p>
+            </button>
 
-        {/* Active Patients Card */}
-        <button
-          onClick={() => {
-            setActiveTab('active')
-            setSearchTerm('')
-          }}
-          className={`shrink-0 flex-1 rounded-xl p-4 border-2 transition-all shadow-sm hover:shadow-md text-left ${
-            activeTab === 'active'
-              ? 'bg-emerald-50 border-emerald-300'
-              : 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-300'
-          }`}
-        >
-          <p className="text-sm font-semibold text-emerald-700">Active</p>
-        </button>
+            {/* Active Patients Card */}
+            <button
+              onClick={() => {
+                setActiveTab('active')
+                setSearchTerm('')
+              }}
+              className={`shrink-0 flex-1 rounded-xl p-4 border-2 transition-all shadow-sm hover:shadow-md text-left ${
+                activeTab === 'active'
+                  ? 'bg-emerald-50 border-emerald-300'
+                  : 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-300'
+              }`}
+            >
+              <p className="text-sm font-semibold text-emerald-700">Active</p>
+              <p className="text-lg font-bold text-emerald-700 mt-1">{stats.activePatients}</p>
+            </button>
 
-        {/* Inactive Patients Card */}
-        <button
-          onClick={() => {
-            setActiveTab('inactive')
-            setSearchTerm('')
-          }}
-          className={`shrink-0 flex-1 rounded-xl p-4 border-2 transition-all shadow-sm hover:shadow-md text-left ${
-            activeTab === 'inactive'
-              ? 'bg-red-50 border-red-300'
-              : 'bg-red-50/50 border-red-200 hover:border-red-300'
-          }`}
-        >
-          <p className="text-sm font-semibold text-red-700">Inactive</p>
-        </button>
-      </div>
+            {/* Inactive Patients Card */}
+            <button
+              onClick={() => {
+                setActiveTab('inactive')
+                setSearchTerm('')
+              }}
+              className={`shrink-0 flex-1 rounded-xl p-4 border-2 transition-all shadow-sm hover:shadow-md text-left ${
+                activeTab === 'inactive'
+                  ? 'bg-red-50 border-red-300'
+                  : 'bg-red-50/50 border-red-200 hover:border-red-300'
+              }`}
+            >
+              <p className="text-sm font-semibold text-red-700">Inactive</p>
+              <p className="text-lg font-bold text-red-700 mt-1">{stats.inactivePatients}</p>
+            </button>
+          </div>
 
-      {/* Search Bar - Below Cards */}
+          {/* Search Bar - Below Cards */}
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#11496c]">
           <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
@@ -122,9 +190,9 @@ const PharmacyPatientStatistics = () => {
         />
       </div>
 
-      {/* Patient List */}
-      <div className="space-y-3">
-        {filteredPatients.length === 0 ? (
+          {/* Patient List */}
+          <div className="space-y-3">
+            {filteredPatients.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
             <IoPeopleOutline className="h-12 w-12 text-slate-400 mx-auto mb-3" />
             <p className="text-sm font-semibold text-slate-600">
@@ -186,8 +254,10 @@ const PharmacyPatientStatistics = () => {
               </div>
             </div>
           ))
-        )}
-      </div>
+          )}
+          </div>
+        </>
+      )}
 
       {/* Patient Details Modal */}
       {selectedPatient && (

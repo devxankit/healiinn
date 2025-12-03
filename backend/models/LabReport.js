@@ -68,6 +68,22 @@ const labReportSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    sharedWith: [
+      {
+        doctorId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Doctor',
+        },
+        sharedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        consultationId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Consultation',
+        },
+      },
+    ],
   },
   {
     timestamps: true,

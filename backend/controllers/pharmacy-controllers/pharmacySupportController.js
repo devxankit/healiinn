@@ -81,3 +81,21 @@ exports.getSupportTickets = asyncHandler(async (req, res) => {
   });
 });
 
+// GET /api/pharmacy/support/history
+exports.getSupportHistory = asyncHandler(async (req, res) => {
+  const { id } = req.auth;
+
+  const tickets = await SupportTicket.find({
+    userId: id,
+    userType: 'pharmacy',
+    status: { $in: ['resolved', 'closed'] },
+  })
+    .sort({ createdAt: -1 })
+    .limit(20);
+
+  return res.status(200).json({
+    success: true,
+    data: tickets,
+  });
+});
+

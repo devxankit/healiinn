@@ -225,6 +225,39 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     console.error('Error sending email notifications:', error);
   }
 
+  // Create in-app notifications
+  try {
+    const { createWalletNotification, createAdminNotification } = require('../../services/notificationService');
+
+    // Notify laboratory
+    await createWalletNotification({
+      userId: id,
+      userType: 'laboratory',
+      amount,
+      eventType: 'withdrawal_requested',
+      withdrawal: withdrawalRequest,
+    }).catch((error) => console.error('Error creating laboratory withdrawal notification:', error));
+
+    // Notify all admins
+    const Admin = require('../../models/Admin');
+    const admins = await Admin.find({});
+    for (const admin of admins) {
+      await createAdminNotification({
+        userId: admin._id,
+        userType: 'admin',
+        eventType: 'withdrawal_requested',
+        data: {
+          amount,
+          withdrawalId: withdrawalRequest._id,
+          userType: 'laboratory',
+          userId: id,
+        },
+      }).catch((error) => console.error('Error creating admin withdrawal notification:', error));
+    }
+  } catch (error) {
+    console.error('Error creating notifications:', error);
+  }
+
   return res.status(201).json({
     success: true,
     message: 'Withdrawal request submitted successfully',

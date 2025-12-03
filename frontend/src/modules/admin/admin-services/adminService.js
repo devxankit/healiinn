@@ -86,6 +86,18 @@ export const getDashboardStats = async () => {
 }
 
 /**
+ * Get chart data for dashboard (revenue, user growth, consultations)
+ */
+export const getDashboardChartData = async () => {
+  try {
+    return await apiClient.get('/admin/dashboard/charts')
+  } catch (error) {
+    console.error('Error fetching dashboard chart data:', error)
+    throw error
+  }
+}
+
+/**
  * Get all users with filters
  */
 export const getUsers = async (filters = {}) => {
@@ -282,19 +294,8 @@ export const rejectLaboratory = async (laboratoryId, reason) => {
  */
 export const getRecentActivities = async (limit = 10) => {
   try {
-    const queryParams = new URLSearchParams()
-    if (limit) queryParams.append('limit', limit)
-
-    const response = await fetch(`${API_BASE_URL}/admin/activities?${queryParams}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch recent activities: ${response.statusText}`)
-    }
-
-    return await response.json()
+    const params = limit ? { limit } : {}
+    return await apiClient.get('/admin/dashboard/activities', params)
   } catch (error) {
     console.error('Error fetching recent activities:', error)
     throw error
@@ -354,16 +355,7 @@ export const updateAdminPassword = async (passwordData) => {
  */
 export const getAdminSettings = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/settings`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch admin settings: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/settings')
   } catch (error) {
     console.error('Error fetching admin settings:', error)
     throw error
@@ -375,17 +367,7 @@ export const getAdminSettings = async () => {
  */
 export const updateAdminSettings = async (settings) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/settings`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(settings),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to update admin settings: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.patch('/admin/settings', settings)
   } catch (error) {
     console.error('Error updating admin settings:', error)
     throw error
@@ -452,20 +434,23 @@ export const resetPassword = async (data) => {
 }
 
 /**
+ * Get revenue overview
+ */
+export const getRevenueOverview = async () => {
+  try {
+    return await apiClient.get('/admin/revenue')
+  } catch (error) {
+    console.error('Error fetching revenue overview:', error)
+    throw error
+  }
+}
+
+/**
  * Get admin wallet overview
  */
 export const getAdminWalletOverview = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/wallet/overview`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch wallet overview: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/wallet/overview')
   } catch (error) {
     console.error('Error fetching wallet overview:', error)
     throw error
@@ -477,20 +462,8 @@ export const getAdminWalletOverview = async () => {
  */
 export const getProviderSummaries = async (role = null) => {
   try {
-    const url = role 
-      ? `${API_BASE_URL}/admin/wallet/providers?role=${role}`
-      : `${API_BASE_URL}/admin/wallet/providers`
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch provider summaries: ${response.statusText}`)
-    }
-
-    return await response.json()
+    const params = role ? { role } : {}
+    return await apiClient.get('/admin/wallet/providers', params)
   } catch (error) {
     console.error('Error fetching provider summaries:', error)
     throw error
@@ -505,19 +478,7 @@ export const getWithdrawals = async (filters = {}) => {
     const queryParams = new URLSearchParams()
     if (filters.status) queryParams.append('status', filters.status)
     if (filters.role) queryParams.append('role', filters.role)
-    if (filters.page) queryParams.append('page', filters.page)
-    if (filters.limit) queryParams.append('limit', filters.limit)
-
-    const response = await fetch(`${API_BASE_URL}/admin/wallet/withdrawals?${queryParams}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch withdrawals: ${response.statusText}`)
-    }
-
-    return await response.json()
+    return await apiClient.get('/admin/wallet/withdrawals', filters)
   } catch (error) {
     console.error('Error fetching withdrawals:', error)
     throw error
@@ -529,24 +490,374 @@ export const getWithdrawals = async (filters = {}) => {
  */
 export const updateWithdrawalStatus = async (withdrawalId, status, adminNote = null, payoutReference = null) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/admin/wallet/withdrawals/${withdrawalId}`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        status,
-        adminNote,
-        payoutReference,
-      }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || `Failed to update withdrawal: ${response.statusText}`)
+    const updateData = { status }
+    if (adminNote) updateData.adminNote = adminNote
+    if (payoutReference) updateData.payoutReference = payoutReference
+    if (typeof status === 'object') {
+      // If status is an object, merge it
+      Object.assign(updateData, status)
     }
-
-    return await response.json()
+    return await apiClient.patch(`/admin/wallet/withdrawals/${withdrawalId}`, updateData)
   } catch (error) {
     console.error('Error updating withdrawal status:', error)
+    throw error
+  }
+}
+
+/**
+ * Get admin wallet balance
+ * @returns {Promise<object>} Wallet balance data
+ */
+export const getAdminWalletBalance = async () => {
+  try {
+    return await apiClient.get('/admin/wallet/balance')
+  } catch (error) {
+    console.error('Error fetching admin wallet balance:', error)
+    throw error
+  }
+}
+
+/**
+ * Get admin wallet transactions
+ * @param {object} filters - Filter options
+ * @returns {Promise<object>} Transactions data
+ */
+export const getAdminWalletTransactions = async (filters = {}) => {
+  try {
+    return await apiClient.get('/admin/wallet/transactions', filters)
+  } catch (error) {
+    console.error('Error fetching admin wallet transactions:', error)
+    throw error
+  }
+}
+
+/**
+ * Get admin appointments
+ * @param {object} filters - Filter options (status, dateFrom, dateTo, etc.)
+ * @returns {Promise<object>} Appointments data
+ */
+export const getAdminAppointments = async (filters = {}) => {
+  try {
+    return await apiClient.get('/admin/appointments', filters)
+  } catch (error) {
+    console.error('Error fetching admin appointments:', error)
+    throw error
+  }
+}
+
+/**
+ * Get admin appointment by ID
+ * @param {string} appointmentId - Appointment ID
+ * @returns {Promise<object>} Appointment data
+ */
+export const getAdminAppointmentById = async (appointmentId) => {
+  try {
+    return await apiClient.get(`/admin/appointments/${appointmentId}`)
+  } catch (error) {
+    console.error('Error fetching appointment:', error)
+    throw error
+  }
+}
+
+/**
+ * Update admin appointment
+ * @param {string} appointmentId - Appointment ID
+ * @param {object} updateData - Update data
+ * @returns {Promise<object>} Updated appointment data
+ */
+export const updateAdminAppointment = async (appointmentId, updateData) => {
+  try {
+    return await apiClient.patch(`/admin/appointments/${appointmentId}`, updateData)
+  } catch (error) {
+    console.error('Error updating appointment:', error)
+    throw error
+  }
+}
+
+/**
+ * Cancel admin appointment
+ * @param {string} appointmentId - Appointment ID
+ * @returns {Promise<object>} Response data
+ */
+export const cancelAdminAppointment = async (appointmentId) => {
+  try {
+    return await apiClient.delete(`/admin/appointments/${appointmentId}`)
+  } catch (error) {
+    console.error('Error cancelling appointment:', error)
+    throw error
+  }
+}
+
+/**
+ * Get admin orders
+ * @param {object} filters - Filter options (status, type, dateFrom, dateTo, etc.)
+ * @returns {Promise<object>} Orders data
+ */
+export const getAdminOrders = async (filters = {}) => {
+  try {
+    return await apiClient.get('/admin/orders', filters)
+  } catch (error) {
+    console.error('Error fetching admin orders:', error)
+    throw error
+  }
+}
+
+/**
+ * Get admin order by ID
+ * @param {string} orderId - Order ID
+ * @returns {Promise<object>} Order data
+ */
+export const getAdminOrderById = async (orderId) => {
+  try {
+    return await apiClient.get(`/admin/orders/${orderId}`)
+  } catch (error) {
+    console.error('Error fetching order:', error)
+    throw error
+  }
+}
+
+/**
+ * Update admin order
+ * @param {string} orderId - Order ID
+ * @param {object} updateData - Update data
+ * @returns {Promise<object>} Updated order data
+ */
+export const updateAdminOrder = async (orderId, updateData) => {
+  try {
+    return await apiClient.patch(`/admin/orders/${orderId}`, updateData)
+  } catch (error) {
+    console.error('Error updating order:', error)
+    throw error
+  }
+}
+
+/**
+ * Get admin requests
+ * @param {object} filters - Filter options (status, type, etc.)
+ * @returns {Promise<object>} Requests data
+ */
+export const getAdminRequests = async (filters = {}) => {
+  try {
+    return await apiClient.get('/admin/requests', filters)
+  } catch (error) {
+    console.error('Error fetching admin requests:', error)
+    throw error
+  }
+}
+
+/**
+ * Get admin request by ID
+ * @param {string} requestId - Request ID
+ * @returns {Promise<object>} Request data
+ */
+export const getAdminRequestById = async (requestId) => {
+  try {
+    return await apiClient.get(`/admin/requests/${requestId}`)
+  } catch (error) {
+    console.error('Error fetching request:', error)
+    throw error
+  }
+}
+
+/**
+ * Accept admin request
+ * @param {string} requestId - Request ID
+ * @returns {Promise<object>} Response data
+ */
+export const acceptAdminRequest = async (requestId) => {
+  try {
+    return await apiClient.post(`/admin/requests/${requestId}/accept`)
+  } catch (error) {
+    console.error('Error accepting request:', error)
+    throw error
+  }
+}
+
+/**
+ * Respond to admin request
+ * @param {string} requestId - Request ID
+ * @param {object} responseData - Response data
+ * @returns {Promise<object>} Response data
+ */
+export const respondToAdminRequest = async (requestId, responseData) => {
+  try {
+    return await apiClient.post(`/admin/requests/${requestId}/respond`, responseData)
+  } catch (error) {
+    console.error('Error responding to request:', error)
+    throw error
+  }
+}
+
+/**
+ * Cancel admin request
+ * @param {string} requestId - Request ID
+ * @param {string} reason - Cancel reason
+ * @returns {Promise<object>} Response data
+ */
+export const cancelAdminRequest = async (requestId, reason) => {
+  try {
+    return await apiClient.post(`/admin/requests/${requestId}/cancel`, { reason })
+  } catch (error) {
+    console.error('Error cancelling request:', error)
+    throw error
+  }
+}
+
+/**
+ * Get support tickets
+ * @param {object} filters - Filter options (status, priority, userType, page, limit)
+ * @returns {Promise<object>} Support tickets data
+ */
+export const getSupportTickets = async (filters = {}) => {
+  try {
+    return await apiClient.get('/admin/support', filters)
+  } catch (error) {
+    console.error('Error fetching support tickets:', error)
+    throw error
+  }
+}
+
+/**
+ * Get support ticket by ID
+ * @param {string} ticketId - Ticket ID
+ * @returns {Promise<object>} Support ticket data
+ */
+export const getSupportTicketById = async (ticketId) => {
+  try {
+    return await apiClient.get(`/admin/support/${ticketId}`)
+  } catch (error) {
+    console.error('Error fetching support ticket:', error)
+    throw error
+  }
+}
+
+/**
+ * Respond to support ticket
+ * @param {string} ticketId - Ticket ID
+ * @param {object} responseData - Response data (message, attachments)
+ * @returns {Promise<object>} Response data
+ */
+export const respondToSupportTicket = async (ticketId, responseData) => {
+  try {
+    return await apiClient.post(`/admin/support/${ticketId}/respond`, responseData)
+  } catch (error) {
+    console.error('Error responding to support ticket:', error)
+    throw error
+  }
+}
+
+/**
+ * Update support ticket status
+ * @param {string} ticketId - Ticket ID
+ * @param {string} status - New status (open, in_progress, resolved, closed)
+ * @returns {Promise<object>} Response data
+ */
+export const updateSupportTicketStatus = async (ticketId, status) => {
+  try {
+    return await apiClient.patch(`/admin/support/${ticketId}/status`, { status })
+  } catch (error) {
+    console.error('Error updating support ticket status:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy medicines
+ * @param {object} filters - Filter options (pharmacy, search, page, limit)
+ * @returns {Promise<object>} Pharmacy medicines data
+ */
+export const getPharmacyMedicines = async (filters = {}) => {
+  try {
+    return await apiClient.get('/admin/pharmacy-medicines', filters)
+  } catch (error) {
+    console.error('Error fetching pharmacy medicines:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy medicine by ID
+ * @param {string} medicineId - Medicine ID
+ * @returns {Promise<object>} Medicine data
+ */
+export const getPharmacyMedicineById = async (medicineId) => {
+  try {
+    return await apiClient.get(`/admin/pharmacy-medicines/${medicineId}`)
+  } catch (error) {
+    console.error('Error fetching pharmacy medicine:', error)
+    throw error
+  }
+}
+
+/**
+ * Update pharmacy medicine
+ * @param {string} medicineId - Medicine ID
+ * @param {object} updateData - Update data
+ * @returns {Promise<object>} Updated medicine data
+ */
+export const updatePharmacyMedicine = async (medicineId, updateData) => {
+  try {
+    return await apiClient.patch(`/admin/pharmacy-medicines/${medicineId}`, updateData)
+  } catch (error) {
+    console.error('Error updating pharmacy medicine:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy inventory
+ * @param {object} filters - Filter options (search, page, limit)
+ * @returns {Promise<object>} Pharmacy inventory data
+ */
+export const getPharmacyInventory = async (filters = {}) => {
+  try {
+    return await apiClient.get('/admin/inventory/pharmacies', filters)
+  } catch (error) {
+    console.error('Error fetching pharmacy inventory:', error)
+    throw error
+  }
+}
+
+/**
+ * Get laboratory inventory
+ * @param {object} filters - Filter options (search, page, limit)
+ * @returns {Promise<object>} Laboratory inventory data
+ */
+export const getLaboratoryInventory = async (filters = {}) => {
+  try {
+    return await apiClient.get('/admin/inventory/laboratories', filters)
+  } catch (error) {
+    console.error('Error fetching laboratory inventory:', error)
+    throw error
+  }
+}
+
+/**
+ * Get pharmacy medicines by pharmacy ID
+ * @param {string} pharmacyId - Pharmacy ID
+ * @param {object} filters - Filter options (page, limit)
+ * @returns {Promise<object>} Pharmacy medicines data
+ */
+export const getPharmacyMedicinesByPharmacy = async (pharmacyId, filters = {}) => {
+  try {
+    return await apiClient.get(`/admin/inventory/pharmacies/${pharmacyId}`, filters)
+  } catch (error) {
+    console.error('Error fetching pharmacy medicines:', error)
+    throw error
+  }
+}
+
+/**
+ * Get laboratory tests by laboratory ID
+ * @param {string} laboratoryId - Laboratory ID
+ * @param {object} filters - Filter options (page, limit)
+ * @returns {Promise<object>} Laboratory tests data
+ */
+export const getLaboratoryTestsByLaboratory = async (laboratoryId, filters = {}) => {
+  try {
+    return await apiClient.get(`/admin/inventory/laboratories/${laboratoryId}`, filters)
+  } catch (error) {
+    console.error('Error fetching laboratory tests:', error)
     throw error
   }
 }
@@ -558,6 +869,7 @@ export default {
   storeAdminTokens,
   clearAdminTokens,
   getDashboardStats,
+  getDashboardChartData,
   getUsers,
   getUserById,
   updateUserStatus,
@@ -589,5 +901,29 @@ export default {
   getProviderSummaries,
   getWithdrawals,
   updateWithdrawalStatus,
+  getRevenueOverview,
+  getAdminAppointments,
+  getAdminAppointmentById,
+  updateAdminAppointment,
+  cancelAdminAppointment,
+  getAdminOrders,
+  getAdminOrderById,
+  updateAdminOrder,
+  getAdminRequests,
+  getAdminRequestById,
+  acceptAdminRequest,
+  respondToAdminRequest,
+  cancelAdminRequest,
+  getSupportTickets,
+  getSupportTicketById,
+  respondToSupportTicket,
+  updateSupportTicketStatus,
+  getPharmacyMedicines,
+  getPharmacyMedicineById,
+  updatePharmacyMedicine,
+  getPharmacyInventory,
+  getLaboratoryInventory,
+  getPharmacyMedicinesByPharmacy,
+  getLaboratoryTestsByLaboratory,
 }
 

@@ -23,6 +23,21 @@ exports.createReview = asyncHandler(async (req, res) => {
     });
   }
 
+  // Check if patient has already reviewed this doctor (without appointment)
+  if (!appointmentId) {
+    const existingReview = await Review.findOne({ 
+      patientId: id, 
+      doctorId,
+      appointmentId: null,
+    });
+    if (existingReview) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already reviewed this doctor',
+      });
+    }
+  }
+
   // Check if appointment exists and belongs to patient
   if (appointmentId) {
     const appointment = await Appointment.findOne({
@@ -48,6 +63,13 @@ exports.createReview = asyncHandler(async (req, res) => {
       });
     }
   }
+  
+  console.log(`📝 Creating review:`, {
+    patientId: id,
+    doctorId,
+    appointmentId: appointmentId || 'none',
+    rating,
+  });
 
   const review = await Review.create({
     patientId: id,
@@ -58,14 +80,31 @@ exports.createReview = asyncHandler(async (req, res) => {
     status: 'pending',
   });
 
-  // Update doctor rating
-  const reviews = await Review.find({ doctorId, status: 'approved' });
-  const averageRating = reviews.length > 0
-    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+  // Auto-approve reviews (or keep pending for admin approval - change status to 'approved' for immediate display)
+  // For now, auto-approve so reviews show immediately
+  review.status = 'approved';
+  await review.save();
+  
+  // Update doctor rating (include all approved reviews)
+  const approvedReviews = await Review.find({ doctorId, status: 'approved' });
+  
+  // Calculate average rating from approved reviews
+  const averageRating = approvedReviews.length > 0
+    ? approvedReviews.reduce((sum, r) => sum + r.rating, 0) / approvedReviews.length
     : 0;
 
+  // Update doctor with new rating and review count
   await Doctor.findByIdAndUpdate(doctorId, {
     rating: Math.round(averageRating * 10) / 10,
+    reviewCount: approvedReviews.length,
+  });
+  
+  console.log(`✅ Review created and doctor rating updated:`, {
+    reviewId: review._id,
+    doctorId,
+    rating: review.rating,
+    averageRating: Math.round(averageRating * 10) / 10,
+    totalReviews: approvedReviews.length,
   });
 
   return res.status(201).json({

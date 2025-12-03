@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
@@ -11,214 +11,8 @@ import {
   IoCalendarOutline,
   IoMedicalOutline,
 } from 'react-icons/io5'
-
-// Helper function to get today's date string
-const getTodayDateString = () => {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = String(today.getMonth() + 1).padStart(2, '0')
-  const day = String(today.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-// Helper to get past date string
-const getPastDateString = (daysAgo) => {
-  const date = new Date()
-  date.setDate(date.getDate() - daysAgo)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-// Mock data for all consultations
-const getMockAllConsultations = () => {
-  const todayDate = getTodayDateString()
-  
-  // Helper to get past date string (local to this function)
-  const getPastDate = (daysAgo) => {
-    const date = new Date()
-    date.setDate(date.getDate() - daysAgo)
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-  
-  return [
-  // Today's consultations
-  {
-    id: 'cons-1',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    age: 45,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
-    appointmentTime: `${todayDate}T09:00:00`,
-    appointmentType: 'Follow-up',
-    status: 'in-progress',
-    reason: 'Hypertension follow-up',
-    type: 'In-person',
-    diagnosis: 'Hypertension',
-  },
-  {
-    id: 'cons-2',
-    patientId: 'pat-2',
-    patientName: 'Sarah Smith',
-    age: 32,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160',
-    appointmentTime: `${todayDate}T10:30:00`,
-    appointmentType: 'New',
-    status: 'completed',
-    reason: 'Chest pain evaluation',
-    type: 'In-person',
-    diagnosis: 'Anxiety',
-  },
-  {
-    id: 'cons-3',
-    patientId: 'pat-3',
-    patientName: 'Mike Johnson',
-    age: 28,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
-    appointmentTime: `${todayDate}T14:00:00`,
-    appointmentType: 'Follow-up',
-    status: 'pending',
-    reason: 'Quick check-up',
-    type: 'In-person',
-    diagnosis: '',
-  },
-  // This month consultations (previous days this month)
-  {
-    id: 'cons-4',
-    patientId: 'pat-4',
-    patientName: 'Emily Brown',
-    age: 55,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
-    appointmentTime: `${getPastDate(1)}T11:00:00`,
-    appointmentType: 'Follow-up',
-    status: 'completed',
-    reason: 'Routine check-up',
-    type: 'In-person',
-    diagnosis: 'Diabetes Management',
-  },
-  {
-    id: 'cons-5',
-    patientId: 'pat-5',
-    patientName: 'David Wilson',
-    age: 38,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=8b5cf6&color=fff&size=160',
-    appointmentTime: `${getPastDate(2)}T09:30:00`,
-    appointmentType: 'New',
-    status: 'completed',
-    reason: 'Annual checkup',
-    type: 'In-person',
-    diagnosis: 'Healthy',
-  },
-  {
-    id: 'cons-6',
-    patientId: 'pat-6',
-    patientName: 'Lisa Anderson',
-    age: 42,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=ef4444&color=fff&size=160',
-    appointmentTime: `${getPastDate(3)}T15:00:00`,
-    appointmentType: 'Follow-up',
-    status: 'completed',
-    reason: 'Prescription follow-up',
-    type: 'In-person',
-    diagnosis: 'Upper Respiratory Infection',
-  },
-  {
-    id: 'cons-7',
-    patientId: 'pat-7',
-    patientName: 'Robert Taylor',
-    age: 35,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=6366f1&color=fff&size=160',
-    appointmentTime: `${getPastDate(4)}T10:00:00`,
-    appointmentType: 'Follow-up',
-    status: 'completed',
-    reason: 'Lab results review',
-    type: 'In-person',
-    diagnosis: 'Normal Results',
-  },
-  {
-    id: 'cons-8',
-    patientId: 'pat-8',
-    patientName: 'Jennifer Martinez',
-    age: 29,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=160',
-    appointmentTime: `${getPastDate(5)}T14:30:00`,
-    appointmentType: 'New',
-    status: 'completed',
-    reason: 'Initial consultation',
-    type: 'In-person',
-    diagnosis: 'General Health Check',
-  },
-  // This year consultations (sample from previous months)
-  {
-    id: 'cons-9',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    age: 45,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
-    appointmentTime: '2024-12-20T11:00:00',
-    appointmentType: 'Follow-up',
-    status: 'completed',
-    reason: 'Hypertension follow-up',
-    type: 'In-person',
-    diagnosis: 'Hypertension',
-  },
-  {
-    id: 'cons-10',
-    patientId: 'pat-3',
-    patientName: 'Mike Johnson',
-    age: 28,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
-    appointmentTime: '2024-11-15T10:00:00',
-    appointmentType: 'Follow-up',
-    status: 'completed',
-    reason: 'Diabetes management',
-    type: 'In-person',
-    diagnosis: 'Type 2 Diabetes',
-  },
-  {
-    id: 'cons-11',
-    patientId: 'pat-4',
-    patientName: 'Emily Brown',
-    age: 55,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
-    appointmentTime: '2024-10-10T09:00:00',
-    appointmentType: 'Follow-up',
-    status: 'completed',
-    reason: 'Arthritis consultation',
-    type: 'In-person',
-    diagnosis: 'Osteoarthritis',
-  },
-  {
-    id: 'cons-12',
-    patientId: 'pat-5',
-    patientName: 'David Wilson',
-    age: 38,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=8b5cf6&color=fff&size=160',
-    appointmentTime: '2024-09-05T14:00:00',
-    appointmentType: 'New',
-    status: 'completed',
-    reason: 'Annual checkup',
-    type: 'In-person',
-    diagnosis: 'Healthy',
-  },
-  ]
-}
+import { getDoctorConsultations } from '../doctor-services/doctorService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A'
@@ -275,10 +69,55 @@ const getStatusText = (status) => {
 
 const DoctorAllConsultations = () => {
   const navigate = useNavigate()
-  const [consultations, setConsultations] = useState(() => getMockAllConsultations())
+  const toast = useToast()
+  const [consultations, setConsultations] = useState([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPeriod, setFilterPeriod] = useState('today') // 'today', 'monthly', 'yearly', 'all'
   const [filterStatus, setFilterStatus] = useState('all') // 'all', 'completed', 'in-progress', 'pending'
+
+  // Fetch consultations from API
+  useEffect(() => {
+    const fetchConsultations = async () => {
+      try {
+        setLoading(true)
+        const response = await getDoctorConsultations({ limit: 100 })
+        
+        if (response.success && response.data) {
+          const consultationsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.consultations || response.data.items || []
+          
+          const transformed = consultationsData.map(consultation => ({
+            id: consultation._id || consultation.id,
+            patientId: consultation.patientId?._id || consultation.patientId?.id || consultation.patientId || '',
+            patientName: consultation.patientId?.firstName && consultation.patientId?.lastName
+              ? `${consultation.patientId.firstName} ${consultation.patientId.lastName}`
+              : consultation.patientId?.name || consultation.patientName || 'Unknown Patient',
+            age: consultation.patientId?.age || consultation.age || null,
+            gender: consultation.patientId?.gender || consultation.gender || 'N/A',
+            patientImage: consultation.patientId?.profileImage || consultation.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(consultation.patientId?.firstName || consultation.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            appointmentTime: consultation.appointmentTime || consultation.createdAt || consultation.date || new Date().toISOString(),
+            appointmentType: consultation.appointmentType || consultation.type || 'Follow-up',
+            status: consultation.status || 'completed',
+            reason: consultation.reason || consultation.complaint || consultation.chiefComplaint || 'Consultation',
+            type: consultation.type || 'In-person',
+            diagnosis: consultation.diagnosis || '',
+          }))
+          
+          setConsultations(transformed)
+        }
+      } catch (error) {
+        console.error('Error fetching consultations:', error)
+        toast.error('Failed to load consultations')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchConsultations()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Get today's date for filtering
   const today = new Date()
@@ -369,55 +208,10 @@ const DoctorAllConsultations = () => {
   }, [consultations, today, tomorrow, currentMonthStart, currentMonthEnd, currentYearStart, currentYearEnd])
 
   const handleViewConsultation = (consultation) => {
-    // Load saved prescription data for this patient from localStorage
-    let savedPrescriptionData = null
-    try {
-      const patientPrescriptionsKey = `patientPrescriptions_${consultation.patientId}`
-      const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
-      
-      // Find prescription for this specific consultation
-      const prescription = patientPrescriptions.find((p) => p.consultationId === consultation.id)
-      if (prescription) {
-        savedPrescriptionData = prescription
-      } else if (patientPrescriptions.length > 0) {
-        // If no exact match, get the most recent prescription for this patient
-        savedPrescriptionData = patientPrescriptions[0]
-      }
-    } catch (error) {
-      console.error('Error loading prescription data:', error)
-    }
-    
-    // Load saved consultation data from localStorage
-    let savedConsultationData = null
-    try {
-      const savedConsultations = JSON.parse(localStorage.getItem('doctorConsultations') || '[]')
-      savedConsultationData = savedConsultations.find((c) => c.id === consultation.id || c.patientId === consultation.patientId)
-    } catch (error) {
-      console.error('Error loading consultation data:', error)
-    }
-    
-    // Merge saved data with consultation data
-    const consultationData = {
-      ...consultation,
-      patientPhone: savedConsultationData?.patientPhone || '+1-555-987-6543',
-      patientEmail: savedConsultationData?.patientEmail || `${consultation.patientName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-      patientAddress: savedConsultationData?.patientAddress || '123 Patient Street, New York, NY 10001',
-      // Use saved prescription data if available
-      diagnosis: savedPrescriptionData?.diagnosis || savedConsultationData?.diagnosis || consultation.diagnosis || '',
-      symptoms: savedPrescriptionData?.symptoms || savedConsultationData?.symptoms || '',
-      vitals: savedPrescriptionData?.vitals || savedConsultationData?.vitals || {},
-      medications: savedPrescriptionData?.medications || savedConsultationData?.medications || [],
-      investigations: savedPrescriptionData?.investigations || savedConsultationData?.investigations || [],
-      advice: savedPrescriptionData?.advice || savedConsultationData?.advice || '',
-      followUpDate: savedPrescriptionData?.followUpDate || savedConsultationData?.followUpDate || '',
-      attachments: savedConsultationData?.attachments || [],
-    }
-    
-    // Navigate to consultations page with this consultation
+    // Navigate to consultations page with consultation data
     navigate('/doctor/consultations', {
       state: {
-        selectedConsultation: consultationData,
-        loadSavedData: true, // Flag to indicate we should load saved data
+        selectedConsultation: consultation,
       },
     })
   }
@@ -556,7 +350,12 @@ const DoctorAllConsultations = () => {
 
         {/* Consultations List */}
         <div className="space-y-3 lg:grid lg:grid-cols-6 lg:gap-3 lg:space-y-0">
-          {filteredConsultations.length === 0 ? (
+          {loading ? (
+            <div className="lg:col-span-6 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+              <IoDocumentTextOutline className="mx-auto h-12 w-12 text-slate-300 animate-pulse" />
+              <p className="mt-4 text-sm font-medium text-slate-600">Loading consultations...</p>
+            </div>
+          ) : filteredConsultations.length === 0 ? (
             <div className="lg:col-span-6 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
               <IoDocumentTextOutline className="mx-auto h-12 w-12 text-slate-300" />
               <p className="mt-4 text-sm font-medium text-slate-600">No consultations found</p>

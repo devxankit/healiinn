@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import {
   IoCloseCircleOutline,
   IoCheckmarkCircleOutline,
@@ -12,6 +13,7 @@ import {
   IoCalendarOutline,
   IoInformationCircleOutline,
 } from 'react-icons/io5'
+import { createLaboratoryReport, getLaboratoryOrders } from '../laboratory-services/laboratoryService'
 
 const LaboratoryAddReport = () => {
   const navigate = useNavigate()
@@ -23,44 +25,31 @@ const LaboratoryAddReport = () => {
   const [uploadProgress, setUploadProgress] = useState(0)
 
   useEffect(() => {
-    // Load order data from localStorage or state
-    // In real app, this would come from API
-    const loadOrder = () => {
-      try {
-        // Try to get from localStorage (if stored)
-        const storedOrders = JSON.parse(localStorage.getItem('laboratoryConfirmedOrders') || '[]')
-        const foundOrder = storedOrders.find(o => o.id === orderId || o.orderId === orderId)
-        
-        if (foundOrder) {
-          setOrder(foundOrder)
-        } else {
-          // Mock order data for testing
-          setOrder({
-            id: orderId,
-            orderId: orderId || 'ORD-2025-001',
-            patientId: 'pat-1',
-            patientName: 'John Doe',
-            patientPhone: '+1-555-123-4567',
-            patientEmail: 'john.doe@example.com',
-            testName: 'Complete Blood Count (CBC)',
-            orderDate: new Date().toISOString(),
-            status: 'ready',
-            hasReport: false,
-          })
-        }
-      } catch (error) {
-        console.error('Error loading order:', error)
-        // Navigate back if order not found
-        navigate('/laboratory/test-reports')
-      }
-    }
-
     if (orderId) {
       loadOrder()
     } else {
       navigate('/laboratory/test-reports')
     }
   }, [orderId, navigate])
+
+  const loadOrder = async () => {
+    try {
+      const response = await getLaboratoryOrders()
+      const orders = Array.isArray(response) ? response : (response.data || response.orders || [])
+      const foundOrder = orders.find(o => o.id === orderId || o._id === orderId || o.orderId === orderId)
+      
+      if (foundOrder) {
+        setOrder(foundOrder)
+      } else {
+        toast.error('Order not found')
+        navigate('/laboratory/test-reports')
+      }
+    } catch (error) {
+      console.error('Error loading order:', error)
+      toast.error('Failed to load order data')
+      navigate('/laboratory/test-reports')
+    }
+  }
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0]
@@ -95,7 +84,7 @@ const LaboratoryAddReport = () => {
 
   const handleSaveReport = async () => {
     if (!selectedFile) {
-      alert('Please select a PDF file')
+      toast.error('Please select a PDF file')
       return
     }
 
@@ -108,6 +97,7 @@ const LaboratoryAddReport = () => {
     setUploadProgress(0)
 
     try {
+      // Simulate upload progress
       const progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
           if (prev >= 90) {
@@ -118,89 +108,34 @@ const LaboratoryAddReport = () => {
         })
       }, 150)
 
-      // Convert PDF file to base64 for storage
-      const pdfBase64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = (e) => resolve(e.target.result)
-        reader.onerror = reject
-        reader.readAsDataURL(selectedFile)
-      })
+      const orderId = order.orderId || order.id || order._id
+      const testName = order.testName || order.test?.name || 'Lab Test Report'
       
-      const reportFileName = selectedFile.name
-      
-      // Store PDF in localStorage with patientId and orderId for patient access - automatically share with patient
-      const patientId = order.patientId || 'pat-current'
-      const orderId = order.orderId || order.id
-      
-      // Store in patient's lab reports
-      const patientLabReportsKey = `patientLabReports_${patientId}`
-      const existingReports = JSON.parse(localStorage.getItem(patientLabReportsKey) || '[]')
-      
-      // Check if report already exists
-      const existingIndex = existingReports.findIndex(r => r.orderId === orderId || r.id === order.id)
-      
+      // Create report with PDF file upload
       const reportData = {
-        id: order.id || `report-${Date.now()}`,
         orderId: orderId,
-        patientId: patientId,
-        testName: order.testName,
-        labName: 'MediLab Diagnostics', // Current laboratory name
-        labId: 'lab-1', // Current lab ID
-        date: new Date(order.orderDate || new Date()).toISOString().split('T')[0],
-        status: 'ready',
-        pdfFileUrl: pdfBase64, // Store as base64
-        pdfFileName: reportFileName,
-        sharedAt: new Date().toISOString(),
-        sharedBy: 'laboratory',
+        testName: testName,
+        results: [], // Can be populated if needed
+        notes: `Report uploaded: ${selectedFile.name}`,
       }
       
-      if (existingIndex >= 0) {
-        existingReports[existingIndex] = reportData
-      } else {
-        existingReports.push(reportData)
-      }
-      localStorage.setItem(patientLabReportsKey, JSON.stringify(existingReports))
-      
-      // Also store in sharedLabReports for backward compatibility
-      const sharedReportsKey = `sharedLabReports_${patientId}`
-      const existingSharedReports = JSON.parse(localStorage.getItem(sharedReportsKey) || '[]')
-      const sharedIndex = existingSharedReports.findIndex(r => r.orderId === orderId || r.id === order.id)
-      
-      if (sharedIndex >= 0) {
-        existingSharedReports[sharedIndex] = reportData
-      } else {
-        existingSharedReports.push(reportData)
-      }
-      localStorage.setItem(sharedReportsKey, JSON.stringify(existingSharedReports))
-      
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // Upload PDF file and create report
+      await createLaboratoryReport(reportData, selectedFile)
       
       clearInterval(progressInterval)
       setUploadProgress(100)
       setUploadStatus('success')
       
-      // Update order in localStorage with base64 PDF
-      const storedOrders = JSON.parse(localStorage.getItem('laboratoryConfirmedOrders') || '[]')
-      const updatedOrders = storedOrders.map((o) =>
-        (o.id === order.id || o.orderId === order.orderId)
-          ? { 
-              ...o, 
-              hasReport: true,
-              reportUrl: pdfBase64, // Store base64 instead of blob URL
-              reportFileName: reportFileName,
-            }
-          : o
-      )
-      localStorage.setItem('laboratoryConfirmedOrders', JSON.stringify(updatedOrders))
+      toast.success('Report uploaded successfully!')
       
       setTimeout(() => {
-        alert('Report added successfully!')
         navigate('/laboratory/test-reports')
       }, 1500)
     } catch (error) {
+      console.error('Error uploading report:', error)
       setUploadStatus('error')
       setUploadProgress(0)
-      alert('Failed to add report. Please try again.')
+      toast.error('Failed to upload report. Please try again.')
     } finally {
       setIsSending(false)
     }

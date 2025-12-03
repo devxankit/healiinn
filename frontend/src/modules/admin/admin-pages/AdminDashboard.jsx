@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { getAuthToken } from '../../../utils/apiClient'
-import { getDashboardStats, getPendingVerifications, getUsers, getDoctors, getPharmacies, getLaboratories } from '../admin-services/adminService'
+import { getDashboardStats, getDashboardChartData, getPendingVerifications, getUsers, getDoctors, getPharmacies, getLaboratories, getAdminAppointments, getAdminRequests, getRecentActivities } from '../admin-services/adminService'
 import { useToast } from '../../../contexts/ToastContext'
 import {
   IoPeopleOutline,
@@ -42,115 +42,12 @@ const defaultStats = {
   lastMonthConsultations: 0,
 }
 
-// Chart data
-const revenueData = [
-  { month: 'Jul', value: 85000 },
-  { month: 'Aug', value: 92000 },
-  { month: 'Sep', value: 98000 },
-  { month: 'Oct', value: 105000 },
-  { month: 'Nov', value: 108000 },
-  { month: 'Dec', value: 125000 },
-]
-
-const userGrowthData = [
-  { month: 'Jul', users: 850 },
-  { month: 'Aug', users: 920 },
-  { month: 'Sep', users: 980 },
-  { month: 'Oct', users: 1050 },
-  { month: 'Nov', users: 1120 },
-  { month: 'Dec', users: 1250 },
-]
-
-const consultationsData = [
-  { month: 'Jul', consultations: 280 },
-  { month: 'Aug', consultations: 310 },
-  { month: 'Sep', consultations: 290 },
-  { month: 'Oct', consultations: 320 },
-  { month: 'Nov', consultations: 298 },
-  { month: 'Dec', consultations: 342 },
-]
-
-
-const recentActivities = [
-  {
-    id: 'act-1',
-    type: 'user',
-    action: 'New user registered',
-    name: 'John Doe',
-    image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-    time: '2 minutes ago',
-    status: 'success',
-  },
-  {
-    id: 'act-2',
-    type: 'doctor',
-    action: 'Doctor verification pending',
-    name: 'Dr. Priya Sharma',
-    image: 'https://ui-avatars.com/api/?name=Dr+Priya+Sharma&background=10b981&color=fff&size=128&bold=true',
-    time: '15 minutes ago',
-    status: 'pending',
-  },
-  {
-    id: 'act-3',
-    type: 'pharmacy',
-    action: 'Pharmacy approved',
-    name: 'MediCare Pharmacy',
-    image: 'https://ui-avatars.com/api/?name=MediCare&background=8b5cf6&color=fff&size=128&bold=true',
-    time: '1 hour ago',
-    status: 'success',
-  },
-  {
-    id: 'act-4',
-    type: 'laboratory',
-    action: 'Laboratory registered',
-    name: 'HealthLab Diagnostics',
-    image: 'https://ui-avatars.com/api/?name=HealthLab&background=f59e0b&color=fff&size=128&bold=true',
-    time: '2 hours ago',
-    status: 'success',
-  },
-  {
-    id: 'act-5',
-    type: 'consultation',
-    action: 'Consultation completed',
-    name: 'Dr. Rajesh Kumar',
-    image: 'https://ui-avatars.com/api/?name=Dr+Rajesh+Kumar&background=6366f1&color=fff&size=128&bold=true',
-    time: '3 hours ago',
-    status: 'success',
-  },
-]
-
-const pendingVerifications = [
-  {
-    id: 'ver-1',
-    type: 'doctor',
-    name: 'Dr. Amit Patel',
-    image: 'https://ui-avatars.com/api/?name=Dr+Amit+Patel&background=10b981&color=fff&size=128&bold=true',
-    email: 'amit.patel@example.com',
-    submittedAt: '2025-01-15',
-    status: 'pending',
-    specialty: 'Cardiologist',
-  },
-  {
-    id: 'ver-2',
-    type: 'pharmacy',
-    name: 'City Pharmacy',
-    image: 'https://ui-avatars.com/api/?name=City+Pharmacy&background=8b5cf6&color=fff&size=128&bold=true',
-    email: 'citypharmacy@example.com',
-    submittedAt: '2025-01-14',
-    status: 'pending',
-    owner: 'Priya Sharma',
-  },
-  {
-    id: 'ver-3',
-    type: 'laboratory',
-    name: 'Test Lab Services',
-    image: 'https://ui-avatars.com/api/?name=Test+Lab&background=f59e0b&color=fff&size=128&bold=true',
-    email: 'testlab@example.com',
-    submittedAt: '2025-01-13',
-    status: 'pending',
-    owner: 'Dr. Anjali Mehta',
-  },
-]
+// Default empty chart data
+const defaultChartData = {
+  revenue: [],
+  userGrowth: [],
+  consultations: [],
+}
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -170,19 +67,54 @@ const formatDate = (dateString) => {
   })
 }
 
+const getTimeAgo = (date) => {
+  const now = new Date()
+  const dateObj = new Date(date)
+  const diff = now - dateObj
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  
+  if (days > 0) {
+    return `${days} ${days === 1 ? 'day' : 'days'} ago`
+  } else if (hours > 0) {
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`
+  } else if (minutes > 0) {
+    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`
+  } else {
+    return 'Just now'
+  }
+}
+
 // Chart Components
 const RevenueLineChart = ({ data }) => {
-  const maxValue = Math.max(...data.map(d => d.value))
-  const minValue = Math.min(...data.map(d => d.value))
-  const range = maxValue - minValue
+  // Validate and filter data
+  const validData = Array.isArray(data) && data.length > 0 
+    ? data.filter(d => d && typeof d.value === 'number' && !isNaN(d.value))
+    : []
+  
+  // If no valid data, return empty chart
+  if (validData.length === 0) {
+    return (
+      <div className="relative flex items-center justify-center h-32">
+        <p className="text-sm text-slate-400">No data available</p>
+      </div>
+    )
+  }
+  
+  const values = validData.map(d => d.value || 0)
+  const maxValue = Math.max(...values)
+  const minValue = Math.min(...values)
+  const range = maxValue - minValue || 1 // Avoid division by zero
   const width = 100
   const height = 120
   const padding = 10
   const chartWidth = width - padding * 2
   const chartHeight = height - padding * 2
 
-  const points = data.map((item, index) => {
-    const x = padding + (index / (data.length - 1)) * chartWidth
+  const points = validData.map((item, index) => {
+    const x = padding + (index / Math.max(validData.length - 1, 1)) * chartWidth
     const y = padding + chartHeight - ((item.value - minValue) / range) * chartHeight
     return `${x},${y}`
   }).join(' ')
@@ -208,8 +140,8 @@ const RevenueLineChart = ({ data }) => {
           points={`${padding},${padding + chartHeight} ${points} ${padding + chartWidth},${padding + chartHeight}`}
           fill="url(#revenueGradient)"
         />
-        {data.map((item, index) => {
-          const x = padding + (index / (data.length - 1)) * chartWidth
+        {validData.map((item, index) => {
+          const x = padding + (index / Math.max(validData.length - 1, 1)) * chartWidth
           const y = padding + chartHeight - ((item.value - minValue) / range) * chartHeight
           return (
             <circle
@@ -224,8 +156,8 @@ const RevenueLineChart = ({ data }) => {
         })}
       </svg>
       <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
-        {data.map((item, index) => (
-          <span key={index} className="text-[10px]">{item.month}</span>
+        {validData.map((item, index) => (
+          <span key={index} className="text-[10px]">{item.month || ''}</span>
         ))}
       </div>
     </div>
@@ -233,20 +165,35 @@ const RevenueLineChart = ({ data }) => {
 }
 
 const UserGrowthBarChart = ({ data }) => {
-  const maxValue = Math.max(...data.map(d => d.users))
+  // Validate and filter data
+  const validData = Array.isArray(data) && data.length > 0 
+    ? data.filter(d => d && typeof d.users === 'number' && !isNaN(d.users))
+    : []
+  
+  // If no valid data, return empty chart
+  if (validData.length === 0) {
+    return (
+      <div className="relative flex items-center justify-center h-32">
+        <p className="text-sm text-slate-400">No data available</p>
+      </div>
+    )
+  }
+  
+  const values = validData.map(d => d.users || 0)
+  const maxValue = Math.max(...values) || 1 // Avoid division by zero
   const width = 100
   const height = 120
   const padding = 10
   const chartWidth = width - padding * 2
   const chartHeight = height - padding * 2
-  const barWidth = chartWidth / data.length * 0.6
+  const barWidth = chartWidth / validData.length * 0.6
 
   return (
     <div className="relative">
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-32">
-        {data.map((item, index) => {
+        {validData.map((item, index) => {
           const barHeight = (item.users / maxValue) * chartHeight
-          const x = padding + (index / data.length) * chartWidth + (chartWidth / data.length - barWidth) / 2
+          const x = padding + (index / validData.length) * chartWidth + (chartWidth / validData.length - barWidth) / 2
           const y = padding + chartHeight - barHeight
           return (
             <g key={index}>
@@ -264,8 +211,8 @@ const UserGrowthBarChart = ({ data }) => {
         })}
       </svg>
       <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
-        {data.map((item, index) => (
-          <span key={index} className="text-[10px]">{item.month}</span>
+        {validData.map((item, index) => (
+          <span key={index} className="text-[10px]">{item.month || ''}</span>
         ))}
       </div>
     </div>
@@ -273,17 +220,32 @@ const UserGrowthBarChart = ({ data }) => {
 }
 
 const ConsultationsAreaChart = ({ data }) => {
-  const maxValue = Math.max(...data.map(d => d.consultations))
-  const minValue = Math.min(...data.map(d => d.consultations))
-  const range = maxValue - minValue || 1
+  // Validate and filter data
+  const validData = Array.isArray(data) && data.length > 0 
+    ? data.filter(d => d && typeof d.consultations === 'number' && !isNaN(d.consultations))
+    : []
+  
+  // If no valid data, return empty chart
+  if (validData.length === 0) {
+    return (
+      <div className="relative flex items-center justify-center h-32">
+        <p className="text-sm text-slate-400">No data available</p>
+      </div>
+    )
+  }
+  
+  const values = validData.map(d => d.consultations || 0)
+  const maxValue = Math.max(...values)
+  const minValue = Math.min(...values)
+  const range = maxValue - minValue || 1 // Avoid division by zero
   const width = 100
   const height = 120
   const padding = 10
   const chartWidth = width - padding * 2
   const chartHeight = height - padding * 2
 
-  const points = data.map((item, index) => {
-    const x = padding + (index / (data.length - 1)) * chartWidth
+  const points = validData.map((item, index) => {
+    const x = padding + (index / Math.max(validData.length - 1, 1)) * chartWidth
     const y = padding + chartHeight - ((item.consultations - minValue) / range) * chartHeight
     return `${x},${y}`
   }).join(' ')
@@ -309,8 +271,8 @@ const ConsultationsAreaChart = ({ data }) => {
           points={`${padding},${padding + chartHeight} ${points} ${padding + chartWidth},${padding + chartHeight}`}
           fill="url(#consultationsGradient)"
         />
-        {data.map((item, index) => {
-          const x = padding + (index / (data.length - 1)) * chartWidth
+        {validData.map((item, index) => {
+          const x = padding + (index / Math.max(validData.length - 1, 1)) * chartWidth
           const y = padding + chartHeight - ((item.consultations - minValue) / range) * chartHeight
           return (
             <circle
@@ -325,8 +287,8 @@ const ConsultationsAreaChart = ({ data }) => {
         })}
       </svg>
       <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
-        {data.map((item, index) => (
-          <span key={index} className="text-[10px]">{item.month}</span>
+        {validData.map((item, index) => (
+          <span key={index} className="text-[10px]">{item.month || ''}</span>
         ))}
       </div>
     </div>
@@ -334,12 +296,60 @@ const ConsultationsAreaChart = ({ data }) => {
 }
 
 const UserDistributionChart = ({ patients, doctors, pharmacies, laboratories }) => {
-  const total = patients + doctors + pharmacies + laboratories
+  // Ensure all values are numbers
+  const safePatients = Number(patients) || 0
+  const safeDoctors = Number(doctors) || 0
+  const safePharmacies = Number(pharmacies) || 0
+  const safeLaboratories = Number(laboratories) || 0
+  
+  const total = safePatients + safeDoctors + safePharmacies + safeLaboratories
+  
+  // If total is 0, show empty state
+  if (total === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-32 h-32 rounded-full bg-slate-100 flex items-center justify-center">
+          <p className="text-xs text-slate-400">No data</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 w-full">
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-blue-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-900">Patients</p>
+              <p className="text-[10px] text-slate-600">0 (0%)</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-emerald-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-900">Doctors</p>
+              <p className="text-[10px] text-slate-600">0 (0%)</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-purple-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-900">Pharmacies</p>
+              <p className="text-[10px] text-slate-600">0 (0%)</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 rounded-full bg-amber-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-900">Laboratories</p>
+              <p className="text-[10px] text-slate-600">0 (0%)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  
   const data = [
-    { label: 'Patients', value: patients, color: '#3b82f6' },
-    { label: 'Doctors', value: doctors, color: '#10b981' },
-    { label: 'Pharmacies', value: pharmacies, color: '#8b5cf6' },
-    { label: 'Laboratories', value: laboratories, color: '#f59e0b' },
+    { label: 'Patients', value: safePatients, color: '#3b82f6' },
+    { label: 'Doctors', value: safeDoctors, color: '#10b981' },
+    { label: 'Pharmacies', value: safePharmacies, color: '#8b5cf6' },
+    { label: 'Laboratories', value: safeLaboratories, color: '#f59e0b' },
   ]
 
   let currentAngle = -90
@@ -348,7 +358,7 @@ const UserDistributionChart = ({ patients, doctors, pharmacies, laboratories }) 
   const radius = 35
 
   const segments = data.map((item) => {
-    const percentage = (item.value / total) * 100
+    const percentage = total > 0 ? (item.value / total) * 100 : 0
     const angle = (percentage / 100) * 360
     const startAngle = currentAngle
     const endAngle = currentAngle + angle
@@ -428,6 +438,12 @@ const AdminDashboard = () => {
   const [pendingPaymentCount, setPendingPaymentCount] = useState(0)
   const [confirmedPaymentCount, setConfirmedPaymentCount] = useState(0)
   const [paymentNotifications, setPaymentNotifications] = useState([])
+  const [recentActivities, setRecentActivities] = useState([])
+  const [pendingVerifications, setPendingVerifications] = useState([])
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true)
+  const [isLoadingPendingVerifications, setIsLoadingPendingVerifications] = useState(true)
+  const [chartData, setChartData] = useState(defaultChartData)
+  const [isLoadingCharts, setIsLoadingCharts] = useState(true)
 
   // Fetch dashboard stats from backend
   useEffect(() => {
@@ -529,6 +545,10 @@ const AdminDashboard = () => {
           })
         }
       } catch (error) {
+        // Silently handle 401 errors (user logged out)
+        if (error.message && error.message.includes('Authentication token missing')) {
+          return
+        }
         console.error('Error fetching dashboard stats:', error)
         // Keep default stats on error
       } finally {
@@ -538,7 +558,12 @@ const AdminDashboard = () => {
 
     fetchDashboardStats()
     // Refresh every 60 seconds
-    const interval = setInterval(fetchDashboardStats, 60000)
+    const interval = setInterval(() => {
+      const token = getAuthToken('admin')
+      if (token) {
+        fetchDashboardStats()
+      }
+    }, 60000)
     return () => clearInterval(interval)
   }, [])
 
@@ -605,7 +630,7 @@ const AdminDashboard = () => {
     return () => clearInterval(interval)
   }, [])
 
-  // Load real appointment count and doctor overview from localStorage
+  // Load real appointment count and doctor overview from API
   // This MUST be called before any conditional returns to follow React Hooks rules
   useEffect(() => {
     // Check token before loading
@@ -613,9 +638,13 @@ const AdminDashboard = () => {
     if (!token) {
       return
     }
-    const loadAppointments = () => {
+    const loadAppointments = async () => {
       try {
-        const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
+        const response = await getAdminAppointments({ limit: 1000 })
+        const allAppts = response.success && response.data
+          ? (response.data.items || response.data || [])
+          : []
+        
         const today = new Date()
         today.setHours(0, 0, 0, 0)
         const tomorrow = new Date(today)
@@ -633,15 +662,18 @@ const AdminDashboard = () => {
         // Create doctor aggregation for overview
         const doctorMap = new Map()
         allAppts.forEach((apt) => {
-          const doctorName = apt.doctorName || apt.doctor?.name || 'Unknown Doctor'
-          const specialty = apt.specialty || apt.doctorSpecialty || 'Unknown Specialty'
+          const doctor = apt.doctorId || {}
+          const doctorName = doctor.firstName && doctor.lastName
+            ? `${doctor.firstName} ${doctor.lastName}`
+            : apt.doctorName || 'Unknown Doctor'
+          const specialty = doctor.specialization || apt.specialty || apt.doctorSpecialty || 'Unknown Specialty'
           const key = `${doctorName}_${specialty}`
           
           if (!doctorMap.has(key)) {
             doctorMap.set(key, {
               doctorName,
               specialty,
-              doctorId: apt.doctorId || apt.doctor?.id,
+              doctorId: doctor._id || doctor.id || apt.doctorId,
               total: 0,
               scheduled: 0,
               confirmed: 0,
@@ -651,19 +683,19 @@ const AdminDashboard = () => {
             })
           }
           
-          const doctor = doctorMap.get(key)
-          doctor.total++
+          const doctorData = doctorMap.get(key)
+          doctorData.total++
           
           if (apt.status === 'scheduled' || apt.status === 'waiting') {
-            doctor.scheduled++
+            doctorData.scheduled++
           } else if (apt.status === 'confirmed') {
-            doctor.confirmed++
+            doctorData.confirmed++
           } else if (apt.status === 'completed') {
-            doctor.completed++
+            doctorData.completed++
           } else if (apt.status === 'cancelled') {
-            doctor.cancelled++
+            doctorData.cancelled++
           } else if (apt.status === 'rescheduled') {
-            doctor.rescheduled++
+            doctorData.rescheduled++
           }
         })
         
@@ -671,8 +703,12 @@ const AdminDashboard = () => {
           .sort((a, b) => b.total - a.total)
           .slice(0, 5) // Show top 5 doctors
         
-        setDoctorAppointmentsOverview(doctors)
+        setDoctorAppointmentsOverview(doctors || [])
       } catch (error) {
+        // Silently handle 401 errors (user logged out)
+        if (error.message && error.message.includes('Authentication token missing')) {
+          return
+        }
         console.error('Error loading appointments:', error)
         setTodayAppointmentsCount(0)
         setDoctorAppointmentsOverview([])
@@ -680,21 +716,40 @@ const AdminDashboard = () => {
     }
     
     loadAppointments()
-    // Refresh every 2 seconds
-    const interval = setInterval(loadAppointments, 2000)
-    return () => clearInterval(interval)
+    
+    // Listen for appointment booking event to refresh appointments
+    const handleAppointmentBooked = () => {
+      loadAppointments()
+    }
+    window.addEventListener('appointmentBooked', handleAppointmentBooked)
+    
+    // Refresh every 30 seconds (reduced from 2 seconds to avoid excessive API calls)
+    const interval = setInterval(() => {
+      const token = getAuthToken('admin')
+      if (token) {
+        loadAppointments()
+      }
+    }, 30000)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('appointmentBooked', handleAppointmentBooked)
+    }
   }, [])
 
-  // Load payment data from localStorage
+  // Load payment data from API
   useEffect(() => {
     const token = getAuthToken('admin')
     if (!token) {
       return
     }
     
+    const loadPaymentData = async () => {
     try {
-      // Load payment-related requests from localStorage
-      const allRequests = JSON.parse(localStorage.getItem('allRequests') || '[]')
+        // Load payment-related requests from API
+        const response = await getAdminRequests({ limit: 1000 })
+        const allRequests = response.success && response.data
+          ? (response.data.items || response.data || [])
+          : []
       
       // Count pending payments (requests with payment status pending)
       const pendingPayments = allRequests.filter(
@@ -713,22 +768,368 @@ const AdminDashboard = () => {
       const notifications = allRequests
         .filter((req) => req.paymentStatus === 'confirmed' || req.paymentStatus === 'pending')
         .slice(0, 5) // Show latest 5
-        .map((req) => ({
-          id: req.id || `payment-${Date.now()}`,
+          .map((req) => {
+            const patient = req.patientId || {}
+            const patientName = patient.firstName && patient.lastName
+              ? `${patient.firstName} ${patient.lastName}`
+              : req.patientName || 'Patient'
+            return {
+              id: req._id || req.id || `payment-${Date.now()}`,
           type: req.type || 'payment',
           message: req.paymentStatus === 'confirmed' 
-            ? `Payment confirmed for ${req.patientName || 'Patient'}'s request`
-            : `Payment pending for ${req.patientName || 'Patient'}'s request`,
+                ? `Payment confirmed for ${patientName}'s request`
+                : `Payment pending for ${patientName}'s request`,
           timestamp: req.updatedAt || req.createdAt || new Date().toISOString(),
-        }))
+            }
+          })
       
       setPaymentNotifications(notifications)
     } catch (error) {
+        // Silently handle 401 errors (user logged out)
+        if (error.message && error.message.includes('Authentication token missing')) {
+          return
+        }
       console.error('Error loading payment data:', error)
       setPendingPaymentCount(0)
       setConfirmedPaymentCount(0)
       setPaymentNotifications([])
     }
+    }
+    
+    loadPaymentData()
+    // Refresh every 30 seconds
+    const interval = setInterval(() => {
+      const token = getAuthToken('admin')
+      if (token) {
+        loadPaymentData()
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Fetch recent activities from backend
+  useEffect(() => {
+    const token = getAuthToken('admin')
+    if (!token) {
+      return
+    }
+
+    const fetchRecentActivities = async () => {
+      // Check token before making request
+      const currentToken = getAuthToken('admin')
+      if (!currentToken) {
+        setIsLoadingActivities(false)
+        return
+      }
+
+      try {
+        setIsLoadingActivities(true)
+        const response = await getRecentActivities(10)
+        
+        if (response.success && response.data) {
+          const activities = Array.isArray(response.data) ? response.data : []
+          
+          // Transform activities to match UI format
+          const transformedActivities = activities.map((activity) => {
+            try {
+              let action = ''
+              let name = ''
+              let type = activity.type || 'notification'
+              let status = 'success'
+              let image = ''
+              
+              const data = activity.data || {}
+              const dateStr = activity.date || activity.createdAt || new Date().toISOString()
+              let date
+              try {
+                date = new Date(dateStr)
+                if (isNaN(date.getTime())) {
+                  date = new Date()
+                }
+              } catch {
+                date = new Date()
+              }
+              const timeAgo = getTimeAgo(date)
+            
+            if (activity.type === 'appointment') {
+              const patient = data.patientId || {}
+              const doctor = data.doctorId || {}
+              const patientName = patient.firstName && patient.lastName
+                ? `${patient.firstName} ${patient.lastName}`
+                : patient.name || 'Patient'
+              const doctorName = doctor.firstName && doctor.lastName
+                ? `Dr. ${doctor.firstName} ${doctor.lastName}`
+                : doctor.name || 'Doctor'
+              
+              if (data.status === 'completed') {
+                action = 'Consultation completed'
+                name = doctorName
+                type = 'consultation'
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=6366f1&color=fff&size=128&bold=true`
+              } else if (data.status === 'scheduled' || data.status === 'confirmed') {
+                action = 'Appointment scheduled'
+                name = `${patientName} with ${doctorName}`
+                type = 'consultation'
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=6366f1&color=fff&size=128&bold=true`
+              } else {
+                action = 'Appointment created'
+                name = `${patientName} with ${doctorName}`
+                type = 'consultation'
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=6366f1&color=fff&size=128&bold=true`
+              }
+            } else if (activity.type === 'order') {
+              const patient = data.patientId || {}
+              const patientName = patient.firstName && patient.lastName
+                ? `${patient.firstName} ${patient.lastName}`
+                : patient.name || 'Patient'
+              
+              if (data.status === 'completed' || data.status === 'delivered') {
+                action = 'Order completed'
+                name = patientName
+                type = 'order'
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+              } else {
+                action = 'New order placed'
+                name = patientName
+                type = 'order'
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+              }
+            } else if (activity.type === 'request') {
+              const patient = data.patientId || {}
+              const patientName = patient.firstName && patient.lastName
+                ? `${patient.firstName} ${patient.lastName}`
+                : patient.name || 'Patient'
+              
+              action = 'New request submitted'
+              name = patientName
+              type = 'request'
+              status = data.status === 'pending' ? 'pending' : 'success'
+              image = `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=128&bold=true`
+            } else if (activity.type === 'verification') {
+              if (data.firstName || data.lastName) {
+                // Doctor
+                const doctorName = `Dr. ${data.firstName || ''} ${data.lastName || ''}`.trim()
+                action = 'Doctor verification pending'
+                name = doctorName
+                type = 'doctor'
+                status = 'pending'
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=10b981&color=fff&size=128&bold=true`
+              } else if (data.pharmacyName) {
+                // Pharmacy
+                action = 'Pharmacy verification pending'
+                name = data.pharmacyName
+                type = 'pharmacy'
+                status = 'pending'
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.pharmacyName)}&background=8b5cf6&color=fff&size=128&bold=true`
+              } else if (data.labName) {
+                // Laboratory
+                action = 'Laboratory verification pending'
+                name = data.labName
+                type = 'laboratory'
+                status = 'pending'
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.labName)}&background=f59e0b&color=fff&size=128&bold=true`
+              }
+            }
+            
+              return {
+                id: activity._id || activity.id || `act-${Date.now()}-${Math.random()}`,
+                type,
+                action: action || 'Activity',
+                name: name || 'Unknown',
+                image: image || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Unknown')}&background=3b82f6&color=fff&size=128&bold=true`,
+                time: timeAgo,
+                status,
+              }
+            } catch (err) {
+              console.error('Error transforming activity:', err, activity)
+              return {
+                id: activity._id || activity.id || `act-${Date.now()}-${Math.random()}`,
+                type: 'notification',
+                action: 'Activity',
+                name: 'Unknown',
+                image: `https://ui-avatars.com/api/?name=Unknown&background=3b82f6&color=fff&size=128&bold=true`,
+                time: 'Just now',
+                status: 'success',
+              }
+            }
+          })
+          
+          setRecentActivities(transformedActivities)
+        }
+      } catch (error) {
+        // Silently handle 401 errors (user logged out)
+        if (error.message && error.message.includes('Authentication token missing')) {
+          // User logged out, stop fetching
+          return
+        }
+        console.error('Error fetching recent activities:', error)
+        setRecentActivities([])
+      } finally {
+        setIsLoadingActivities(false)
+      }
+    }
+    
+    fetchRecentActivities()
+    // Refresh every 30 seconds
+    const interval = setInterval(() => {
+      const token = getAuthToken('admin')
+      if (token) {
+        fetchRecentActivities()
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Fetch pending verifications list from backend
+  useEffect(() => {
+    const token = getAuthToken('admin')
+    if (!token) {
+      return
+    }
+
+    const fetchPendingVerifications = async () => {
+      // Check token before making request
+      const currentToken = getAuthToken('admin')
+      if (!currentToken) {
+        setIsLoadingPendingVerifications(false)
+        return
+      }
+
+      try {
+        setIsLoadingPendingVerifications(true)
+        const response = await getPendingVerifications({ limit: 10 })
+        
+        if (response.success && response.data) {
+          const verifications = Array.isArray(response.data) 
+            ? response.data 
+            : (response.data.verifications || response.data.items || [])
+          
+          // Transform verifications to match UI format
+          const transformedVerifications = verifications
+            .filter(ver => ver.status === 'pending')
+            .map((ver) => {
+              let name = ''
+              let type = 'doctor'
+              let image = ''
+              let specialty = ''
+              let owner = ''
+              let email = ''
+              
+              if (ver.firstName || ver.lastName) {
+                // Doctor
+                name = `Dr. ${ver.firstName || ''} ${ver.lastName || ''}`.trim()
+                type = 'doctor'
+                specialty = ver.specialization || ver.specialty || ''
+                email = ver.email || ''
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10b981&color=fff&size=128&bold=true`
+              } else if (ver.pharmacyName) {
+                // Pharmacy
+                name = ver.pharmacyName
+                type = 'pharmacy'
+                owner = ver.contactPerson || ver.owner || ''
+                email = ver.email || ''
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=8b5cf6&color=fff&size=128&bold=true`
+              } else if (ver.labName) {
+                // Laboratory
+                name = ver.labName
+                type = 'laboratory'
+                owner = ver.contactPerson || ver.owner || ''
+                email = ver.email || ''
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=f59e0b&color=fff&size=128&bold=true`
+              }
+              
+              return {
+                id: ver._id || ver.id || `ver-${Date.now()}-${Math.random()}`,
+                type,
+                name,
+                image,
+                email,
+                submittedAt: ver.createdAt || ver.submittedAt || new Date().toISOString(),
+                status: 'pending',
+                specialty,
+                owner,
+              }
+            })
+          
+          setPendingVerifications(transformedVerifications)
+        }
+      } catch (error) {
+        // Silently handle 401 errors (user logged out)
+        if (error.message && error.message.includes('Authentication token missing')) {
+          // User logged out, stop fetching
+          return
+        }
+        console.error('Error fetching pending verifications:', error)
+        setPendingVerifications([])
+      } finally {
+        setIsLoadingPendingVerifications(false)
+      }
+    }
+    
+    fetchPendingVerifications()
+    // Refresh every 30 seconds
+    const interval = setInterval(() => {
+      const token = getAuthToken('admin')
+      if (token) {
+        fetchPendingVerifications()
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Fetch chart data from backend
+  useEffect(() => {
+    const token = getAuthToken('admin')
+    if (!token) {
+      return
+    }
+
+    const fetchChartData = async () => {
+      try {
+        setIsLoadingCharts(true)
+        const response = await getDashboardChartData()
+        
+        if (response.success && response.data) {
+          // Normalize data to ensure all values are numbers
+          const normalizeArray = (arr) => {
+            if (!Array.isArray(arr)) return []
+            return arr.map(item => ({
+              ...item,
+              value: typeof item.value === 'number' ? item.value : (Number(item.value) || 0),
+              users: typeof item.users === 'number' ? item.users : (Number(item.users) || 0),
+              consultations: typeof item.consultations === 'number' ? item.consultations : (Number(item.consultations) || 0),
+            }))
+          }
+          
+          setChartData({
+            revenue: normalizeArray(response.data.revenue || []),
+            userGrowth: normalizeArray(response.data.userGrowth || []),
+            consultations: normalizeArray(response.data.consultations || []),
+          })
+        } else {
+          setChartData(defaultChartData)
+        }
+      } catch (error) {
+        // Silently handle 401 errors (user logged out)
+        if (error.message && error.message.includes('Authentication token missing')) {
+          return
+        }
+        console.error('Error fetching chart data:', error)
+        setChartData(defaultChartData)
+      } finally {
+        setIsLoadingCharts(false)
+      }
+    }
+    
+    fetchChartData()
+    // Refresh every 5 minutes
+    const interval = setInterval(() => {
+      const token = getAuthToken('admin')
+      if (token) {
+        fetchChartData()
+      }
+    }, 300000)
+    return () => clearInterval(interval)
   }, [])
 
   const usersChange = stats.lastMonthUsers > 0 
@@ -1159,12 +1560,7 @@ const AdminDashboard = () => {
                   <article
                     key={notification.id}
                     onClick={() => {
-                      // Mark as read
-                      const notifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]')
-                      const updated = notifications.map(n => 
-                        n.id === notification.id ? { ...n, read: true } : n
-                      )
-                      localStorage.setItem('adminNotifications', JSON.stringify(updated))
+                      // Navigate to requests page (notifications will be managed by backend in future)
                       navigate('/admin/requests')
                     }}
                     className="rounded-xl border border-emerald-200 bg-white p-3 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
@@ -1199,7 +1595,16 @@ const AdminDashboard = () => {
             </header>
 
             <div className="space-y-2 sm:space-y-3">
-              {recentActivities.map((activity) => {
+              {isLoadingActivities ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
+                  <p className="text-sm text-slate-600">Loading activities...</p>
+                </div>
+              ) : recentActivities.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
+                  <p className="text-sm text-slate-600">No recent activities</p>
+                </div>
+              ) : (
+                recentActivities.map((activity) => {
                 const ActivityIcon = getActivityIcon(activity.type)
                 return (
                   <article
@@ -1239,7 +1644,8 @@ const AdminDashboard = () => {
                     </div>
                   </article>
                 )
-              })}
+                })
+              )}
             </div>
           </section>
 
@@ -1252,7 +1658,16 @@ const AdminDashboard = () => {
             </header>
 
             <div className="space-y-2 sm:space-y-3">
-              {pendingVerifications.map((verification) => {
+              {isLoadingPendingVerifications ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
+                  <p className="text-sm text-slate-600">Loading verifications...</p>
+                </div>
+              ) : pendingVerifications.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
+                  <p className="text-sm text-slate-600">No pending verifications</p>
+                </div>
+              ) : (
+                pendingVerifications.map((verification) => {
                 const VerificationIcon = getActivityIcon(verification.type)
                 return (
                   <article
@@ -1298,7 +1713,8 @@ const AdminDashboard = () => {
                     </div>
                   </article>
                 )
-              })}
+                })
+              )}
             </div>
           </section>
         </div>
@@ -1378,7 +1794,13 @@ const AdminDashboard = () => {
               <h2 className="text-base sm:text-lg font-semibold text-slate-900">Revenue Trend</h2>
               <p className="mt-1 text-[10px] sm:text-xs text-slate-600">Last 6 months</p>
             </header>
-            <RevenueLineChart data={revenueData} />
+            {isLoadingCharts ? (
+              <div className="flex items-center justify-center h-48">
+                <p className="text-sm text-slate-600">Loading chart data...</p>
+              </div>
+            ) : (
+              <RevenueLineChart data={chartData.revenue} />
+            )}
           </section>
 
           {/* User Growth Chart */}
@@ -1387,7 +1809,13 @@ const AdminDashboard = () => {
               <h2 className="text-base sm:text-lg font-semibold text-slate-900">User Growth</h2>
               <p className="mt-1 text-[10px] sm:text-xs text-slate-600">Last 6 months</p>
             </header>
-            <UserGrowthBarChart data={userGrowthData} />
+            {isLoadingCharts ? (
+              <div className="flex items-center justify-center h-48">
+                <p className="text-sm text-slate-600">Loading chart data...</p>
+              </div>
+            ) : (
+              <UserGrowthBarChart data={chartData.userGrowth} />
+            )}
           </section>
 
           {/* Consultations Chart */}
@@ -1396,7 +1824,13 @@ const AdminDashboard = () => {
               <h2 className="text-base sm:text-lg font-semibold text-slate-900">Consultations Trend</h2>
               <p className="mt-1 text-[10px] sm:text-xs text-slate-600">Last 6 months</p>
             </header>
-            <ConsultationsAreaChart data={consultationsData} />
+            {isLoadingCharts ? (
+              <div className="flex items-center justify-center h-48">
+                <p className="text-sm text-slate-600">Loading chart data...</p>
+              </div>
+            ) : (
+              <ConsultationsAreaChart data={chartData.consultations} />
+            )}
           </section>
 
           {/* User Distribution Chart */}

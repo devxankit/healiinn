@@ -2,6 +2,7 @@ const asyncHandler = require('../../middleware/asyncHandler');
 const Prescription = require('../../models/Prescription');
 const LabReport = require('../../models/LabReport');
 const Appointment = require('../../models/Appointment');
+const Order = require('../../models/Order');
 
 // Helper function for pagination
 const buildPagination = (req) => {
@@ -16,9 +17,9 @@ exports.getCompleteHistory = asyncHandler(async (req, res) => {
   const { id } = req.auth;
   const { page, limit, skip } = buildPagination(req);
 
-  const [prescriptions, reports, appointments, prescriptionCount, reportCount, appointmentCount] = await Promise.all([
+  const [prescriptions, reports, appointments, orders, prescriptionCount, reportCount, appointmentCount, orderCount] = await Promise.all([
     Prescription.find({ patientId: id })
-      .populate('doctorId', 'firstName lastName specialization')
+      .populate('doctorId', 'firstName lastName specialization profileImage')
       .populate('consultationId')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -30,13 +31,19 @@ exports.getCompleteHistory = asyncHandler(async (req, res) => {
       .skip(skip)
       .limit(limit),
     Appointment.find({ patientId: id })
-      .populate('doctorId', 'firstName lastName specialization')
+      .populate('doctorId', 'firstName lastName specialization profileImage')
       .sort({ appointmentDate: -1 })
+      .skip(skip)
+      .limit(limit),
+    Order.find({ patientId: id })
+      .populate('providerId', 'pharmacyName labName')
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
     Prescription.countDocuments({ patientId: id }),
     LabReport.countDocuments({ patientId: id }),
     Appointment.countDocuments({ patientId: id }),
+    Order.countDocuments({ patientId: id }),
   ]);
 
   return res.status(200).json({
@@ -67,6 +74,15 @@ exports.getCompleteHistory = asyncHandler(async (req, res) => {
           limit,
           total: appointmentCount,
           totalPages: Math.ceil(appointmentCount / limit) || 1,
+        },
+      },
+      orders: {
+        items: orders,
+        pagination: {
+          page,
+          limit,
+          total: orderCount,
+          totalPages: Math.ceil(orderCount / limit) || 1,
         },
       },
     },
@@ -138,7 +154,7 @@ exports.getAppointmentHistory = asyncHandler(async (req, res) => {
 
   const [appointments, total] = await Promise.all([
     Appointment.find({ patientId: id })
-      .populate('doctorId', 'firstName lastName specialization')
+      .populate('doctorId', 'firstName lastName specialization profileImage')
       .sort({ appointmentDate: -1 })
       .skip(skip)
       .limit(limit),
@@ -149,6 +165,34 @@ exports.getAppointmentHistory = asyncHandler(async (req, res) => {
     success: true,
     data: {
       items: appointments,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    },
+  });
+});
+
+// GET /api/patients/history/orders - Order history
+exports.getOrderHistory = asyncHandler(async (req, res) => {
+  const { id } = req.auth;
+  const { page, limit, skip } = buildPagination(req);
+
+  const [orders, total] = await Promise.all([
+    Order.find({ patientId: id })
+      .populate('providerId', 'pharmacyName labName')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Order.countDocuments({ patientId: id }),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      items: orders,
       pagination: {
         page,
         limit,

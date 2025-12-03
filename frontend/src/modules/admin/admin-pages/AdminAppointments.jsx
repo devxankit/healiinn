@@ -12,6 +12,8 @@ import {
   IoChevronBackOutline,
   IoChevronForwardOutline,
 } from 'react-icons/io5'
+import { getAdminAppointments } from '../admin-services/adminService'
+import { useToast } from '../../../contexts/ToastContext'
 
 // Helper function to format date as YYYY-MM-DD
 const formatDate = (date) => {
@@ -57,298 +59,18 @@ const threeMonthsAgo = new Date(today)
 threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
 const threeMonthsAgoStr = formatDate(threeMonthsAgo)
 
-const mockAppointments = [
-  {
-    id: 'apt-1',
-    patientName: 'John Doe',
-    doctorName: 'Dr. Sarah Johnson',
-    specialty: 'Cardiology',
-    date: todayStr,
-    time: '10:00 AM',
-    status: 'confirmed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-2',
-    patientName: 'Sarah Smith',
-    doctorName: 'Dr. Michael Brown',
-    specialty: 'Pediatrics',
-    date: todayStr,
-    time: '11:30 AM',
-    status: 'rescheduled',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-3',
-    patientName: 'Mike Johnson',
-    doctorName: 'Dr. James Wilson',
-    specialty: 'Dermatology',
-    date: todayStr,
-    time: '02:00 PM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-4',
-    patientName: 'Emily Brown',
-    doctorName: 'Dr. Jennifer Lee',
-    specialty: 'Orthopedics',
-    date: todayStr,
-    time: '09:00 AM',
-    status: 'cancelled',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-5',
-    patientName: 'David Wilson',
-    doctorName: 'Dr. Sarah Johnson',
-    specialty: 'Cardiology',
-    date: todayStr,
-    time: '03:30 PM',
-    status: 'confirmed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-6',
-    patientName: 'Priya Sharma',
-    doctorName: 'Dr. Rajesh Kumar',
-    specialty: 'General Medicine',
-    date: todayStr,
-    time: '01:00 PM',
-    status: 'rescheduled',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-7',
-    patientName: 'Anjali Mehta',
-    doctorName: 'Dr. Amit Patel',
-    specialty: 'Gynecology',
-    date: todayStr,
-    time: '04:00 PM',
-    status: 'confirmed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-8',
-    patientName: 'Rohit Singh',
-    doctorName: 'Dr. Sneha Reddy',
-    specialty: 'Neurology',
-    date: todayStr,
-    time: '05:00 PM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  // This week appointments for monthly view
-  {
-    id: 'apt-9',
-    patientName: 'Ravi Verma',
-    doctorName: 'Dr. Michael Brown',
-    specialty: 'Pediatrics',
-    date: yesterdayStr,
-    time: '10:30 AM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-10',
-    patientName: 'Sneha Patel',
-    doctorName: 'Dr. James Wilson',
-    specialty: 'Dermatology',
-    date: yesterdayStr,
-    time: '02:30 PM',
-    status: 'confirmed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-11',
-    patientName: 'Amit Singh',
-    doctorName: 'Dr. Jennifer Lee',
-    specialty: 'Orthopedics',
-    date: twoDaysAgoStr,
-    time: '11:00 AM',
-    status: 'rescheduled',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-12',
-    patientName: 'Kavita Reddy',
-    doctorName: 'Dr. Sarah Johnson',
-    specialty: 'Cardiology',
-    date: twoDaysAgoStr,
-    time: '03:00 PM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-13',
-    patientName: 'Vikram Malhotra',
-    doctorName: 'Dr. Rajesh Kumar',
-    specialty: 'General Medicine',
-    date: threeDaysAgoStr,
-    time: '09:30 AM',
-    status: 'confirmed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-14',
-    patientName: 'Meera Iyer',
-    doctorName: 'Dr. Amit Patel',
-    specialty: 'Gynecology',
-    date: threeDaysAgoStr,
-    time: '01:30 PM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-15',
-    patientName: 'Arjun Nair',
-    doctorName: 'Dr. Sneha Reddy',
-    specialty: 'Neurology',
-    date: fourDaysAgoStr,
-    time: '04:00 PM',
-    status: 'rescheduled',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-16',
-    patientName: 'Divya Menon',
-    doctorName: 'Dr. Michael Brown',
-    specialty: 'Pediatrics',
-    date: fourDaysAgoStr,
-    time: '10:00 AM',
-    status: 'cancelled',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-17',
-    patientName: 'Nikhil Joshi',
-    doctorName: 'Dr. James Wilson',
-    specialty: 'Dermatology',
-    date: fiveDaysAgoStr,
-    time: '02:00 PM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-18',
-    patientName: 'Pooja Desai',
-    doctorName: 'Dr. Jennifer Lee',
-    specialty: 'Orthopedics',
-    date: fiveDaysAgoStr,
-    time: '11:30 AM',
-    status: 'confirmed',
-    type: 'consultation',
-  },
-  // Earlier this month for monthly view
-  {
-    id: 'apt-19',
-    patientName: 'Rahul Gupta',
-    doctorName: 'Dr. Sarah Johnson',
-    specialty: 'Cardiology',
-    date: tenDaysAgoStr,
-    time: '10:00 AM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-20',
-    patientName: 'Sunita Rao',
-    doctorName: 'Dr. Michael Brown',
-    specialty: 'Pediatrics',
-    date: tenDaysAgoStr,
-    time: '02:00 PM',
-    status: 'confirmed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-21',
-    patientName: 'Karan Mehta',
-    doctorName: 'Dr. James Wilson',
-    specialty: 'Dermatology',
-    date: fifteenDaysAgoStr,
-    time: '11:00 AM',
-    status: 'rescheduled',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-22',
-    patientName: 'Neha Shah',
-    doctorName: 'Dr. Jennifer Lee',
-    specialty: 'Orthopedics',
-    date: fifteenDaysAgoStr,
-    time: '03:30 PM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  // Previous months for yearly view
-  {
-    id: 'apt-23',
-    patientName: 'Vishal Kumar',
-    doctorName: 'Dr. Rajesh Kumar',
-    specialty: 'General Medicine',
-    date: lastMonthStr,
-    time: '09:00 AM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-24',
-    patientName: 'Deepika Nair',
-    doctorName: 'Dr. Amit Patel',
-    specialty: 'Gynecology',
-    date: lastMonthStr,
-    time: '01:00 PM',
-    status: 'confirmed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-25',
-    patientName: 'Aditya Singh',
-    doctorName: 'Dr. Sneha Reddy',
-    specialty: 'Neurology',
-    date: twoMonthsAgoStr,
-    time: '10:30 AM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-26',
-    patientName: 'Shreya Patel',
-    doctorName: 'Dr. Michael Brown',
-    specialty: 'Pediatrics',
-    date: twoMonthsAgoStr,
-    time: '02:30 PM',
-    status: 'rescheduled',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-27',
-    patientName: 'Manish Verma',
-    doctorName: 'Dr. James Wilson',
-    specialty: 'Dermatology',
-    date: threeMonthsAgoStr,
-    time: '11:30 AM',
-    status: 'completed',
-    type: 'consultation',
-  },
-  {
-    id: 'apt-28',
-    patientName: 'Anita Iyer',
-    doctorName: 'Dr. Jennifer Lee',
-    specialty: 'Orthopedics',
-    date: threeMonthsAgoStr,
-    time: '04:00 PM',
-    status: 'confirmed',
-    type: 'consultation',
-  },
-]
+// Default appointments (will be replaced by API data)
+const defaultAppointments = []
 
 const AdminAppointments = () => {
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [periodFilter, setPeriodFilter] = useState('daily') // daily, monthly, yearly
-  const [appointments, setAppointments] = useState([])
+  const [appointments, setAppointments] = useState(defaultAppointments)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [filteredDoctor, setFilteredDoctor] = useState(null) // Doctor filter from query params
   const [currentPage, setCurrentPage] = useState(1) // Pagination state
   const itemsPerPage = 10 // Items per page
@@ -373,30 +95,99 @@ const AdminAppointments = () => {
     setCurrentPage(1)
   }, [periodFilter])
 
-  // Load appointments from localStorage
+  // Load appointments from API
   useEffect(() => {
-    const loadAppointments = () => {
+    const loadAppointments = async () => {
       try {
-        // Load from allAppointments localStorage (shared by patient bookings)
-        const allAppts = JSON.parse(localStorage.getItem('allAppointments') || '[]')
-        // Merge with mock data for backward compatibility
-        const merged = [...allAppts, ...mockAppointments]
-        // Remove duplicates by id
-        const unique = merged.filter((apt, idx, self) => 
-          idx === self.findIndex(a => a.id === apt.id)
-        )
-        setAppointments(unique)
-      } catch (error) {
-        console.error('Error loading appointments:', error)
-        setAppointments(mockAppointments)
+        setLoading(true)
+        setError(null)
+        
+        // Build filters
+        const filters = {}
+        if (searchTerm && !filteredDoctor) {
+          filters.search = searchTerm
+        }
+        
+        // If filtering by doctor, try to find doctor by name
+        if (filteredDoctor) {
+          // Try to find doctor by name from the query params
+          // The backend will handle this, but we can also pass the name
+          filters.doctor = filteredDoctor.doctorName
+        }
+        
+        console.log('🔍 Loading admin appointments with filters:', filters) // Debug log
+        
+        const response = await getAdminAppointments(filters)
+        
+        console.log('📊 Admin appointments API response:', response) // Debug log
+        
+        if (response.success && response.data) {
+          const appointmentsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          
+          console.log('✅ Appointments data received:', {
+            count: appointmentsData.length,
+            firstAppointment: appointmentsData[0],
+          }) // Debug log
+          
+          // Transform API data to match component structure
+          const transformed = appointmentsData.map(apt => ({
+            id: apt._id || apt.id,
+            _id: apt._id || apt.id,
+            patientId: apt.patientId?._id || apt.patientId || apt.patientId?.id,
+            doctorId: apt.doctorId?._id || apt.doctorId || apt.doctorId?.id,
+            patientName: apt.patientId?.firstName && apt.patientId?.lastName
+              ? `${apt.patientId.firstName} ${apt.patientId.lastName}`
+              : apt.patientId?.name || apt.patientName || 'Unknown Patient',
+            doctorName: apt.doctorId?.firstName && apt.doctorId?.lastName
+              ? `Dr. ${apt.doctorId.firstName} ${apt.doctorId.lastName}`
+              : apt.doctorId?.name || apt.doctorName || 'Unknown Doctor',
+            specialty: apt.doctorId?.specialization || apt.specialty || '',
+            date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : apt.date || '',
+            time: apt.appointmentTime || apt.time || apt.sessionId?.sessionStartTime || '',
+            status: apt.status || 'scheduled',
+            type: apt.appointmentType || apt.type || 'consultation',
+            appointmentDate: apt.appointmentDate || apt.date,
+            appointmentTime: apt.appointmentTime || apt.time || apt.sessionId?.sessionStartTime || '',
+            originalData: apt,
+          }))
+          
+          console.log('💰 Setting appointments:', {
+            count: transformed.length,
+            statuses: transformed.map(a => a.status),
+          }) // Debug log
+          
+          setAppointments(transformed)
+        } else {
+          console.error('❌ Admin appointments API response error:', response) // Debug log
+          setAppointments([])
+        }
+      } catch (err) {
+        console.error('❌ Error loading appointments:', err)
+        setError(err.message || 'Failed to load appointments')
+        toast.error('Failed to load appointments')
+        setAppointments([])
+      } finally {
+        setLoading(false)
       }
     }
     
     loadAppointments()
-    // Refresh every 2 seconds to get new appointments
-    const interval = setInterval(loadAppointments, 2000)
-    return () => clearInterval(interval)
-  }, [])
+    
+    // Listen for appointment booked event to refresh
+    const handleAppointmentBooked = () => {
+      loadAppointments()
+    }
+    window.addEventListener('appointmentBooked', handleAppointmentBooked)
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(loadAppointments, 30000)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('appointmentBooked', handleAppointmentBooked)
+    }
+  }, [searchTerm, filteredDoctor, toast])
 
   const filteredAppointments = useMemo(() => {
     let filtered = appointments
@@ -404,12 +195,15 @@ const AdminAppointments = () => {
     // Filter by doctor if filteredDoctor is set
     if (filteredDoctor) {
       filtered = filtered.filter((apt) => {
-        const aptDoctorName = apt.doctorName || apt.doctor?.name || ''
-        const aptSpecialty = apt.specialty || apt.doctorSpecialty || ''
-        return (
-          aptDoctorName === filteredDoctor.doctorName &&
-          aptSpecialty === filteredDoctor.specialty
-        )
+        const aptDoctorName = apt.doctorName || apt.doctor?.name || apt.originalData?.doctorId?.firstName && apt.originalData?.doctorId?.lastName
+          ? `Dr. ${apt.originalData.doctorId.firstName} ${apt.originalData.doctorId.lastName}`
+          : apt.originalData?.doctorId?.name || ''
+        const aptSpecialty = apt.specialty || apt.doctorSpecialty || apt.originalData?.doctorId?.specialization || ''
+        // Match doctor name (with or without "Dr." prefix) and specialty
+        const doctorNameMatch = aptDoctorName.includes(filteredDoctor.doctorName) || 
+          filteredDoctor.doctorName.includes(aptDoctorName.replace('Dr. ', '')) ||
+          aptDoctorName.replace('Dr. ', '').trim() === filteredDoctor.doctorName.trim()
+        return doctorNameMatch && aptSpecialty === filteredDoctor.specialty
       })
     }
 
@@ -659,7 +453,10 @@ const AdminAppointments = () => {
               <IoPersonOutline className="mx-auto h-12 w-12 text-slate-300 mb-3" />
               <p className="text-sm font-medium text-slate-600">No appointments found</p>
               <p className="mt-1 text-xs text-slate-500">
-                No appointments for {filteredDoctor.doctorName} in {periodFilter} period.
+                {filteredDoctor 
+                  ? `No appointments for ${filteredDoctor.doctorName} in ${periodFilter} period.`
+                  : `No appointments for ${periodFilter} period.`
+                }
               </p>
             </div>
           ) : (

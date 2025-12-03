@@ -10,12 +10,16 @@ import {
   IoBagHandleOutline,
   IoAlertCircleOutline,
 } from 'react-icons/io5'
+import { getPharmacyMedicines, addPharmacyMedicine, updatePharmacyMedicine, deletePharmacyMedicine } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const PharmacyMedicines = () => {
+  const toast = useToast()
   const [medicines, setMedicines] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingMedicine, setEditingMedicine] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [formData, setFormData] = useState({
     name: '',
     dosage: '',
@@ -24,55 +28,42 @@ const PharmacyMedicines = () => {
     manufacturer: '',
   })
 
-  // Load medicines from localStorage
+  // Fetch medicines from API
   useEffect(() => {
-    const savedMedicines = JSON.parse(localStorage.getItem('pharmacyMedicines') || '[]')
-    setMedicines(savedMedicines)
-  }, [])
-
-  // Save medicines to localStorage
-  const saveMedicines = (updatedMedicines) => {
-    localStorage.setItem('pharmacyMedicines', JSON.stringify(updatedMedicines))
-    setMedicines(updatedMedicines)
-    
-    // Also update pharmacy availability list for admin
-    updatePharmacyAvailabilityList(updatedMedicines)
-  }
-
-  // Update pharmacy availability list for admin
-  const updatePharmacyAvailabilityList = (medicinesList) => {
-    const pharmacyId = 'pharmacy-1' // In real app, get from auth context
-    const pharmacyName = 'City Pharmacy' // In real app, get from auth context
-    
-    const pharmacyAvailability = {
-      pharmacyId,
-      pharmacyName,
-      medicines: medicinesList.map(med => ({
-        name: med.name,
-        dosage: med.dosage,
-        quantity: med.quantity,
-        price: med.price,
-        manufacturer: med.manufacturer,
-      })),
-      lastUpdated: new Date().toISOString(),
+    const fetchMedicines = async () => {
+      try {
+        setLoading(true)
+        const response = await getPharmacyMedicines()
+        
+        if (response.success && response.data) {
+          // Backend returns medicines in data.items (with pagination)
+          const medicinesData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || response.data.medicines || []
+          
+          const transformed = medicinesData.map(med => ({
+            id: med._id || med.id,
+            name: med.name || '',
+            dosage: med.dosage || '',
+            quantity: med.quantity || med.stock || 0,
+            price: med.price || 0,
+            manufacturer: med.manufacturer || '',
+            createdAt: med.createdAt || new Date().toISOString(),
+            updatedAt: med.updatedAt || new Date().toISOString(),
+          }))
+          
+          setMedicines(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching medicines:', err)
+        toast.error('Failed to load medicines')
+      } finally {
+        setLoading(false)
+      }
     }
 
-    // Get existing pharmacy availability list
-    const existingList = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
-    
-    // Find if this pharmacy already exists
-    const existingIndex = existingList.findIndex(p => p.pharmacyId === pharmacyId)
-    
-    if (existingIndex >= 0) {
-      // Update existing pharmacy
-      existingList[existingIndex] = pharmacyAvailability
-    } else {
-      // Add new pharmacy
-      existingList.push(pharmacyAvailability)
-    }
-
-    localStorage.setItem('allPharmacyAvailability', JSON.stringify(existingList))
-  }
+    fetchMedicines()
+  }, [toast])
 
   const handleAddMedicine = () => {
     setEditingMedicine(null)
@@ -98,60 +89,74 @@ const PharmacyMedicines = () => {
     setShowAddModal(true)
   }
 
-  const handleDeleteMedicine = (medicineId) => {
-    if (window.confirm('Are you sure you want to delete this medicine?')) {
-      const updatedMedicines = medicines.filter(med => med.id !== medicineId)
-      saveMedicines(updatedMedicines)
-    }
-  }
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    
-    if (!formData.name.trim() || !formData.dosage.trim() || !formData.quantity.trim() || !formData.price.trim()) {
-      alert('Please fill in all required fields')
+  const handleDeleteMedicine = async (medicineId) => {
+    if (!window.confirm('Are you sure you want to delete this medicine?')) {
       return
     }
 
-    if (editingMedicine) {
-      // Update existing medicine
-      const updatedMedicines = medicines.map(med =>
-        med.id === editingMedicine.id
-          ? {
-              ...med,
-              name: formData.name.trim(),
-              dosage: formData.dosage.trim(),
-              quantity: formData.quantity.trim(),
-              price: formData.price.trim(),
-              manufacturer: formData.manufacturer.trim(),
-              updatedAt: new Date().toISOString(),
-            }
-          : med
-      )
-      saveMedicines(updatedMedicines)
-    } else {
-      // Add new medicine
-      const newMedicine = {
-        id: `med-${Date.now()}`,
-        name: formData.name.trim(),
-        dosage: formData.dosage.trim(),
-        quantity: formData.quantity.trim(),
-        price: formData.price.trim(),
-        manufacturer: formData.manufacturer.trim(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      saveMedicines([...medicines, newMedicine])
+    try {
+      await deletePharmacyMedicine(medicineId)
+      setMedicines(prev => prev.filter(med => med.id !== medicineId))
+      toast.success('Medicine deleted successfully')
+    } catch (err) {
+      console.error('Error deleting medicine:', err)
+      toast.error(err.message || 'Failed to delete medicine')
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    
+    if (!formData.name.trim() || !formData.dosage.trim() || !formData.quantity.trim() || !formData.price.trim()) {
+      toast.warning('Please fill in all required fields')
+      return
     }
 
-    setShowAddModal(false)
-    setFormData({
-      name: '',
-      dosage: '',
-      quantity: '',
-      price: '',
-      manufacturer: '',
-    })
+    try {
+      const medicineData = {
+        name: formData.name.trim(),
+        dosage: formData.dosage.trim(),
+        quantity: parseInt(formData.quantity.trim()),
+        price: parseFloat(formData.price.trim()),
+        manufacturer: formData.manufacturer.trim(),
+      }
+
+      if (editingMedicine) {
+        // Update existing medicine
+        await updatePharmacyMedicine(editingMedicine.id, medicineData)
+        setMedicines(prev => prev.map(med =>
+          med.id === editingMedicine.id
+            ? { ...med, ...medicineData, updatedAt: new Date().toISOString() }
+            : med
+        ))
+        toast.success('Medicine updated successfully')
+      } else {
+        // Add new medicine
+        const response = await addPharmacyMedicine(medicineData)
+        if (response.success && response.data) {
+          const newMedicine = {
+            id: response.data._id || response.data.id,
+            ...medicineData,
+            createdAt: response.data.createdAt || new Date().toISOString(),
+            updatedAt: response.data.updatedAt || new Date().toISOString(),
+          }
+          setMedicines(prev => [...prev, newMedicine])
+          toast.success('Medicine added successfully')
+        }
+      }
+
+      setShowAddModal(false)
+      setFormData({
+        name: '',
+        dosage: '',
+        quantity: '',
+        price: '',
+        manufacturer: '',
+      })
+    } catch (err) {
+      console.error('Error saving medicine:', err)
+      toast.error(err.message || 'Failed to save medicine')
+    }
   }
 
   const filteredMedicines = medicines.filter(med =>

@@ -1,9 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IoNotificationsOutline, IoPersonCircleOutline, IoMenuOutline, IoCloseOutline } from 'react-icons/io5'
+import { IoPersonCircleOutline, IoMenuOutline, IoCloseOutline } from 'react-icons/io5'
 import { useState, useRef, useEffect } from 'react'
 import AdminSidebar from './AdminSidebar'
 import { logoutAdmin } from '../admin-services/adminService'
 import { useToast } from '../../../contexts/ToastContext'
+import NotificationBell from '../../../components/NotificationBell'
 
 const AdminNavbar = () => {
   const navigate = useNavigate()
@@ -88,13 +89,7 @@ const AdminNavbar = () => {
             
             {/* Right side - Notifications and Profile */}
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
-                aria-label="Notifications"
-              >
-                <IoNotificationsOutline className="text-xl" aria-hidden="true" />
-              </button>
+              <NotificationBell />
               
               {/* Profile Dropdown */}
               <div className="relative" ref={profileRef}>

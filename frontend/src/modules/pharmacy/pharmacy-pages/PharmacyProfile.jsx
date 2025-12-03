@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPharmacyProfile, updatePharmacyProfile } from '../pharmacy-services/pharmacyService'
+import { getPharmacyProfile, updatePharmacyProfile, getSupportHistory, uploadProfileImage } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
 import {
@@ -21,9 +21,28 @@ import {
   IoHelpCircleOutline,
   IoLogOutOutline,
   IoPulseOutline,
+  IoTrashOutline,
+  IoAddOutline,
 } from 'react-icons/io5'
 
 // Mock data removed - using real backend data now
+
+// Utility function to convert 24-hour time to 12-hour format with AM/PM
+const formatTimeTo12Hour = (time24) => {
+  if (!time24) return '';
+  
+  // Handle time format like "17:00" or "17:00:00"
+  const timeStr = time24.toString().trim();
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  
+  if (isNaN(hours) || isNaN(minutes)) return time24;
+  
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const minutesStr = minutes.toString().padStart(2, '0');
+  
+  return `${hours12}:${minutesStr} ${period}`;
+};
 
 const PharmacyProfile = () => {
   const navigate = useNavigate()
@@ -236,6 +255,16 @@ const PharmacyProfile = () => {
       setIsSaving(true)
       
       // Prepare data for backend (match backend expected format)
+      // Ensure timings is a proper array of objects
+      const cleanTimings = Array.isArray(formData.timings)
+        ? formData.timings.map(timing => ({
+            day: timing.day || '',
+            startTime: timing.startTime || '',
+            endTime: timing.endTime || '',
+            isOpen: timing.isOpen !== undefined ? timing.isOpen : true,
+          }))
+        : []
+
       const updateData = {
         pharmacyName: formData.pharmacyName,
         ownerName: formData.ownerName,
@@ -247,12 +276,12 @@ const PharmacyProfile = () => {
         bio: formData.bio,
         address: formData.address,
         contactPerson: formData.contactPerson,
-        timings: formData.timings,
-        deliveryOptions: formData.deliveryOptions,
-        serviceRadiusKm: formData.serviceRadiusKm,
-        responseTimeMinutes: formData.responseTimeMinutes,
-        documents: formData.documents,
-        isActive: formData.isActive,
+        timings: cleanTimings,
+        deliveryOptions: Array.isArray(formData.deliveryOptions) ? formData.deliveryOptions : [],
+        serviceRadiusKm: formData.serviceRadiusKm || 0,
+        responseTimeMinutes: formData.responseTimeMinutes || 0,
+        documents: formData.documents || {},
+        isActive: formData.isActive !== undefined ? formData.isActive : true,
       }
 
       const response = await updatePharmacyProfile(updateData)
@@ -327,6 +356,85 @@ const PharmacyProfile = () => {
     setActiveSection(activeSection === section ? null : section)
   }
 
+  const handleProfileImageChange = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.warning('Please select an image file')
+      return
+    }
+    
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.warning('Image size should be less than 5MB')
+      return
+    }
+
+    try {
+      toast.info('Uploading image...')
+      const response = await uploadProfileImage(file)
+      
+      console.log('Upload response:', response) // Debug log
+      
+      // Handle different response structures
+      let imageUrl = null
+      if (response?.success && response?.data?.url) {
+        imageUrl = response.data.url
+      } else if (response?.url) {
+        imageUrl = response.url
+      } else if (response?.data?.url) {
+        imageUrl = response.data.url
+      }
+      
+      if (imageUrl) {
+        // Construct full URL if it's a relative path
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        const fullImageUrl = imageUrl.startsWith('http') 
+          ? imageUrl 
+          : imageUrl.startsWith('/')
+            ? `${apiBaseUrl}${imageUrl}`
+            : `${apiBaseUrl}/uploads/${imageUrl}`
+        
+        console.log('Setting image URL:', fullImageUrl) // Debug log
+        
+        setFormData((prev) => ({
+          ...prev,
+          profileImage: fullImageUrl,
+        }))
+        
+        // Also update the profile immediately to persist the image
+        try {
+          await updatePharmacyProfile({ profileImage: fullImageUrl })
+          toast.success('Profile image uploaded and saved successfully!')
+        } catch (updateError) {
+          console.error('Error updating profile with image:', updateError)
+          toast.success('Image uploaded! Please save the profile to persist the change.')
+        }
+      } else {
+        console.error('Invalid response format:', response)
+        toast.error('Invalid response from server. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error uploading profile image:', error)
+      
+      // Check for connection errors
+      if (error.message?.includes('Failed to fetch') || 
+          error.message?.includes('ERR_CONNECTION_REFUSED') ||
+          error.message?.includes('NetworkError')) {
+        toast.error('Cannot connect to server. Please make sure the backend server is running.')
+      } else {
+        toast.error(error.message || 'Failed to upload profile image')
+      }
+    } finally {
+      // Reset input value to allow selecting the same file again
+      if (event.target) {
+        event.target.value = ''
+      }
+    }
+  }
+
   // Show loading state
   if (isLoading) {
     return (
@@ -359,6 +467,13 @@ const PharmacyProfile = () => {
         <div className="relative flex flex-col items-center text-center">
           {/* Profile Picture */}
           <div className="relative mb-4">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleProfileImageChange}
+              className="hidden"
+              id="pharmacy-profile-image-input"
+            />
             <img
               src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.pharmacyName || 'Pharmacy')}&background=3b82f6&color=fff&size=128&bold=true`}
               alt={formData.pharmacyName || 'Pharmacy'}
@@ -369,12 +484,13 @@ const PharmacyProfile = () => {
               }}
             />
             {isEditing && (
-              <button
-                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white shadow-lg transition hover:bg-white/30"
+              <label
+                htmlFor="pharmacy-profile-image-input"
+                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white shadow-lg transition hover:bg-white/30 cursor-pointer"
                 aria-label="Change photo"
               >
                 <IoCameraOutline className="h-4 w-4" />
-              </button>
+              </label>
             )}
           </div>
 
@@ -388,17 +504,6 @@ const PharmacyProfile = () => {
             {formData.email}
           </p>
 
-          {/* Badges */}
-          <div className="flex items-center justify-center gap-3 mb-6">
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs sm:text-sm font-medium text-white">
-              <IoPulseOutline className="h-4 w-4" />
-              {formData.bloodGroup || 'O+'}
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs sm:text-sm font-medium text-white">
-              <IoPersonOutline className="h-4 w-4" />
-              {formData.gender || 'Male'}
-            </span>
-          </div>
 
           {/* Action Buttons */}
           <div className="flex flex-col gap-3 w-full max-w-xs">
@@ -477,7 +582,7 @@ const PharmacyProfile = () => {
                 {isEditing ? (
                   <input
                     type="text"
-                    value={formData.pharmacyName}
+                    value={formData.pharmacyName || ''}
                     onChange={(e) => handleInputChange('pharmacyName', e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
@@ -490,7 +595,7 @@ const PharmacyProfile = () => {
                 {isEditing ? (
                   <input
                     type="text"
-                    value={formData.ownerName}
+                    value={formData.ownerName || ''}
                     onChange={(e) => handleInputChange('ownerName', e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
@@ -503,7 +608,7 @@ const PharmacyProfile = () => {
                 {isEditing ? (
                   <input
                     type="text"
-                    value={formData.licenseNumber}
+                    value={formData.licenseNumber || ''}
                     onChange={(e) => handleInputChange('licenseNumber', e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
@@ -515,7 +620,7 @@ const PharmacyProfile = () => {
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Bio</label>
                 {isEditing ? (
                   <textarea
-                    value={formData.bio}
+                    value={formData.bio || ''}
                     onChange={(e) => handleInputChange('bio', e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     rows={3}
@@ -551,7 +656,7 @@ const PharmacyProfile = () => {
                 {isEditing ? (
                   <input
                     type="email"
-                    value={formData.email}
+                    value={formData.email || ''}
                     onChange={(e) => handleInputChange('email', e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
@@ -564,7 +669,7 @@ const PharmacyProfile = () => {
                 {isEditing ? (
                   <input
                     type="tel"
-                    value={formData.phone}
+                    value={formData.phone || ''}
                     onChange={(e) => handleInputChange('phone', e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                   />
@@ -578,21 +683,21 @@ const PharmacyProfile = () => {
                   <div className="space-y-2">
                     <input
                       type="text"
-                      value={formData.contactPerson.name}
+                      value={formData.contactPerson?.name || ''}
                       onChange={(e) => handleInputChange('contactPerson.name', e.target.value)}
                       placeholder="Name"
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     />
                     <input
                       type="tel"
-                      value={formData.contactPerson.phone}
+                      value={formData.contactPerson?.phone || ''}
                       onChange={(e) => handleInputChange('contactPerson.phone', e.target.value)}
                       placeholder="Phone"
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     />
                     <input
                       type="email"
-                      value={formData.contactPerson.email}
+                      value={formData.contactPerson?.email || ''}
                       onChange={(e) => handleInputChange('contactPerson.email', e.target.value)}
                       placeholder="Email"
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
@@ -612,14 +717,14 @@ const PharmacyProfile = () => {
                   <div className="space-y-2">
                     <input
                       type="text"
-                      value={formData.address.line1}
+                      value={formData.address?.line1 || ''}
                       onChange={(e) => handleInputChange('address.line1', e.target.value)}
                       placeholder="Address Line 1"
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     />
                     <input
                       type="text"
-                      value={formData.address.line2}
+                      value={formData.address?.line2 || ''}
                       onChange={(e) => handleInputChange('address.line2', e.target.value)}
                       placeholder="Address Line 2"
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
@@ -627,14 +732,14 @@ const PharmacyProfile = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <input
                         type="text"
-                        value={formData.address.city}
+                        value={formData.address?.city || ''}
                         onChange={(e) => handleInputChange('address.city', e.target.value)}
                         placeholder="City"
                         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                       />
                       <input
                         type="text"
-                        value={formData.address.state}
+                        value={formData.address?.state || ''}
                         onChange={(e) => handleInputChange('address.state', e.target.value)}
                         placeholder="State"
                         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
@@ -643,14 +748,14 @@ const PharmacyProfile = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <input
                         type="text"
-                        value={formData.address.postalCode}
+                        value={formData.address?.postalCode || ''}
                         onChange={(e) => handleInputChange('address.postalCode', e.target.value)}
                         placeholder="Postal Code"
                         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                       />
                       <input
                         type="text"
-                        value={formData.address.country}
+                        value={formData.address?.country || ''}
                         onChange={(e) => handleInputChange('address.country', e.target.value)}
                         placeholder="Country"
                         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
@@ -683,43 +788,78 @@ const PharmacyProfile = () => {
           </button>
           {activeSection === 'hours' && (
             <div className="mt-4 space-y-2">
-              {formData.timings.map((timing, index) => (
-                <div key={timing.day} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-slate-900">{timing.day}</p>
-                    {isEditing ? (
-                      <div className="mt-1 flex items-center gap-2">
+              {isEditing ? (
+                <>
+                  {formData.timings && formData.timings.length > 0 ? (
+                    formData.timings.map((timing, index) => (
+                      <div key={index} className="flex items-center gap-2 rounded-lg bg-slate-50 p-3">
                         <input
                           type="time"
-                          value={timing.startTime}
+                          value={timing.startTime || ''}
                           onChange={(e) => handleTimingChange(index, 'startTime', e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                         />
-                        <span className="text-xs text-slate-500">to</span>
+                        <span className="text-sm text-slate-500 font-medium">to</span>
                         <input
                           type="time"
-                          value={timing.endTime}
+                          value={timing.endTime || ''}
                           onChange={(e) => handleTimingChange(index, 'endTime', e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                         />
-                        <label className="flex items-center gap-1 text-xs">
-                          <input
-                            type="checkbox"
-                            checked={timing.isOpen}
-                            onChange={(e) => handleTimingChange(index, 'isOpen', e.target.checked)}
-                            className="h-3 w-3 rounded border-slate-300 text-[#11496c]"
-                          />
-                          Open
-                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              timings: prev.timings.filter((_, i) => i !== index),
+                            }));
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-white text-red-600 transition hover:bg-red-50 shrink-0"
+                        >
+                          <IoTrashOutline className="h-4 w-4" />
+                        </button>
                       </div>
-                    ) : (
-                      <p className="text-xs text-slate-600">
-                        {timing.isOpen ? `${timing.startTime} - ${timing.endTime}` : 'Closed'}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500 text-center py-2">No timings set</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        timings: [...(prev.timings || []), {
+                          day: '',
+                          startTime: '',
+                          endTime: '',
+                          isOpen: true,
+                        }],
+                      }));
+                    }}
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
+                  >
+                    <IoAddOutline className="h-4 w-4" />
+                    Add Timing
+                  </button>
+                </>
+              ) : (
+                <>
+                  {formData.timings && formData.timings.length > 0 ? (
+                    formData.timings.map((timing, index) => (
+                      <div key={index} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
+                        <IoTimeOutline className="h-4 w-4 text-[#11496c] shrink-0" />
+                        <span className="text-sm font-medium text-slate-900">
+                          {timing.startTime && timing.endTime
+                            ? `${formatTimeTo12Hour(timing.startTime)} - ${formatTimeTo12Hour(timing.endTime)}`
+                            : 'Not set'}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500 text-center py-2">No operating hours set</p>
+                  )}
+                </>
+              )}
             </div>
           )}
         </article>
@@ -754,21 +894,46 @@ const PharmacyProfile = () => {
 // Support History Component
 const SupportHistory = ({ role }) => {
   const [supportRequests, setSupportRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const toast = useToast()
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    const mockRequests = [
-      {
-        id: '1',
-        note: 'Order delivery system not working properly.',
-        status: 'resolved',
-        createdAt: '2024-01-13T11:00:00Z',
-        updatedAt: '2024-01-14T16:30:00Z',
-        adminNote: 'Fixed delivery system issue.',
-      },
-    ]
-    setSupportRequests(mockRequests)
-  }, [role])
+    const fetchSupportHistory = async () => {
+      try {
+        setLoading(true)
+        const response = await getSupportHistory()
+        
+        if (response.success && response.data) {
+          const items = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          
+          // Transform tickets to match component structure
+          const transformedTickets = items.map(ticket => ({
+            id: ticket._id || ticket.id,
+            note: ticket.message || ticket.subject || ticket.note || '',
+            subject: ticket.subject || ticket.message || '',
+            message: ticket.message || ticket.subject || '',
+            status: ticket.status || 'pending',
+            createdAt: ticket.createdAt || ticket.date || new Date().toISOString(),
+            updatedAt: ticket.updatedAt || ticket.updatedAt || ticket.createdAt || new Date().toISOString(),
+            adminNote: ticket.adminNote || ticket.response || ticket.adminResponse || '',
+            priority: ticket.priority || 'medium',
+          }))
+          
+          setSupportRequests(transformedTickets)
+        }
+      } catch (error) {
+        console.error('Error fetching support history:', error)
+        toast.error('Failed to load support history')
+        setSupportRequests([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchSupportHistory()
+  }, [role, toast])
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -786,6 +951,7 @@ const SupportHistory = ({ role }) => {
   }
 
   const formatDate = (dateString) => {
+    if (!dateString) return '—'
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -794,6 +960,14 @@ const SupportHistory = ({ role }) => {
       hour: '2-digit',
       minute: '2-digit',
     })
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+        <p className="text-sm font-medium text-slate-600">Loading support history...</p>
+      </div>
+    )
   }
 
   if (supportRequests.length === 0) {

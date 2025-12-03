@@ -51,7 +51,7 @@ const AdminDoctors = () => {
   // Load doctors from API
   useEffect(() => {
     loadDoctors()
-  }, [statusFilter])
+  }, [statusFilter, searchTerm]) // Added searchTerm to dependencies
 
   const [allDoctors, setAllDoctors] = useState([]) // Store all doctors for stats
 
@@ -80,16 +80,26 @@ const AdminDoctors = () => {
       }
       
       // Then, load filtered doctors for display
-      const filters = {
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        search: searchTerm || undefined,
-        page: 1,
-        limit: 100,
+      const filters = {}
+      if (statusFilter !== 'all') {
+        // Map 'verified' to 'approved' for backend compatibility
+        filters.status = statusFilter === 'verified' ? 'approved' : statusFilter
       }
+      if (searchTerm && searchTerm.trim()) {
+        filters.search = searchTerm.trim()
+      }
+      filters.page = 1
+      filters.limit = 100
+      
+      console.log('🔍 Loading doctors with filters:', filters) // Debug log
       const response = await getDoctors(filters)
+      console.log('📊 Doctors API response:', response) // Debug log
       
       if (response.success && response.data) {
-        const transformedDoctors = (response.data.items || []).map(doctor => ({
+        const doctorsData = response.data.items || response.data || []
+        console.log('📋 Raw doctors data from API:', doctorsData) // Debug log
+        console.log('📋 Transformed doctors count:', doctorsData.length) // Debug log
+        const transformedDoctors = doctorsData.map(doctor => ({
           id: doctor._id || doctor.id,
           name: `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim() || 'N/A',
           email: doctor.email || '',
@@ -103,7 +113,11 @@ const AdminDoctors = () => {
           registeredAt: doctor.createdAt || new Date().toISOString(),
           rejectionReason: doctor.rejectionReason || '',
         }))
+        console.log('📋 Transformed doctors:', transformedDoctors) // Debug log
         setDoctors(transformedDoctors)
+      } else {
+        console.error('❌ Invalid response from API:', response) // Debug log
+        setDoctors([])
       }
     } catch (error) {
       console.error('Error loading doctors:', error)
@@ -171,13 +185,24 @@ const AdminDoctors = () => {
   }, [searchTerm])
 
   const filteredDoctors = doctors.filter((doctor) => {
-    const matchesSearch =
-      doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doctor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doctor.specialty.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doctor.clinic.toLowerCase().includes(searchTerm.toLowerCase())
+    // Filter by status first
+    const matchesStatus = statusFilter === 'all' || doctor.status === statusFilter || (statusFilter === 'verified' && doctor.status === 'approved')
     
-    return matchesSearch
+    // If no search term, return status match
+    if (!searchTerm.trim()) {
+      return matchesStatus
+    }
+    
+    // Search in multiple fields
+    const searchLower = searchTerm.toLowerCase().trim()
+    const matchesSearch =
+      doctor.name.toLowerCase().includes(searchLower) ||
+      doctor.email.toLowerCase().includes(searchLower) ||
+      doctor.specialty.toLowerCase().includes(searchLower) ||
+      doctor.clinic.toLowerCase().includes(searchLower) ||
+      doctor.location.toLowerCase().includes(searchLower)
+    
+    return matchesSearch && matchesStatus
   })
 
   const formatDate = (dateString) => {

@@ -5,13 +5,14 @@ import {
   IoPeopleOutline,
   IoPersonCircleOutline,
   IoMenuOutline,
-  IoNotificationsOutline,
   IoHelpCircleOutline,
   IoReceiptOutline,
   IoArchiveOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import PatientSidebar from './PatientSidebar'
+import { useToast } from '../../../contexts/ToastContext'
+import NotificationBell from '../../../components/NotificationBell'
 
 // All nav items for sidebar and desktop navbar (includes Support)
 const allNavItems = [
@@ -31,6 +32,7 @@ const PatientNavbar = () => {
   const toggleButtonRef = useRef(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
   
   // Hide top header only on dashboard page
   const isDashboardPage = location.pathname === '/patient/dashboard' || location.pathname === '/patient/'
@@ -67,14 +69,18 @@ const PatientNavbar = () => {
       // Import logout function from patientService
       const { logoutPatient } = await import('../patient-services/patientService')
       await logoutPatient()
+      toast.success('Logged out successfully')
     } catch (error) {
       console.error('Error during logout:', error)
       // Clear tokens manually if API call fails
       const { clearPatientTokens } = await import('../patient-services/patientService')
       clearPatientTokens()
+      toast.success('Logged out successfully')
     }
     // Navigate to login page
-    navigate('/patient/login', { replace: true })
+    setTimeout(() => {
+      navigate('/patient/login', { replace: true })
+    }, 500)
   }
 
   return (
@@ -116,10 +122,9 @@ const PatientNavbar = () => {
             </button>
           </nav>
           <div className="flex items-center gap-2">
-            <IoNotificationsOutline
-              aria-hidden="true"
-              className="text-xl text-slate-500 md:hidden"
-            />
+            <div className="md:hidden">
+              <NotificationBell />
+            </div>
             <button
               type="button"
               ref={toggleButtonRef}

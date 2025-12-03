@@ -4,7 +4,6 @@ import {
   IoHomeOutline,
   IoPersonCircleOutline,
   IoMenuOutline,
-  IoNotificationsOutline,
   IoWalletOutline,
   IoDocumentTextOutline,
   IoPeopleOutline,
@@ -12,6 +11,8 @@ import {
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import DoctorSidebar from './DoctorSidebar'
+import { useToast } from '../../../contexts/ToastContext'
+import NotificationBell from '../../../components/NotificationBell'
 
 const allNavItems = [
   { id: 'home', label: 'Dashboard', to: '/doctor/dashboard', Icon: IoHomeOutline },
@@ -30,6 +31,7 @@ const DoctorNavbar = () => {
   const toggleButtonRef = useRef(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
   
   // Hide header on dashboard and login pages
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
@@ -57,11 +59,23 @@ const DoctorNavbar = () => {
     setIsSidebarOpen(false)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleSidebarClose()
-    localStorage.removeItem('doctorAuthToken')
-    sessionStorage.removeItem('doctorAuthToken')
-    navigate('/', { replace: true })
+    try {
+      const { logoutDoctor } = await import('../doctor-services/doctorService')
+      await logoutDoctor()
+      toast.success('Logged out successfully')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      // Clear tokens manually if API call fails
+      const { clearDoctorTokens } = await import('../doctor-services/doctorService')
+      clearDoctorTokens()
+      toast.success('Logged out successfully')
+    }
+    // Force navigation to login page - full page reload to clear all state
+    setTimeout(() => {
+      window.location.href = '/doctor/login'
+    }, 500)
   }
 
   return (
@@ -102,10 +116,9 @@ const DoctorNavbar = () => {
           </button>
         </nav>
         <div className="flex items-center gap-2">
-          <IoNotificationsOutline
-            aria-hidden="true"
-            className="text-xl text-slate-500 md:hidden"
-          />
+          <div className="md:hidden">
+            <NotificationBell />
+          </div>
           <button
             type="button"
             ref={toggleButtonRef}

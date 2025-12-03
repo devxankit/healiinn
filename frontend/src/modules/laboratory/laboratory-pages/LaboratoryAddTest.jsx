@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import {
   IoFlaskOutline,
 } from 'react-icons/io5'
+import { addLaboratoryTest, updateLaboratoryTest, getLaboratoryTests } from '../laboratory-services/laboratoryService'
 
 const LaboratoryAddTest = () => {
   const navigate = useNavigate()
@@ -12,113 +14,69 @@ const LaboratoryAddTest = () => {
     price: '',
   })
   const [isEditing, setIsEditing] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     if (testId) {
-      // Load test data for editing
-      const tests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
-      const test = tests.find(t => t.id === testId)
-      if (test) {
-        setFormData({
-          name: test.name,
-          price: test.price,
-        })
-        setIsEditing(true)
-      } else {
-        // Test not found, navigate back
-        navigate('/laboratory/available-tests')
-      }
+      loadTestData()
     }
   }, [testId, navigate])
 
-  // Helper function to sync tests to admin inventory
-  const syncTestsToAdminInventory = () => {
-    const laboratoryTests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
-    const labId = localStorage.getItem('labId') || sessionStorage.getItem('labId') || 'lab-1'
-    const labName = localStorage.getItem('labName') || sessionStorage.getItem('labName') || 'Laboratory'
-    
-    // Get or create allLabAvailability
-    let allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
-    
-    // Find or create lab entry
-    let labIndex = allLabAvailability.findIndex(lab => lab.labId === labId)
-    
-    // Convert laboratory tests to admin inventory format
-    const testsForAdmin = laboratoryTests.map(test => ({
-      name: test.name,
-      price: parseFloat(test.price) || 0,
-    }))
-    
-    if (labIndex >= 0) {
-      // Update existing lab's tests
-      allLabAvailability[labIndex].tests = testsForAdmin
-      // Ensure status is approved and active
-      allLabAvailability[labIndex].status = allLabAvailability[labIndex].status || 'approved'
-      allLabAvailability[labIndex].isActive = allLabAvailability[labIndex].isActive !== false
-    } else {
-      // Create new lab entry
-      allLabAvailability.push({
-        labId: labId,
-        labName: labName,
-        status: 'approved',
-        isActive: true,
-        phone: localStorage.getItem('labPhone') || '+91 00000 00000',
-        email: localStorage.getItem('labEmail') || 'lab@example.com',
-        address: localStorage.getItem('labAddress') || 'Address not provided',
-        rating: 4.5,
-        tests: testsForAdmin,
-      })
+  const loadTestData = async () => {
+    try {
+      setIsLoading(true)
+      const response = await getLaboratoryTests()
+      const tests = Array.isArray(response) ? response : (response.data || response.tests || [])
+      const test = tests.find(t => t.id === testId || t._id === testId)
+      if (test) {
+        setFormData({
+          name: test.name || '',
+          price: test.price || test.amount || '',
+        })
+        setIsEditing(true)
+      } else {
+        toast.error('Test not found')
+        navigate('/laboratory/available-tests')
+      }
+    } catch (error) {
+      console.error('Error loading test:', error)
+      toast.error('Failed to load test data')
+      navigate('/laboratory/available-tests')
+    } finally {
+      setIsLoading(false)
     }
-    
-    localStorage.setItem('allLabAvailability', JSON.stringify(allLabAvailability))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     
     if (!formData.name.trim() || !formData.price.trim()) {
-      alert('Please fill in all required fields')
+      toast.error('Please fill in all required fields')
       return
     }
 
-    const tests = JSON.parse(localStorage.getItem('laboratoryAvailableTests') || '[]')
-
-    if (isEditing && testId) {
-      // Update existing test
-      const updatedTests = tests.map(test =>
-        test.id === testId
-          ? {
-              ...test,
-              name: formData.name.trim(),
-              price: formData.price.trim(),
-              updatedAt: new Date().toISOString(),
-            }
-          : test
-      )
-      localStorage.setItem('laboratoryAvailableTests', JSON.stringify(updatedTests))
-      
-      // Sync to admin inventory
-      syncTestsToAdminInventory()
-      
-      alert('Test updated successfully!')
-    } else {
-      // Add new test
-      const newTest = {
-        id: `test-${Date.now()}`,
+    try {
+      setIsLoading(true)
+      const testData = {
         name: formData.name.trim(),
-        price: formData.price.trim(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        price: parseFloat(formData.price.trim()),
       }
-      localStorage.setItem('laboratoryAvailableTests', JSON.stringify([...tests, newTest]))
-      
-      // Sync to admin inventory
-      syncTestsToAdminInventory()
-      
-      alert('Test added successfully!')
-    }
 
-    navigate('/laboratory/available-tests')
+      if (isEditing && testId) {
+        await updateLaboratoryTest(testId, testData)
+        toast.success('Test updated successfully!')
+      } else {
+        await addLaboratoryTest(testData)
+        toast.success('Test added successfully!')
+      }
+
+      navigate('/laboratory/available-tests')
+    } catch (error) {
+      console.error('Error saving test:', error)
+      toast.error(isEditing ? 'Failed to update test' : 'Failed to add test')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -169,9 +127,17 @@ const LaboratoryAddTest = () => {
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
+              disabled={isLoading}
+              className="flex-1 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isEditing ? 'Update Test' : 'Add Test'}
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  {isEditing ? 'Updating...' : 'Adding...'}
+                </span>
+              ) : (
+                isEditing ? 'Update Test' : 'Add Test'
+              )}
             </button>
           </div>
         </form>

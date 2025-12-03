@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   IoCashOutline,
   IoAddOutline,
@@ -10,59 +10,15 @@ import {
   IoWalletOutline,
   IoPhonePortraitOutline,
 } from 'react-icons/io5'
+import { getPharmacyWalletBalance, getPharmacyWithdrawals, requestPharmacyWithdrawal } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data
-const mockWithdrawData = {
-  availableBalance: 18900.50,
-  totalWithdrawals: 164919.50,
-  thisMonthWithdrawals: 8000.00,
-  withdrawalHistory: [
-    {
-      id: 'wd-1',
-      amount: 8000.00,
-      description: 'Withdrawal to Bank Account',
-      date: '2025-01-14T14:20:00',
-      status: 'completed',
-      paymentMethod: 'Bank Account',
-      accountNumber: '**** **** **** 1234',
-    },
-    {
-      id: 'wd-2',
-      amount: 5000.00,
-      description: 'Withdrawal to Bank Account',
-      date: '2025-01-10T10:00:00',
-      status: 'completed',
-      paymentMethod: 'Bank Account',
-      accountNumber: '**** **** **** 1234',
-    },
-    {
-      id: 'wd-3',
-      amount: 3000.00,
-      description: 'Withdrawal to Bank Account',
-      date: '2025-01-05T09:30:00',
-      status: 'completed',
-      paymentMethod: 'Bank Account',
-      accountNumber: '**** **** **** 1234',
-    },
-    {
-      id: 'wd-4',
-      amount: 6000.00,
-      description: 'Withdrawal to Bank Account',
-      date: '2025-01-02T15:45:00',
-      status: 'pending',
-      paymentMethod: 'Bank Account',
-      accountNumber: '**** **** **** 1234',
-    },
-    {
-      id: 'wd-5',
-      amount: 4000.00,
-      description: 'Withdrawal to UPI',
-      date: '2025-01-01T12:00:00',
-      status: 'approved',
-      paymentMethod: 'UPI',
-      upiId: 'pharmacy@paytm',
-    },
-  ],
+// Default withdraw data (will be replaced by API data)
+const defaultWithdrawData = {
+  availableBalance: 0,
+  totalWithdrawals: 0,
+  thisMonthWithdrawals: 0,
+  withdrawalHistory: [],
 }
 
 const formatCurrency = (amount) => {
@@ -89,10 +45,13 @@ const formatDateTime = (dateString) => {
 }
 
 const WalletWithdraw = () => {
+  const toast = useToast()
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('bank')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [withdrawData, setWithdrawData] = useState(defaultWithdrawData)
+  const [loading, setLoading] = useState(true)
   
   // Payment method details
   const [bankDetails, setBankDetails] = useState({
@@ -102,6 +61,61 @@ const WalletWithdraw = () => {
   })
   const [upiId, setUpiId] = useState('')
   const [walletNumber, setWalletNumber] = useState('')
+
+  // Fetch withdraw data from API
+  useEffect(() => {
+    const fetchWithdrawData = async () => {
+      try {
+        setLoading(true)
+        const [balanceResponse, withdrawalsResponse] = await Promise.all([
+          getPharmacyWalletBalance(),
+          getPharmacyWithdrawals(),
+        ])
+        
+        if (balanceResponse.success && balanceResponse.data) {
+          const balance = balanceResponse.data
+          const withdrawals = withdrawalsResponse.success && withdrawalsResponse.data
+            ? (Array.isArray(withdrawalsResponse.data) 
+                ? withdrawalsResponse.data 
+                : withdrawalsResponse.data.items || [])
+            : []
+          
+          // Calculate totals
+          const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0)
+          const thisMonth = new Date()
+          thisMonth.setDate(1)
+          thisMonth.setHours(0, 0, 0, 0)
+          const thisMonthWithdrawals = withdrawals
+            .filter(w => new Date(w.createdAt || w.date) >= thisMonth)
+            .reduce((sum, w) => sum + (w.amount || 0), 0)
+          
+          setWithdrawData({
+            availableBalance: balance.availableBalance || balance.available || 0,
+            totalWithdrawals,
+            thisMonthWithdrawals,
+            withdrawalHistory: withdrawals.map(wd => ({
+              id: wd._id || wd.id,
+              amount: wd.amount || 0,
+              description: wd.description || 'Withdrawal',
+              date: wd.createdAt || wd.date || new Date().toISOString(),
+              status: wd.status || 'pending',
+              paymentMethod: wd.payoutMethod?.type || wd.paymentMethod || 'Bank Account',
+              accountNumber: wd.payoutMethod?.details?.accountNumber || wd.accountNumber || '****',
+              upiId: wd.payoutMethod?.details?.upiId || wd.upiId || '',
+              walletNumber: wd.payoutMethod?.details?.walletNumber || wd.walletNumber || '',
+            })),
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching withdraw data:', err)
+        toast.error('Failed to load withdrawal data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchWithdrawData()
+  }, [toast])
 
   const validatePaymentMethod = () => {
     if (selectedPaymentMethod === 'bank') {
@@ -130,8 +144,8 @@ const WalletWithdraw = () => {
     }
 
     const amount = parseFloat(withdrawAmount)
-    if (amount > mockWithdrawData.availableBalance) {
-      alert('Insufficient balance')
+    if (amount > withdrawData.availableBalance) {
+      toast.error('Insufficient balance')
       return
     }
 
@@ -141,38 +155,49 @@ const WalletWithdraw = () => {
 
     setIsProcessing(true)
     
-    // Prepare payout method data
-    let payoutMethodData = {}
-    if (selectedPaymentMethod === 'bank') {
-      payoutMethodData = {
-        type: 'bank',
-        accountNumber: bankDetails.accountNumber,
-        ifscCode: bankDetails.ifscCode,
-        accountHolderName: bankDetails.accountHolderName,
+    try {
+      // Prepare withdrawal data
+      const withdrawalData = {
+        amount,
+        paymentMethod: selectedPaymentMethod,
+        ...(selectedPaymentMethod === 'bank' ? {
+          bankAccount: {
+            accountNumber: bankDetails.accountNumber,
+            ifscCode: bankDetails.ifscCode,
+            accountHolderName: bankDetails.accountHolderName,
+          },
+        } : selectedPaymentMethod === 'upi' ? {
+          upiId,
+        } : {
+          walletNumber,
+        }),
       }
-    } else if (selectedPaymentMethod === 'upi') {
-      payoutMethodData = {
-        type: 'upi',
-        upiId: upiId,
+      
+      // Call API to request withdrawal
+      await requestPharmacyWithdrawal(withdrawalData)
+      
+      toast.success(`Withdrawal request of ${formatCurrency(amount)} submitted successfully! Admin will review your request.`)
+      setShowWithdrawModal(false)
+      setWithdrawAmount('')
+      setBankDetails({ accountNumber: '', ifscCode: '', accountHolderName: '' })
+      setUpiId('')
+      setWalletNumber('')
+      
+      // Refresh withdraw data
+      const balanceResponse = await getPharmacyWalletBalance()
+      if (balanceResponse.success && balanceResponse.data) {
+        const balance = balanceResponse.data
+        setWithdrawData(prev => ({
+          ...prev,
+          availableBalance: balance.availableBalance || balance.available || 0,
+        }))
       }
-    } else if (selectedPaymentMethod === 'wallet') {
-      payoutMethodData = {
-        type: 'wallet',
-        walletNumber: walletNumber,
-      }
+    } catch (error) {
+      console.error('Error requesting withdrawal:', error)
+      toast.error(error.message || 'Failed to submit withdrawal request')
+    } finally {
+      setIsProcessing(false)
     }
-
-    // Simulate API call to create withdrawal request
-    // In real app: await api.post('/pharmacy/wallet/withdraw', { amount, payoutMethod: payoutMethodData })
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    
-    setIsProcessing(false)
-    setShowWithdrawModal(false)
-    setWithdrawAmount('')
-    setBankDetails({ accountNumber: '', ifscCode: '', accountHolderName: '' })
-    setUpiId('')
-    setWalletNumber('')
-    alert(`Withdrawal request of ${formatCurrency(amount)} submitted successfully! Admin will review your request.`)
   }
 
   return (
@@ -181,7 +206,7 @@ const WalletWithdraw = () => {
       <div className="flex justify-end">
         <button
           onClick={() => setShowWithdrawModal(true)}
-          disabled={mockWithdrawData.availableBalance <= 0}
+          disabled={withdrawData.availableBalance <= 0}
           className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-amber-400/40 transition-all hover:bg-amber-600 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <IoAddOutline className="h-5 w-5" />
@@ -199,7 +224,7 @@ const WalletWithdraw = () => {
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1">
               <p className="text-sm font-medium text-white/80 mb-1">Total Withdrawals</p>
-              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(mockWithdrawData.totalWithdrawals)}</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(withdrawData.totalWithdrawals)}</p>
             </div>
             <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
               <IoCashOutline className="h-8 w-8 sm:h-10 sm:w-10" />
@@ -223,7 +248,7 @@ const WalletWithdraw = () => {
                 <p className="mt-1 text-xs text-slate-500">Ready to withdraw</p>
               </div>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{formatCurrency(mockWithdrawData.availableBalance)}</p>
+            <p className="text-3xl font-bold text-slate-900">{formatCurrency(withdrawData.availableBalance)}</p>
           </div>
         </div>
 
@@ -240,7 +265,7 @@ const WalletWithdraw = () => {
                 <p className="mt-1 text-xs text-slate-500">Withdrawn this month</p>
               </div>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{formatCurrency(mockWithdrawData.thisMonthWithdrawals)}</p>
+            <p className="text-3xl font-bold text-slate-900">{formatCurrency(withdrawData.thisMonthWithdrawals)}</p>
           </div>
         </div>
       </div>
@@ -250,18 +275,18 @@ const WalletWithdraw = () => {
         <div className="flex items-center justify-between">
           <h2 className="text-lg sm:text-xl font-bold text-slate-900">Withdrawal History</h2>
           <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-            {mockWithdrawData.withdrawalHistory.length} {mockWithdrawData.withdrawalHistory.length === 1 ? 'withdrawal' : 'withdrawals'}
+            {withdrawData.withdrawalHistory.length} {withdrawData.withdrawalHistory.length === 1 ? 'withdrawal' : 'withdrawals'}
           </span>
         </div>
         <div className="space-y-3">
-          {mockWithdrawData.withdrawalHistory.length === 0 ? (
+          {withdrawData.withdrawalHistory.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
               <IoCashOutline className="mx-auto h-16 w-16 text-slate-300" />
               <p className="mt-4 text-base font-semibold text-slate-600">No withdrawals found</p>
               <p className="mt-1 text-sm text-slate-500">Your withdrawal history will appear here</p>
             </div>
           ) : (
-            mockWithdrawData.withdrawalHistory.map((withdrawal) => (
+            withdrawData.withdrawalHistory.map((withdrawal) => (
               <article
                 key={withdrawal.id}
                 className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
@@ -368,7 +393,7 @@ const WalletWithdraw = () => {
               <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-amber-50 to-amber-100/50 p-4 sm:p-5">
                 <p className="text-xs sm:text-sm font-medium text-slate-600">Available Balance</p>
                 <p className="mt-2 text-2xl sm:text-3xl font-bold text-slate-900">
-                  {formatCurrency(mockWithdrawData.availableBalance)}
+                  {formatCurrency(withdrawData.availableBalance)}
                 </p>
               </div>
 
@@ -385,12 +410,12 @@ const WalletWithdraw = () => {
                     onChange={(e) => setWithdrawAmount(e.target.value)}
                     placeholder="0"
                     min="0"
-                    max={mockWithdrawData.availableBalance}
+                    max={withdrawData.availableBalance}
                     step="1"
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 sm:px-4 py-2.5 sm:py-3 pl-9 sm:pl-10 text-base sm:text-lg font-semibold text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                   />
                 </div>
-                {withdrawAmount && parseFloat(withdrawAmount) > mockWithdrawData.availableBalance && (
+                {withdrawAmount && parseFloat(withdrawAmount) > withdrawData.availableBalance && (
                   <p className="mt-1.5 sm:mt-2 text-xs text-red-600">Amount exceeds available balance</p>
                 )}
               </div>
@@ -557,7 +582,7 @@ const WalletWithdraw = () => {
                   isProcessing ||
                   !withdrawAmount ||
                   parseFloat(withdrawAmount) <= 0 ||
-                  parseFloat(withdrawAmount) > mockWithdrawData.availableBalance
+                  parseFloat(withdrawAmount) > withdrawData.availableBalance
                 }
                 className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 sm:py-3 text-sm font-semibold text-white shadow-sm shadow-amber-400/40 transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               >

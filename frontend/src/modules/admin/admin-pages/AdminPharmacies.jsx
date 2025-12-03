@@ -85,16 +85,26 @@ const AdminPharmacies = () => {
       }
       
       // Then, load filtered pharmacies for display
-      const filters = {
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        search: searchTerm || undefined,
-        page: 1,
-        limit: 100,
+      const filters = {}
+      if (statusFilter !== 'all') {
+        // Map 'verified' to 'approved' for backend compatibility
+        filters.status = statusFilter === 'verified' ? 'approved' : statusFilter
       }
+      if (searchTerm && searchTerm.trim()) {
+        filters.search = searchTerm.trim()
+      }
+      filters.page = 1
+      filters.limit = 100
+      
+      console.log('🔍 Loading pharmacies with filters:', filters) // Debug log
       const response = await getPharmacies(filters)
+      console.log('📊 Pharmacies API response:', response) // Debug log
       
       if (response.success && response.data) {
-        const transformedPharmacies = (response.data.items || []).map(pharmacy => ({
+        const pharmaciesData = response.data.items || response.data || []
+        console.log('📋 Raw pharmacies data from API:', pharmaciesData) // Debug log
+        console.log('📋 Transformed pharmacies count:', pharmaciesData.length) // Debug log
+        const transformedPharmacies = pharmaciesData.map(pharmacy => ({
           id: pharmacy._id || pharmacy.id,
           name: pharmacy.pharmacyName || '',
           ownerName: pharmacy.ownerName || '',
@@ -107,7 +117,11 @@ const AdminPharmacies = () => {
           totalOrders: 0, // TODO: Add when orders API is ready
           rejectionReason: pharmacy.rejectionReason || '',
         }))
+        console.log('📋 Transformed pharmacies:', transformedPharmacies) // Debug log
         setPharmacies(transformedPharmacies)
+      } else {
+        console.error('❌ Invalid response from API:', response) // Debug log
+        setPharmacies([])
       }
     } catch (error) {
       console.error('Error loading pharmacies:', error)
@@ -167,13 +181,23 @@ const AdminPharmacies = () => {
   }
 
   const filteredPharmacies = pharmacies.filter((pharmacy) => {
-    const matchesSearch =
-      pharmacy.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pharmacy.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pharmacy.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pharmacy.address.toLowerCase().includes(searchTerm.toLowerCase())
+    // Filter by status first
+    const matchesStatus = statusFilter === 'all' || pharmacy.status === statusFilter || (statusFilter === 'verified' && pharmacy.status === 'approved')
     
-    return matchesSearch
+    // If no search term, return status match
+    if (!searchTerm.trim()) {
+      return matchesStatus
+    }
+    
+    // Search in multiple fields
+    const searchLower = searchTerm.toLowerCase().trim()
+    const matchesSearch =
+      pharmacy.name.toLowerCase().includes(searchLower) ||
+      pharmacy.ownerName.toLowerCase().includes(searchLower) ||
+      pharmacy.email.toLowerCase().includes(searchLower) ||
+      pharmacy.address.toLowerCase().includes(searchLower)
+    
+    return matchesSearch && matchesStatus
   })
 
   const formatDate = (dateString) => {

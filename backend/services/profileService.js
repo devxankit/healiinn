@@ -75,9 +75,13 @@ const applyDoctorUpdates = async (doc, updates, Model) => {
     'gender',
     'consultationFee',
     'profileImage',
+    'qualification',
+    'licenseNumber',
+    'averageConsultationMinutes',
+    'isActive',
   ];
-  const mergeFields = ['clinicDetails', 'documents'];
-  const arrayReplaceFields = ['education', 'languages', 'consultationModes', 'availableTimings'];
+  const mergeFields = ['clinicDetails', 'documents', 'digitalSignature'];
+  const arrayReplaceFields = ['education', 'languages', 'consultationModes', 'availableTimings', 'availability'];
 
   if (updates.phone && updates.phone !== doc.phone) {
     await ensureUniqueField(Model, 'phone', updates.phone, doc._id, 'Phone number already registered.');
@@ -106,9 +110,9 @@ const applyDoctorUpdates = async (doc, updates, Model) => {
 };
 
 const applyLaboratoryUpdates = async (doc, updates, Model) => {
-  const allowedScalars = ['labName', 'ownerName', 'profileImage'];
+  const allowedScalars = ['labName', 'ownerName', 'profileImage', 'bio', 'gender', 'gstNumber', 'licenseNumber'];
   const mergeFields = ['address', 'contactPerson', 'documents', 'operatingHours'];
-  const arrayReplaceFields = ['timings'];
+  const arrayReplaceFields = ['timings', 'testsOffered'];
 
   if (updates.phone && updates.phone !== doc.phone) {
     await ensureUniqueField(Model, 'phone', updates.phone, doc._id, 'Phone number already registered.');
@@ -137,7 +141,7 @@ const applyLaboratoryUpdates = async (doc, updates, Model) => {
 };
 
 const applyPharmacyUpdates = async (doc, updates, Model) => {
-  const allowedScalars = ['pharmacyName', 'ownerName', 'gstNumber', 'profileImage'];
+  const allowedScalars = ['pharmacyName', 'ownerName', 'gstNumber', 'profileImage', 'bio'];
   const mergeFields = ['address', 'contactPerson', 'documents'];
   const arrayReplaceFields = ['deliveryOptions', 'timings'];
 

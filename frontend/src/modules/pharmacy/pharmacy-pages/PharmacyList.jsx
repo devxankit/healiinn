@@ -9,52 +9,10 @@ import {
   IoStar,
   IoStarOutline,
 } from 'react-icons/io5'
+import { getDiscoveryPharmacies } from '../../patient/patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock pharmacy data based on the image
-const mockPharmacies = [
-  {
-    id: 'rx-care',
-    pharmacyName: 'Rx Care Pharmacy',
-    status: 'approved',
-    rating: 4.8,
-    reviewCount: 124,
-    phone: '+1-555-214-0098',
-    email: 'support@rxcare.com',
-    distanceKm: 0.9,
-    responseTimeMinutes: 35,
-    deliveryOptions: ['both'],
-    address: {
-      line1: '123 Market Street',
-      line2: 'Suite 210',
-      city: 'Springfield',
-      state: 'IL',
-      postalCode: '62701',
-      country: 'USA',
-    },
-    lastUpdated: '2025-01-12T16:15:00.000Z',
-  },
-  {
-    id: 'health-hub',
-    pharmacyName: 'HealthHub Pharmacy',
-    status: 'approved',
-    rating: 4.6,
-    reviewCount: 89,
-    phone: '+1-555-909-4433',
-    email: 'hello@healthhubpharmacy.com',
-    distanceKm: 1.5,
-    responseTimeMinutes: 25,
-    deliveryOptions: ['delivery'],
-    address: {
-      line1: '77 Elm Avenue',
-      line2: '',
-      city: 'Springfield',
-      state: 'IL',
-      postalCode: '62703',
-      country: 'USA',
-    },
-    lastUpdated: '2025-01-12T14:30:00.000Z',
-  },
-]
+// Removed mock data - now using backend API
 
 const DELIVERY_LABELS = {
   pickup: 'In-pharmacy pickup',
@@ -252,10 +210,63 @@ const CustomDropdown = ({ id, value, onChange, options, className = '' }) => {
 }
 
 const PharmacyList = () => {
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDelivery, setSelectedDelivery] = useState('all')
   const [radiusFilter, setRadiusFilter] = useState('any')
   const [showOnlyApproved, setShowOnlyApproved] = useState(true)
+  const [pharmacies, setPharmacies] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Fetch pharmacies from API
+  useEffect(() => {
+    const fetchPharmacies = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const filters = {
+          approvedOnly: showOnlyApproved ? 'true' : 'false',
+          deliveryOption: selectedDelivery !== 'all' ? selectedDelivery : undefined,
+        }
+        
+        const response = await getDiscoveryPharmacies(filters)
+        
+        if (response.success && response.data) {
+          const pharmaciesData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
+          
+          // Transform API data
+          const transformed = pharmaciesData.map(pharmacy => ({
+            id: pharmacy._id || pharmacy.id,
+            pharmacyName: pharmacy.pharmacyName || 'Pharmacy',
+            status: pharmacy.status || 'pending',
+            rating: pharmacy.rating || 0,
+            reviewCount: pharmacy.reviewCount || 0,
+            phone: pharmacy.phone || 'N/A',
+            email: pharmacy.email || 'N/A',
+            distanceKm: pharmacy.distance || 0,
+            responseTimeMinutes: pharmacy.responseTimeMinutes || null,
+            deliveryOptions: pharmacy.deliveryOptions || [],
+            address: pharmacy.address || {},
+            lastUpdated: pharmacy.updatedAt || pharmacy.createdAt || new Date().toISOString(),
+          }))
+          
+          setPharmacies(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching pharmacies:', err)
+        setError(err.message || 'Failed to load pharmacies')
+        toast.error('Failed to load pharmacies')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPharmacies()
+  }, [showOnlyApproved, selectedDelivery, toast])
 
   const filteredPharmacies = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
@@ -278,16 +289,8 @@ const PharmacyList = () => {
       return haystack.includes(normalizedSearch)
     }
 
-    return mockPharmacies
+    return pharmacies
       .filter((pharmacy) => {
-        if (showOnlyApproved && pharmacy.status !== 'approved') return false
-
-        if (selectedDelivery !== 'all') {
-          if (!pharmacy.deliveryOptions?.includes(selectedDelivery) && !pharmacy.deliveryOptions?.includes('both')) {
-            return false
-          }
-        }
-
         if (radiusFilter !== 'any') {
           const limit = Number.parseInt(radiusFilter, 10)
           const distance = typeof pharmacy.distanceKm === 'number' ? pharmacy.distanceKm : Number.POSITIVE_INFINITY
@@ -299,7 +302,7 @@ const PharmacyList = () => {
         return matchesSearch(pharmacy)
       })
       .sort((a, b) => (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY))
-  }, [radiusFilter, searchTerm, selectedDelivery, showOnlyApproved])
+  }, [pharmacies, radiusFilter, searchTerm])
 
   return (
     <section className="flex flex-col gap-3 px-2 pb-4 pt-2 sm:px-3 sm:pb-6 sm:pt-3">
@@ -359,9 +362,25 @@ const PharmacyList = () => {
         />
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm font-medium text-slate-600">Loading pharmacies...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm font-medium text-red-600">Error: {error}</p>
+          <p className="mt-1 text-xs text-red-500">Please try again later.</p>
+        </div>
+      )}
+
       {/* Pharmacy Cards */}
-      <div className="grid grid-cols-1 gap-4">
-        {filteredPharmacies.length === 0 && (
+      {!loading && !error && (
+        <div className="grid grid-cols-1 gap-4">
+          {filteredPharmacies.length === 0 && (
           <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
             No pharmacies match your filters. Try expanding the radius or clearing the delivery preference.
           </p>
@@ -468,7 +487,8 @@ const PharmacyList = () => {
             </div>
           </article>
         ))}
-      </div>
+        </div>
+      )}
     </section>
   )
 }

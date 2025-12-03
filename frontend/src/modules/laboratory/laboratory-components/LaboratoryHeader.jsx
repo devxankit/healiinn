@@ -10,6 +10,8 @@ import {
   IoLogOutOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
+import { useToast } from '../../../contexts/ToastContext'
+import NotificationBell from '../../../components/NotificationBell'
 
 const navItems = [
   { id: 'home', label: 'Dashboard', to: '/laboratory/dashboard', Icon: IoHomeOutline },
@@ -22,15 +24,24 @@ const navItems = [
 
 const LaboratoryHeader = () => {
   const navigate = useNavigate()
+  const toast = useToast()
 
-  const handleLogout = () => {
-    localStorage.removeItem('laboratoryAuthToken')
-    localStorage.removeItem('laboratoryAccessToken')
-    localStorage.removeItem('laboratoryRefreshToken')
-    sessionStorage.removeItem('laboratoryAuthToken')
-    sessionStorage.removeItem('laboratoryAccessToken')
-    sessionStorage.removeItem('laboratoryRefreshToken')
-    navigate('/laboratory/login', { replace: true })
+  const handleLogout = async () => {
+    try {
+      const { logoutLaboratory } = await import('../laboratory-services/laboratoryService')
+      await logoutLaboratory()
+      toast.success('Logged out successfully')
+    } catch (error) {
+      console.error('Error during logout:', error)
+      // Clear tokens manually if API call fails
+      const { clearLaboratoryTokens } = await import('../laboratory-services/laboratoryService')
+      clearLaboratoryTokens()
+      toast.success('Logged out successfully')
+    }
+    // Force navigation to login page
+    setTimeout(() => {
+      window.location.href = '/laboratory/login'
+    }, 500)
   }
 
   return (
@@ -72,14 +83,7 @@ const LaboratoryHeader = () => {
 
           {/* Right Side - Notifications & Profile */}
           <div className="flex items-center gap-4">
-            <button
-              type="button"
-              className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-              aria-label="Notifications"
-            >
-              <IoNotificationsOutline className="h-5 w-5" />
-              <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-            </button>
+            <NotificationBell />
 
             <button
               type="button"

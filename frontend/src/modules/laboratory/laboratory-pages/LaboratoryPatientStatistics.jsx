@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import LaboratoryNavbar from '../laboratory-components/LaboratoryNavbar'
 import LaboratorySidebar from '../laboratory-components/LaboratorySidebar'
 import {
@@ -18,32 +19,7 @@ import {
   IoLocationOutline,
   IoCloseOutline,
 } from 'react-icons/io5'
-
-const mockStats = {
-  totalPatients: 180,
-  activePatients: 124,
-  inactivePatients: 56,
-}
-
-// Mock patient details
-const mockPatientDetails = {
-  total: [
-    { id: 'pat-1', name: 'John Doe', phone: '+1-555-0101', email: 'john.doe@example.com', status: 'active', age: 45, gender: 'Male', address: '123 Main Street, New York, NY 10001', bloodGroup: 'O+', image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true' },
-    { id: 'pat-2', name: 'Sarah Smith', phone: '+1-555-0102', email: 'sarah.smith@example.com', status: 'active', age: 32, gender: 'Female', address: '456 Oak Avenue, Los Angeles, CA 90001', bloodGroup: 'A+', image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true' },
-    { id: 'pat-3', name: 'Mike Johnson', phone: '+1-555-0103', email: 'mike.johnson@example.com', status: 'active', age: 28, gender: 'Male', address: '789 Pine Road, Chicago, IL 60601', bloodGroup: 'B+', image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true' },
-    { id: 'pat-4', name: 'Emily Brown', phone: '+1-555-0104', email: 'emily.brown@example.com', status: 'inactive', age: 35, gender: 'Female', address: '321 Elm Street, Houston, TX 77001', bloodGroup: 'AB+', image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true' },
-    { id: 'pat-5', name: 'David Wilson', phone: '+1-555-0105', email: 'david.wilson@example.com', status: 'active', age: 52, gender: 'Male', address: '654 Maple Drive, Phoenix, AZ 85001', bloodGroup: 'O-', image: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true' },
-  ],
-  active: [
-    { id: 'pat-1', name: 'John Doe', phone: '+1-555-0101', email: 'john.doe@example.com', status: 'active', age: 45, gender: 'Male', address: '123 Main Street, New York, NY 10001', bloodGroup: 'O+', image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true' },
-    { id: 'pat-2', name: 'Sarah Smith', phone: '+1-555-0102', email: 'sarah.smith@example.com', status: 'active', age: 32, gender: 'Female', address: '456 Oak Avenue, Los Angeles, CA 90001', bloodGroup: 'A+', image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true' },
-    { id: 'pat-3', name: 'Mike Johnson', phone: '+1-555-0103', email: 'mike.johnson@example.com', status: 'active', age: 28, gender: 'Male', address: '789 Pine Road, Chicago, IL 60601', bloodGroup: 'B+', image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true' },
-    { id: 'pat-5', name: 'David Wilson', phone: '+1-555-0105', email: 'david.wilson@example.com', status: 'active', age: 52, gender: 'Male', address: '654 Maple Drive, Phoenix, AZ 85001', bloodGroup: 'O-', image: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true' },
-  ],
-  inactive: [
-    { id: 'pat-4', name: 'Emily Brown', phone: '+1-555-0104', email: 'emily.brown@example.com', status: 'inactive', age: 35, gender: 'Female', address: '321 Elm Street, Houston, TX 77001', bloodGroup: 'AB+', image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true' },
-  ],
-}
+import { getLaboratoryPatients, getPatientStatistics } from '../laboratory-services/laboratoryService'
 
 const LaboratoryPatientStatistics = () => {
   const navigate = useNavigate()
@@ -51,9 +27,41 @@ const LaboratoryPatientStatistics = () => {
   const [activeTab, setActiveTab] = useState('total')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState(null)
+  const [patients, setPatients] = useState([])
+  const [stats, setStats] = useState({ totalPatients: 0, activePatients: 0, inactivePatients: 0 })
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Get patients based on active tab
-  const patients = mockPatientDetails[activeTab] || mockPatientDetails.total
+  useEffect(() => {
+    fetchData()
+  }, [activeTab])
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true)
+      const [patientsResponse, statsResponse] = await Promise.all([
+        getLaboratoryPatients({ status: activeTab === 'total' ? undefined : activeTab }),
+        getPatientStatistics(),
+      ])
+      
+      const patientsData = Array.isArray(patientsResponse) ? patientsResponse : (patientsResponse.data || patientsResponse.patients || [])
+      setPatients(patientsData)
+      
+      const statsData = statsResponse.data || statsResponse || {}
+      setStats({
+        totalPatients: statsData.totalPatients || statsData.total || 0,
+        activePatients: statsData.activePatients || statsData.active || 0,
+        inactivePatients: statsData.inactivePatients || statsData.inactive || 0,
+      })
+    } catch (error) {
+      console.error('Error fetching patient data:', error)
+      toast.error('Failed to load patient data')
+      setPatients([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Mock data removed - now using backend API
 
   // Filter patients based on search term - only by name
   const filteredPatients = useMemo(() => {
@@ -156,7 +164,12 @@ const LaboratoryPatientStatistics = () => {
 
           {/* Patient List */}
           <div className="space-y-3">
-            {filteredPatients.length === 0 ? (
+            {isLoading ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#11496c] border-t-transparent mx-auto mb-3"></div>
+                <p className="text-sm font-semibold text-slate-600">Loading patients...</p>
+              </div>
+            ) : filteredPatients.length === 0 ? (
               <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
                 <IoPeopleOutline className="h-12 w-12 text-slate-400 mx-auto mb-3" />
                 <p className="text-sm font-semibold text-slate-600">
@@ -173,46 +186,52 @@ const LaboratoryPatientStatistics = () => {
                   <div className="flex items-start gap-4">
                     {/* Avatar - Left Side */}
                     <img
-                      src={patient.image}
-                      alt={patient.name}
+                      src={patient.image || patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name || 'Patient')}&background=11496c&color=fff&size=128&bold=true`}
+                      alt={patient.name || 'Patient'}
                       className="h-16 w-16 rounded-full object-cover border-2 border-white shadow-md flex-shrink-0"
                       onError={(e) => {
                         e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name)}&background=11496c&color=fff&size=128&bold=true`
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name || 'Patient')}&background=11496c&color=fff&size=128&bold=true`
                       }}
                     />
                     {/* Patient Information - Right Side */}
                     <div className="flex-1 min-w-0">
                       {/* Name and Status Badge - Top */}
                       <div className="flex items-start justify-between mb-3">
-                        <p className="text-base font-bold text-slate-900">{patient.name}</p>
+                        <p className="text-base font-bold text-slate-900">{patient.name || 'Patient'}</p>
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          patient.status === 'active'
+                          (patient.status === 'active' || patient.isActive)
                             ? 'bg-emerald-500 text-white border border-emerald-600'
                             : 'bg-red-500 text-white border border-red-600'
                         }`}>
-                          {patient.status === 'active' ? (
+                          {(patient.status === 'active' || patient.isActive) ? (
                             <IoCheckmarkCircleOutline className="h-3 w-3" />
                           ) : (
                             <IoCloseCircleOutline className="h-3 w-3" />
                           )}
-                          {patient.status === 'active' ? 'Active' : 'Inactive'}
+                          {(patient.status === 'active' || patient.isActive) ? 'Active' : 'Inactive'}
                         </span>
                       </div>
                       {/* Contact and Demographic Info - Line by Line */}
                       <div className="space-y-2">
-                        <p className="text-sm text-slate-700 flex items-center gap-2">
-                          <IoCallOutline className="h-4 w-4 text-slate-500" />
-                          {patient.phone}
-                        </p>
-                        <p className="text-sm text-slate-700 flex items-center gap-2">
-                          <IoMailOutline className="h-4 w-4 text-slate-500" />
-                          <span className="truncate">{patient.email}</span>
-                        </p>
-                        <p className="text-sm text-slate-700 flex items-center gap-2">
-                          <IoCalendarOutline className="h-4 w-4 text-slate-500" />
-                          {patient.age} years, {patient.gender}
-                        </p>
+                        {patient.phone && (
+                          <p className="text-sm text-slate-700 flex items-center gap-2">
+                            <IoCallOutline className="h-4 w-4 text-slate-500" />
+                            {patient.phone}
+                          </p>
+                        )}
+                        {patient.email && (
+                          <p className="text-sm text-slate-700 flex items-center gap-2">
+                            <IoMailOutline className="h-4 w-4 text-slate-500" />
+                            <span className="truncate">{patient.email}</span>
+                          </p>
+                        )}
+                        {(patient.age || patient.gender) && (
+                          <p className="text-sm text-slate-700 flex items-center gap-2">
+                            <IoCalendarOutline className="h-4 w-4 text-slate-500" />
+                            {patient.age ? `${patient.age} years` : ''}{patient.age && patient.gender ? ', ' : ''}{patient.gender || ''}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

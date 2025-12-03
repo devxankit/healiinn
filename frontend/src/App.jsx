@@ -1,5 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 import { getAuthToken } from './utils/apiClient'
+import { NotificationProvider } from './contexts/NotificationContext'
 import PatientNavbar from './modules/patient/patient-components/PatientNavbar'
 import PatientDashboard from './modules/patient/patient-pages/PatientDashboard'
 import PatientDoctors from './modules/patient/patient-pages/PatientDoctors'
@@ -9,8 +12,6 @@ import PatientLocations from './modules/patient/patient-pages/PatientLocations'
 import PatientPrescriptions from './modules/patient/patient-pages/PatientPrescriptions'
 import PatientReports from './modules/patient/patient-pages/PatientReports'
 import PatientRequests from './modules/patient/patient-pages/PatientRequests'
-import PatientHospitals from './modules/patient/patient-pages/PatientHospitals'
-import PatientHospitalDoctors from './modules/patient/patient-pages/PatientHospitalDoctors'
 import PatientSpecialties from './modules/patient/patient-pages/PatientSpecialties'
 import PatientSpecialtyDoctors from './modules/patient/patient-pages/PatientSpecialtyDoctors'
 import PatientUpcomingSchedules from './modules/patient/patient-pages/PatientUpcomingSchedules'
@@ -20,6 +21,7 @@ import PatientAppointments from './modules/patient/patient-pages/PatientAppointm
 import PatientOrders from './modules/patient/patient-pages/PatientOrders'
 import PatientSupport from './modules/patient/patient-pages/PatientSupport'
 import PatientHistory from './modules/patient/patient-pages/PatientHistory'
+import NotificationsPage from './modules/shared/NotificationsPage'
 import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
 import DoctorHeader from './modules/doctor/doctor-components/DoctorHeader'
 import DoctorFooter from './modules/doctor/doctor-components/DoctorFooter'
@@ -108,6 +110,9 @@ import AdminAppointments from './modules/admin/admin-pages/AdminAppointments'
 import AdminOrders from './modules/admin/admin-pages/AdminOrders'
 import AdminRequests from './modules/admin/admin-pages/AdminRequests'
 import ProtectedRoute from './components/ProtectedRoute'
+import WebNavbar from './modules/website/web-components/WebNavbar'
+import Home from './modules/website/web-pages/Home'
+import WebOnBoarding from './modules/website/web-pages/WebOnBoarding'
 
 function PatientRoutes() {
   const location = useLocation()
@@ -120,7 +125,7 @@ function PatientRoutes() {
   }
   
   return (
-    <>
+    <NotificationProvider module="patient">
       {!isLoginPage && <PatientNavbar />}
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
         <Routes>
@@ -134,8 +139,6 @@ function PatientRoutes() {
                     <Route path="/profile" element={<ProtectedRoute module="patient"><PatientProfile /></ProtectedRoute>} />
                     <Route path="/locations" element={<ProtectedRoute module="patient"><PatientLocations /></ProtectedRoute>} />
                     <Route path="/prescriptions" element={<ProtectedRoute module="patient"><PatientPrescriptions /></ProtectedRoute>} />
-                    <Route path="/hospitals" element={<ProtectedRoute module="patient"><PatientHospitals /></ProtectedRoute>} />
-                    <Route path="/hospitals/:hospitalId/doctors" element={<ProtectedRoute module="patient"><PatientHospitalDoctors /></ProtectedRoute>} />
                     <Route path="/specialties" element={<ProtectedRoute module="patient"><PatientSpecialties /></ProtectedRoute>} />
                     <Route path="/specialties/:specialtyId/doctors" element={<ProtectedRoute module="patient"><PatientSpecialtyDoctors /></ProtectedRoute>} />
                     <Route path="/upcoming-schedules" element={<ProtectedRoute module="patient"><PatientUpcomingSchedules /></ProtectedRoute>} />
@@ -146,12 +149,13 @@ function PatientRoutes() {
           <Route path="/orders" element={<ProtectedRoute module="patient"><PatientOrders /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute module="patient"><PatientHistory /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute module="patient"><PatientSupport /></ProtectedRoute>} />
+          <Route path="/notifications" element={<ProtectedRoute module="patient"><NotificationsPage /></ProtectedRoute>} />
           <Route path="*" element={
             token ? <ProtectedRoute module="patient"><Navigate to="/patient/dashboard" replace /></ProtectedRoute> : <Navigate to="/patient/login" replace />
           } />
         </Routes>
       </main>
-    </>
+    </NotificationProvider>
   )
 }
 
@@ -167,7 +171,7 @@ function AdminRoutes() {
   }
   
   return (
-    <>
+    <NotificationProvider module="admin">
       {isAuthenticated && <AdminNavbar />}
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-28 sm:px-6 lg:ml-64 transition-all duration-300'}>
         <Routes>
@@ -193,6 +197,7 @@ function AdminRoutes() {
           <Route path="/request" element={<ProtectedRoute module="admin"><AdminRequests /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute module="admin"><AdminProfile /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute module="admin"><AdminSupport /></ProtectedRoute>} />
+          <Route path="/notifications" element={<ProtectedRoute module="admin"><NotificationsPage /></ProtectedRoute>} />
           
           {/* Catch-all - redirect to login if not authenticated */}
           <Route path="*" element={
@@ -200,22 +205,36 @@ function AdminRoutes() {
           } />
         </Routes>
       </main>
-    </>
+    </NotificationProvider>
   )
 }
 
 function DoctorRoutes() {
   const location = useLocation()
-  const isLoginPage = location.pathname === '/doctor/login'
+  const isLoginPage = location.pathname === '/doctor/login' || location.pathname === '/doctor/signup'
   const token = getAuthToken('doctor')
   
-  // If not authenticated and not on login page, force redirect to login
+  // If authenticated and on login/signup page, redirect to dashboard
+  if (token && isLoginPage) {
+    return <Navigate to="/doctor/dashboard" replace />
+  }
+  
+  // If not authenticated and trying to access protected routes, force redirect to login
   if (!token && !isLoginPage) {
+    // Clear any stale tokens
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('doctorAuthToken')
+      localStorage.removeItem('doctorAccessToken')
+      localStorage.removeItem('doctorRefreshToken')
+      sessionStorage.removeItem('doctorAuthToken')
+      sessionStorage.removeItem('doctorAccessToken')
+      sessionStorage.removeItem('doctorRefreshToken')
+    }
     return <Navigate to="/doctor/login" replace />
   }
   
   return (
-    <>
+    <NotificationProvider module="doctor">
       {/* Mobile Navbar - Only visible on mobile/tablet */}
       {!isLoginPage && <DoctorNavbar />}
       
@@ -343,6 +362,14 @@ function DoctorRoutes() {
               }
             />
             <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute module="doctor">
+                  <NotificationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/faq"
               element={
                 <ProtectedRoute module="doctor">
@@ -393,13 +420,7 @@ function DoctorRoutes() {
             <Route
               path="*"
               element={
-                token ? (
-                  <ProtectedRoute module="doctor">
-                    <Navigate to="/doctor/dashboard" replace />
-                  </ProtectedRoute>
-                ) : (
-                  <Navigate to="/doctor/login" replace />
-                )
+                <Navigate to={token ? "/doctor/dashboard" : "/doctor/login"} replace />
               }
             />
           </Routes>
@@ -408,22 +429,36 @@ function DoctorRoutes() {
       
       {/* Desktop Footer - Only visible on desktop */}
       {!isLoginPage && <DoctorFooter />}
-    </>
+    </NotificationProvider>
   )
 }
 
 function PharmacyRoutes() {
   const location = useLocation()
-  const isLoginPage = location.pathname === '/pharmacy/login'
+  const isLoginPage = location.pathname === '/pharmacy/login' || location.pathname === '/pharmacy/signup'
   const token = getAuthToken('pharmacy')
   
-  // If not authenticated and not on login page, force redirect to login
+  // If authenticated and on login/signup page, redirect to dashboard
+  if (token && isLoginPage) {
+    return <Navigate to="/pharmacy/dashboard" replace />
+  }
+  
+  // If not authenticated and trying to access protected routes, force redirect to login
   if (!token && !isLoginPage) {
+    // Clear any stale tokens
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('pharmacyAuthToken')
+      localStorage.removeItem('pharmacyAccessToken')
+      localStorage.removeItem('pharmacyRefreshToken')
+      sessionStorage.removeItem('pharmacyAuthToken')
+      sessionStorage.removeItem('pharmacyAccessToken')
+      sessionStorage.removeItem('pharmacyRefreshToken')
+    }
     return <Navigate to="/pharmacy/login" replace />
   }
   
   return (
-    <>
+    <NotificationProvider module="pharmacy">
       {!isLoginPage && <PharmacyNavbar />}
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
         <Routes>
@@ -561,35 +596,51 @@ function PharmacyRoutes() {
             }
           />
           <Route
+            path="/notifications"
+            element={
+              <ProtectedRoute module="pharmacy">
+                <NotificationsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="*"
             element={
-              token ? (
-                <ProtectedRoute module="pharmacy">
-                  <Navigate to="/pharmacy/dashboard" replace />
-                </ProtectedRoute>
-              ) : (
-                <Navigate to="/pharmacy/login" replace />
-              )
+              <Navigate to={token ? "/pharmacy/dashboard" : "/pharmacy/login"} replace />
             }
           />
         </Routes>
       </main>
-    </>
+    </NotificationProvider>
   )
 }
 
 function LaboratoryRoutes() {
   const location = useLocation()
-  const isLoginPage = location.pathname === '/laboratory/login'
+  const isLoginPage = location.pathname === '/laboratory/login' || location.pathname === '/laboratory/signup'
   const token = getAuthToken('laboratory')
   
-  // If not authenticated and not on login page, force redirect to login
+  // If authenticated and on login/signup page, redirect to dashboard
+  if (token && isLoginPage) {
+    return <Navigate to="/laboratory/dashboard" replace />
+  }
+  
+  // If not authenticated and trying to access protected routes, force redirect to login
   if (!token && !isLoginPage) {
+    // Clear any stale tokens
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('laboratoryAuthToken')
+      localStorage.removeItem('laboratoryAccessToken')
+      localStorage.removeItem('laboratoryRefreshToken')
+      sessionStorage.removeItem('laboratoryAuthToken')
+      sessionStorage.removeItem('laboratoryAccessToken')
+      sessionStorage.removeItem('laboratoryRefreshToken')
+    }
     return <Navigate to="/laboratory/login" replace />
   }
   
   return (
-    <>
+    <NotificationProvider module="laboratory">
       {/* Mobile Navbar - Only visible on mobile/tablet */}
       {!isLoginPage && <LaboratoryNavbar />}
       
@@ -781,6 +832,14 @@ function LaboratoryRoutes() {
               }
             />
             <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute module="laboratory">
+                  <NotificationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/privacy-policy"
               element={
                 <ProtectedRoute module="laboratory">
@@ -839,13 +898,7 @@ function LaboratoryRoutes() {
             <Route
               path="*"
               element={
-                token ? (
-                  <ProtectedRoute module="laboratory">
-                    <Navigate to="/laboratory/dashboard" replace />
-                  </ProtectedRoute>
-                ) : (
-                  <Navigate to="/laboratory/login" replace />
-                )
+                <Navigate to={token ? "/laboratory/dashboard" : "/laboratory/login"} replace />
               }
             />
           </Routes>
@@ -854,6 +907,19 @@ function LaboratoryRoutes() {
       
       {/* Desktop Footer - Only visible on desktop */}
       {!isLoginPage && <LaboratoryFooter />}
+    </NotificationProvider>
+  )
+}
+
+function WebsiteRoutes() {
+  return (
+    <>
+      <WebNavbar />
+      <main>
+        <Routes>
+          <Route path="/" element={<Home />} />
+        </Routes>
+      </main>
     </>
   )
 }
@@ -865,6 +931,7 @@ function DefaultRedirect() {
   const laboratoryToken = getAuthToken('laboratory')
   const adminToken = getAuthToken('admin')
   
+  // If authenticated, redirect to respective dashboard
   if (patientToken) {
     return <Navigate to="/patient/dashboard" replace />
   }
@@ -881,7 +948,15 @@ function DefaultRedirect() {
     return <Navigate to="/admin/dashboard" replace />
   }
   
-  return <Navigate to="/patient/login" replace />
+  // Default to landing page for unauthenticated users
+  return (
+    <>
+      <WebNavbar />
+      <main>
+        <Home />
+      </main>
+    </>
+  )
 }
 
 function App() {
@@ -911,10 +986,28 @@ function App() {
           {/* Admin Routes */}
           <Route path="/admin/*" element={<AdminRoutes />} />
 
-          {/* Default redirect - check authentication */}
+          {/* Website Routes - Landing Page */}
+          <Route path="/website/*" element={<WebsiteRoutes />} />
+
+          {/* Onboarding Route - No Navbar */}
+          <Route path="/onboarding" element={<WebOnBoarding />} />
+
+          {/* Default route - show landing page or redirect if authenticated */}
           <Route path="/" element={<DefaultRedirect />} />
         </Routes>
       </div>
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
     </Router>
   )
 }

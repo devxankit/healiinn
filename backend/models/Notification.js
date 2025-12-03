@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const { ROLES } = require('../utils/constants');
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -10,29 +9,28 @@ const notificationSchema = new mongoose.Schema(
     },
     userType: {
       type: String,
-      enum: Object.values(ROLES),
+      enum: ['patient', 'doctor', 'pharmacy', 'laboratory', 'admin'],
       required: true,
       index: true,
     },
     type: {
       type: String,
-      required: true,
       enum: [
         'appointment',
-        'consultation',
         'prescription',
-        'order',
-        'report',
-        'request',
         'payment',
-        'review',
-        'support',
-        'system',
+        'order',
+        'request',
+        'report',
         'wallet',
         'withdrawal',
-        'approval',
-        'rejection',
+        'support',
+        'system',
+        'consultation',
+        'session',
+        'queue',
       ],
+      required: true,
       index: true,
     },
     title: {
@@ -49,7 +47,7 @@ const notificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
-    isRead: {
+    read: {
       type: Boolean,
       default: false,
       index: true,
@@ -57,14 +55,14 @@ const notificationSchema = new mongoose.Schema(
     readAt: {
       type: Date,
     },
-    actionUrl: {
-      type: String,
-      trim: true,
-    },
     priority: {
       type: String,
       enum: ['low', 'medium', 'high', 'urgent'],
       default: 'medium',
+    },
+    actionUrl: {
+      type: String,
+      trim: true,
     },
     icon: {
       type: String,
@@ -78,13 +76,13 @@ const notificationSchema = new mongoose.Schema(
 );
 
 // Indexes for efficient queries
-notificationSchema.index({ userId: 1, userType: 1, isRead: 1, createdAt: -1 });
+notificationSchema.index({ userId: 1, userType: 1, read: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, userType: 1, createdAt: -1 });
-notificationSchema.index({ isRead: 1, createdAt: -1 });
+notificationSchema.index({ read: 1, createdAt: -1 });
 
 // Method to mark as read
 notificationSchema.methods.markAsRead = function () {
-  this.isRead = true;
+  this.read = true;
   this.readAt = new Date();
   return this.save();
 };

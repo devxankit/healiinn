@@ -50,7 +50,7 @@ exports.getSupportTickets = asyncHandler(async (req, res) => {
 
 // GET /api/admin/support/:id
 exports.getSupportTicketById = asyncHandler(async (req, res) => {
-  const { ticketId } = req.params;
+  const { id: ticketId } = req.params;
 
   const ticket = await SupportTicket.findById(ticketId)
     .populate('userId')
@@ -72,8 +72,8 @@ exports.getSupportTicketById = asyncHandler(async (req, res) => {
 
 // POST /api/admin/support/:id/respond
 exports.respondToTicket = asyncHandler(async (req, res) => {
-  const { id } = req.auth;
-  const { ticketId } = req.params;
+  const { id: adminId } = req.auth;
+  const { id: ticketId } = req.params;
   const { message, attachments } = req.body;
 
   if (!message) {
@@ -92,7 +92,7 @@ exports.respondToTicket = asyncHandler(async (req, res) => {
   }
 
   ticket.responses.push({
-    userId: id,
+    userId: adminId,
     userType: 'admin',
     message,
     attachments: attachments || [],
@@ -101,7 +101,7 @@ exports.respondToTicket = asyncHandler(async (req, res) => {
 
   if (ticket.status === 'open') {
     ticket.status = 'in_progress';
-    ticket.assignedTo = id;
+    ticket.assignedTo = adminId;
   }
 
   await ticket.save();
@@ -125,20 +125,6 @@ exports.respondToTicket = asyncHandler(async (req, res) => {
     io.to(`${ticket.userType}-${ticket.userId}`).emit('support:ticket:responded', {
       ticket: await SupportTicket.findById(ticket._id),
     });
-
-    // Create in-app notification for user
-    try {
-      const { createSupportNotification } = require('../../services/inAppNotificationService');
-      const { ROLES } = require('../../utils/constants');
-      await createSupportNotification({
-        userId: ticket.userId,
-        userType: ticket.userType,
-        ticket: ticket._id,
-        action: 'responded',
-      }).catch((error) => console.error('Error creating support notification:', error));
-    } catch (error) {
-      console.error('Error creating in-app notification:', error);
-    }
   } catch (error) {
     console.error('Socket.IO error:', error);
   }
@@ -166,7 +152,7 @@ exports.respondToTicket = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/support/:id/status
 exports.updateTicketStatus = asyncHandler(async (req, res) => {
-  const { ticketId } = req.params;
+  const { id: ticketId } = req.params;
   const { status } = req.body;
 
   if (!status || !['open', 'in_progress', 'resolved', 'closed'].includes(status)) {

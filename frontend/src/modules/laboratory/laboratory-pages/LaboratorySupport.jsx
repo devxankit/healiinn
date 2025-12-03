@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { toast } from 'react-toastify'
 import { IoCloseOutline, IoCheckmarkCircleOutline } from 'react-icons/io5'
+import { createSupportTicket } from '../laboratory-services/laboratoryService'
 
 const LaboratorySupport = () => {
   const [formData, setFormData] = useState({
@@ -24,21 +26,31 @@ const LaboratorySupport = () => {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    try {
+      await createSupportTicket({
+        name: formData.name,
+        labName: formData.labName,
+        email: formData.email,
+        contactNumber: formData.contactNumber,
+        note: formData.note,
+        role: 'laboratory',
+      })
 
-    // TODO: Replace with actual API call
-    // await submitSupportRequest({ ...formData, role: 'laboratory' })
-
-    setIsSubmitting(false)
-    setShowSuccessModal(true)
-    setFormData({
-      name: '',
-      labName: '',
-      email: '',
-      contactNumber: '',
-      note: '',
-    })
+      toast.success('Support request submitted successfully!')
+      setShowSuccessModal(true)
+      setFormData({
+        name: '',
+        labName: '',
+        email: '',
+        contactNumber: '',
+        note: '',
+      })
+    } catch (error) {
+      console.error('Error submitting support request:', error)
+      toast.error('Failed to submit support request. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const isFormValid = formData.name && formData.labName && formData.email && formData.contactNumber && formData.note

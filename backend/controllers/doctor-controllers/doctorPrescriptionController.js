@@ -6,7 +6,6 @@ const Doctor = require('../../models/Doctor');
 const Patient = require('../../models/Patient');
 const { getIO } = require('../../config/socket');
 const { sendPrescriptionEmail } = require('../../services/notificationService');
-const { createPrescriptionNotification } = require('../../services/inAppNotificationService');
 const { ROLES } = require('../../utils/constants');
 
 // Helper functions
@@ -120,16 +119,24 @@ exports.createPrescription = asyncHandler(async (req, res) => {
     console.error('Error sending email notifications:', error);
   }
 
-  // Create in-app notification for patient
+  // Create in-app notifications
   try {
+    const { createPrescriptionNotification } = require('../../services/notificationService');
+    const populatedPrescription = await Prescription.findById(prescription._id)
+      .populate('doctorId', 'firstName lastName')
+      .populate('patientId', 'firstName lastName');
+
+    // Notify patient
     await createPrescriptionNotification({
       userId: consultation.patientId,
-      userType: ROLES.PATIENT,
-      prescription: prescription._id,
-    }).catch((error) => console.error('Error creating prescription notification:', error));
+      userType: 'patient',
+      prescription: populatedPrescription,
+      doctor: populatedPrescription.doctorId,
+    }).catch((error) => console.error('Error creating patient prescription notification:', error));
   } catch (error) {
-    console.error('Error creating in-app notification:', error);
+    console.error('Error creating notifications:', error);
   }
+
 
   return res.status(201).json({
     success: true,

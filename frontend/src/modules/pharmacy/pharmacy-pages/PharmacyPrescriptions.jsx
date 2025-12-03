@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import jsPDF from 'jspdf'
+import { getPharmacyPrescriptions } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoArrowBackOutline,
   IoDocumentTextOutline,
@@ -20,250 +22,7 @@ import {
   IoEyeOutline,
 } from 'react-icons/io5'
 
-const mockPrescriptions = [
-  {
-    id: 'presc-1',
-    doctor: {
-      name: 'Dr. Emily Davis',
-      specialty: 'General Physician',
-      image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-      phone: '+91 98765 43210',
-      email: 'emily.davis@cityhealthclinic.com',
-    },
-    patient: {
-      name: 'John Doe',
-      age: 32,
-      gender: 'Male',
-      phone: '+91 98765 12345',
-      email: 'john.doe@example.com',
-      address: {
-        line1: '123 Main Street',
-        line2: 'Apt 4B',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10001',
-      },
-    },
-    clinic: {
-      name: 'City Health Clinic',
-      address: '123 Health Street, Medical District, City - 400001',
-      phone: '+91 98765 43210',
-      email: 'info@cityhealthclinic.com',
-    },
-    issuedAt: '2024-12-15',
-    diagnosis: 'Seasonal Flu',
-    symptoms: ['High fever (102°F)', 'Headache', 'Body ache', 'Sore throat', 'Runny nose'],
-    medications: [
-      {
-        id: 1,
-        name: 'Paracetamol',
-        strength: '500mg',
-        dosage: '1 tablet',
-        frequency: 'Every 6 hours',
-        duration: '5 days',
-        instructions: 'Take after meals',
-      },
-      {
-        id: 2,
-        name: 'Azithromycin',
-        strength: '500mg',
-        dosage: '1 tablet',
-        frequency: 'Once daily',
-        duration: '3 days',
-        instructions: 'Take on empty stomach',
-      },
-      {
-        id: 3,
-        name: 'Cetirizine',
-        strength: '10mg',
-        dosage: '1 tablet',
-        frequency: 'Once daily at bedtime',
-        duration: '5 days',
-        instructions: 'May cause drowsiness',
-      },
-    ],
-    recommendedTests: [
-      {
-        name: 'Complete Blood Count (CBC)',
-        instructions: 'Fasting not required',
-      },
-    ],
-    medicalAdvice: [
-      'Take adequate rest for 3-5 days',
-      'Drink plenty of fluids (8-10 glasses of water daily)',
-      'Avoid cold foods and beverages',
-      'Use warm salt water gargling 3-4 times daily',
-      'Return if fever persists beyond 3 days',
-    ],
-    followUpAt: '2024-12-22',
-    pdfUrl: '#',
-  },
-  {
-    id: 'presc-2',
-    doctor: {
-      name: 'Dr. Robert Wilson',
-      specialty: 'Orthopedist',
-      image: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80',
-      phone: '+91 98765 43211',
-      email: 'robert.wilson@bonejointcare.com',
-    },
-    patient: {
-      name: 'Sarah Smith',
-      age: 28,
-      gender: 'Female',
-      phone: '+91 98765 23456',
-      email: 'sarah.smith@example.com',
-      address: {
-        line1: '456 Oak Avenue',
-        line2: '',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10002',
-      },
-    },
-    clinic: {
-      name: 'Bone & Joint Care',
-      address: '456 Medical Avenue, Health District, City - 400002',
-      phone: '+91 98765 43211',
-      email: 'info@bonejointcare.com',
-    },
-    issuedAt: '2024-11-20',
-    diagnosis: 'Lower Back Pain',
-    symptoms: ['Lower back stiffness', 'Pain on movement', 'Limited range of motion'],
-    medications: [
-      {
-        id: 1,
-        name: 'Ibuprofen',
-        strength: '400mg',
-        dosage: '1 tablet',
-        frequency: 'Twice daily',
-        duration: '7 days',
-        instructions: 'Take with food',
-      },
-      {
-        id: 2,
-        name: 'Muscle Relaxant',
-        strength: '10mg',
-        dosage: '1 tablet',
-        frequency: 'Once daily at bedtime',
-        duration: '5 days',
-        instructions: 'May cause drowsiness',
-      },
-    ],
-    recommendedTests: [
-      {
-        name: 'X-Ray Lumbar Spine',
-        instructions: 'No special preparation required',
-      },
-      {
-        name: 'MRI Lower Back',
-        instructions: 'Fasting not required',
-      },
-      {
-        name: 'Blood Test - ESR',
-        instructions: 'Fasting not required',
-      },
-    ],
-    medicalAdvice: [
-      'Avoid heavy lifting for 2 weeks',
-      'Apply hot compress 2-3 times daily',
-      'Practice gentle stretching exercises',
-      'Maintain proper posture while sitting',
-    ],
-    followUpAt: '2024-12-20',
-    pdfUrl: '#',
-  },
-  {
-    id: 'presc-3',
-    doctor: {
-      name: 'Dr. Sarah Johnson',
-      specialty: 'Cardiologist',
-      image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-      phone: '+91 98765 43212',
-      email: 'sarah.johnson@heartcareclinic.com',
-    },
-    patient: {
-      name: 'Mike Johnson',
-      age: 45,
-      gender: 'Male',
-      phone: '+91 98765 34567',
-      email: 'mike.johnson@example.com',
-      address: {
-        line1: '789 Pine Street',
-        line2: 'Suite 200',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10003',
-      },
-    },
-    clinic: {
-      name: 'Heart Care Clinic',
-      address: '789 Cardiac Road, Medical Complex, City - 400003',
-      phone: '+91 98765 43212',
-      email: 'info@heartcareclinic.com',
-    },
-    issuedAt: '2024-12-15',
-    diagnosis: 'Hypertension Management',
-    symptoms: ['Elevated blood pressure', 'Occasional headaches'],
-    medications: [
-      {
-        id: 1,
-        name: 'Amlodipine',
-        strength: '5mg',
-        dosage: '1 tablet',
-        frequency: 'Once daily',
-        duration: '30 days',
-        instructions: 'Take in the morning',
-      },
-      {
-        id: 2,
-        name: 'Losartan',
-        strength: '50mg',
-        dosage: '1 tablet',
-        frequency: 'Once daily',
-        duration: '30 days',
-        instructions: 'Take with or without food',
-      },
-      {
-        id: 3,
-        name: 'Aspirin',
-        strength: '75mg',
-        dosage: '1 tablet',
-        frequency: 'Once daily',
-        duration: '30 days',
-        instructions: 'Take after breakfast',
-      },
-      {
-        id: 4,
-        name: 'Atorvastatin',
-        strength: '20mg',
-        dosage: '1 tablet',
-        frequency: 'Once daily at bedtime',
-        duration: '30 days',
-        instructions: 'Take with food',
-      },
-    ],
-    recommendedTests: [
-      {
-        name: 'ECG',
-        instructions: 'Routine checkup',
-      },
-      {
-        name: 'Blood Pressure Monitoring',
-        instructions: 'Daily',
-      },
-    ],
-    medicalAdvice: [
-      'Maintain a low-sodium diet',
-      'Regular exercise (30 minutes daily)',
-      'Monitor blood pressure daily',
-      'Limit alcohol consumption',
-      'Reduce stress through meditation',
-    ],
-    followUpAt: '2025-01-15',
-    pdfUrl: '#',
-  },
-]
+// Mock data removed - using API data now
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -277,10 +36,103 @@ const formatDate = (dateString) => {
 }
 
 const PharmacyPrescriptions = () => {
+  const toast = useToast()
   const [selectedPrescription, setSelectedPrescription] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [prescriptions, setPrescriptions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const filteredPrescriptions = mockPrescriptions.filter((presc) => {
+  // Fetch prescriptions from API
+  useEffect(() => {
+    const fetchPrescriptions = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPharmacyPrescriptions({ search: searchTerm, limit: 100 })
+        
+        if (response.success && response.data) {
+          const prescriptionsData = Array.isArray(response.data.items) 
+            ? response.data.items 
+            : response.data.prescriptions || []
+          
+          // Transform backend data to frontend format
+          const transformed = prescriptionsData.map((presc, index) => ({
+            id: presc._id || presc.id || `presc-${index}`,
+            doctor: {
+              name: presc.doctorId?.firstName && presc.doctorId?.lastName
+                ? `Dr. ${presc.doctorId.firstName} ${presc.doctorId.lastName}`
+                : presc.doctorId?.name || 'Unknown Doctor',
+              specialty: presc.doctorId?.specialization || 'General Physician',
+              image: presc.doctorId?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(presc.doctorId?.firstName || 'Doctor')}&background=3b82f6&color=fff&size=128`,
+              phone: presc.doctorId?.phone || '',
+              email: presc.doctorId?.email || '',
+            },
+            patient: {
+              name: presc.patientId?.firstName && presc.patientId?.lastName
+                ? `${presc.patientId.firstName} ${presc.patientId.lastName}`
+                : presc.patientId?.name || 'Unknown Patient',
+              age: presc.patientId?.age || presc.patientId?.dateOfBirth 
+                ? Math.floor((new Date() - new Date(presc.patientId.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000))
+                : 0,
+              gender: presc.patientId?.gender || '',
+              phone: presc.patientId?.phone || '',
+              email: presc.patientId?.email || '',
+              address: presc.patientId?.address || {
+                line1: '',
+                line2: '',
+                city: '',
+                state: '',
+                postalCode: '',
+              },
+            },
+            clinic: {
+              name: presc.clinicName || presc.clinic?.name || 'Clinic',
+              address: presc.clinicAddress || presc.clinic?.address || '',
+              phone: presc.clinicPhone || presc.clinic?.phone || '',
+              email: presc.clinicEmail || presc.clinic?.email || '',
+            },
+            issuedAt: presc.createdAt || presc.issuedAt || new Date().toISOString(),
+            diagnosis: presc.diagnosis || presc.consultationId?.diagnosis || 'N/A',
+            symptoms: presc.symptoms || [],
+            medications: Array.isArray(presc.medications) 
+              ? presc.medications.map((med, idx) => ({
+                  id: idx + 1,
+                  name: med.name || '',
+                  strength: med.strength || '',
+                  dosage: med.dosage || '',
+                  frequency: med.frequency || '',
+                  duration: med.duration || '',
+                  instructions: med.instructions || '',
+                }))
+              : [],
+            recommendedTests: Array.isArray(presc.recommendedTests)
+              ? presc.recommendedTests.map((test) => ({
+                  name: test.name || test,
+                  instructions: test.instructions || '',
+                }))
+              : [],
+            medicalAdvice: presc.medicalAdvice || presc.notes ? [presc.notes].filter(Boolean) : [],
+            followUpAt: presc.followUpDate || presc.followUpAt || null,
+            pdfUrl: presc.pdfUrl || '#',
+          }))
+          
+          setPrescriptions(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching prescriptions:', err)
+        setError(err.message || 'Failed to load prescriptions')
+        toast.error('Failed to load prescriptions. Please try again.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPrescriptions()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm])
+
+  const filteredPrescriptions = prescriptions.filter((presc) => {
     if (!searchTerm.trim()) return true
     const search = searchTerm.toLowerCase()
     return (
@@ -677,21 +529,32 @@ const PharmacyPrescriptions = () => {
         <div className="group relative overflow-hidden rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-emerald-100/60 p-3 text-center shadow-sm transition-all duration-300 hover:shadow-lg hover:shadow-emerald-200/40 hover:scale-[1.02] hover:border-emerald-300/80">
           <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-emerald-200/40 blur-xl transition-opacity group-hover:opacity-100 opacity-70" />
           <div className="absolute -left-3 -bottom-3 h-12 w-12 rounded-full bg-emerald-100/30 blur-lg transition-opacity group-hover:opacity-100 opacity-50" />
-          <p className="relative text-2xl font-bold text-emerald-600 drop-shadow-sm">{mockPrescriptions.length}</p>
+          <p className="relative text-2xl font-bold text-emerald-600 drop-shadow-sm">{loading ? '...' : prescriptions.length}</p>
           <p className="relative mt-1 text-xs font-semibold text-emerald-700">Prescriptions</p>
         </div>
         <div className="group relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.1)] via-[rgba(17,73,108,0.08)] to-[rgba(17,73,108,0.15)] p-3 text-center shadow-sm transition-all duration-300 hover:shadow-lg hover:shadow-[rgba(17,73,108,0.1)] hover:scale-[1.02] hover:border-[rgba(17,73,108,0.3)]">
           <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-[rgba(17,73,108,0.1)] blur-xl transition-opacity group-hover:opacity-100 opacity-70" />
           <div className="absolute -left-3 -bottom-3 h-12 w-12 rounded-full bg-[rgba(17,73,108,0.08)] blur-lg transition-opacity group-hover:opacity-100 opacity-50" />
           <p className="relative text-2xl font-bold text-[#11496c] drop-shadow-sm">
-            {mockPrescriptions.reduce((sum, p) => sum + p.medications.length, 0)}
+            {loading ? '...' : prescriptions.reduce((sum, p) => sum + (p.medications?.length || 0), 0)}
           </p>
           <p className="relative mt-1 text-xs font-semibold text-[#11496c]">Medications</p>
         </div>
       </div>
 
       {/* Prescriptions List */}
-      {filteredPrescriptions.length === 0 ? (
+      {loading ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+          <IoDocumentTextOutline className="mx-auto h-12 w-12 text-slate-400 animate-pulse" />
+          <p className="mt-4 text-sm font-medium text-slate-600">Loading prescriptions...</p>
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-dashed border-red-200 bg-red-50 p-8 text-center">
+          <IoDocumentTextOutline className="mx-auto h-12 w-12 text-red-400" />
+          <p className="mt-4 text-sm font-medium text-red-600">Error loading prescriptions</p>
+          <p className="mt-1 text-xs text-red-500">{error}</p>
+        </div>
+      ) : filteredPrescriptions.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
           <IoDocumentTextOutline className="mx-auto h-12 w-12 text-slate-400" />
           <p className="mt-4 text-sm font-medium text-slate-600">No prescriptions found</p>

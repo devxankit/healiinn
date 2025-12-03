@@ -12,6 +12,10 @@ import {
   IoFlaskOutline,
   IoMedicalOutline,
 } from 'react-icons/io5'
+import {
+  getSupportTickets,
+  updateSupportTicketStatus,
+} from '../admin-services/adminService'
 
 const AdminSupport = () => {
   const [supportRequests, setSupportRequests] = useState([])
@@ -24,63 +28,75 @@ const AdminSupport = () => {
   const [newStatus, setNewStatus] = useState('')
   const [adminNote, setAdminNote] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Mock data - Replace with API call
+  // Load support tickets from API
   useEffect(() => {
-    const mockRequests = [
-      {
-        id: '1',
-        role: 'doctor',
-        name: 'Dr. John Smith',
-        clinicName: 'City Medical Center',
-        email: 'john.smith@example.com',
-        contactNumber: '+91 9876543210',
-        note: 'Need help with prescription management system.',
-        status: 'pending',
-        createdAt: '2024-01-15T10:30:00Z',
-        updatedAt: '2024-01-15T10:30:00Z',
-      },
-      {
-        id: '2',
-        role: 'patient',
-        name: 'Sarah Johnson',
-        email: 'sarah.j@example.com',
-        contactNumber: '+91 9876543211',
-        note: 'Unable to book appointment with doctor.',
-        status: 'in_progress',
-        createdAt: '2024-01-14T14:20:00Z',
-        updatedAt: '2024-01-15T09:15:00Z',
-        adminNote: 'Contacted patient, issue resolved.',
-      },
-      {
-        id: '3',
-        role: 'pharmacy',
-        name: 'Rajesh Kumar',
-        pharmacyName: 'MediCare Pharmacy',
-        email: 'rajesh@medicare.com',
-        contactNumber: '+91 9876543212',
-        note: 'Order delivery system not working properly.',
-        status: 'resolved',
-        createdAt: '2024-01-13T11:00:00Z',
-        updatedAt: '2024-01-14T16:30:00Z',
-        adminNote: 'Fixed delivery system issue.',
-      },
-      {
-        id: '4',
-        role: 'laboratory',
-        name: 'Priya Sharma',
-        labName: 'Health Lab Services',
-        email: 'priya@healthlab.com',
-        contactNumber: '+91 9876543213',
-        note: 'Report generation taking too long.',
-        status: 'pending',
-        createdAt: '2024-01-16T08:45:00Z',
-        updatedAt: '2024-01-16T08:45:00Z',
-      },
-    ]
-    setSupportRequests(mockRequests)
-    setFilteredRequests(mockRequests)
+    loadSupportTickets()
   }, [])
+
+  const loadSupportTickets = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const filters = {}
+      if (statusFilter !== 'all') filters.status = statusFilter
+      if (roleFilter !== 'all') filters.userType = roleFilter
+
+      const response = await getSupportTickets(filters)
+      if (response.success && response.data) {
+        // Transform API data to match component structure
+        const tickets = response.data.items || response.data || []
+        const transformedTickets = tickets.map((ticket) => {
+          const user = ticket.userId || {}
+          let name = ''
+          let role = ticket.userType || 'patient'
+
+          if (role === 'patient') {
+            name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown'
+          } else if (role === 'doctor') {
+            name = `Dr. ${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown'
+          } else if (role === 'pharmacy') {
+            name = user.contactPerson || user.pharmacyName || user.email || 'Unknown'
+          } else if (role === 'laboratory') {
+            name = user.contactPerson || user.labName || user.email || 'Unknown'
+          }
+
+          return {
+            id: ticket._id || ticket.id,
+            role,
+            name,
+            clinicName: user.clinicName || null,
+            pharmacyName: user.pharmacyName || null,
+            labName: user.labName || null,
+            email: user.email || ticket.email || '',
+            contactNumber: user.phone || ticket.contactNumber || '',
+            note: ticket.message || ticket.note || ticket.subject || '',
+            status: ticket.status || 'open',
+            createdAt: ticket.createdAt || new Date().toISOString(),
+            updatedAt: ticket.updatedAt || ticket.createdAt || new Date().toISOString(),
+            adminNote: ticket.adminNote || null,
+            responses: ticket.responses || [],
+          }
+        })
+        setSupportRequests(transformedTickets)
+      }
+    } catch (err) {
+      console.error('Error loading support tickets:', err)
+      setError(err.message || 'Failed to load support tickets')
+      setSupportRequests([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Reload when filters change
+  useEffect(() => {
+    if (!loading) {
+      loadSupportTickets()
+    }
+  }, [statusFilter, roleFilter])
 
   useEffect(() => {
     let filtered = [...supportRequests]
@@ -157,29 +173,28 @@ const AdminSupport = () => {
 
     setIsUpdating(true)
 
-    // TODO: Replace with actual API call
-    // await updateSupportRequestStatus(selectedRequest.id, { status: newStatus, adminNote })
+    try {
+      await updateSupportTicketStatus(selectedRequest.id, newStatus)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // Update local state
-    setSupportRequests((prev) =>
-      prev.map((req) =>
-        req.id === selectedRequest.id
-          ? { ...req, status: newStatus, adminNote, updatedAt: new Date().toISOString() }
-          : req
+      // Update local state
+      setSupportRequests((prev) =>
+        prev.map((req) =>
+          req.id === selectedRequest.id
+            ? { ...req, status: newStatus, adminNote, updatedAt: new Date().toISOString() }
+            : req
+        )
       )
-    )
 
-    setIsUpdating(false)
-    setShowStatusModal(false)
-    setSelectedRequest(null)
-    setNewStatus('')
-    setAdminNote('')
-
-    // TODO: Send email notification to user
-    // await sendStatusUpdateNotification(selectedRequest.email, newStatus)
+      setShowStatusModal(false)
+      setSelectedRequest(null)
+      setNewStatus('')
+      setAdminNote('')
+    } catch (err) {
+      console.error('Error updating support ticket status:', err)
+      alert(err.message || 'Failed to update status')
+    } finally {
+      setIsUpdating(false)
+    }
   }
 
   const formatDate = (dateString) => {
@@ -222,7 +237,21 @@ const AdminSupport = () => {
 
       {/* Support Requests List */}
       <div className="space-y-4">
-        {filteredRequests.length === 0 ? (
+        {loading ? (
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+            <p className="text-sm font-medium text-slate-600">Loading support requests...</p>
+          </div>
+        ) : error ? (
+          <div className="rounded-lg border border-dashed border-red-200 bg-red-50 p-8 text-center">
+            <p className="text-sm font-medium text-red-600">Error: {error}</p>
+            <button
+              onClick={loadSupportTickets}
+              className="mt-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        ) : filteredRequests.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             <p className="text-sm font-medium text-slate-600">No support requests found</p>
             <p className="mt-1 text-xs text-slate-500">Try adjusting your filters</p>

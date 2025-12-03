@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'react-toastify'
 import {
   IoCheckmarkCircleOutline,
   IoCloseOutline,
@@ -14,103 +15,7 @@ import {
   IoArrowForwardOutline,
   IoWalletOutline,
 } from 'react-icons/io5'
-
-// Mock data for incoming requests from patients
-const initialMockRequests = [
-  {
-    id: 'req-1',
-    patientId: 'pat-1',
-    patient: {
-      name: 'John Doe',
-      phone: '+91 98765 12345',
-      email: 'john.doe@example.com',
-      address: '123 Main Street, Pune, Maharashtra 411001',
-      age: 32,
-      gender: 'Male',
-    },
-    testName: 'Complete Blood Count (CBC)',
-    prescriptionId: 'presc-1',
-    status: 'pending', // 'pending', 'accepted', 'rejected', 'completed'
-    requestDate: '2025-01-15',
-    collectionType: 'home', // 'home' or 'lab'
-    // Doctor Information (from prescription)
-    doctor: {
-      name: 'Dr. Rajesh Kumar',
-      specialty: 'General Physician',
-      phone: '+91 98765 43210',
-    },
-    // Laboratory Response (to be added)
-    laboratoryResponse: null,
-  },
-  {
-    id: 'req-2',
-    patientId: 'pat-2',
-    patient: {
-      name: 'Sarah Smith',
-      phone: '+91 98765 23456',
-      email: 'sarah.smith@example.com',
-      address: '456 Oak Avenue, Pune, Maharashtra 411002',
-      age: 28,
-      gender: 'Female',
-    },
-    testName: 'Lipid Profile',
-    prescriptionId: 'presc-2',
-    status: 'accepted',
-    requestDate: '2025-01-14',
-    responseDate: '2025-01-14',
-    collectionType: 'lab',
-    totalAmount: 600,
-    message: 'Request accepted. Please visit the lab on Jan 16, 2025. Total amount: ₹600.',
-    // Doctor Information
-    doctor: {
-      name: 'Dr. Priya Sharma',
-      specialty: 'Cardiologist',
-      phone: '+91 98765 54321',
-    },
-    // Laboratory Response
-    laboratoryResponse: {
-      message: 'Request accepted. Please visit the lab on Jan 16, 2025 at 10:00 AM. Total amount: ₹600. Please proceed with payment.',
-      responseBy: 'MediLab Diagnostics Team',
-      responseTime: '2025-01-14T15:30:00',
-      scheduledDate: '2025-01-16',
-      scheduledTime: '10:00 AM',
-    },
-  },
-  {
-    id: 'req-3',
-    patientId: 'pat-3',
-    patient: {
-      name: 'Mike Johnson',
-      phone: '+91 98765 34567',
-      email: 'mike.johnson@example.com',
-      address: '789 Pine Street, Pune, Maharashtra 411003',
-      age: 45,
-      gender: 'Male',
-    },
-    testName: 'Liver Function Test (LFT)',
-    prescriptionId: 'presc-3',
-    status: 'accepted',
-    requestDate: '2025-01-13',
-    responseDate: '2025-01-13',
-    collectionType: 'home',
-    totalAmount: 800,
-    message: 'Request accepted. Home collection scheduled for Jan 15, 2025. Total amount: ₹800.',
-    // Doctor Information
-    doctor: {
-      name: 'Dr. Rajesh Kumar',
-      specialty: 'General Physician',
-      phone: '+91 98765 43210',
-    },
-    // Laboratory Response
-    laboratoryResponse: {
-      message: 'Request accepted. Home collection scheduled for Jan 15, 2025 between 9:00 AM - 11:00 AM. Total amount: ₹800. Please proceed with payment.',
-      responseBy: 'MediLab Diagnostics Team',
-      responseTime: '2025-01-13T16:20:00',
-      scheduledDate: '2025-01-15',
-      scheduledTime: '9:00 AM - 11:00 AM',
-    },
-  },
-]
+import { getLaboratoryRequests } from '../laboratory-services/laboratoryService'
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -134,7 +39,8 @@ const formatCurrency = (amount) => {
 
 const LaboratoryRequests = () => {
   const navigate = useNavigate()
-  const [requests, setRequests] = useState(initialMockRequests)
+  const [requests, setRequests] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [showResponseModal, setShowResponseModal] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -142,6 +48,26 @@ const LaboratoryRequests = () => {
   const [responseMessage, setResponseMessage] = useState('')
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('')
+
+  useEffect(() => {
+    fetchRequests()
+  }, [])
+
+  const fetchRequests = async () => {
+    try {
+      setIsLoading(true)
+      const response = await getLaboratoryRequests()
+      // Transform backend response to match frontend structure
+      const transformedRequests = Array.isArray(response) ? response : (response.data || response.requests || [])
+      setRequests(transformedRequests)
+    } catch (error) {
+      console.error('Error fetching requests:', error)
+      toast.error('Failed to load requests')
+      setRequests([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleAcceptRequest = (request) => {
     setSelectedRequest(request)
@@ -156,25 +82,32 @@ const LaboratoryRequests = () => {
     if (!request) return
 
     const confirmReject = window.confirm(
-      `Are you sure you want to reject this request from ${request.patient.name}?`
+      `Are you sure you want to reject this request from ${request.patient?.name || 'patient'}?`
     )
 
     if (!confirmReject) return
 
     setIsProcessing(true)
 
-    // Simulate API call to reject request
-    setTimeout(() => {
-      setIsProcessing(false)
+    try {
+      // TODO: Add backend endpoint for rejecting requests
+      // For now, update local state
       setRequests((prevRequests) =>
         prevRequests.map((req) =>
-          req.id === request.id
+          req.id === request.id || req._id === request._id
             ? { ...req, status: 'rejected', rejectedAt: new Date().toISOString() }
             : req
         )
       )
-      alert(`Request from ${request.patient.name} has been rejected.`)
-    }, 1000)
+      toast.success('Request rejected successfully')
+      // Refresh requests after rejection
+      await fetchRequests()
+    } catch (error) {
+      console.error('Error rejecting request:', error)
+      toast.error('Failed to reject request')
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleCloseResponseModal = () => {
@@ -189,17 +122,15 @@ const LaboratoryRequests = () => {
   const handleSubmitResponse = async () => {
     if (!selectedRequest) return
     if (!responseAmount || !responseMessage) {
-      alert('Please fill in all required fields.')
+      toast.error('Please fill in all required fields.')
       return
     }
 
     setIsProcessing(true)
 
-    // Simulate API call to send response
-    setTimeout(() => {
-      setIsProcessing(false)
-      handleCloseResponseModal()
-
+    try {
+      // TODO: Add backend endpoint for accepting/responding to requests
+      // For now, update local state
       const responseData = {
         message: responseMessage,
         responseBy: 'MediLab Diagnostics Team',
@@ -210,7 +141,7 @@ const LaboratoryRequests = () => {
 
       setRequests((prevRequests) =>
         prevRequests.map((req) =>
-          req.id === selectedRequest.id
+          (req.id === selectedRequest.id || req._id === selectedRequest._id)
             ? {
                 ...req,
                 status: 'accepted',
@@ -223,8 +154,16 @@ const LaboratoryRequests = () => {
         )
       )
 
-      alert(`Response sent successfully to ${selectedRequest.patient.name}!`)
-    }, 1500)
+      toast.success(`Response sent successfully to ${selectedRequest.patient?.name || 'patient'}!`)
+      handleCloseResponseModal()
+      // Refresh requests after response
+      await fetchRequests()
+    } catch (error) {
+      console.error('Error submitting response:', error)
+      toast.error('Failed to send response')
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const getStatusColor = (status) => {
@@ -275,6 +214,17 @@ const LaboratoryRequests = () => {
   const pendingRequests = requests.filter((req) => req.status === 'pending')
   const respondedRequests = requests.filter((req) => req.status !== 'pending')
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#11496c] border-t-transparent mx-auto mb-2"></div>
+          <p className="text-sm text-slate-600">Loading requests...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       <main className="px-4 py-6 sm:px-6">
@@ -307,7 +257,7 @@ const LaboratoryRequests = () => {
                           <div className="mb-3">
                             <div className="flex items-start justify-between gap-3 mb-2">
                               <h3 className="flex-1 min-w-0 text-base font-bold text-slate-900 leading-tight pr-2 line-clamp-2">
-                                {request.testName}
+                                {request.testName || request.test?.name || request.investigations?.[0]?.name || 'Test Request'}
                               </h3>
                               <div className="shrink-0">
                                 <span
@@ -319,14 +269,14 @@ const LaboratoryRequests = () => {
                               </div>
                             </div>
                             <p className="text-[10px] text-slate-500">
-                              Requested: {formatDate(request.requestDate)}
+                              Requested: {formatDate(request.requestDate || request.createdAt || request.date)}
                             </p>
                           </div>
                         </div>
                       </div>
 
                       {/* Patient Information Section */}
-                      {request.patient && (
+                      {(request.patient || request.patientId) && (
                         <div className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm p-3.5">
                           <div className="flex items-center gap-2 mb-3">
                             <div className="h-6 w-6 rounded-lg bg-[#11496c]/10 flex items-center justify-center shrink-0">
@@ -338,24 +288,34 @@ const LaboratoryRequests = () => {
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div className="col-span-2 flex items-center gap-1.5 text-[10px] mb-1">
-                              <span className="text-slate-700 font-semibold">{request.patient.name}</span>
-                              <span className="text-slate-400">•</span>
-                              <span className="text-slate-500 text-[9px]">
-                                {request.patient.age} yrs, {request.patient.gender}
-                              </span>
+                              <span className="text-slate-700 font-semibold">{request.patient?.name || 'Patient'}</span>
+                              {request.patient?.age && (
+                                <>
+                                  <span className="text-slate-400">•</span>
+                                  <span className="text-slate-500 text-[9px]">
+                                    {request.patient.age} yrs, {request.patient.gender || ''}
+                                  </span>
+                                </>
+                              )}
                             </div>
-                            <div className="flex items-center gap-1.5 text-[9px] text-slate-600">
-                              <IoCallOutline className="h-3 w-3 text-slate-400 shrink-0" />
-                              <span className="truncate">{request.patient.phone}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[9px] text-slate-600">
-                              <IoMailOutline className="h-3 w-3 text-slate-400 shrink-0" />
-                              <span className="truncate">{request.patient.email}</span>
-                            </div>
-                            <div className="col-span-2 flex items-start gap-1.5 text-[9px] text-slate-600 mt-0.5">
-                              <IoLocationOutline className="h-3 w-3 text-slate-400 shrink-0 mt-0.5" />
-                              <span className="leading-tight line-clamp-2 flex-1">{request.patient.address}</span>
-                            </div>
+                            {request.patient?.phone && (
+                              <div className="flex items-center gap-1.5 text-[9px] text-slate-600">
+                                <IoCallOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                                <span className="truncate">{request.patient.phone}</span>
+                              </div>
+                            )}
+                            {request.patient?.email && (
+                              <div className="flex items-center gap-1.5 text-[9px] text-slate-600">
+                                <IoMailOutline className="h-3 w-3 text-slate-400 shrink-0" />
+                                <span className="truncate">{request.patient.email}</span>
+                              </div>
+                            )}
+                            {request.patient?.address && (
+                              <div className="col-span-2 flex items-start gap-1.5 text-[9px] text-slate-600 mt-0.5">
+                                <IoLocationOutline className="h-3 w-3 text-slate-400 shrink-0 mt-0.5" />
+                                <span className="leading-tight line-clamp-2 flex-1">{request.patient.address}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -434,7 +394,7 @@ const LaboratoryRequests = () => {
                           <div className="mb-3">
                             <div className="flex items-start justify-between gap-3 mb-2">
                               <h3 className="flex-1 min-w-0 text-base font-bold text-slate-900 leading-tight pr-2 line-clamp-2">
-                                {request.testName}
+                                {request.testName || request.test?.name || request.investigations?.[0]?.name || 'Test Request'}
                               </h3>
                               <div className="shrink-0">
                                 <span
@@ -445,9 +405,9 @@ const LaboratoryRequests = () => {
                                 </span>
                               </div>
                             </div>
-                            <p className="text-xs text-slate-600 mb-1">{request.patient.name}</p>
+                            <p className="text-xs text-slate-600 mb-1">{request.patient?.name || request.patientName || 'Patient'}</p>
                             <p className="text-[10px] text-slate-500">
-                              {formatDate(request.requestDate)} • {request.responseDate && formatDate(request.responseDate)}
+                              {formatDate(request.requestDate || request.createdAt || request.date)} • {request.responseDate && formatDate(request.responseDate)}
                             </p>
                           </div>
                         </div>
@@ -513,8 +473,8 @@ const LaboratoryRequests = () => {
             <div className="p-6 space-y-4">
               <div className="rounded-lg bg-slate-50 p-3">
                 <p className="text-sm font-semibold text-slate-900 mb-1">Test:</p>
-                <p className="text-sm text-slate-600">{selectedRequest.testName}</p>
-                <p className="text-xs text-slate-500 mt-1">Patient: {selectedRequest.patient.name}</p>
+                <p className="text-sm text-slate-600">{selectedRequest.testName || selectedRequest.test?.name || 'Test Request'}</p>
+                <p className="text-xs text-slate-500 mt-1">Patient: {selectedRequest.patient?.name || 'Patient'}</p>
               </div>
 
               <div>

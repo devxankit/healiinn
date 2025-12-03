@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
+import { getLaboratoryRequestOrders, generateLaboratoryBill } from '../laboratory-services/laboratoryService'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   IoPeopleOutline,
   IoSearchOutline,
@@ -26,617 +28,7 @@ import {
   IoPaperPlaneOutline,
 } from 'react-icons/io5'
 
-// Mock test requests with prescription data from doctor
-const mockTestRequests = [
-  {
-    id: 'req-1',
-    requestId: 'test-3021',
-    patientId: 'pat-1',
-    patient: {
-    name: 'John Doe',
-    age: 45,
-    gender: 'male',
-    phone: '+1-555-123-4567',
-    email: 'john.doe@example.com',
-    address: {
-      line1: '123 Main Street',
-      line2: 'Apt 4B',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10001',
-    },
-    image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
-    },
-    status: 'pending', // pending, accepted, bill_generated, paid, order_created, cancelled
-    requestDate: '2025-01-15T10:00:00.000Z',
-    // Doctor's prescription data
-    prescription: {
-      doctor: {
-        name: 'Dr. Sarah Mitchell',
-        qualification: 'MBBS, MD (Cardiology)',
-        licenseNumber: 'MD-12345',
-        clinicName: 'Heart Care Clinic',
-        clinicAddress: '123 Medical Center Drive, Suite 200, New York, NY 10001',
-        phone: '+1-555-123-4567',
-        email: 'sarah.mitchell@example.com',
-        specialization: 'Cardiologist',
-      },
-      diagnosis: 'Hypertension follow-up and routine checkup',
-      investigations: [
-        { name: 'Complete Blood Count (CBC)', notes: 'To check overall health status' },
-        { name: 'Blood Glucose (Fasting)', notes: 'To monitor blood sugar levels' },
-      ],
-      medications: [
-        { name: 'Amlodipine 5mg', dosage: '5mg', frequency: 'Once daily', duration: '30 days', instructions: 'Take with food' },
-      ],
-      advice: 'Maintain a healthy diet and regular exercise. Monitor blood pressure daily.',
-      followUpDate: '2025-02-15',
-    },
-    bill: null,
-    orderId: null,
-    collectionType: 'home', // 'home' or 'lab'
-  },
-  {
-    id: 'req-2',
-    requestId: 'test-3022',
-    patientId: 'pat-2',
-    patient: {
-    name: 'Sarah Smith',
-    age: 32,
-    gender: 'female',
-    phone: '+1-555-234-5678',
-    email: 'sarah.smith@example.com',
-    address: {
-      line1: '456 Oak Avenue',
-      line2: '',
-      city: 'New York',
-      state: 'NY',
-      postalCode: '10002',
-    },
-    image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160',
-    },
-    status: 'accepted',
-    requestDate: '2025-01-14T09:00:00.000Z',
-    acceptedDate: '2025-01-14T14:00:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Priya Sharma',
-        qualification: 'MBBS, MD',
-        licenseNumber: 'MD-54321',
-        clinicName: 'Wellness Clinic',
-        clinicAddress: '456 Health Avenue, New York, NY 10002',
-        phone: '+1-555-234-5678',
-        email: 'priya.sharma@example.com',
-        specialization: 'General Physician',
-      },
-      diagnosis: 'Routine health checkup',
-      investigations: [
-        { name: 'Lipid Profile', notes: 'To check cholesterol levels' },
-      ],
-      medications: [],
-      advice: 'Continue with regular exercise and balanced diet.',
-      followUpDate: null,
-    },
-    bill: null,
-    orderId: null,
-    collectionType: 'lab', // 'home' or 'lab'
-  },
-  {
-    id: 'req-3',
-    requestId: 'test-3023',
-    patientId: 'pat-3',
-    patient: {
-      name: 'Mike Johnson',
-      age: 38,
-      gender: 'male',
-      phone: '+1-555-345-6789',
-      email: 'mike.johnson@example.com',
-      address: {
-        line1: '789 Pine Street',
-        line2: 'Suite 5A',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10003',
-      },
-      image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
-    },
-    status: 'pending',
-    requestDate: '2025-01-13T11:00:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Robert Chen',
-        qualification: 'MBBS, MD (Internal Medicine)',
-        licenseNumber: 'MD-67890',
-        clinicName: 'City Medical Center',
-        clinicAddress: '789 Health Boulevard, New York, NY 10003',
-        phone: '+1-555-345-6789',
-        email: 'robert.chen@example.com',
-        specialization: 'Internal Medicine',
-      },
-      diagnosis: 'Diabetes management and monitoring',
-      investigations: [
-        { name: 'HbA1c', notes: 'To monitor long-term glucose control' },
-        { name: 'Fasting Blood Sugar', notes: 'To check current glucose levels' },
-      ],
-      medications: [
-        { name: 'Metformin 500mg', dosage: '500mg', frequency: 'Twice daily', duration: '90 days', instructions: 'Take with meals' },
-      ],
-      advice: 'Monitor blood sugar levels regularly. Follow diabetic diet plan.',
-      followUpDate: '2025-02-13',
-    },
-    bill: null,
-    orderId: null,
-    collectionType: 'home',
-  },
-  {
-    id: 'req-4',
-    requestId: 'test-3024',
-    patientId: 'pat-4',
-    patient: {
-      name: 'Emily Brown',
-      age: 28,
-      gender: 'female',
-      phone: '+1-555-456-7890',
-      email: 'emily.brown@example.com',
-      address: {
-        line1: '321 Elm Avenue',
-        line2: '',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10004',
-      },
-      image: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
-    },
-    status: 'accepted',
-    requestDate: '2025-01-12T08:30:00.000Z',
-    acceptedDate: '2025-01-12T10:00:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Lisa Anderson',
-        qualification: 'MBBS, MD (Gynecology)',
-        licenseNumber: 'MD-11111',
-        clinicName: 'Women\'s Health Clinic',
-        clinicAddress: '321 Medical Plaza, New York, NY 10004',
-        phone: '+1-555-456-7890',
-        email: 'lisa.anderson@example.com',
-        specialization: 'Gynecologist',
-      },
-      diagnosis: 'Annual wellness checkup',
-      investigations: [
-        { name: 'Pap Smear', notes: 'Cervical cancer screening' },
-        { name: 'Complete Blood Count', notes: 'General health assessment' },
-      ],
-      medications: [],
-      advice: 'Continue regular checkups. Maintain healthy lifestyle.',
-      followUpDate: '2025-07-12',
-    },
-    bill: null,
-    orderId: null,
-    collectionType: 'lab',
-  },
-  {
-    id: 'req-5',
-    requestId: 'test-3025',
-    patientId: 'pat-5',
-    patient: {
-      name: 'David Wilson',
-      age: 52,
-      gender: 'male',
-      phone: '+1-555-567-8901',
-      email: 'david.wilson@example.com',
-      address: {
-        line1: '654 Maple Drive',
-        line2: 'Apt 12B',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10005',
-      },
-      image: 'https://ui-avatars.com/api/?name=David+Wilson&background=8b5cf6&color=fff&size=160',
-    },
-    status: 'bill_generated',
-    requestDate: '2025-01-11T14:00:00.000Z',
-    acceptedDate: '2025-01-11T15:00:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. James Martinez',
-        qualification: 'MBBS, MD (Cardiology)',
-        licenseNumber: 'MD-22222',
-        clinicName: 'Cardiac Care Center',
-        clinicAddress: '654 Heart Street, New York, NY 10005',
-        phone: '+1-555-567-8901',
-        email: 'james.martinez@example.com',
-        specialization: 'Cardiologist',
-      },
-      diagnosis: 'Cardiac health assessment',
-      investigations: [
-        { name: 'Lipid Profile', notes: 'To assess cardiovascular risk' },
-        { name: 'ECG', notes: 'Heart rhythm analysis' },
-        { name: 'Echocardiogram', notes: 'Heart structure evaluation' },
-      ],
-      medications: [
-        { name: 'Atorvastatin 20mg', dosage: '20mg', frequency: 'Once daily', duration: '30 days', instructions: 'Take at bedtime' },
-      ],
-      advice: 'Reduce salt intake. Exercise regularly. Monitor blood pressure.',
-      followUpDate: '2025-02-11',
-    },
-    bill: {
-      id: 'bill-req-5',
-      requestId: 'test-3025',
-      testsAmount: 2500.0,
-      deliveryCharge: 50.0,
-      additionalCharges: 0,
-      totalAmount: 2550.0,
-      items: [
-        { name: 'Lipid Profile', price: 600.0 },
-        { name: 'ECG', price: 800.0 },
-        { name: 'Echocardiogram', price: 1100.0 },
-      ],
-      generatedDate: '2025-01-11T16:00:00.000Z',
-    },
-    orderId: null,
-    collectionType: 'home',
-  },
-  {
-    id: 'req-6',
-    requestId: 'test-3026',
-    patientId: 'pat-6',
-    patient: {
-      name: 'Jennifer Lee',
-      age: 35,
-      gender: 'female',
-      phone: '+1-555-678-9012',
-      email: 'jennifer.lee@example.com',
-      address: {
-        line1: '987 Cedar Lane',
-        line2: '',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10006',
-      },
-      image: 'https://ui-avatars.com/api/?name=Jennifer+Lee&background=ef4444&color=fff&size=160',
-    },
-    status: 'paid',
-    requestDate: '2025-01-10T09:15:00.000Z',
-    acceptedDate: '2025-01-10T10:00:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Michael Taylor',
-        qualification: 'MBBS, MD (Endocrinology)',
-        licenseNumber: 'MD-33333',
-        clinicName: 'Endocrine Specialists',
-        clinicAddress: '987 Hormone Avenue, New York, NY 10006',
-        phone: '+1-555-678-9012',
-        email: 'michael.taylor@example.com',
-        specialization: 'Endocrinologist',
-      },
-      diagnosis: 'Thyroid function evaluation',
-      investigations: [
-        { name: 'TSH', notes: 'Thyroid stimulating hormone' },
-        { name: 'T3', notes: 'Triiodothyronine' },
-        { name: 'T4', notes: 'Thyroxine' },
-      ],
-      medications: [
-        { name: 'Levothyroxine 50mcg', dosage: '50mcg', frequency: 'Once daily', duration: '60 days', instructions: 'Take on empty stomach' },
-      ],
-      advice: 'Take medication as prescribed. Follow-up in 6 weeks.',
-      followUpDate: '2025-02-24',
-    },
-    bill: {
-      id: 'bill-req-6',
-      requestId: 'test-3026',
-      testsAmount: 1200.0,
-      deliveryCharge: 0,
-      additionalCharges: 0,
-      totalAmount: 1200.0,
-      items: [
-        { name: 'TSH', price: 400.0 },
-        { name: 'T3', price: 400.0 },
-        { name: 'T4', price: 400.0 },
-      ],
-      generatedDate: '2025-01-10T11:00:00.000Z',
-    },
-    orderId: 'order-3026',
-    collectionType: 'lab',
-  },
-  {
-    id: 'req-7',
-    requestId: 'test-3027',
-    patientId: 'pat-7',
-    patient: {
-      name: 'Robert Garcia',
-      age: 41,
-      gender: 'male',
-      phone: '+1-555-789-0123',
-      email: 'robert.garcia@example.com',
-      address: {
-        line1: '147 Birch Street',
-        line2: 'Unit 8',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10007',
-      },
-      image: 'https://ui-avatars.com/api/?name=Robert+Garcia&background=06b6d4&color=fff&size=160',
-    },
-    status: 'pending',
-    requestDate: '2025-01-09T13:20:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Amanda White',
-        qualification: 'MBBS, MD (Dermatology)',
-        licenseNumber: 'MD-44444',
-        clinicName: 'Skin Care Clinic',
-        clinicAddress: '147 Beauty Boulevard, New York, NY 10007',
-        phone: '+1-555-789-0123',
-        email: 'amanda.white@example.com',
-        specialization: 'Dermatologist',
-      },
-      diagnosis: 'Skin condition evaluation',
-      investigations: [
-        { name: 'Complete Blood Count', notes: 'To rule out infections' },
-        { name: 'Allergy Panel', notes: 'To identify allergens' },
-      ],
-      medications: [
-        { name: 'Cetirizine 10mg', dosage: '10mg', frequency: 'Once daily', duration: '14 days', instructions: 'Take at night' },
-      ],
-      advice: 'Avoid known allergens. Use gentle skincare products.',
-      followUpDate: '2025-01-23',
-    },
-    bill: null,
-    orderId: null,
-    collectionType: 'home',
-  },
-  {
-    id: 'req-8',
-    requestId: 'test-3028',
-    patientId: 'pat-8',
-    patient: {
-      name: 'Maria Rodriguez',
-      age: 29,
-      gender: 'female',
-      phone: '+1-555-890-1234',
-      email: 'maria.rodriguez@example.com',
-      address: {
-        line1: '258 Spruce Avenue',
-        line2: '',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10008',
-      },
-      image: 'https://ui-avatars.com/api/?name=Maria+Rodriguez&background=14b8a6&color=fff&size=160',
-    },
-    status: 'accepted',
-    requestDate: '2025-01-08T10:45:00.000Z',
-    acceptedDate: '2025-01-08T12:00:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Christopher Kim',
-        qualification: 'MBBS, MD (Pediatrics)',
-        licenseNumber: 'MD-55555',
-        clinicName: 'Children\'s Health Center',
-        clinicAddress: '258 Kids Street, New York, NY 10008',
-        phone: '+1-555-890-1234',
-        email: 'christopher.kim@example.com',
-        specialization: 'Pediatrician',
-      },
-      diagnosis: 'Routine pediatric checkup',
-      investigations: [
-        { name: 'Complete Blood Count', notes: 'General health screening' },
-        { name: 'Vitamin D', notes: 'To check vitamin levels' },
-      ],
-      medications: [],
-      advice: 'Ensure proper nutrition. Regular exercise and outdoor activities.',
-      followUpDate: null,
-    },
-    bill: null,
-    orderId: null,
-    collectionType: 'lab',
-  },
-  {
-    id: 'req-9',
-    requestId: 'test-3029',
-    patientId: 'pat-9',
-    patient: {
-      name: 'Thomas Anderson',
-      age: 47,
-      gender: 'male',
-      phone: '+1-555-901-2345',
-      email: 'thomas.anderson@example.com',
-      address: {
-        line1: '369 Willow Way',
-        line2: 'Apt 3C',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10009',
-      },
-      image: 'https://ui-avatars.com/api/?name=Thomas+Anderson&background=6366f1&color=fff&size=160',
-    },
-    status: 'pending',
-    requestDate: '2025-01-07T15:30:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Patricia Moore',
-        qualification: 'MBBS, MD (Orthopedics)',
-        licenseNumber: 'MD-66666',
-        clinicName: 'Bone & Joint Clinic',
-        clinicAddress: '369 Orthopedic Drive, New York, NY 10009',
-        phone: '+1-555-901-2345',
-        email: 'patricia.moore@example.com',
-        specialization: 'Orthopedic Surgeon',
-      },
-      diagnosis: 'Joint pain evaluation',
-      investigations: [
-        { name: 'Rheumatoid Factor', notes: 'To check for arthritis' },
-        { name: 'ESR', notes: 'Erythrocyte sedimentation rate' },
-        { name: 'CRP', notes: 'C-reactive protein' },
-      ],
-      medications: [
-        { name: 'Ibuprofen 400mg', dosage: '400mg', frequency: 'Three times daily', duration: '7 days', instructions: 'Take with food' },
-      ],
-      advice: 'Rest the affected joint. Apply ice packs. Avoid strenuous activities.',
-      followUpDate: '2025-01-21',
-    },
-    bill: null,
-    orderId: null,
-    collectionType: 'home',
-  },
-  {
-    id: 'req-10',
-    requestId: 'test-3030',
-    patientId: 'pat-10',
-    patient: {
-      name: 'Priya Patel',
-      age: 31,
-      gender: 'female',
-      phone: '+1-555-012-3456',
-      email: 'priya.patel@example.com',
-      address: {
-        line1: '741 Ash Boulevard',
-        line2: '',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10010',
-      },
-      image: 'https://ui-avatars.com/api/?name=Priya+Patel&background=a855f7&color=fff&size=160',
-    },
-    status: 'bill_generated',
-    requestDate: '2025-01-06T08:00:00.000Z',
-    acceptedDate: '2025-01-06T09:00:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Daniel Brown',
-        qualification: 'MBBS, MD (Gastroenterology)',
-        licenseNumber: 'MD-77777',
-        clinicName: 'Digestive Health Center',
-        clinicAddress: '741 Stomach Street, New York, NY 10010',
-        phone: '+1-555-012-3456',
-        email: 'daniel.brown@example.com',
-        specialization: 'Gastroenterologist',
-      },
-      diagnosis: 'Digestive health assessment',
-      investigations: [
-        { name: 'Liver Function Test', notes: 'To assess liver health' },
-        { name: 'Kidney Function Test', notes: 'To check kidney function' },
-        { name: 'Stool Test', notes: 'To check for infections' },
-      ],
-      medications: [
-        { name: 'Omeprazole 20mg', dosage: '20mg', frequency: 'Once daily', duration: '30 days', instructions: 'Take before breakfast' },
-      ],
-      advice: 'Follow a bland diet. Avoid spicy and fatty foods. Stay hydrated.',
-      followUpDate: '2025-02-06',
-    },
-    bill: {
-      id: 'bill-req-10',
-      requestId: 'test-3030',
-      testsAmount: 1800.0,
-      deliveryCharge: 50.0,
-      additionalCharges: 0,
-      totalAmount: 1850.0,
-      items: [
-        { name: 'Liver Function Test', price: 800.0 },
-        { name: 'Kidney Function Test', price: 750.0 },
-        { name: 'Stool Test', price: 250.0 },
-      ],
-      generatedDate: '2025-01-06T10:00:00.000Z',
-    },
-    orderId: null,
-    collectionType: 'home',
-  },
-  {
-    id: 'req-11',
-    requestId: 'test-3031',
-    patientId: 'pat-11',
-    patient: {
-      name: 'James Wilson',
-      age: 44,
-      gender: 'male',
-      phone: '+1-555-123-4569',
-      email: 'james.wilson@example.com',
-      address: {
-        line1: '852 Poplar Drive',
-        line2: 'Suite 15',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10011',
-      },
-      image: 'https://ui-avatars.com/api/?name=James+Wilson&background=f97316&color=fff&size=160',
-    },
-    status: 'accepted',
-    requestDate: '2025-01-05T11:15:00.000Z',
-    acceptedDate: '2025-01-05T13:00:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Susan Davis',
-        qualification: 'MBBS, MD (Neurology)',
-        licenseNumber: 'MD-88888',
-        clinicName: 'Neurological Center',
-        clinicAddress: '852 Brain Avenue, New York, NY 10011',
-        phone: '+1-555-123-4569',
-        email: 'susan.davis@example.com',
-        specialization: 'Neurologist',
-      },
-      diagnosis: 'Headache evaluation',
-      investigations: [
-        { name: 'MRI Brain', notes: 'To rule out structural abnormalities' },
-        { name: 'Complete Blood Count', notes: 'General health check' },
-      ],
-      medications: [
-        { name: 'Sumatriptan 50mg', dosage: '50mg', frequency: 'As needed', duration: '30 days', instructions: 'Take at onset of headache' },
-      ],
-      advice: 'Maintain regular sleep schedule. Stay hydrated. Avoid triggers.',
-      followUpDate: '2025-02-05',
-    },
-    bill: null,
-    orderId: null,
-    collectionType: 'lab',
-  },
-  {
-    id: 'req-12',
-    requestId: 'test-3032',
-    patientId: 'pat-12',
-    patient: {
-      name: 'Sophia Martinez',
-      age: 26,
-      gender: 'female',
-      phone: '+1-555-234-5670',
-      email: 'sophia.martinez@example.com',
-      address: {
-        line1: '963 Oakwood Lane',
-        line2: '',
-        city: 'New York',
-        state: 'NY',
-        postalCode: '10012',
-      },
-      image: 'https://ui-avatars.com/api/?name=Sophia+Martinez&background=ec4899&color=fff&size=160',
-    },
-    status: 'pending',
-    requestDate: '2025-01-04T09:00:00.000Z',
-    prescription: {
-      doctor: {
-        name: 'Dr. Kevin Johnson',
-        qualification: 'MBBS, MD (Pulmonology)',
-        licenseNumber: 'MD-99999',
-        clinicName: 'Respiratory Care Clinic',
-        clinicAddress: '963 Lung Street, New York, NY 10012',
-        phone: '+1-555-234-5670',
-        email: 'kevin.johnson@example.com',
-        specialization: 'Pulmonologist',
-      },
-      diagnosis: 'Respiratory health check',
-      investigations: [
-        { name: 'Chest X-Ray', notes: 'To check lung condition' },
-        { name: 'Spirometry', notes: 'Lung function test' },
-      ],
-      medications: [
-        { name: 'Albuterol Inhaler', dosage: '2 puffs', frequency: 'As needed', duration: '30 days', instructions: 'Use during breathing difficulty' },
-      ],
-      advice: 'Avoid smoking and pollutants. Practice breathing exercises.',
-      followUpDate: '2025-02-04',
-    },
-    bill: null,
-    orderId: null,
-    collectionType: 'home',
-  },
-]
+// Mock data removed - now using backend API
 
 const formatDateTime = (value) => {
   if (!value) return 'Never'
@@ -719,15 +111,182 @@ const LaboratoryPatients = () => {
   const navigate = useNavigate()
   const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
-  const [testRequests, setTestRequests] = useState(mockTestRequests)
+  const [testRequests, setTestRequests] = useState([])
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [showBillGenerator, setShowBillGenerator] = useState(false)
   const [billRequest, setBillRequest] = useState(null)
   const [billItems, setBillItems] = useState([])
   const [deliveryCharge, setDeliveryCharge] = useState('50')
   const [additionalCharges, setAdditionalCharges] = useState('0')
   const [collectionFilter, setCollectionFilter] = useState('all') // 'all', 'home', 'lab'
+
+  const loadTestRequests = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      const token = getAuthToken('laboratory')
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
+
+      const response = await getLaboratoryRequestOrders({ limit: 100 })
+      
+      if (response.success && response.data) {
+        const requestsData = response.data.items || response.data || []
+        
+        // Transform backend data to match component format
+        const transformedRequests = requestsData.map(req => {
+          if (!req) return null
+          
+          const patient = (req.patientId && typeof req.patientId === 'object') ? req.patientId : {}
+          const prescription = (req.prescriptionId && typeof req.prescriptionId === 'object') ? req.prescriptionId : {}
+          const adminResponse = req.adminResponse || {}
+          const tests = Array.isArray(adminResponse.tests) ? adminResponse.tests : []
+          const orders = Array.isArray(req.orders) ? req.orders : []
+          const order = orders.length > 0 ? orders[0] : null
+          
+          // Calculate age from dateOfBirth
+          const calculateAge = (dateOfBirth) => {
+            if (!dateOfBirth) return null
+            const birthDate = new Date(dateOfBirth)
+            const today = new Date()
+            let age = today.getFullYear() - birthDate.getFullYear()
+            const monthDiff = today.getMonth() - birthDate.getMonth()
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              age--
+            }
+            return age
+          }
+          
+          // Get investigations from tests
+          const investigations = tests
+            .map(test => ({
+              name: test.testName || test.name || 'Test',
+              notes: test.notes || '',
+              price: test.price || 0
+            }))
+            .filter(Boolean)
+          
+          // Get patient name
+          const patientName = patient.firstName && patient.lastName
+            ? `${patient.firstName} ${patient.lastName}`
+            : patient.name || 'Unknown Patient'
+          
+          // Format address
+          const address = patient.address || {}
+          const formattedAddress = {
+            line1: address.line1 || address.street || '',
+            line2: address.line2 || address.apartment || '',
+            city: address.city || '',
+            state: address.state || '',
+            postalCode: address.postalCode || address.zipCode || ''
+          }
+          
+          // Get billing info
+          const billingSummary = adminResponse.billingSummary || {}
+          const bill = billingSummary.totalAmount ? {
+            id: `bill-${req._id || req.id}`,
+            requestId: req._id || req.id,
+            testsAmount: billingSummary.testAmount || billingSummary.totalAmount || 0,
+            deliveryCharge: billingSummary.deliveryCharge || 0,
+            additionalCharges: billingSummary.additionalCharges || 0,
+            totalAmount: billingSummary.totalAmount || 0,
+            items: investigations.map(inv => ({ name: inv.name, price: inv.price || 0 })),
+            generatedDate: billingSummary.generatedDate || req.createdAt
+          } : null
+          
+          // Determine status
+          let status = 'pending'
+          if (order) {
+            if (order.status === 'completed') status = 'order_created'
+            else if (order.status === 'accepted' || order.status === 'confirmed') {
+              if (bill) {
+                status = order.paymentStatus === 'paid' ? 'paid' : 'bill_generated'
+              } else {
+                status = 'accepted'
+              }
+            } else if (order.status === 'rejected') status = 'cancelled'
+            else status = order.status
+          } else {
+            status = req.status || 'pending'
+          }
+          
+          return {
+            id: req._id || req.id,
+            requestId: req._id || req.id,
+            patientId: patient._id || patient.id || req.patientId,
+            patient: {
+              name: patientName,
+              age: calculateAge(patient.dateOfBirth),
+              gender: patient.gender || 'unknown',
+              phone: patient.phone || '',
+              email: patient.email || '',
+              address: formattedAddress,
+              image: patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patientName)}&background=3b82f6&color=fff&size=160`
+            },
+            status: status,
+            requestDate: req.createdAt || req.requestDate,
+            acceptedDate: order?.acceptedAt || order?.createdAt,
+            prescription: {
+              doctor: {
+                name: prescription.doctorName || prescription.doctor?.name || 'Doctor',
+                qualification: prescription.doctorQualification || prescription.doctor?.qualification || '',
+                licenseNumber: prescription.doctorLicense || prescription.doctor?.licenseNumber || '',
+                clinicName: prescription.clinicName || prescription.doctor?.clinicName || '',
+                clinicAddress: prescription.clinicAddress || prescription.doctor?.clinicAddress || '',
+                phone: prescription.doctorPhone || prescription.doctor?.phone || '',
+                email: prescription.doctorEmail || prescription.doctor?.email || '',
+                specialization: prescription.doctorSpecialty || prescription.doctor?.specialization || ''
+              },
+              diagnosis: prescription.diagnosis || req.diagnosis || '',
+              investigations: investigations,
+              medications: prescription.medications || [],
+              advice: prescription.advice || '',
+              followUpDate: prescription.followUpDate || null
+            },
+            bill: bill,
+            orderId: order?._id || order?.id || null,
+            collectionType: req.visitType === 'home' || req.deliveryOption === 'home_delivery' ? 'home' : 'lab'
+          }
+        }).filter(Boolean)
+        
+        // Sort by date (newest first)
+        transformedRequests.sort((a, b) => {
+          const dateA = a?.requestDate ? new Date(a.requestDate).getTime() : 0
+          const dateB = b?.requestDate ? new Date(b.requestDate).getTime() : 0
+          return dateB - dateA
+        })
+        
+        setTestRequests(transformedRequests)
+      } else {
+        setTestRequests([])
+      }
+    } catch (error) {
+      console.error('Error loading test requests:', error)
+      setTestRequests([])
+      toast.error('Failed to load test requests')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => {
+    const token = getAuthToken('laboratory')
+    if (!token) {
+      return
+    }
+    loadTestRequests()
+    // Refresh every 30 seconds
+    const interval = setInterval(() => {
+      const currentToken = getAuthToken('laboratory')
+      if (currentToken) {
+        loadTestRequests()
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [loadTestRequests])
 
   const filteredRequests = useMemo(() => {
     let filtered = testRequests
@@ -782,13 +341,13 @@ const LaboratoryPatients = () => {
     setBillItems(updatedItems)
   }
 
-  const handleGenerateBillManually = () => {
+  const handleGenerateBillManually = async () => {
     if (!billRequest) return
 
     // Validate that all test items have names
     const emptyNames = billItems.filter(item => !item.name || item.name.trim() === '')
     if (emptyNames.length > 0) {
-      alert('Please enter test name for all items')
+      toast.error('Please enter test name for all items')
       return
     }
 
@@ -796,7 +355,7 @@ const LaboratoryPatients = () => {
     const validItems = billItems.filter(item => item.name && item.name.trim() !== '')
     
     if (validItems.length === 0) {
-      alert('Please add at least one test item')
+      toast.error('Please add at least one test item')
       return
     }
 
@@ -807,31 +366,46 @@ const LaboratoryPatients = () => {
     const totalAmount = testsAmount + delivery + additional
 
     if (totalAmount <= 0) {
-      alert('Total amount must be greater than 0')
+      toast.error('Total amount must be greater than 0')
       return
     }
 
-    const bill = {
-      id: `bill-${billRequest.id}`,
-      requestId: billRequest.requestId,
-      testsAmount,
-      deliveryCharge: delivery,
-      additionalCharges: additional,
-      totalAmount,
-      items: validItems,
-      generatedDate: new Date().toISOString(),
-    }
+    setIsProcessing(true)
+    try {
+      await generateLaboratoryBill(billRequest.requestId, {
+        testAmount: testsAmount,
+        deliveryCharge: delivery,
+        additionalCharges: additional
+      })
 
-    setTestRequests((prev) =>
-      prev.map((req) =>
-        req.id === billRequest.id
-          ? { ...req, status: 'bill_generated', bill }
-          : req
+      const bill = {
+        id: `bill-${billRequest.id}`,
+        requestId: billRequest.requestId,
+        testsAmount,
+        deliveryCharge: delivery,
+        additionalCharges: additional,
+        totalAmount,
+        items: validItems,
+        generatedDate: new Date().toISOString(),
+      }
+
+      setTestRequests((prev) =>
+        prev.map((req) =>
+          req.id === billRequest.id
+            ? { ...req, status: 'bill_generated', bill }
+            : req
+        )
       )
-    )
 
-    handleCloseBillGenerator()
-    toast.success(`Bill generated successfully! Total: ${formatCurrency(totalAmount)}`)
+      handleCloseBillGenerator()
+      toast.success(`Bill generated successfully! Total: ${formatCurrency(totalAmount)}`)
+      loadTestRequests() // Refresh data
+    } catch (error) {
+      console.error('Error generating bill:', error)
+      toast.error('Failed to generate bill. Please try again.')
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleSendBillToPatient = async (requestId) => {

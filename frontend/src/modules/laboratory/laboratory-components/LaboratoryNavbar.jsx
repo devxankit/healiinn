@@ -6,12 +6,12 @@ import {
   IoWalletOutline,
   IoPersonCircleOutline,
   IoMenuOutline,
-  IoNotificationsOutline,
   IoPeopleOutline,
   IoHelpCircleOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import LaboratorySidebar from './LaboratorySidebar'
+import NotificationBell from '../../../components/NotificationBell'
 
 // Sidebar nav and desktop navbar (includes Support above Profile)
 const sidebarNavItems = [
@@ -103,10 +103,9 @@ const LaboratoryNavbar = () => {
           </button>
         </nav>
         <div className="flex items-center gap-2">
-          <IoNotificationsOutline
-            aria-hidden="true"
-            className="text-xl text-slate-500 md:hidden"
-          />
+          <div className="md:hidden">
+            <NotificationBell />
+          </div>
           <button
             type="button"
             ref={toggleButtonRef}

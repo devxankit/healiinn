@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoDocumentTextOutline,
@@ -13,163 +13,8 @@ import {
   IoEyeOutline,
   IoArchiveOutline,
 } from 'react-icons/io5'
-
-// Current logged-in patient ID (in real app, this would come from auth context)
-const CURRENT_PATIENT_ID = 'pat-1'
-
-// Mock history data mapped by patient ID
-const mockHistoryByPatient = {
-  'pat-1': [
-    // Prescriptions
-    {
-      id: 'presc-1',
-      type: 'prescription',
-      doctor: {
-        name: 'Dr. Sarah Mitchell',
-        specialty: 'Cardiology',
-        image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-      },
-      issuedAt: '2025-01-10',
-      status: 'active',
-      diagnosis: 'Hypertension',
-      medications: [
-        { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', duration: '30 days' },
-        { name: 'Losartan', dosage: '50mg', frequency: 'Once daily', duration: '30 days' },
-      ],
-      investigations: [
-        { name: 'ECG', notes: 'Routine checkup' },
-        { name: 'Blood Pressure Monitoring', notes: 'Daily' },
-      ],
-    },
-    {
-      id: 'presc-2',
-      type: 'prescription',
-      doctor: {
-        name: 'Dr. Alana Rueter',
-        specialty: 'Dentist',
-        image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-      },
-      issuedAt: '2025-01-08',
-      status: 'active',
-      diagnosis: 'Dental Caries',
-      medications: [
-        { name: 'Amoxicillin', dosage: '500mg', frequency: 'Three times daily', duration: '7 days' },
-        { name: 'Ibuprofen', dosage: '400mg', frequency: 'As needed for pain', duration: '5 days' },
-      ],
-      investigations: [],
-    },
-    {
-      id: 'presc-3',
-      type: 'prescription',
-      doctor: {
-        name: 'Dr. Michael Brown',
-        specialty: 'General Medicine',
-        image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031a?auto=format&fit=crop&w=400&q=80',
-      },
-      issuedAt: '2025-01-05',
-      status: 'completed',
-      diagnosis: 'Common Cold',
-      medications: [
-        { name: 'Paracetamol', dosage: '500mg', frequency: 'As needed', duration: '5 days' },
-      ],
-      investigations: [],
-    },
-    // Lab Tests
-    {
-      id: 'lab-1',
-      type: 'lab_test',
-      labName: 'MediCare Diagnostics',
-      testName: 'Complete Blood Count (CBC)',
-      status: 'completed',
-      testDate: '2025-01-15',
-      resultDate: '2025-01-16',
-      amount: 1200,
-      results: 'Normal',
-      reportUrl: '#',
-    },
-    {
-      id: 'lab-2',
-      type: 'lab_test',
-      labName: 'HealthLab Center',
-      testName: 'ECG, Blood Pressure Monitoring',
-      status: 'completed',
-      testDate: '2025-01-13',
-      resultDate: '2025-01-14',
-      amount: 1500,
-      results: 'Normal',
-      reportUrl: '#',
-    },
-    {
-      id: 'lab-3',
-      type: 'lab_test',
-      labName: 'MediCare Diagnostics',
-      testName: 'Blood Glucose Test',
-      status: 'completed',
-      testDate: '2025-01-12',
-      resultDate: '2025-01-13',
-      amount: 800,
-      results: '110 mg/dL (Normal)',
-      reportUrl: '#',
-    },
-    // Orders
-    {
-      id: 'order-1',
-      type: 'order',
-      orderType: 'pharmacy',
-      providerName: 'Rx Care Pharmacy',
-      itemName: 'Amlodipine 5mg, Losartan 50mg',
-      status: 'delivered',
-      amount: 850,
-      date: '2025-01-14',
-      time: '02:15 PM',
-    },
-    {
-      id: 'order-2',
-      type: 'order',
-      orderType: 'pharmacy',
-      providerName: 'HealthHub Pharmacy',
-      itemName: 'Amoxicillin 500mg, Ibuprofen 400mg',
-      status: 'delivered',
-      amount: 450,
-      date: '2025-01-09',
-      time: '11:30 AM',
-    },
-    // Appointments
-    {
-      id: 'apt-1',
-      type: 'appointment',
-      doctor: {
-        name: 'Dr. Rajesh Kumar',
-        specialty: 'General Physician',
-        image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-      },
-      clinic: 'Shivaji Nagar Clinic',
-      date: '2025-01-15',
-      time: '10:00 AM',
-      status: 'completed',
-      consultationFee: 500,
-    },
-    {
-      id: 'apt-2',
-      type: 'appointment',
-      doctor: {
-        name: 'Dr. Priya Sharma',
-        specialty: 'Pediatrician',
-        image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-      },
-      clinic: 'Central Hospital',
-      date: '2025-01-16',
-      time: '02:30 PM',
-      status: 'completed',
-      consultationFee: 600,
-    },
-  ],
-}
-
-// Helper function to get history for a patient
-const getHistoryForPatient = (patientId) => {
-  return mockHistoryByPatient[patientId] || []
-}
+import { getPatientHistory } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -192,19 +37,123 @@ const formatCurrency = (amount) => {
 
 const PatientHistory = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [filter, setFilter] = useState('all') // all, prescription, lab_test, order, appointment
+  const [history, setHistory] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Get history for current logged-in patient
-  const patientHistory = getHistoryForPatient(CURRENT_PATIENT_ID)
+  // Fetch history from API
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPatientHistory({ limit: 100 })
+        
+        if (response.success && response.data) {
+          const allHistory = []
+          
+          // Transform prescriptions
+          if (response.data.prescriptions?.items) {
+            response.data.prescriptions.items.forEach(presc => {
+              allHistory.push({
+                id: presc._id || presc.id,
+                type: 'prescription',
+                doctor: {
+                  name: presc.doctorId ? `Dr. ${presc.doctorId.firstName} ${presc.doctorId.lastName}` : 'Unknown Doctor',
+                  specialty: presc.doctorId?.specialization || '',
+                  image: presc.doctorId?.profileImage || '',
+                },
+                issuedAt: presc.createdAt || presc.issuedAt,
+                status: presc.status || 'active',
+                diagnosis: presc.diagnosis || '',
+                medications: presc.medications || [],
+                investigations: presc.investigations || [],
+              })
+            })
+          }
+          
+          // Transform lab tests
+          if (response.data.labTests?.items) {
+            response.data.labTests.items.forEach(report => {
+              allHistory.push({
+                id: report._id || report.id,
+                type: 'lab_test',
+                labName: report.laboratoryId?.labName || 'Unknown Lab',
+                testName: report.testName || 'Lab Test',
+                status: report.status || 'completed',
+                testDate: report.testDate || report.createdAt,
+                resultDate: report.resultDate || report.createdAt,
+                amount: report.amount || 0,
+                results: report.results || 'Pending',
+                reportUrl: report.reportUrl || report.pdfUrl || '#',
+              })
+            })
+          }
+          
+          // Transform appointments
+          if (response.data.appointments?.items) {
+            response.data.appointments.items.forEach(apt => {
+              allHistory.push({
+                id: apt._id || apt.id,
+                type: 'appointment',
+                doctor: {
+                  name: apt.doctorId ? `Dr. ${apt.doctorId.firstName} ${apt.doctorId.lastName}` : 'Unknown Doctor',
+                  specialty: apt.doctorId?.specialization || '',
+                  image: apt.doctorId?.profileImage || '',
+                },
+                clinic: apt.clinicName || apt.clinic || 'Clinic',
+                date: apt.appointmentDate || apt.date,
+                time: apt.time || '',
+                status: apt.status || 'completed',
+                consultationFee: apt.consultationFee || 0,
+              })
+            })
+          }
+          
+          // Transform orders
+          if (response.data.orders?.items) {
+            response.data.orders.items.forEach(order => {
+              const providerName = order.providerId?.pharmacyName || order.providerId?.labName || 'Provider'
+              const itemNames = order.items?.map(item => item.name).join(', ') || 'Items'
+              
+              allHistory.push({
+                id: order._id || order.id,
+                type: 'order',
+                orderType: order.providerType || 'pharmacy',
+                providerName,
+                itemName: itemNames,
+                status: order.status || 'pending',
+                amount: order.totalAmount || 0,
+                date: order.createdAt || order.date,
+                time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+              })
+            })
+          }
+          
+          // Sort by date (newest first)
+          allHistory.sort((a, b) => {
+            const dateA = new Date(a.date || a.testDate || a.issuedAt || 0)
+            const dateB = new Date(b.date || b.testDate || b.issuedAt || 0)
+            return dateB - dateA
+          })
+          
+          setHistory(allHistory)
+        }
+      } catch (err) {
+        console.error('Error fetching history:', err)
+        setError(err.message || 'Failed to load history')
+        toast.error('Failed to load history')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  // Sort by date (newest first)
-  const sortedHistory = [...patientHistory].sort((a, b) => {
-    const dateA = new Date(a.date || a.testDate || a.issuedAt || 0)
-    const dateB = new Date(b.date || b.testDate || b.issuedAt || 0)
-    return dateB - dateA
-  })
+    fetchHistory()
+  }, [toast])
 
-  const filteredHistory = sortedHistory.filter((item) => {
+  const filteredHistory = history.filter((item) => {
     if (filter === 'all') return true
     if (filter === 'prescription') return item.type === 'prescription'
     if (filter === 'lab_test') return item.type === 'lab_test'
@@ -272,7 +221,18 @@ const PatientHistory = () => {
       </div>
 
       {/* History List */}
-      {filteredHistory.length === 0 ? (
+      {loading ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+          <IoArchiveOutline className="mx-auto h-12 w-12 text-slate-400 animate-pulse" />
+          <p className="mt-4 text-sm font-medium text-slate-600">Loading history...</p>
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-dashed border-red-200 bg-red-50 p-8 text-center">
+          <IoArchiveOutline className="mx-auto h-12 w-12 text-red-400" />
+          <p className="mt-4 text-sm font-medium text-red-600">Error loading history</p>
+          <p className="mt-1 text-xs text-red-500">{error}</p>
+        </div>
+      ) : filteredHistory.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
           <IoArchiveOutline className="mx-auto h-12 w-12 text-slate-400" />
           <p className="mt-4 text-sm font-medium text-slate-600">No history found</p>
@@ -514,7 +474,7 @@ const PatientHistory = () => {
                       <div className="flex gap-2 mt-3">
                         <button
                           type="button"
-                          onClick={() => navigate(`/patient/appointments`)}
+                          onClick={() => navigate(`/patient/appointments?appointment=${item.id}`)}
                           className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                         >
                           <IoEyeOutline className="h-3 w-3" />

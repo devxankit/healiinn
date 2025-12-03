@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
@@ -10,298 +10,8 @@ import {
   IoMailOutline,
   IoMedicalOutline,
 } from 'react-icons/io5'
-
-// Mock data for all patients with their history
-const mockAllPatients = [
-  {
-    id: 'pat-1',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    age: 45,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
-    patientPhone: '+1-555-987-6543',
-    patientEmail: 'john.doe@example.com',
-    patientAddress: '456 Patient Street, New York, NY 10002',
-    firstVisit: '2020-03-15',
-    lastVisit: '2025-01-15',
-    totalVisits: 12,
-    patientType: 'returning', // 'new' or 'returning'
-    totalConsultations: 12,
-    lastDiagnosis: 'Hypertension follow-up',
-    status: 'active',
-  },
-  {
-    id: 'pat-2',
-    patientId: 'pat-2',
-    patientName: 'Sarah Smith',
-    age: 32,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160',
-    patientPhone: '+1-555-123-4567',
-    patientEmail: 'sarah.smith@example.com',
-    patientAddress: '789 Health Avenue, New York, NY 10003',
-    firstVisit: '2024-12-10',
-    lastVisit: '2025-01-14',
-    totalVisits: 3,
-    patientType: 'returning',
-    totalConsultations: 3,
-    lastDiagnosis: 'Chest pain evaluation',
-    status: 'active',
-  },
-  {
-    id: 'pat-3',
-    patientId: 'pat-3',
-    patientName: 'Mike Johnson',
-    age: 28,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
-    patientPhone: '+1-555-456-7890',
-    patientEmail: 'mike.johnson@example.com',
-    patientAddress: '321 Medical Lane, New York, NY 10004',
-    firstVisit: '2021-06-20',
-    lastVisit: '2025-01-10',
-    totalVisits: 8,
-    patientType: 'returning',
-    totalConsultations: 8,
-    lastDiagnosis: 'Diabetes management',
-    status: 'active',
-  },
-  {
-    id: 'pat-4',
-    patientId: 'pat-4',
-    patientName: 'Emily Brown',
-    age: 55,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
-    patientPhone: '+1-555-789-0123',
-    patientEmail: 'emily.brown@example.com',
-    patientAddress: '654 Clinic Road, New York, NY 10005',
-    firstVisit: '2023-09-05',
-    lastVisit: '2024-12-20',
-    totalVisits: 6,
-    patientType: 'returning',
-    totalConsultations: 6,
-    lastDiagnosis: 'Arthritis consultation',
-    status: 'active',
-  },
-  {
-    id: 'pat-5',
-    patientId: 'pat-5',
-    patientName: 'David Wilson',
-    age: 38,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=8b5cf6&color=fff&size=160',
-    patientPhone: '+1-555-234-5678',
-    patientEmail: 'david.wilson@example.com',
-    patientAddress: '987 Wellness Drive, New York, NY 10006',
-    firstVisit: '2025-01-10',
-    lastVisit: '2025-01-10',
-    totalVisits: 1,
-    patientType: 'new',
-    totalConsultations: 1,
-    lastDiagnosis: 'Annual checkup',
-    status: 'active',
-  },
-  {
-    id: 'pat-6',
-    patientId: 'pat-6',
-    patientName: 'Lisa Anderson',
-    age: 42,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=ef4444&color=fff&size=160',
-    patientPhone: '+1-555-345-6789',
-    patientEmail: 'lisa.anderson@example.com',
-    patientAddress: '147 Care Street, New York, NY 10007',
-    firstVisit: '2022-04-18',
-    lastVisit: '2024-11-15',
-    totalVisits: 5,
-    patientType: 'returning',
-    totalConsultations: 5,
-    lastDiagnosis: 'Prescription provided',
-    status: 'inactive',
-  },
-  {
-    id: 'pat-7',
-    patientId: 'pat-7',
-    patientName: 'Robert Taylor',
-    age: 50,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=06b6d4&color=fff&size=160',
-    patientPhone: '+1-555-567-8901',
-    patientEmail: 'robert.taylor@example.com',
-    patientAddress: '258 Health Boulevard, New York, NY 10008',
-    firstVisit: '2019-08-22',
-    lastVisit: '2025-01-12',
-    totalVisits: 15,
-    patientType: 'returning',
-    totalConsultations: 15,
-    lastDiagnosis: 'Cardiac evaluation',
-    status: 'active',
-  },
-  {
-    id: 'pat-8',
-    patientId: 'pat-8',
-    patientName: 'Jennifer Martinez',
-    age: 29,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=a855f7&color=fff&size=160',
-    patientPhone: '+1-555-678-9012',
-    patientEmail: 'jennifer.martinez@example.com',
-    patientAddress: '369 Medical Center, New York, NY 10009',
-    firstVisit: '2024-10-05',
-    lastVisit: '2025-01-08',
-    totalVisits: 4,
-    patientType: 'returning',
-    totalConsultations: 4,
-    lastDiagnosis: 'Pregnancy consultation',
-    status: 'active',
-  },
-  {
-    id: 'pat-9',
-    patientId: 'pat-9',
-    patientName: 'James White',
-    age: 62,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=James+White&background=14b8a6&color=fff&size=160',
-    patientPhone: '+1-555-789-0123',
-    patientEmail: 'james.white@example.com',
-    patientAddress: '741 Wellness Park, New York, NY 10010',
-    firstVisit: '2020-11-30',
-    lastVisit: '2025-01-05',
-    totalVisits: 20,
-    patientType: 'returning',
-    totalConsultations: 20,
-    lastDiagnosis: 'Hypertension monitoring',
-    status: 'active',
-  },
-  {
-    id: 'pat-10',
-    patientId: 'pat-10',
-    patientName: 'Amanda Davis',
-    age: 35,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Amanda+Davis&background=f97316&color=fff&size=160',
-    patientPhone: '+1-555-890-1234',
-    patientEmail: 'amanda.davis@example.com',
-    patientAddress: '852 Care Avenue, New York, NY 10011',
-    firstVisit: '2024-09-15',
-    lastVisit: '2024-12-28',
-    totalVisits: 7,
-    patientType: 'returning',
-    totalConsultations: 7,
-    lastDiagnosis: 'Migraine treatment',
-    status: 'active',
-  },
-  {
-    id: 'pat-11',
-    patientId: 'pat-11',
-    patientName: 'Christopher Lee',
-    age: 41,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=Christopher+Lee&background=6366f1&color=fff&size=160',
-    patientPhone: '+1-555-901-2345',
-    patientEmail: 'christopher.lee@example.com',
-    patientAddress: '963 Health Plaza, New York, NY 10012',
-    firstVisit: '2025-01-18',
-    lastVisit: '2025-01-18',
-    totalVisits: 1,
-    patientType: 'new',
-    totalConsultations: 1,
-    lastDiagnosis: 'General checkup',
-    status: 'active',
-  },
-  {
-    id: 'pat-12',
-    patientId: 'pat-12',
-    patientName: 'Michelle Garcia',
-    age: 48,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Michelle+Garcia&background=ec4899&color=fff&size=160',
-    patientPhone: '+1-555-012-3456',
-    patientEmail: 'michelle.garcia@example.com',
-    patientAddress: '159 Medical Way, New York, NY 10013',
-    firstVisit: '2021-03-10',
-    lastVisit: '2024-10-20',
-    totalVisits: 9,
-    patientType: 'returning',
-    totalConsultations: 9,
-    lastDiagnosis: 'Thyroid function test',
-    status: 'inactive',
-  },
-  {
-    id: 'pat-13',
-    patientId: 'pat-13',
-    patientName: 'Daniel Rodriguez',
-    age: 33,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=Daniel+Rodriguez&background=10b981&color=fff&size=160',
-    patientPhone: '+1-555-123-4567',
-    patientEmail: 'daniel.rodriguez@example.com',
-    patientAddress: '357 Wellness Circle, New York, NY 10014',
-    firstVisit: '2024-11-25',
-    lastVisit: '2025-01-16',
-    totalVisits: 5,
-    patientType: 'returning',
-    totalConsultations: 5,
-    lastDiagnosis: 'Sports injury follow-up',
-    status: 'active',
-  },
-  {
-    id: 'pat-14',
-    patientId: 'pat-14',
-    patientName: 'Nicole Thompson',
-    age: 27,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Nicole+Thompson&background=f59e0b&color=fff&size=160',
-    patientPhone: '+1-555-234-5678',
-    patientEmail: 'nicole.thompson@example.com',
-    patientAddress: '468 Health Street, New York, NY 10015',
-    firstVisit: '2024-12-01',
-    lastVisit: '2025-01-11',
-    totalVisits: 3,
-    patientType: 'returning',
-    totalConsultations: 3,
-    lastDiagnosis: 'Skin condition treatment',
-    status: 'active',
-  },
-  {
-    id: 'pat-15',
-    patientId: 'pat-15',
-    patientName: 'Kevin Moore',
-    age: 56,
-    gender: 'male',
-    patientImage: 'https://ui-avatars.com/api/?name=Kevin+Moore&background=8b5cf6&color=fff&size=160',
-    patientPhone: '+1-555-345-6789',
-    patientEmail: 'kevin.moore@example.com',
-    patientAddress: '579 Care Boulevard, New York, NY 10016',
-    firstVisit: '2018-05-14',
-    lastVisit: '2025-01-09',
-    totalVisits: 18,
-    patientType: 'returning',
-    totalConsultations: 18,
-    lastDiagnosis: 'Cholesterol management',
-    status: 'active',
-  },
-  {
-    id: 'pat-16',
-    patientId: 'pat-16',
-    patientName: 'Rachel Clark',
-    age: 39,
-    gender: 'female',
-    patientImage: 'https://ui-avatars.com/api/?name=Rachel+Clark&background=ef4444&color=fff&size=160',
-    patientPhone: '+1-555-456-7890',
-    patientEmail: 'rachel.clark@example.com',
-    patientAddress: '680 Medical Drive, New York, NY 10017',
-    firstVisit: '2023-01-20',
-    lastVisit: '2024-09-10',
-    totalVisits: 6,
-    patientType: 'returning',
-    totalConsultations: 6,
-    lastDiagnosis: 'Allergy consultation',
-    status: 'inactive',
-  },
-]
+import { getDoctorPatients } from '../doctor-services/doctorService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
@@ -311,9 +21,60 @@ const formatDate = (dateString) => {
 
 const DoctorAllPatients = () => {
   const navigate = useNavigate()
-  const [patients, setPatients] = useState(mockAllPatients)
+  const toast = useToast()
+  const [patients, setPatients] = useState([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all') // 'all', 'active', 'inactive'
+
+  // Fetch patients from API
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setLoading(true)
+        const response = await getDoctorPatients({ limit: 100 })
+        
+        if (response.success && response.data) {
+          const patientsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.patients || response.data.items || []
+          
+          const transformed = patientsData.map(patient => ({
+            id: patient._id || patient.id,
+            patientId: patient._id || patient.id,
+            patientName: patient.firstName && patient.lastName
+              ? `${patient.firstName} ${patient.lastName}`
+              : patient.name || 'Unknown Patient',
+            age: patient.age || patient.dateOfBirth 
+              ? (new Date().getFullYear() - new Date(patient.dateOfBirth || new Date()).getFullYear())
+              : null,
+            gender: patient.gender || 'N/A',
+            patientImage: patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.firstName || patient.name || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            patientPhone: patient.phone || '',
+            patientEmail: patient.email || '',
+            patientAddress: patient.address || '',
+            firstVisit: patient.firstVisit || patient.firstAppointmentDate || null,
+            lastVisit: patient.lastVisit || patient.lastAppointmentDate || null,
+            totalVisits: patient.totalVisits || patient.totalAppointments || 0,
+            patientType: patient.totalVisits > 1 ? 'returning' : 'new',
+            totalConsultations: patient.totalConsultations || 0,
+            lastDiagnosis: patient.lastDiagnosis || '',
+            status: patient.status || 'active',
+          }))
+          
+          setPatients(transformed)
+        }
+      } catch (error) {
+        console.error('Error fetching patients:', error)
+        toast.error('Failed to load patients')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPatients()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Filter patients based on search and filters
   const filteredPatients = useMemo(() => {
@@ -349,60 +110,26 @@ const DoctorAllPatients = () => {
   }, [patients])
 
   const handleViewPatient = (patient) => {
-    // Load saved prescription data for this patient from localStorage
-    let savedPrescriptionData = null
-    try {
-      const patientPrescriptionsKey = `patientPrescriptions_${patient.patientId}`
-      const patientPrescriptions = JSON.parse(localStorage.getItem(patientPrescriptionsKey) || '[]')
-      
-      // Get the most recent prescription for this patient
-      if (patientPrescriptions.length > 0) {
-        savedPrescriptionData = patientPrescriptions[0]
-      }
-    } catch (error) {
-      console.error('Error loading prescription data:', error)
-    }
-    
-    // Load saved consultation data from localStorage
-    let savedConsultationData = null
-    try {
-      const savedConsultations = JSON.parse(localStorage.getItem('doctorConsultations') || '[]')
-      savedConsultationData = savedConsultations.find((c) => c.patientId === patient.patientId)
-    } catch (error) {
-      console.error('Error loading consultation data:', error)
-    }
-    
-    // Merge saved data with patient data
+    // Navigate to consultations page with patient data
     const consultationData = {
       id: `cons-${patient.id}`,
       patientId: patient.patientId,
       patientName: patient.patientName,
       age: patient.age,
       gender: patient.gender,
-      appointmentTime: savedConsultationData?.appointmentTime || patient.lastVisit || new Date().toISOString(),
+      appointmentTime: patient.lastVisit || new Date().toISOString(),
       appointmentType: patient.patientType === 'new' ? 'New' : 'Follow-up',
-      status: savedConsultationData?.status || 'completed',
+      status: 'completed',
       reason: patient.lastDiagnosis || 'Consultation',
       patientImage: patient.patientImage,
       patientPhone: patient.patientPhone,
       patientEmail: patient.patientEmail,
       patientAddress: patient.patientAddress,
-      // Use saved prescription data if available
-      diagnosis: savedPrescriptionData?.diagnosis || savedConsultationData?.diagnosis || '',
-      symptoms: savedPrescriptionData?.symptoms || savedConsultationData?.symptoms || '',
-      vitals: savedPrescriptionData?.vitals || savedConsultationData?.vitals || {},
-      medications: savedPrescriptionData?.medications || savedConsultationData?.medications || [],
-      investigations: savedPrescriptionData?.investigations || savedConsultationData?.investigations || [],
-      advice: savedPrescriptionData?.advice || savedConsultationData?.advice || '',
-      followUpDate: savedPrescriptionData?.followUpDate || savedConsultationData?.followUpDate || '',
-      attachments: savedConsultationData?.attachments || [],
     }
     
-    // Navigate to consultations page with this patient and loadSavedData flag
     navigate('/doctor/consultations', {
       state: {
         selectedConsultation: consultationData,
-        loadSavedData: true, // Flag to indicate we should load saved data and bypass session check
       },
     })
   }
@@ -483,7 +210,12 @@ const DoctorAllPatients = () => {
 
         {/* Patients List */}
         <div className="space-y-3 lg:grid lg:grid-cols-6 lg:gap-4 lg:space-y-0">
-          {filteredPatients.length === 0 ? (
+          {loading ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm lg:col-span-6">
+              <IoPeopleOutline className="mx-auto h-12 w-12 text-slate-300 animate-pulse" />
+              <p className="mt-4 text-sm font-medium text-slate-600">Loading patients...</p>
+            </div>
+          ) : filteredPatients.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm lg:col-span-6">
               <IoPeopleOutline className="mx-auto h-12 w-12 text-slate-300" />
               <p className="mt-4 text-sm font-medium text-slate-600">No patients found</p>

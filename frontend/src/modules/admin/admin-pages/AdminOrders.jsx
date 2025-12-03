@@ -13,6 +13,8 @@ import {
   IoArrowBackOutline,
   IoChevronDownOutline,
 } from 'react-icons/io5'
+import { getAdminOrders } from '../admin-services/adminService'
+import { useToast } from '../../../contexts/ToastContext'
 
 // Helper function to format date as YYYY-MM-DD
 const formatDate = (date) => {
@@ -58,500 +60,93 @@ const threeMonthsAgo = new Date(today)
 threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
 const threeMonthsAgoStr = formatDate(threeMonthsAgo)
 
-const mockOrders = [
-  {
-    id: 'ord-1',
-    orderId: 'ORD-2025-001',
-    type: 'pharmacy',
-    patientName: 'John Doe',
-    providerName: 'City Pharmacy',
-    providerId: 'pharmacy-city',
-    date: todayStr,
-    time: '10:00 AM',
-    status: 'completed',
-    amount: 1250,
-    items: ['Paracetamol 500mg', 'Cough Syrup'],
-  },
-  {
-    id: 'ord-2',
-    type: 'laboratory',
-    orderId: 'LAB-2025-001',
-    patientName: 'Sarah Smith',
-    providerName: 'HealthLab Diagnostics',
-    providerId: 'lab-healthlab',
-    date: todayStr,
-    time: '11:30 AM',
-    status: 'pending',
-    amount: 800,
-    items: ['Complete Blood Count', 'Blood Glucose'],
-  },
-  {
-    id: 'ord-3',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-002',
-    patientName: 'Mike Johnson',
-    providerName: 'MediCare Pharmacy',
-    providerId: 'pharmacy-medicare',
-    date: todayStr,
-    time: '02:00 PM',
-    status: 'completed',
-    amount: 950,
-    items: ['Antibiotics', 'Vitamin D'],
-  },
-  {
-    id: 'ord-4',
-    type: 'laboratory',
-    orderId: 'LAB-2025-002',
-    patientName: 'Emily Brown',
-    providerName: 'TestLab Services',
-    providerId: 'lab-testlab',
-    date: todayStr,
-    time: '09:00 AM',
-    status: 'pending',
-    amount: 1200,
-    items: ['Lipid Profile', 'Liver Function Test'],
-  },
-  {
-    id: 'ord-5',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-003',
-    patientName: 'David Wilson',
-    providerName: 'QuickMed Pharmacy',
-    providerId: 'pharmacy-quickmed',
-    date: todayStr,
-    time: '03:30 PM',
-    status: 'completed',
-    amount: 600,
-    items: ['Pain Relief Gel'],
-  },
-  {
-    id: 'ord-6',
-    type: 'laboratory',
-    orderId: 'LAB-2025-003',
-    patientName: 'Priya Sharma',
-    providerName: 'Precision Labs',
-    providerId: 'lab-precision',
-    date: todayStr,
-    time: '01:00 PM',
-    status: 'completed',
-    amount: 1500,
-    items: ['Thyroid Function Test', 'Vitamin B12'],
-  },
-  {
-    id: 'ord-7',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-004',
-    patientName: 'Rajesh Kumar',
-    providerName: 'Wellness Pharmacy',
-    providerId: 'pharmacy-wellness',
-    date: todayStr,
-    time: '04:00 PM',
-    status: 'pending',
-    amount: 450,
-    items: ['Antacid Tablets'],
-  },
-  {
-    id: 'ord-8',
-    type: 'laboratory',
-    orderId: 'LAB-2025-004',
-    patientName: 'Anjali Mehta',
-    providerName: 'HealthLab Diagnostics',
-    providerId: 'lab-healthlab',
-    date: todayStr,
-    time: '05:00 PM',
-    status: 'pending',
-    amount: 900,
-    items: ['Hemoglobin Test'],
-  },
-  // This week orders for monthly view
-  {
-    id: 'ord-9',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-005',
-    patientName: 'Ravi Verma',
-    providerName: 'City Pharmacy',
-    providerId: 'pharmacy-city',
-    date: yesterdayStr,
-    time: '10:30 AM',
-    status: 'completed',
-    amount: 750,
-    items: ['Antibiotics', 'Pain Killers'],
-  },
-  {
-    id: 'ord-10',
-    type: 'laboratory',
-    orderId: 'LAB-2025-005',
-    patientName: 'Sneha Patel',
-    providerName: 'TestLab Services',
-    providerId: 'lab-testlab',
-    date: yesterdayStr,
-    time: '02:30 PM',
-    status: 'completed',
-    amount: 1100,
-    items: ['Complete Blood Count', 'ESR'],
-  },
-  {
-    id: 'ord-11',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-006',
-    patientName: 'Amit Singh',
-    providerName: 'MediCare Pharmacy',
-    providerId: 'pharmacy-medicare',
-    date: twoDaysAgoStr,
-    time: '11:00 AM',
-    status: 'completed',
-    amount: 550,
-    items: ['Cough Syrup', 'Throat Lozenges'],
-  },
-  {
-    id: 'ord-12',
-    type: 'laboratory',
-    orderId: 'LAB-2025-006',
-    patientName: 'Kavita Reddy',
-    providerName: 'Precision Labs',
-    providerId: 'lab-precision',
-    date: twoDaysAgoStr,
-    time: '03:00 PM',
-    status: 'pending',
-    amount: 1300,
-    items: ['Diabetes Panel', 'HbA1c'],
-  },
-  {
-    id: 'ord-13',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-007',
-    patientName: 'Vikram Malhotra',
-    providerName: 'QuickMed Pharmacy',
-    providerId: 'pharmacy-quickmed',
-    date: threeDaysAgoStr,
-    time: '09:30 AM',
-    status: 'completed',
-    amount: 850,
-    items: ['Multivitamins', 'Calcium Tablets'],
-  },
-  {
-    id: 'ord-14',
-    type: 'laboratory',
-    orderId: 'LAB-2025-007',
-    patientName: 'Meera Iyer',
-    providerName: 'HealthLab Diagnostics',
-    providerId: 'lab-healthlab',
-    date: threeDaysAgoStr,
-    time: '01:30 PM',
-    status: 'completed',
-    amount: 950,
-    items: ['Liver Function Test'],
-  },
-  {
-    id: 'ord-15',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-008',
-    patientName: 'Arjun Nair',
-    providerName: 'Wellness Pharmacy',
-    providerId: 'pharmacy-wellness',
-    date: fourDaysAgoStr,
-    time: '04:00 PM',
-    status: 'pending',
-    amount: 680,
-    items: ['Antihistamine', 'Nasal Spray'],
-  },
-  {
-    id: 'ord-16',
-    type: 'laboratory',
-    orderId: 'LAB-2025-008',
-    patientName: 'Divya Menon',
-    providerName: 'TestLab Services',
-    providerId: 'lab-testlab',
-    date: fourDaysAgoStr,
-    time: '10:00 AM',
-    status: 'completed',
-    amount: 1400,
-    items: ['Cardiac Profile', 'Lipid Profile'],
-  },
-  {
-    id: 'ord-17',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-009',
-    patientName: 'Nikhil Joshi',
-    providerName: 'City Pharmacy',
-    providerId: 'pharmacy-city',
-    date: fiveDaysAgoStr,
-    time: '02:00 PM',
-    status: 'completed',
-    amount: 420,
-    items: ['Antacid', 'Digestive Enzymes'],
-  },
-  {
-    id: 'ord-18',
-    type: 'laboratory',
-    orderId: 'LAB-2025-009',
-    patientName: 'Pooja Desai',
-    providerName: 'Precision Labs',
-    providerId: 'lab-precision',
-    date: fiveDaysAgoStr,
-    time: '11:30 AM',
-    status: 'pending',
-    amount: 1050,
-    items: ['Thyroid Function Test'],
-  },
-  // Earlier this month for monthly view
-  {
-    id: 'ord-19',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-010',
-    patientName: 'Rahul Gupta',
-    providerName: 'MediCare Pharmacy',
-    providerId: 'pharmacy-medicare',
-    date: tenDaysAgoStr,
-    time: '10:00 AM',
-    status: 'completed',
-    amount: 720,
-    items: ['Antibiotics'],
-  },
-  {
-    id: 'ord-20',
-    type: 'laboratory',
-    orderId: 'LAB-2025-010',
-    patientName: 'Sunita Rao',
-    providerName: 'HealthLab Diagnostics',
-    providerId: 'lab-healthlab',
-    date: tenDaysAgoStr,
-    time: '02:00 PM',
-    status: 'completed',
-    amount: 1150,
-    items: ['Complete Blood Count'],
-  },
-  {
-    id: 'ord-21',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-011',
-    patientName: 'Karan Mehta',
-    providerName: 'QuickMed Pharmacy',
-    providerId: 'pharmacy-quickmed',
-    date: fifteenDaysAgoStr,
-    time: '11:00 AM',
-    status: 'completed',
-    amount: 580,
-    items: ['Pain Killers'],
-  },
-  {
-    id: 'ord-22',
-    type: 'laboratory',
-    orderId: 'LAB-2025-011',
-    patientName: 'Neha Shah',
-    providerName: 'TestLab Services',
-    providerId: 'lab-testlab',
-    date: fifteenDaysAgoStr,
-    time: '03:30 PM',
-    status: 'pending',
-    amount: 1250,
-    items: ['Liver Function Test', 'Kidney Function Test'],
-  },
-  // Previous months for yearly view
-  {
-    id: 'ord-23',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-012',
-    patientName: 'Vishal Kumar',
-    providerName: 'City Pharmacy',
-    providerId: 'pharmacy-city',
-    date: lastMonthStr,
-    time: '09:00 AM',
-    status: 'completed',
-    amount: 650,
-    items: ['Cough Syrup', 'Antibiotics'],
-  },
-  {
-    id: 'ord-24',
-    type: 'laboratory',
-    orderId: 'LAB-2025-012',
-    patientName: 'Deepika Nair',
-    providerName: 'Precision Labs',
-    providerId: 'lab-precision',
-    date: lastMonthStr,
-    time: '01:00 PM',
-    status: 'completed',
-    amount: 1350,
-    items: ['Thyroid Function Test', 'Vitamin D'],
-  },
-  {
-    id: 'ord-25',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-013',
-    patientName: 'Aditya Singh',
-    providerName: 'Wellness Pharmacy',
-    providerId: 'pharmacy-wellness',
-    date: twoMonthsAgoStr,
-    time: '10:30 AM',
-    status: 'completed',
-    amount: 480,
-    items: ['Antacid'],
-  },
-  {
-    id: 'ord-26',
-    type: 'laboratory',
-    orderId: 'LAB-2025-013',
-    patientName: 'Shreya Patel',
-    providerName: 'HealthLab Diagnostics',
-    providerId: 'lab-healthlab',
-    date: twoMonthsAgoStr,
-    time: '02:30 PM',
-    status: 'pending',
-    amount: 1100,
-    items: ['Complete Blood Count', 'ESR'],
-  },
-  {
-    id: 'ord-27',
-    type: 'pharmacy',
-    orderId: 'ORD-2025-014',
-    patientName: 'Manish Verma',
-    providerName: 'MediCare Pharmacy',
-    providerId: 'pharmacy-medicare',
-    date: threeMonthsAgoStr,
-    time: '11:30 AM',
-    status: 'completed',
-    amount: 890,
-    items: ['Multivitamins'],
-  },
-  {
-    id: 'ord-28',
-    type: 'laboratory',
-    orderId: 'LAB-2025-014',
-    patientName: 'Anita Iyer',
-    providerName: 'TestLab Services',
-    providerId: 'lab-testlab',
-    date: threeMonthsAgoStr,
-    time: '04:00 PM',
-    status: 'completed',
-    amount: 1450,
-    items: ['Cardiac Profile'],
-  },
-]
+// Default orders (will be replaced by API data)
+const defaultOrders = []
 
 const AdminOrders = () => {
+  const toast = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('all') // all, pharmacy, laboratory
   const [periodFilter, setPeriodFilter] = useState('daily') // daily, monthly, yearly
-  const [orders, setOrders] = useState([])
+  const [orders, setOrders] = useState(defaultOrders)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [selectedProvider, setSelectedProvider] = useState(null) // Track selected provider to show orders
 
-  // Load orders from localStorage
+  // Load orders from API
   useEffect(() => {
-    const loadOrders = () => {
+    const loadOrders = async () => {
       try {
-        const allOrders = []
+        setLoading(true)
+        setError(null)
         
-        // Load from adminOrders (centralized orders)
-        const adminOrders = JSON.parse(localStorage.getItem('adminOrders') || '[]')
-        adminOrders.forEach((order) => {
-          // Determine type: 'lab' or 'laboratory' -> 'laboratory', 'pharmacy' -> 'pharmacy'
-          const orderType = order.type === 'lab' || order.type === 'laboratory' ? 'laboratory' : 
-                           order.type === 'pharmacy' ? 'pharmacy' : 
-                           (order.labId || order.labName) ? 'laboratory' : 'pharmacy'
+        // Build filters
+        const filters = {}
+        if (searchTerm) filters.search = searchTerm
+        if (typeFilter !== 'all') filters.type = typeFilter
+        
+        const response = await getAdminOrders(filters)
+        
+        if (response.success && response.data) {
+          const ordersData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
           
-          allOrders.push({
-            ...order,
-            type: orderType, // Ensure type is set correctly
-            orderId: order.id || `ORD-${Date.now()}`,
-            date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
-            patientName: order.patientName || order.patient?.name || 'Unknown Patient',
-            providerName: order.pharmacyName || order.labName || 'Provider',
-            providerId: order.pharmacyId || order.labId || 'provider-1',
-            amount: order.totalAmount || 0,
-            items: order.medicines?.map(m => typeof m === 'string' ? m : m.name || `${m.dosage || ''}`).filter(Boolean) || 
-                   order.investigations?.map(i => typeof i === 'string' ? i : i.name || i.testName).filter(Boolean) || [],
-            // Preserve status from lab confirmation
-            status: order.status || 'pending',
-          })
-        })
-        
-        // Load pharmacy orders from all pharmacies
-        const allPharmacyAvailability = JSON.parse(localStorage.getItem('allPharmacyAvailability') || '[]')
-        allPharmacyAvailability.forEach((pharmacy) => {
-          const pharmacyOrders = JSON.parse(localStorage.getItem(`pharmacyOrders_${pharmacy.pharmacyId}`) || '[]')
-          pharmacyOrders.forEach((order) => {
-            // Check if already added from adminOrders
-            const exists = allOrders.some(o => o.id === order.id || o.orderId === order.id)
-            if (!exists) {
-              allOrders.push({
-                ...order,
-                orderId: order.id || `ORD-${Date.now()}`,
-                date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
-                patientName: order.patientName || order.patient?.name || 'Unknown Patient',
-                providerName: order.pharmacyName || pharmacy.pharmacyName,
-                providerId: order.pharmacyId || pharmacy.pharmacyId,
-                amount: order.totalAmount || 0,
-                items: order.medicines?.map(m => typeof m === 'string' ? m : m.name || `${m.dosage || ''}`).filter(Boolean) || [],
-              })
+          // Transform API data to match component structure
+          const transformed = ordersData.map(order => {
+            // Determine order type
+            const orderType = order.providerType || order.type || 
+                            (order.pharmacyId || order.pharmacyName) ? 'pharmacy' : 
+                            (order.labId || order.labName || order.laboratoryId) ? 'laboratory' : 'pharmacy'
+            
+            return {
+              id: order._id || order.id,
+              _id: order._id || order.id,
+              orderId: order.orderId || order._id || order.id,
+              type: orderType,
+              patientName: order.patientId?.firstName && order.patientId?.lastName
+                ? `${order.patientId.firstName} ${order.patientId.lastName}`
+                : order.patientId?.name || order.patientName || 'Unknown Patient',
+              providerName: orderType === 'pharmacy'
+                ? (order.pharmacyId?.pharmacyName || order.pharmacyId?.name || order.pharmacyName || 'Pharmacy')
+                : (order.labId?.labName || order.labId?.name || order.labName || order.laboratoryId?.labName || 'Laboratory'),
+              providerId: orderType === 'pharmacy'
+                ? (order.pharmacyId?._id || order.pharmacyId?.id || order.pharmacyId || 'pharmacy-unknown')
+                : (order.labId?._id || order.labId?.id || order.labId || order.laboratoryId || 'lab-unknown'),
+              date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+              time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+              status: order.status || 'pending',
+              amount: order.totalAmount || order.amount || 0,
+              items: orderType === 'pharmacy'
+                ? (order.items || order.medicines || []).map(item => typeof item === 'string' ? item : item.name || `${item.dosage || ''}`).filter(Boolean)
+                : (order.items || order.investigations || []).map(item => typeof item === 'string' ? item : item.name || item.testName).filter(Boolean),
+              originalData: order,
             }
           })
-        })
-        
-        // Load laboratory orders from all labs
-        const allLabAvailability = JSON.parse(localStorage.getItem('allLabAvailability') || '[]')
-        allLabAvailability.forEach((lab) => {
-          const labOrders = JSON.parse(localStorage.getItem(`labOrders_${lab.labId}`) || '[]')
-          labOrders.forEach((order) => {
-            // Check if already added from adminOrders (prioritize adminOrders for status sync)
-            const existingOrder = allOrders.find(o => o.id === order.id || o.orderId === order.id || 
-                                                      (o.requestId && o.requestId === order.requestId))
-            if (!existingOrder) {
-              allOrders.push({
-                ...order,
-                type: 'laboratory', // Ensure type is set to 'laboratory'
-                orderId: order.id || `LAB-${Date.now()}`,
-                date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
-                patientName: order.patientName || order.patient?.name || 'Unknown Patient',
-                providerName: order.labName || lab.labName,
-                providerId: order.labId || lab.labId,
-                amount: order.totalAmount || 0,
-                items: order.investigations?.map(i => typeof i === 'string' ? i : i.name || i.testName).filter(Boolean) || [],
-                status: order.status || 'pending', // Preserve status from lab confirmation
-              })
-            } else {
-              // Update existing order with latest status from labOrders if it's more recent
-              const existingIndex = allOrders.findIndex(o => o.id === order.id || o.orderId === order.id || 
-                                                              (o.requestId && o.requestId === order.requestId))
-              if (existingIndex !== -1 && order.status) {
-                allOrders[existingIndex] = {
-                  ...allOrders[existingIndex],
-                  status: order.status, // Update status from lab confirmation
-                  completedAt: order.completedAt || allOrders[existingIndex].completedAt,
-                  labConfirmed: order.labConfirmed || allOrders[existingIndex].labConfirmed,
-                }
-              }
-            }
+          
+          // Sort by date (newest first)
+          transformed.sort((a, b) => {
+            const dateA = new Date(`${a.date} ${a.time}`)
+            const dateB = new Date(`${b.date} ${b.time}`)
+            return dateB - dateA
           })
-        })
-        
-        // Merge with mock data for backward compatibility
-        const merged = [...allOrders, ...mockOrders]
-        const unique = merged.filter((order, idx, self) => 
-          idx === self.findIndex(o => o.id === order.id || o.orderId === order.orderId)
-        )
-        
-        // Sort by date (newest first)
-        unique.sort((a, b) => {
-          const dateA = new Date(`${a.date} ${a.time}`)
-          const dateB = new Date(`${b.date} ${b.time}`)
-          return dateB - dateA
-        })
-        
-        setOrders(unique)
-      } catch (error) {
-        console.error('Error loading orders:', error)
-        setOrders(mockOrders)
+          
+          setOrders(transformed)
+        }
+      } catch (err) {
+        console.error('Error loading orders:', err)
+        setError(err.message || 'Failed to load orders')
+        toast.error('Failed to load orders')
+      } finally {
+        setLoading(false)
       }
     }
     
     loadOrders()
-    // Refresh every 2 seconds to get new orders
-    const interval = setInterval(loadOrders, 2000)
+    // Refresh every 30 seconds
+    const interval = setInterval(loadOrders, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [searchTerm, typeFilter, toast])
 
   const filteredOrders = useMemo(() => {
     let filtered = orders

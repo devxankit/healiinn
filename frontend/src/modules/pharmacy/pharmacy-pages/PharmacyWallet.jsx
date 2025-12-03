@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoWalletOutline,
@@ -8,17 +9,19 @@ import {
   IoArrowForwardOutline,
   IoShieldCheckmarkOutline,
 } from 'react-icons/io5'
+import { getPharmacyWalletBalance } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data
-const mockWalletData = {
-  totalBalance: 24500.75,
-  availableBalance: 18900.50,
-  pendingBalance: 5600.25,
-  thisMonthEarnings: 12500.00,
-  lastMonthEarnings: 10800.50,
-  totalEarnings: 189420.25,
-  totalWithdrawals: 164919.50,
-  totalTransactions: 186,
+// Default wallet data (will be replaced by API data)
+const defaultWalletData = {
+  totalBalance: 0,
+  availableBalance: 0,
+  pendingBalance: 0,
+  thisMonthEarnings: 0,
+  lastMonthEarnings: 0,
+  totalEarnings: 0,
+  totalWithdrawals: 0,
+  totalTransactions: 0,
 }
 
 const formatCurrency = (amount) => {
@@ -32,6 +35,43 @@ const formatCurrency = (amount) => {
 
 const PharmacyWallet = () => {
   const navigate = useNavigate()
+  const toast = useToast()
+  const [walletData, setWalletData] = useState(defaultWalletData)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Fetch wallet data from API
+  useEffect(() => {
+    const fetchWalletData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPharmacyWalletBalance()
+        
+        if (response.success && response.data) {
+          const data = response.data
+          setWalletData({
+            totalBalance: data.totalBalance || data.balance || 0,
+            availableBalance: data.availableBalance || data.available || 0,
+            pendingBalance: data.pendingBalance || data.pending || 0,
+            thisMonthEarnings: data.thisMonthEarnings || 0,
+            lastMonthEarnings: data.lastMonthEarnings || 0,
+            totalEarnings: data.totalEarnings || 0,
+            totalWithdrawals: data.totalWithdrawals || 0,
+            totalTransactions: data.totalTransactions || 0,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching wallet data:', err)
+        setError(err.message || 'Failed to load wallet data')
+        toast.error('Failed to load wallet data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchWalletData()
+  }, [toast])
 
   return (
     <section className="flex flex-col gap-6 pb-4">
@@ -61,15 +101,15 @@ const PharmacyWallet = () => {
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1">
               <p className="text-sm font-medium text-white/80 mb-1">Total Balance</p>
-              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(mockWalletData.totalBalance)}</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{loading ? '...' : formatCurrency(walletData.totalBalance)}</p>
               <div className="mt-4 flex flex-wrap items-center gap-3 text-xs sm:text-sm">
                 <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
                   <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-medium">Available: {formatCurrency(mockWalletData.availableBalance)}</span>
+                  <span className="font-medium">Available: {loading ? '...' : formatCurrency(walletData.availableBalance)}</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
                   <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="font-medium">Pending: {formatCurrency(mockWalletData.pendingBalance)}</span>
+                  <span className="font-medium">Pending: {loading ? '...' : formatCurrency(walletData.pendingBalance)}</span>
                 </div>
               </div>
             </div>
@@ -96,7 +136,7 @@ const PharmacyWallet = () => {
               <IoArrowForwardOutline className="h-4 w-4 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-1">Total Earnings</p>
-            <p className="text-xl sm:text-2xl font-bold text-slate-900">{formatCurrency(mockWalletData.totalEarnings)}</p>
+            <p className="text-xl sm:text-2xl font-bold text-slate-900">{loading ? '...' : formatCurrency(walletData.totalEarnings)}</p>
             <p className="mt-1 text-[10px] text-slate-500">All time earnings</p>
           </div>
         </button>
@@ -115,7 +155,7 @@ const PharmacyWallet = () => {
               <IoArrowForwardOutline className="h-4 w-4 text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Total Withdrawals</p>
-            <p className="text-xl sm:text-2xl font-bold text-slate-900">{formatCurrency(mockWalletData.totalWithdrawals)}</p>
+            <p className="text-xl sm:text-2xl font-bold text-slate-900">{loading ? '...' : formatCurrency(walletData.totalWithdrawals)}</p>
             <p className="mt-1 text-[10px] text-slate-500">All time withdrawals</p>
           </div>
         </button>
@@ -154,7 +194,7 @@ const PharmacyWallet = () => {
               </div>
               <div className="text-left">
                 <p className="text-sm font-semibold text-slate-900">Transaction History</p>
-                <p className="text-xs text-slate-500">{mockWalletData.totalTransactions} transactions</p>
+                <p className="text-xs text-slate-500">{loading ? '...' : walletData.totalTransactions} transactions</p>
               </div>
             </div>
             <IoArrowForwardOutline className="h-5 w-5 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />

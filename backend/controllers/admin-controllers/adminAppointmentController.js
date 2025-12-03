@@ -11,13 +11,67 @@ const buildPagination = (req) => {
 
 // GET /api/admin/appointments
 exports.getAppointments = asyncHandler(async (req, res) => {
-  const { doctor, date, status } = req.query;
+  const { doctor, date, status, search, startDate, endDate } = req.query;
   const { page, limit, skip } = buildPagination(req);
 
+  const mongoose = require('mongoose');
+  const Doctor = require('../../models/Doctor');
+  const Patient = require('../../models/Patient');
+
   const filter = {};
-  if (doctor) filter.doctorId = doctor;
+  
+  // Handle doctor filter - can be doctorId or doctor name
+  if (doctor) {
+    // Check if it's a valid ObjectId
+    if (mongoose.Types.ObjectId.isValid(doctor)) {
+      filter.doctorId = doctor;
+    } else {
+      // Search for doctor by name
+      const doctors = await Doctor.find({
+        $or: [
+          { firstName: new RegExp(doctor, 'i') },
+          { lastName: new RegExp(doctor, 'i') },
+          { specialization: new RegExp(doctor, 'i') },
+        ],
+      }).select('_id');
+      const doctorIds = doctors.map(d => d._id);
+      if (doctorIds.length > 0) {
+        filter.doctorId = { $in: doctorIds };
+      } else {
+        // No doctors found, return empty result
+        return res.status(200).json({
+          success: true,
+          data: {
+            items: [],
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              totalPages: 0,
+            },
+          },
+        });
+      }
+    }
+  }
+  
   if (status) filter.status = status;
-  if (date) {
+  
+  // Handle date range
+  if (startDate || endDate) {
+    filter.appointmentDate = {};
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filter.appointmentDate.$gte = start;
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filter.appointmentDate.$lte = end;
+    }
+  } else if (date) {
+    // Single date filter
     const dateObj = new Date(date);
     filter.appointmentDate = {
       $gte: new Date(dateObj.setHours(0, 0, 0, 0)),
@@ -25,10 +79,84 @@ exports.getAppointments = asyncHandler(async (req, res) => {
     };
   }
 
+  console.log(`🔍 Fetching admin appointments:`, {
+    filter,
+    search,
+    page,
+    limit,
+  });
+
+  // If search is provided, we need to find matching doctors/patients first
+  if (search && search.trim()) {
+    const searchRegex = new RegExp(search.trim(), 'i');
+    
+    // Find matching doctors
+    const matchingDoctors = await Doctor.find({
+      $or: [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { specialization: searchRegex },
+      ],
+    }).select('_id');
+    const doctorIds = matchingDoctors.map(d => d._id);
+    
+    // Find matching patients
+    const matchingPatients = await Patient.find({
+      $or: [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+      ],
+    }).select('_id');
+    const patientIds = matchingPatients.map(p => p._id);
+    
+    // Add to filter
+    if (doctorIds.length > 0 || patientIds.length > 0) {
+      const searchFilter = { $or: [] };
+      if (doctorIds.length > 0) {
+        searchFilter.$or.push({ doctorId: { $in: doctorIds } });
+      }
+      if (patientIds.length > 0) {
+        searchFilter.$or.push({ patientId: { $in: patientIds } });
+      }
+      if (searchFilter.$or.length > 0) {
+        // Combine with existing filter using $and
+        filter = { $and: [filter, searchFilter] };
+      } else {
+        // No matches found, return empty
+        return res.status(200).json({
+          success: true,
+          data: {
+            items: [],
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              totalPages: 0,
+            },
+          },
+        });
+      }
+    } else {
+      // No matches found, return empty
+      return res.status(200).json({
+        success: true,
+        data: {
+          items: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+          },
+        },
+      });
+    }
+  }
+
   const [appointments, total] = await Promise.all([
     Appointment.find(filter)
-      .populate('patientId', 'firstName lastName phone')
-      .populate('doctorId', 'firstName lastName specialization')
+      .populate('patientId', 'firstName lastName phone email')
+      .populate('doctorId', 'firstName lastName specialization profileImage')
       .populate('sessionId', 'date sessionStartTime sessionEndTime')
       .sort({ appointmentDate: -1, createdAt: -1 })
       .skip(skip)
@@ -36,15 +164,26 @@ exports.getAppointments = asyncHandler(async (req, res) => {
     Appointment.countDocuments(filter),
   ]);
 
+  // Convert to plain objects
+  const finalAppointments = appointments.map(apt => apt.toObject());
+  const paginatedTotal = total;
+
+  console.log(`📊 Admin appointments fetched:`, {
+    total: paginatedTotal,
+    returned: finalAppointments.length,
+    filter,
+    search: search || 'none',
+  });
+
   return res.status(200).json({
     success: true,
     data: {
-      items: appointments,
+      items: finalAppointments,
       pagination: {
         page,
         limit,
-        total,
-        totalPages: Math.ceil(total / limit) || 1,
+        total: paginatedTotal,
+        totalPages: Math.ceil(paginatedTotal / limit) || 1,
       },
     },
   });
@@ -52,7 +191,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
 
 // GET /api/admin/appointments/:id
 exports.getAppointmentById = asyncHandler(async (req, res) => {
-  const { appointmentId } = req.params;
+  const { id: appointmentId } = req.params;
 
   const appointment = await Appointment.findById(appointmentId)
     .populate('patientId')
@@ -75,7 +214,7 @@ exports.getAppointmentById = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/appointments/:id
 exports.updateAppointment = asyncHandler(async (req, res) => {
-  const { appointmentId } = req.params;
+  const { id: appointmentId } = req.params;
   const updateData = req.body;
 
   const appointment = await Appointment.findById(appointmentId);
@@ -112,7 +251,7 @@ exports.updateAppointment = asyncHandler(async (req, res) => {
 
 // DELETE /api/admin/appointments/:id
 exports.cancelAppointment = asyncHandler(async (req, res) => {
-  const { appointmentId } = req.params;
+  const { id: appointmentId } = req.params;
 
   const appointment = await Appointment.findById(appointmentId);
   if (!appointment) {

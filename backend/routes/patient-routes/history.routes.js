@@ -6,6 +6,7 @@ const {
   getPrescriptionHistory,
   getLabTestHistory,
   getAppointmentHistory,
+  getOrderHistory,
 } = require('../../controllers/patient-controllers/patientHistoryController');
 
 // GET /api/patients/history - Complete medical history
@@ -19,6 +20,9 @@ router.get('/lab-tests', protect('patient'), getLabTestHistory);
 
 // GET /api/patients/history/appointments - Appointment history
 router.get('/appointments', protect('patient'), getAppointmentHistory);
+
+// GET /api/patients/history/orders - Order history
+router.get('/orders', protect('patient'), getOrderHistory);
 
 module.exports = router;
 

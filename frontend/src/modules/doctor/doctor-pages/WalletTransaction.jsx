@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
@@ -11,82 +11,11 @@ import {
   IoTimeOutline,
   IoFilterOutline,
 } from 'react-icons/io5'
+import { getDoctorWalletTransactions } from '../doctor-services/doctorService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data
-const mockTransactions = [
-  {
-    id: 'txn-1',
-    type: 'earning',
-    amount: 1500.00,
-    description: 'Consultation fee - Patient: John Doe',
-    date: '2025-01-15T10:30:00',
-    status: 'completed',
-    category: 'Consultation',
-  },
-  {
-    id: 'txn-2',
-    type: 'withdrawal',
-    amount: -5000.00,
-    description: 'Withdrawal to Bank Account',
-    date: '2025-01-14T14:20:00',
-    status: 'completed',
-    category: 'Withdrawal',
-  },
-  {
-    id: 'txn-3',
-    type: 'earning',
-    amount: 2500.00,
-    description: 'Consultation fee - Patient: Sarah Smith',
-    date: '2025-01-13T09:15:00',
-    status: 'completed',
-    category: 'Consultation',
-  },
-  {
-    id: 'txn-4',
-    type: 'earning',
-    amount: 1200.00,
-    description: 'Follow-up consultation - Patient: Mike Johnson',
-    date: '2025-01-12T16:45:00',
-    status: 'pending',
-    category: 'Follow-up',
-  },
-  {
-    id: 'txn-5',
-    type: 'earning',
-    amount: 1800.00,
-    description: 'Consultation fee - Patient: Emily Brown',
-    date: '2025-01-11T11:00:00',
-    status: 'completed',
-    category: 'Consultation',
-  },
-  {
-    id: 'txn-6',
-    type: 'withdrawal',
-    amount: -3000.00,
-    description: 'Withdrawal to Bank Account',
-    date: '2025-01-10T10:00:00',
-    status: 'completed',
-    category: 'Withdrawal',
-  },
-  {
-    id: 'txn-7',
-    type: 'earning',
-    amount: 1000.00,
-    description: 'In-person consultation - Patient: David Wilson',
-    date: '2025-01-09T14:20:00',
-    status: 'completed',
-    category: 'In-Person Consultation',
-  },
-  {
-    id: 'txn-8',
-    type: 'earning',
-    amount: 2200.00,
-    description: 'Consultation fee - Patient: Lisa Anderson',
-    date: '2025-01-08T16:30:00',
-    status: 'completed',
-    category: 'Consultation',
-  },
-]
+// Default transactions (will be replaced by API data)
+const defaultTransactions = []
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -115,9 +44,69 @@ const formatDateTime = (dateString) => {
 
 const WalletTransaction = () => {
   const navigate = useNavigate()
+  const toast = useToast()
   const [filterType, setFilterType] = useState('all') // all, earnings, withdrawals
+  const [transactions, setTransactions] = useState(defaultTransactions)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const filteredTransactions = mockTransactions.filter((txn) => {
+  // Fetch transactions from API
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getDoctorWalletTransactions()
+        
+        console.log('🔍 Full transactions API response:', response) // Debug log
+        
+        if (response && response.success && response.data) {
+          const data = response.data
+          console.log('✅ Transactions data received:', data) // Debug log
+          
+          // Handle both array and object with items property
+          const transactionsData = Array.isArray(data) 
+            ? data 
+            : (data.items || data.transactions || [])
+          
+          console.log('📊 Transactions list:', {
+            count: transactionsData.length,
+            firstTransaction: transactionsData[0],
+          }) // Debug log
+          
+          const transformed = transactionsData.map(txn => ({
+            id: txn._id || txn.id,
+            type: txn.type || 'earning',
+            amount: Number(txn.amount || 0),
+            description: txn.description || txn.notes || 'Transaction',
+            date: txn.createdAt || txn.date || new Date().toISOString(),
+            status: txn.status || 'completed',
+            category: txn.category || 'Transaction',
+            originalData: txn,
+          }))
+          
+          console.log('💰 Setting transactions:', {
+            count: transformed.length,
+            types: transformed.map(t => t.type),
+          }) // Debug log
+          
+          setTransactions(transformed)
+        } else {
+          console.error('❌ Transactions API response error:', response) // Debug log
+        }
+      } catch (err) {
+        console.error('Error fetching transactions:', err)
+        setError(err.message || 'Failed to load transactions')
+        toast.error('Failed to load transactions')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTransactions()
+  }, [toast])
+
+  const filteredTransactions = transactions.filter((txn) => {
     if (filterType === 'all') return true
     if (filterType === 'earnings') return txn.type === 'earning'
     if (filterType === 'withdrawals') return txn.type === 'withdrawal'
@@ -154,7 +143,7 @@ const WalletTransaction = () => {
               <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-white/80 mb-1">Total Transactions</p>
-                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{mockTransactions.length}</p>
+                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{loading ? '...' : transactions.length}</p>
                 </div>
                 <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
                   <IoReceiptOutline className="h-8 w-8 sm:h-10 sm:w-10" />

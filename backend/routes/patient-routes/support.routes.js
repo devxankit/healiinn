@@ -10,8 +10,8 @@ const {
 
 router.post('/', protect('patient'), createSupportTicket);
 router.get('/', protect('patient'), getSupportTickets);
-router.get('/:id', protect('patient'), getSupportTicketById);
 router.get('/history', protect('patient'), getSupportHistory);
+router.get('/:id', protect('patient'), getSupportTicketById);
 
 module.exports = router;
 

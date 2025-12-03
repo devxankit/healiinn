@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoArrowBackOutline,
@@ -7,42 +8,84 @@ import {
   IoLocationOutline,
   IoArrowForwardOutline,
 } from 'react-icons/io5'
-
-const upcomingAppointments = [
-  {
-    id: 'appt-1',
-    doctor: 'Dr. Alana Rueter',
-    specialty: 'Dentist Consultation',
-    status: 'CONFIRMED',
-    countdown: 'IN 3 DAYS',
-    type: 'IN-PERSON VISIT',
-    token: 'TOKEN #12',
-    date: 'Monday, 26 July',
-    time: '09:00 - 09:45',
-    duration: 'Duration 45 min',
-    clinic: 'Sunrise Dental Care',
-    address: '115 W 45th St, New York, NY',
-    note: 'Bring your recent x-rays and insurance card for review.',
-  },
-  {
-    id: 'appt-2',
-    doctor: 'Dr. Sarah Mitchell',
-    specialty: 'Cardiology Consultation',
-    status: 'CONFIRMED',
-    countdown: 'IN 5 DAYS',
-    type: 'IN-PERSON VISIT',
-    token: 'TOKEN #8',
-    date: 'Wednesday, 28 July',
-    time: '10:30 - 11:00',
-    duration: 'Duration 30 min',
-    clinic: 'Heart Care Center',
-    address: '200 Park Ave, New York, NY',
-    note: 'Please have your recent test reports ready.',
-  },
-]
+import { getUpcomingAppointments } from '../patient-services/patientService'
+import { useToast } from '../../../contexts/ToastContext'
 
 const PatientUpcomingSchedules = () => {
   const navigate = useNavigate()
+  const toast = useToast()
+  const [appointments, setAppointments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    const fetchUpcomingAppointments = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const { getAuthToken } = await import('../../../utils/apiClient')
+        const token = getAuthToken('patient')
+        if (!token) {
+          navigate('/patient/login')
+          return
+        }
+
+        const response = await getUpcomingAppointments()
+        if (response.success && response.data) {
+          const appointmentsData = Array.isArray(response.data)
+            ? response.data
+            : response.data.items || []
+          setAppointments(appointmentsData)
+        } else {
+          setAppointments([])
+        }
+      } catch (err) {
+        console.error('Error fetching upcoming appointments:', err)
+        setError(err.message || 'Failed to load upcoming appointments')
+        toast.error('Failed to load upcoming appointments')
+        setAppointments([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUpcomingAppointments()
+  }, [navigate, toast])
+
+  // Helper function to format date
+  const formatDate = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]}`
+  }
+
+  // Helper function to calculate countdown
+  const getCountdown = (dateString) => {
+    if (!dateString) return ''
+    const appointmentDate = new Date(dateString)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    appointmentDate.setHours(0, 0, 0, 0)
+    const diffTime = appointmentDate - today
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (diffDays === 0) return 'TODAY'
+    if (diffDays === 1) return 'TOMORROW'
+    if (diffDays > 0) return `IN ${diffDays} DAYS`
+    return 'PAST'
+  }
+
+  // Helper function to format time
+  const formatTime = (timeString) => {
+    if (!timeString) return ''
+    // If time is in HH:MM format, return as is
+    if (timeString.match(/^\d{2}:\d{2}$/)) {
+      return timeString
+    }
+    return timeString
+  }
 
   return (
     <section className="flex flex-col gap-4 pb-4">
@@ -56,16 +99,56 @@ const PatientUpcomingSchedules = () => {
         </button>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Upcoming Schedules</h1>
-          <p className="text-sm text-slate-600">{upcomingAppointments.length} appointment(s) scheduled</p>
+          <p className="text-sm text-slate-600">{appointments.length} appointment(s) scheduled</p>
         </div>
       </div>
 
+      {/* Loading State */}
+      {loading && (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+          <p className="text-sm font-medium text-slate-600">Loading upcoming appointments...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="rounded-2xl border border-dashed border-red-200 bg-red-50 p-8 text-center">
+          <p className="text-sm font-medium text-red-600">{error}</p>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && appointments.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+          <p className="text-sm font-medium text-slate-600">No upcoming appointments scheduled</p>
+        </div>
+      )}
+
       {/* Appointments List */}
-      <div className="space-y-4">
-        {upcomingAppointments.map((appointment) => (
-          <article
-            key={appointment.id}
-            className="relative overflow-hidden rounded-3xl border text-white shadow-lg"
+      {!loading && appointments.length > 0 && (
+        <div className="space-y-4">
+          {appointments.map((appointment) => {
+            const appointmentId = appointment._id || appointment.id
+            const doctor = appointment.doctor || {}
+            const doctorName = doctor.firstName && doctor.lastName
+              ? `Dr. ${doctor.firstName} ${doctor.lastName}`
+              : doctor.name || 'Doctor'
+            const specialty = doctor.specialization || doctor.specialty || appointment.specialty || 'Consultation'
+            const status = appointment.status?.toUpperCase() || 'CONFIRMED'
+            const appointmentDate = appointment.appointmentDate || appointment.date
+            const appointmentTime = appointment.time || appointment.appointmentTime
+            const tokenNumber = appointment.tokenNumber || appointment.token || `TOKEN #${appointment.tokenNumber || 'N/A'}`
+            const appointmentType = appointment.appointmentType === 'online' ? 'ONLINE CONSULTATION' : 'IN-PERSON VISIT'
+            const clinic = appointment.clinicDetails?.name || doctor.clinicDetails?.name || 'Clinic'
+            const address = appointment.clinicDetails?.address || doctor.clinicDetails?.address || {}
+            const fullAddress = address.fullAddress || `${address.street || ''} ${address.city || ''} ${address.state || ''}`.trim() || 'Address not available'
+            const note = appointment.note || appointment.instructions || ''
+            const duration = appointment.duration || '30 min'
+            
+            return (
+              <article
+                key={appointmentId}
+                className="relative overflow-hidden rounded-3xl border text-white shadow-lg"
             style={{ 
               borderColor: 'rgba(17, 73, 108, 0.2)',
               background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.95), rgba(17, 73, 108, 0.95), rgba(17, 73, 108, 0.9))',
@@ -80,7 +163,7 @@ const PatientUpcomingSchedules = () => {
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#11496c] shadow-sm shadow-[rgba(17,73,108,0.2)]">
                     <span className="text-sm font-semibold">
-                      {appointment.doctor
+                      {doctorName
                         .split(' ')
                         .map((n) => n[0])
                         .join('')
@@ -88,32 +171,34 @@ const PatientUpcomingSchedules = () => {
                     </span>
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold leading-tight text-white">{appointment.doctor}</h3>
-                    <p className="text-xs text-white/90">{appointment.specialty}</p>
+                    <h3 className="text-sm font-semibold leading-tight text-white">{doctorName}</h3>
+                    <p className="text-xs text-white/90">{specialty}</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#11496c] shadow-inner shadow-[rgba(17,73,108,0.15)] transition-transform active:scale-95"
-                  aria-label="Call doctor"
-                >
-                  <IoCallOutline className="text-base" aria-hidden="true" />
-                </button>
+                {doctor.phoneNumber && (
+                  <a
+                    href={`tel:${doctor.phoneNumber}`}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#11496c] shadow-inner shadow-[rgba(17,73,108,0.15)] transition-transform active:scale-95"
+                    aria-label="Call doctor"
+                  >
+                    <IoCallOutline className="text-base" aria-hidden="true" />
+                  </a>
+                )}
               </header>
 
               <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-white/90">
                 <span className="inline-flex items-center rounded-full bg-emerald-400/90 px-2.5 py-1 text-emerald-950">
-                  {appointment.status}
+                  {status}
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1">
                   <IoCalendarOutline className="text-xs" aria-hidden="true" />
-                  {appointment.countdown}
+                  {getCountdown(appointmentDate)}
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(17,73,108,0.4)] px-2.5 py-1 text-white/95">
-                  {appointment.type}
+                  {appointmentType}
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-white/90">
-                  {appointment.token}
+                  {tokenNumber}
                 </span>
               </div>
 
@@ -124,7 +209,7 @@ const PatientUpcomingSchedules = () => {
                   </span>
                   <div>
                     <dt className="text-[11px] uppercase tracking-wide text-white/90">Date</dt>
-                    <dd className="text-sm font-semibold text-white">{appointment.date}</dd>
+                    <dd className="text-sm font-semibold text-white">{formatDate(appointmentDate)}</dd>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/10 px-3 py-2">
@@ -133,8 +218,8 @@ const PatientUpcomingSchedules = () => {
                   </span>
                   <div>
                     <dt className="text-[11px] uppercase tracking-wide text-white/90">Time</dt>
-                    <dd className="text-sm font-semibold text-white">{appointment.time}</dd>
-                    <dd className="text-xs text-white/90">{appointment.duration}</dd>
+                    <dd className="text-sm font-semibold text-white">{formatTime(appointmentTime)}</dd>
+                    <dd className="text-xs text-white/90">Duration {duration}</dd>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/10 px-3 py-2">
@@ -143,38 +228,45 @@ const PatientUpcomingSchedules = () => {
                   </span>
                   <div>
                     <dt className="text-[11px] uppercase tracking-wide text-white/90">Clinic</dt>
-                    <dd className="text-sm font-semibold text-white">{appointment.clinic}</dd>
-                    <dd className="text-xs text-white/90">{appointment.address}</dd>
+                    <dd className="text-sm font-semibold text-white">{clinic}</dd>
+                    <dd className="text-xs text-white/90">{fullAddress}</dd>
                   </div>
                 </div>
               </dl>
 
-              {appointment.note && (
+              {note && (
                 <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3">
-                  <p className="text-xs leading-relaxed text-white/95">{appointment.note}</p>
+                  <p className="text-xs leading-relaxed text-white/95">{note}</p>
                 </div>
               )}
 
               <footer className="flex gap-3 pt-2">
                 <button
                   type="button"
+                  onClick={() => navigate(`/patient/appointments?reschedule=${appointmentId}`)}
                   className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
                 >
                   <IoCalendarOutline className="text-base" aria-hidden="true" />
                   Reschedule
                 </button>
-                <button
-                  type="button"
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
-                >
-                  <IoLocationOutline className="text-base" aria-hidden="true" />
-                  Directions
-                </button>
+                {fullAddress !== 'Address not available' && (
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent(fullAddress)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20 active:scale-95"
+                  >
+                    <IoLocationOutline className="text-base" aria-hidden="true" />
+                    Directions
+                  </a>
+                )}
               </footer>
             </div>
           </article>
-        ))}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </section>
   )
 }

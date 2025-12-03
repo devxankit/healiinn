@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   IoBagHandleOutline,
   IoCheckmarkCircleOutline,
@@ -12,61 +12,11 @@ import {
   IoCallOutline,
   IoMailOutline,
 } from 'react-icons/io5'
+import { getPharmacyOrders, updateOrderStatus } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
 
-const mockOrders = [
-  {
-    id: 'order-1',
-    type: 'pharmacy',
-    patientId: 'pat-1',
-    patientName: 'John Doe',
-    patientPhone: '+1-555-123-4567',
-    patientEmail: 'john.doe@example.com',
-    status: 'pending',
-    createdAt: '2024-01-15T10:30:00.000Z',
-    prescriptionId: 'prx-3021',
-    medicines: [
-      { name: 'Amlodipine 5mg', brand: 'Norvasc', dosage: '5 mg', quantity: 30, price: 16.3 },
-      { name: 'Losartan 50mg', brand: 'Cozaar', dosage: '50 mg', quantity: 30, price: 26.2 },
-    ],
-    totalAmount: 42.5,
-    deliveryType: 'home',
-    address: '123 Main St, New York, NY',
-  },
-  {
-    id: 'order-2',
-    type: 'pharmacy',
-    patientId: 'pat-2',
-    patientName: 'Sarah Smith',
-    patientPhone: '+1-555-234-5678',
-    patientEmail: 'sarah.smith@example.com',
-    status: 'ready',
-    createdAt: '2024-01-14T14:15:00.000Z',
-    prescriptionId: 'prx-3022',
-    medicines: [
-      { name: 'Metformin 500mg', brand: 'Glucophage XR', dosage: '500 mg', quantity: 60, price: 34.0 },
-    ],
-    totalAmount: 34.0,
-    deliveryType: 'pickup',
-    address: '456 Oak Ave, New York, NY',
-  },
-  {
-    id: 'order-3',
-    type: 'pharmacy',
-    patientId: 'pat-3',
-    patientName: 'Mike Johnson',
-    patientPhone: '+1-555-345-6789',
-    patientEmail: 'mike.johnson@example.com',
-    status: 'delivered',
-    createdAt: '2024-01-13T16:45:00.000Z',
-    prescriptionId: 'prx-3023',
-    medicines: [
-      { name: 'Insulin Glargine', brand: 'Lantus', dosage: '10 ml vial', quantity: 2, price: 98.0 },
-    ],
-    totalAmount: 196.0,
-    deliveryType: 'home',
-    address: '789 Pine St, New York, NY',
-  },
-]
+// Default orders (will be replaced by API data)
+const defaultOrders = []
 
 const statusConfig = {
   pending: { label: 'Pending', color: 'bg-amber-100 text-amber-700', icon: IoTimeOutline },
@@ -96,34 +46,89 @@ const formatCurrency = (value) => {
 }
 
 const PharmacyOrders = () => {
+  const toast = useToast()
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [orders, setOrders] = useState(defaultOrders)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Fetch orders from API
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPharmacyOrders()
+        
+        if (response.success && response.data) {
+          const ordersData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.orders || response.data.leads || []
+          
+          // Transform API data to match component structure
+          const transformed = ordersData.map(order => ({
+            id: order._id || order.id,
+            _id: order._id || order.id,
+            type: 'pharmacy',
+            patientId: order.patientId?._id || order.patientId?.id || order.patientId || 'pat-unknown',
+            patientName: order.patientId?.firstName && order.patientId?.lastName
+              ? `${order.patientId.firstName} ${order.patientId.lastName}`
+              : order.patientId?.name || order.patientName || 'Unknown Patient',
+            patientPhone: order.patientId?.phone || order.patientPhone || '',
+            patientEmail: order.patientId?.email || order.patientEmail || '',
+            status: order.status || 'pending',
+            createdAt: order.createdAt || new Date().toISOString(),
+            prescriptionId: order.prescriptionId || order.prescription?.id || null,
+            medicines: order.items || order.medicines || [],
+            totalAmount: order.totalAmount || order.amount || 0,
+            deliveryType: order.deliveryOption || order.deliveryType || 'home',
+            address: order.deliveryAddress || order.address || '',
+            originalData: order,
+          }))
+          
+          setOrders(transformed)
+        }
+      } catch (err) {
+        console.error('Error fetching orders:', err)
+        setError(err.message || 'Failed to load orders')
+        toast.error('Failed to load orders')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchOrders()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchOrders, 30000)
+    return () => clearInterval(interval)
+  }, [toast])
   const [selectedOrder, setSelectedOrder] = useState(null)
 
   const filteredOrders = useMemo(() => {
-    let orders = mockOrders
+    let filtered = orders
 
     if (filter !== 'all') {
-      orders = orders.filter((order) => order.status === filter)
+      filtered = filtered.filter((order) => order.status === filter)
     }
 
     if (searchTerm.trim()) {
       const normalizedSearch = searchTerm.trim().toLowerCase()
-      orders = orders.filter(
+      filtered = filtered.filter(
         (order) =>
           order.patientName.toLowerCase().includes(normalizedSearch) ||
-          order.id.toLowerCase().includes(normalizedSearch) ||
-          order.prescriptionId.toLowerCase().includes(normalizedSearch)
+          String(order.id || order._id || '').toLowerCase().includes(normalizedSearch) ||
+          String(order.prescriptionId || '').toLowerCase().includes(normalizedSearch)
       )
     }
 
-    return orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  }, [filter, searchTerm])
+    return filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  }, [filter, searchTerm, orders])
 
   const handleStatusUpdate = async (orderId, newStatus) => {
-    const order = mockOrders.find(o => o.id === orderId)
+    const order = orders.find(o => o.id === orderId || o._id === orderId)
     if (!order) {
-      alert('Order not found')
+      toast.error('Order not found')
       return
     }
 
@@ -139,8 +144,17 @@ const PharmacyOrders = () => {
     }
 
     try {
-      // Simulate API call to update order status and send notification
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Call API to update order status
+      await updateOrderStatus(orderId, newStatus)
+      
+      // Update order status in state
+      setOrders(prevOrders => 
+        prevOrders.map(o => 
+          (o.id === orderId || o._id === orderId) 
+            ? { ...o, status: newStatus }
+            : o
+        )
+      )
 
       // Prepare notification data for patient
       const notificationData = {
@@ -201,11 +215,19 @@ const PharmacyOrders = () => {
       })
 
       // Show success message
-      alert(`✅ Order status updated to "${statusLabel}"!\n\n📱 Notification sent to ${patientName}\n\nPatient will receive:\n${notificationTitle}\n${notificationMessage}`)
+      toast.success(`Order status updated to "${statusLabel}"! Notification sent to ${patientName}`)
 
     } catch (error) {
       console.error('Error updating order status:', error)
-      alert('Failed to update order status. Please try again.')
+      toast.error('Failed to update order status. Please try again.')
+      // Revert status change on error
+      setOrders(prevOrders => 
+        prevOrders.map(o => 
+          (o.id === orderId || o._id === orderId) 
+            ? { ...o, status: order.status }
+            : o
+        )
+      )
     }
   }
 

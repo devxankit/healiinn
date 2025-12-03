@@ -1,6 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
+import { 
+  getPatientQueue, 
+  getPatientById, 
+  getPatientHistory,
+  getDoctorQueue,
+  callNextPatient,
+  skipPatient,
+  recallPatient,
+  updateQueueStatus,
+  pauseSession,
+  resumeSession
+} from '../doctor-services/doctorService'
+import { useToast } from '../../../contexts/ToastContext'
 import {
   IoPeopleOutline,
   IoSearchOutline,
@@ -30,213 +43,7 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`
 }
 
-// Mock data - using today's date dynamically
-const getMockAppointments = () => {
-  const today = getTodayDateString()
-  return [
-    {
-      id: 'appt-1',
-      patientId: 'pat-1',
-      patientName: 'John Doe',
-      age: 45,
-      gender: 'male',
-      appointmentTime: `${today}T09:00:00`,
-      appointmentType: 'Follow-up',
-      status: 'waiting',
-      queueNumber: 1,
-      reason: 'Hypertension follow-up',
-      patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=160',
-    },
-    {
-      id: 'appt-2',
-      patientId: 'pat-2',
-      patientName: 'Sarah Smith',
-      age: 32,
-      gender: 'female',
-      appointmentTime: `${today}T09:30:00`,
-      appointmentType: 'New',
-      status: 'waiting',
-      queueNumber: 2,
-      reason: 'Chest pain evaluation',
-      patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=160',
-    },
-    {
-      id: 'appt-3',
-      patientId: 'pat-3',
-      patientName: 'Mike Johnson',
-      age: 28,
-      gender: 'male',
-      appointmentTime: `${today}T10:00:00`,
-      appointmentType: 'Follow-up',
-      status: 'waiting',
-      queueNumber: 3,
-      reason: 'Diabetes management',
-      patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=160',
-    },
-    {
-      id: 'appt-4',
-      patientId: 'pat-4',
-      patientName: 'Emily Brown',
-      age: 55,
-      gender: 'female',
-      appointmentTime: `${today}T10:30:00`,
-      appointmentType: 'Follow-up',
-      status: 'waiting',
-      queueNumber: 4,
-      reason: 'Arthritis consultation',
-      patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=160',
-    },
-    {
-      id: 'appt-5',
-      patientId: 'pat-5',
-      patientName: 'David Wilson',
-      age: 38,
-      gender: 'male',
-      appointmentTime: `${today}T11:00:00`,
-      appointmentType: 'New',
-      status: 'waiting',
-      queueNumber: 5,
-      reason: 'Annual checkup',
-      patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=8b5cf6&color=fff&size=160',
-    },
-  ]
-}
-
-const mockAppointments = getMockAppointments()
-
-const mockMedicalHistory = {
-  'pat-1': {
-    personalInfo: {
-      name: 'John Doe',
-      age: 45,
-      gender: 'male',
-      bloodGroup: 'O+',
-      phone: '+1-555-123-4567',
-      email: 'john.doe@example.com',
-    },
-    conditions: [
-      { name: 'Hypertension', diagnosedDate: '2020-03-15', status: 'Active' },
-      { name: 'Type 2 Diabetes', diagnosedDate: '2019-06-20', status: 'Active' },
-    ],
-    allergies: [{ name: 'Penicillin', severity: 'Moderate', reaction: 'Rash' }],
-    medications: [
-      { name: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', startDate: '2020-03-20' },
-      { name: 'Metformin', dosage: '500mg', frequency: 'Twice daily', startDate: '2019-07-01' },
-    ],
-    surgeries: [
-      { name: 'Appendectomy', date: '2010-05-10', hospital: 'City General Hospital' },
-    ],
-    previousConsultations: [
-      {
-        date: '2024-12-15',
-        diagnosis: 'Hypertension',
-        doctor: 'Dr. Sarah Mitchell',
-        medications: ['Amlodipine 5mg'],
-      },
-      {
-        date: '2024-11-20',
-        diagnosis: 'Diabetes Management',
-        doctor: 'Dr. Sarah Mitchell',
-        medications: ['Metformin 500mg'],
-      },
-    ],
-    labReports: [
-      { testName: 'Blood Sugar Fasting', date: '2024-12-10', result: '110 mg/dL', status: 'Normal' },
-      { testName: 'HbA1c', date: '2024-12-10', result: '6.8%', status: 'Elevated' },
-    ],
-    lastVisit: '2024-12-15',
-  },
-  'pat-2': {
-    personalInfo: {
-      name: 'Sarah Smith',
-      age: 32,
-      gender: 'female',
-      bloodGroup: 'A+',
-      phone: '+1-555-234-5678',
-      email: 'sarah.smith@example.com',
-    },
-    conditions: [],
-    allergies: [],
-    medications: [],
-    surgeries: [],
-    previousConsultations: [],
-    labReports: [],
-    lastVisit: null,
-  },
-  'pat-3': {
-    personalInfo: {
-      name: 'Mike Johnson',
-      age: 28,
-      gender: 'male',
-      bloodGroup: 'B+',
-      phone: '+1-555-345-6789',
-      email: 'mike.johnson@example.com',
-    },
-    conditions: [
-      { name: 'Type 2 Diabetes', diagnosedDate: '2023-01-10', status: 'Active' },
-    ],
-    allergies: [{ name: 'Peanuts', severity: 'Severe', reaction: 'Anaphylaxis' }],
-    medications: [
-      { name: 'Insulin Glargine', dosage: '20 units', frequency: 'Once daily', startDate: '2023-01-15' },
-    ],
-    surgeries: [],
-    previousConsultations: [
-      {
-        date: '2024-12-20',
-        diagnosis: 'Diabetes Management',
-        doctor: 'Dr. Sarah Mitchell',
-        medications: ['Insulin Glargine 20 units'],
-      },
-    ],
-    labReports: [],
-    lastVisit: '2024-12-20',
-  },
-  'pat-4': {
-    personalInfo: {
-      name: 'Emily Brown',
-      age: 55,
-      gender: 'female',
-      bloodGroup: 'AB+',
-      phone: '+1-555-456-7890',
-      email: 'emily.brown@example.com',
-    },
-    conditions: [
-      { name: 'Osteoarthritis', diagnosedDate: '2022-05-15', status: 'Active' },
-    ],
-    allergies: [],
-    medications: [
-      { name: 'Ibuprofen', dosage: '400mg', frequency: 'As needed', startDate: '2022-05-20' },
-    ],
-    surgeries: [],
-    previousConsultations: [
-      {
-        date: '2025-01-01',
-        diagnosis: 'Arthritis Consultation',
-        doctor: 'Dr. Sarah Mitchell',
-        medications: ['Ibuprofen 400mg'],
-      },
-    ],
-    labReports: [],
-    lastVisit: '2025-01-01',
-  },
-  'pat-5': {
-    personalInfo: {
-      name: 'David Wilson',
-      age: 38,
-      gender: 'male',
-      bloodGroup: 'O-',
-      phone: '+1-555-567-8901',
-      email: 'david.wilson@example.com',
-    },
-    conditions: [],
-    allergies: [],
-    medications: [],
-    surgeries: [],
-    previousConsultations: [],
-    labReports: [],
-    lastVisit: null,
-  },
-}
+// Mock data removed - now using getPatientHistory API
 
 const formatTime = (dateString) => {
   const date = new Date(dateString)
@@ -269,248 +76,137 @@ const calculateMaxTokens = (startTime, endTime, averageMinutes) => {
 }
 
 const DoctorPatients = () => {
+  console.log('🔵 DoctorPatients component rendering...') // Debug log
+  
   const location = useLocation()
   const navigate = useNavigate()
+  const toast = useToast()
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
   
-  // Function to automatically create session based on doctor profile
-  const autoCreateSession = () => {
-    try {
-      const today = getTodayDateString()
-      
-      // Check if session already exists for today
-      const existingSession = localStorage.getItem('doctorCurrentSession')
-      if (existingSession) {
-        const session = JSON.parse(existingSession)
-        if (session.date === today && session.status !== 'cancelled' && session.status !== 'completed') {
-          return session // Session already exists
-        }
-      }
-      
-      // Get doctor profile from localStorage
-      const profile = JSON.parse(localStorage.getItem('doctorProfile') || '{}')
-      
-      // Check if doctor has availability settings
-      if (!profile.availability || profile.availability.length === 0) {
-        return null // No availability set, cannot auto-create
-      }
-      
-      // Get today's day name
-      const todayDate = new Date()
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-      const todayDayName = dayNames[todayDate.getDay()]
-      
-      // Find availability for today
-      const todayAvailability = profile.availability.find(avail => avail.day === todayDayName)
-      
-      if (!todayAvailability) {
-        return null // Doctor not available today
-      }
-      
-      // Get average consultation minutes from profile
-      const averageMinutes = profile.averageConsultationMinutes || 20
-      
-      // Create session automatically
-      const session = {
-        id: `session-${Date.now()}`,
-        date: today,
-        startTime: todayAvailability.startTime || '09:00',
-        endTime: todayAvailability.endTime || '17:00',
-        averageConsultationMinutes: averageMinutes,
-        maxTokens: calculateMaxTokens(todayAvailability.startTime || '09:00', todayAvailability.endTime || '17:00', averageMinutes),
-        status: 'scheduled',
-        createdAt: new Date().toISOString(),
-        autoCreated: true, // Flag to indicate auto-created
-      }
-      
-      // Save to localStorage
-      localStorage.setItem('doctorCurrentSession', JSON.stringify(session))
-      
-      // Also save to doctorSessions for patient booking connection
-      try {
-        const doctorSessions = JSON.parse(localStorage.getItem('doctorSessions') || '[]')
-        const filtered = doctorSessions.filter((s) => s.date !== session.date)
-        filtered.push(session)
-        localStorage.setItem('doctorSessions', JSON.stringify(filtered))
-      } catch (error) {
-        console.error('Error saving session to doctorSessions:', error)
-      }
-      
-      return session
-    } catch (error) {
-      console.error('Error auto-creating session:', error)
-      return null
-    }
-  }
-
-  // Session state - auto-create if needed
-  const [currentSession, setCurrentSession] = useState(() => {
-    // Load session from localStorage if exists
-    try {
-      const saved = localStorage.getItem('doctorCurrentSession')
-      if (saved) {
-        const session = JSON.parse(saved)
-        
-        // Don't show cancelled or completed sessions
-        if (session.status === 'cancelled' || session.status === 'completed') {
-          localStorage.removeItem('doctorCurrentSession')
-        } else {
-          // Check if session date is today
-          const today = getTodayDateString()
-          const sessionDate = session.date
-          
-          // If session is for today, return it
-          if (sessionDate === today) {
-            return session
-          } else {
-            // Clear old session
-            localStorage.removeItem('doctorCurrentSession')
-          }
-        }
-      }
-      
-      // Auto-create session if not exists
-      return autoCreateSession()
-    } catch {
-      // Try to auto-create on error
-      return autoCreateSession()
-    }
-  })
+  console.log('📍 Current pathname:', location.pathname, 'isDashboardPage:', isDashboardPage) // Debug log
+  
   const [showCancelSessionModal, setShowCancelSessionModal] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
-
-  // Auto-create session on component mount and when profile changes
-  useEffect(() => {
-    const today = getTodayDateString()
-    
-    // Check if we need to auto-create session
-    if (!currentSession || currentSession.date !== today) {
-      const autoSession = autoCreateSession()
-      if (autoSession && (!currentSession || currentSession.date !== today)) {
-        setCurrentSession(autoSession)
-      }
-    }
-  }, []) // Run once on mount
-
-  // Re-check for auto-creation when navigating to this page (in case profile was updated)
-  useEffect(() => {
-    if (location.pathname === '/doctor/patients' || location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/') {
-      const today = getTodayDateString()
-      if (!currentSession || currentSession.date !== today) {
-        const autoSession = autoCreateSession()
-        if (autoSession) {
-          setCurrentSession(autoSession)
-        }
-      }
-    }
-  }, [location.pathname])
   
-  // Load appointments from localStorage and merge with mock data
-  const [appointments, setAppointments] = useState(() => {
-    // Get fresh mock appointments with today's date
-    const todayMockAppointments = getMockAppointments()
-    
-    try {
-      const saved = localStorage.getItem('doctorAppointments')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        // Merge with mock appointments, preserving status from localStorage
-        const merged = todayMockAppointments.map((mockAppt) => {
-          // Check if this appointment exists in saved data with updated status
-          const savedAppt = parsed.find((a) => a.id === mockAppt.id)
-          if (savedAppt) {
-            // Preserve status and other updates from localStorage
-            return { ...mockAppt, ...savedAppt }
-          }
-          return mockAppt
-        })
-        
-        // Add any new appointments that aren't in mock data
-        parsed.forEach((appt) => {
-          const exists = merged.find((a) => a.id === appt.id)
-          if (!exists) {
-            merged.push(appt)
-          }
-        })
-        return merged
-      }
-    } catch (error) {
-      console.error('Error loading appointments from localStorage:', error)
-    }
-    return todayMockAppointments
-  })
+  // Appointments state - loaded from API
+  const [appointments, setAppointments] = useState([])
+  const [loadingAppointments, setLoadingAppointments] = useState(true)
+  const [appointmentsError, setAppointmentsError] = useState(null)
   
-  // Save appointments to localStorage whenever they change
-  useEffect(() => {
-    try {
-      const todayMockAppointments = getMockAppointments()
-      
-      // Save appointments that have status changes or are new
-      const appointmentsToSave = appointments
-        .filter((appt) => {
-          const mockAppt = todayMockAppointments.find((ma) => ma.id === appt.id)
-          if (mockAppt) {
-            // Save if status or queueNumber is different from default mock status
-            return appt.status !== mockAppt.status || appt.queueNumber !== mockAppt.queueNumber
-          }
-          // Save if it's a new appointment not in mock data
-          return true
-        })
-        .map((appt) => ({
-          id: appt.id,
-          patientId: appt.patientId,
-          status: appt.status,
-          queueNumber: appt.queueNumber,
-          appointmentTime: appt.appointmentTime,
-          patientName: appt.patientName,
-          reason: appt.reason,
-        }))
-      
-      if (appointmentsToSave.length > 0) {
-        localStorage.setItem('doctorAppointments', JSON.stringify(appointmentsToSave))
-      } else {
-        // Clear localStorage if no appointments to save
-        localStorage.removeItem('doctorAppointments')
-      }
-    } catch (error) {
-      console.error('Error saving appointments to localStorage:', error)
-    }
-  }, [appointments])
+  // Session state
+  const [currentSession, setCurrentSession] = useState(null)
+  const [loadingSession, setLoadingSession] = useState(true)
   
-  // Reload appointments when navigating back to this page
+  // Fetch appointments from API
   useEffect(() => {
-    if (location.pathname === '/doctor/patients') {
-      // Reload appointments from localStorage to get updated status
+    const fetchAppointments = async () => {
       try {
-        const saved = localStorage.getItem('doctorAppointments')
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          const todayMockAppointments = getMockAppointments()
+        setLoadingAppointments(true)
+        setLoadingSession(true)
+        setAppointmentsError(null)
+        
+        console.log('🔍 Fetching patient queue...') // Debug log
+        
+        const response = await getPatientQueue()
+        
+        console.log('📊 Patient queue API response:', response) // Debug log
+        
+        if (response && response.success && response.data) {
+          // Backend returns: { session: {...}, appointments: [...], currentToken: 0 }
+          const sessionData = response.data.session || null
+          const queueData = response.data.appointments || response.data.queue || []
           
-          // Merge with mock appointments, preserving status from localStorage
-          const merged = todayMockAppointments.map((mockAppt) => {
-            const savedAppt = parsed.find((a) => a.id === mockAppt.id)
-            if (savedAppt) {
-              return { ...mockAppt, ...savedAppt }
-            }
-            return mockAppt
-          })
+          console.log('✅ Queue data received:', {
+            session: sessionData,
+            appointmentsCount: queueData.length,
+            firstAppointment: queueData[0],
+          }) // Debug log
           
-          // Add any new appointments
-          parsed.forEach((appt) => {
-            const exists = merged.find((a) => a.id === appt.id)
-            if (!exists) {
-              merged.push(appt)
-            }
-          })
+          // Set session data
+          if (sessionData) {
+            setCurrentSession({
+              id: sessionData._id || sessionData.id,
+              date: sessionData.date,
+              startTime: sessionData.sessionStartTime || sessionData.startTime,
+              endTime: sessionData.sessionEndTime || sessionData.endTime,
+              status: sessionData.status || 'scheduled',
+              currentToken: sessionData.currentToken || response.data.currentToken || 0,
+              maxTokens: sessionData.maxTokens || 0,
+              averageConsultationMinutes: sessionData.averageConsultationMinutes || getAverageConsultationMinutes(),
+            })
+          } else {
+            setCurrentSession(null)
+          }
           
-          setAppointments(merged)
+          // Transform API data to match component structure
+          const transformedAppointments = Array.isArray(queueData) ? queueData.map((appt) => ({
+            id: appt._id || appt.id,
+            _id: appt._id || appt.id,
+            patientId: appt.patientId?._id || appt.patientId || appt.patientId?.id,
+            patientName: appt.patientId?.firstName && appt.patientId?.lastName
+              ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
+              : appt.patientId?.name || appt.patientName || 'Patient',
+            age: appt.patientId?.age || appt.age || 0,
+            gender: appt.patientId?.gender || appt.gender || 'unknown',
+            appointmentTime: appt.appointmentDate 
+              ? `${appt.appointmentDate}T${appt.time || '00:00'}`
+              : appt.appointmentTime || new Date().toISOString(),
+            appointmentDate: appt.appointmentDate || appt.date,
+            appointmentType: appt.appointmentType || appt.type || 'New',
+            status: appt.status || 'waiting',
+            queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            reason: appt.reason || appt.chiefComplaint || 'Consultation',
+            patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            originalData: appt,
+          })) : []
+          
+          console.log('💰 Setting appointments:', {
+            count: transformedAppointments.length,
+            statuses: transformedAppointments.map(a => a.status),
+          }) // Debug log
+          
+          setAppointments(transformedAppointments)
+        } else {
+          console.error('❌ Invalid API response:', response) // Debug log
+          setAppointments([])
+          setCurrentSession(null)
         }
       } catch (error) {
-        console.error('Error reloading appointments:', error)
+        console.error('❌ Error fetching appointments:', error)
+        const errorMessage = error?.response?.data?.message || error?.message || 'Failed to load appointments'
+        setAppointmentsError(errorMessage)
+        try {
+          if (toast && typeof toast.error === 'function') {
+            toast.error(errorMessage)
+          }
+        } catch (toastError) {
+          console.error('Error showing toast:', toastError)
+        }
+        setAppointments([])
+        setCurrentSession(null)
+      } finally {
+        setLoadingAppointments(false)
+        setLoadingSession(false)
       }
     }
-  }, [location.pathname])
+    
+    // Always fetch when on patients page
+    if (location.pathname === '/doctor/patients' || isDashboardPage) {
+      fetchAppointments()
+      // Refresh every 30 seconds
+      const interval = setInterval(fetchAppointments, 30000)
+      return () => {
+        clearInterval(interval)
+      }
+    } else {
+      // If not on patients page, still set loading to false
+      setLoadingAppointments(false)
+      setLoadingSession(false)
+    }
+  }, [location.pathname, isDashboardPage]) // Removed toast from dependencies to avoid re-renders
+  
+  // Reload appointments when navigating back to this page
+  // Appointments are already fetched in the main useEffect above
   
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState(null)
@@ -665,92 +361,222 @@ const DoctorPatients = () => {
     }
   }
 
-  const handleCallNext = (appointmentId) => {
+  const handleCallNext = async (appointmentId) => {
     const appointment = appointments.find((appt) => appt.id === appointmentId)
     if (!appointment) {
-      alert('Appointment not found')
+      toast.error('Appointment not found')
       return
     }
 
     // Check if session is active
     if (!currentSession || currentSession.status !== 'active') {
-      alert('Please start the session first before calling patients')
+      toast.warning('Please start the session first before calling patients')
       return
     }
 
-    // Update status locally
-    setAppointments((prev) =>
-      prev.map((appt) =>
-        appt.id === appointmentId ? { ...appt, status: 'called' } : appt
-      )
-    )
+    try {
+      const sessionId = currentSession._id || currentSession.id
+      if (!sessionId) {
+        toast.error('Session ID not found')
+        return
+      }
 
-    // Load shared prescriptions from appointment
-    const sharedPrescriptions = appointment.sharedPrescriptions || []
-    
-    // Navigate to consultations page with patient data
-    // Convert appointment to consultation format
-    const consultationData = {
-      id: `cons-${appointment.id}-${Date.now()}`, // Unique ID with timestamp
-      patientId: appointment.patientId,
-      patientName: appointment.patientName,
-      age: appointment.age,
-      gender: appointment.gender,
-      appointmentTime: appointment.appointmentTime || new Date().toISOString(),
-      appointmentType: appointment.appointmentType || 'Follow-up',
-      status: 'in-progress',
-      reason: appointment.reason || 'Consultation',
-      patientImage: appointment.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=11496c&color=fff&size=160`,
-      patientPhone: appointment.patientPhone || '+1-555-987-6543',
-      patientEmail: appointment.patientEmail || `${appointment.patientName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-      patientAddress: appointment.patientAddress || '123 Patient Street, New York, NY 10001',
-      diagnosis: '',
-      symptoms: '',
-      vitals: {},
-      medications: [],
-      investigations: [],
-      advice: '',
-      followUpDate: '',
-      attachments: [],
-      sharedPrescriptions: sharedPrescriptions, // Prescriptions shared by patient from other doctors
-      sessionId: currentSession.id,
-      sessionDate: currentSession.date,
-      calledAt: new Date().toISOString(),
+      // Call API to call next patient
+      const response = await callNextPatient(sessionId)
+      
+      if (response.success) {
+        toast.success('Patient called successfully')
+        
+        // Update local state with API response
+        if (response.data?.appointment) {
+          const calledAppointment = response.data.appointment
+          setAppointments((prev) =>
+            prev.map((appt) =>
+              appt.id === appointmentId || appt._id === calledAppointment._id
+                ? { ...appt, status: 'called', queueStatus: 'called' }
+                : appt
+            )
+          )
+        }
+
+        // Load shared prescriptions from appointment
+        const sharedPrescriptions = appointment.sharedPrescriptions || []
+        
+        // Navigate to consultations page with patient data
+        // Convert appointment to consultation format
+        const consultationData = {
+          id: `cons-${appointment.id}-${Date.now()}`, // Unique ID with timestamp
+          patientId: appointment.patientId,
+          patientName: appointment.patientName,
+          age: appointment.age,
+          gender: appointment.gender,
+          appointmentTime: appointment.appointmentTime || new Date().toISOString(),
+          appointmentType: appointment.appointmentType || 'Follow-up',
+          status: 'in-progress',
+          reason: appointment.reason || 'Consultation',
+          patientImage: appointment.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=11496c&color=fff&size=160`,
+          patientPhone: appointment.patientPhone || '+1-555-987-6543',
+          patientEmail: appointment.patientEmail || `${appointment.patientName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+          patientAddress: appointment.patientAddress || '123 Patient Street, New York, NY 10001',
+          diagnosis: '',
+          symptoms: '',
+          vitals: {},
+          medications: [],
+          investigations: [],
+          advice: '',
+          followUpDate: '',
+          attachments: [],
+          sharedPrescriptions: sharedPrescriptions, // Prescriptions shared by patient from other doctors
+          sessionId: currentSession.id || currentSession._id,
+          sessionDate: currentSession.date,
+          calledAt: new Date().toISOString(),
+        }
+
+        // Navigate to consultations page with patient data in state
+        navigate('/doctor/consultations', {
+          state: { selectedConsultation: consultationData },
+        })
+      } else {
+        toast.error(response.message || 'Failed to call patient')
+      }
+    } catch (error) {
+      console.error('Error calling next patient:', error)
+      toast.error(error.message || 'Failed to call patient')
     }
-
-    // Navigate to consultations page with patient data in state
-    navigate('/doctor/consultations', {
-      state: { selectedConsultation: consultationData },
-    })
   }
 
-  const handleComplete = (appointmentId) => {
-    setAppointments((prev) =>
-      prev.map((appt) =>
-        appt.id === appointmentId ? { ...appt, status: 'completed' } : appt
-      )
-    )
-    alert('Consultation completed')
+  const handleComplete = async (appointmentId) => {
+    try {
+      const response = await updateQueueStatus(appointmentId, 'completed')
+      
+      if (response.success) {
+        toast.success('Consultation completed successfully')
+        // Update local state
+        setAppointments((prev) =>
+          prev.map((appt) =>
+            appt.id === appointmentId ? { ...appt, status: 'completed', queueStatus: 'completed' } : appt
+          )
+        )
+        // Refresh appointments
+        const queueResponse = await getPatientQueue()
+        if (queueResponse.success && queueResponse.data) {
+          const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
+          const transformedAppointments = queueData.map((appt) => ({
+            id: appt._id || appt.id,
+            _id: appt._id || appt.id,
+            patientId: appt.patientId?._id || appt.patientId || appt.patientId,
+            patientName: appt.patientId?.firstName && appt.patientId?.lastName
+              ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
+              : appt.patientId?.name || appt.patientName || 'Patient',
+            age: appt.patientId?.age || appt.age || 0,
+            gender: appt.patientId?.gender || appt.gender || 'unknown',
+            appointmentTime: appt.appointmentDate 
+              ? `${appt.appointmentDate}T${appt.time || '00:00'}`
+              : appt.appointmentTime || new Date().toISOString(),
+            appointmentType: appt.appointmentType || appt.type || 'New',
+            status: appt.status || 'waiting',
+            queueStatus: appt.queueStatus || appt.status || 'waiting',
+            queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            reason: appt.reason || appt.chiefComplaint || 'Consultation',
+            patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            originalData: appt,
+          }))
+          setAppointments(transformedAppointments)
+        }
+      } else {
+        toast.error(response.message || 'Failed to complete consultation')
+      }
+    } catch (error) {
+      console.error('Error completing consultation:', error)
+      toast.error(error.message || 'Failed to complete consultation')
+    }
   }
 
-  const handleRecall = (appointmentId) => {
-    alert('Patient recalled')
+  const handleRecall = async (appointmentId) => {
+    try {
+      const response = await recallPatient(appointmentId)
+      
+      if (response.success) {
+        toast.success('Patient recalled to waiting queue')
+        // Update local state
+        setAppointments((prev) =>
+          prev.map((appt) =>
+            appt.id === appointmentId ? { ...appt, status: 'waiting', queueStatus: 'waiting' } : appt
+          )
+        )
+        // Refresh appointments
+        const queueResponse = await getPatientQueue()
+        if (queueResponse.success && queueResponse.data) {
+          const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
+          const transformedAppointments = queueData.map((appt) => ({
+            id: appt._id || appt.id,
+            _id: appt._id || appt.id,
+            patientId: appt.patientId?._id || appt.patientId || appt.patientId,
+            patientName: appt.patientId?.firstName && appt.patientId?.lastName
+              ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
+              : appt.patientId?.name || appt.patientName || 'Patient',
+            status: appt.status || 'waiting',
+            queueStatus: appt.queueStatus || appt.status || 'waiting',
+            queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            // ... other fields
+            originalData: appt,
+          }))
+          setAppointments(transformedAppointments)
+        }
+      } else {
+        toast.error(response.message || 'Failed to recall patient')
+      }
+    } catch (error) {
+      console.error('Error recalling patient:', error)
+      toast.error(error.message || 'Failed to recall patient')
+    }
   }
 
-  const handleSkip = (appointmentId) => {
-    const appointment = appointments.find((appt) => appt.id === appointmentId)
-    const currentIndex = appointments.findIndex((appt) => appt.id === appointmentId)
-    
-    // Move to end of queue
-    setAppointments((prev) => {
-      const newAppointments = [...prev]
-      const skipped = newAppointments.splice(currentIndex, 1)[0]
-      skipped.queueNumber = newAppointments.length + 1
-      newAppointments.push(skipped)
-      return newAppointments.map((appt, idx) => ({ ...appt, queueNumber: idx + 1 }))
-    })
-    
-    alert(`${appointment.patientName} skipped to end of queue`)
+  const handleSkip = async (appointmentId) => {
+    try {
+      const response = await skipPatient(appointmentId)
+      
+      if (response.success) {
+        toast.success('Patient skipped successfully')
+        // Update local state
+        setAppointments((prev) =>
+          prev.map((appt) =>
+            appt.id === appointmentId ? { ...appt, status: 'skipped', queueStatus: 'skipped' } : appt
+          )
+        )
+        // Refresh appointments
+        const queueResponse = await getPatientQueue()
+        if (queueResponse.success && queueResponse.data) {
+          const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
+          const transformedAppointments = queueData.map((appt) => ({
+            id: appt._id || appt.id,
+            _id: appt._id || appt.id,
+            patientId: appt.patientId?._id || appt.patientId || appt.patientId,
+            patientName: appt.patientId?.firstName && appt.patientId?.lastName
+              ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
+              : appt.patientId?.name || appt.patientName || 'Patient',
+            age: appt.patientId?.age || appt.age || 0,
+            gender: appt.patientId?.gender || appt.gender || 'unknown',
+            appointmentTime: appt.appointmentDate 
+              ? `${appt.appointmentDate}T${appt.time || '00:00'}`
+              : appt.appointmentTime || new Date().toISOString(),
+            appointmentType: appt.appointmentType || appt.type || 'New',
+            status: appt.status || 'waiting',
+            queueStatus: appt.queueStatus || appt.status || 'waiting',
+            queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            reason: appt.reason || appt.chiefComplaint || 'Consultation',
+            patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            originalData: appt,
+          }))
+          setAppointments(transformedAppointments)
+        }
+      } else {
+        toast.error(response.message || 'Failed to skip patient')
+      }
+    } catch (error) {
+      console.error('Error skipping patient:', error)
+      toast.error(error.message || 'Failed to skip patient')
+    }
   }
 
   const handleNoShow = (appointmentId) => {
@@ -799,7 +625,73 @@ const DoctorPatients = () => {
   }
 
 
-  const medicalHistory = selectedPatient ? mockMedicalHistory[selectedPatient.patientId] : null
+  // Patient medical history - loaded from API
+  const [medicalHistory, setMedicalHistory] = useState(null)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  
+  // Load patient history when patient is selected
+  useEffect(() => {
+    const loadPatientHistory = async () => {
+      if (selectedPatient?.patientId || selectedPatient?._id) {
+        try {
+          setLoadingHistory(true)
+          const patientId = selectedPatient.patientId || selectedPatient._id
+          const historyResponse = await getPatientHistory(patientId)
+          if (historyResponse.success && historyResponse.data) {
+            setMedicalHistory(historyResponse.data)
+          } else {
+            setMedicalHistory(null)
+          }
+        } catch (error) {
+          console.error('Error loading patient history:', error)
+          setMedicalHistory(null)
+        } finally {
+          setLoadingHistory(false)
+        }
+      } else {
+        setMedicalHistory(null)
+      }
+    }
+    
+    loadPatientHistory()
+  }, [selectedPatient?.patientId, selectedPatient?._id])
+
+  // Show loading state if initial load
+  if (loadingAppointments && appointments.length === 0 && !appointmentsError) {
+    return (
+      <>
+        <DoctorNavbar />
+        <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <IoPeopleOutline className="mx-auto h-12 w-12 text-slate-300 animate-pulse" />
+            <p className="mt-4 text-sm font-medium text-slate-600">Loading patients...</p>
+          </div>
+        </section>
+      </>
+    )
+  }
+
+  // Show error state if there's an error
+  if (appointmentsError && appointments.length === 0) {
+    return (
+      <>
+        <DoctorNavbar />
+        <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center shadow-sm">
+            <IoCloseCircleOutline className="mx-auto h-12 w-12 text-red-300" />
+            <p className="mt-4 text-sm font-medium text-red-600">Error loading patients</p>
+            <p className="mt-1 text-xs text-red-500">{appointmentsError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        </section>
+      </>
+    )
+  }
 
   return (
     <>
@@ -820,13 +712,15 @@ const DoctorPatients = () => {
                         {getSessionStatusText(currentSession.status)}
                       </span>
                       <span className="text-xs text-slate-600">
-                        {formatTime(`${currentSession.date}T${currentSession.startTime}`)} - {formatTime(`${currentSession.date}T${currentSession.endTime}`)}
+                        {currentSession?.date && currentSession?.startTime && currentSession?.endTime
+                          ? `${formatTime(`${currentSession.date}T${currentSession.startTime}`)} - ${formatTime(`${currentSession.date}T${currentSession.endTime}`)}`
+                          : 'N/A'}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-slate-600">
-                      <span>Avg Time: {currentSession.averageConsultationMinutes || getAverageConsultationMinutes()} min/patient</span>
+                      <span>Avg Time: {currentSession?.averageConsultationMinutes || getAverageConsultationMinutes()} min/patient</span>
                       <span>•</span>
-                      <span>Capacity: {appointments.filter(a => a.status !== 'cancelled' && a.status !== 'no-show').length} / {currentSession.maxTokens}</span>
+                      <span>Capacity: {appointments.filter(a => a.status !== 'cancelled' && a.status !== 'no-show').length} / {currentSession?.maxTokens || 0}</span>
                     </div>
                   </div>
                 ) : (
@@ -1414,7 +1308,7 @@ const DoctorPatients = () => {
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">Cancel Session</h2>
-                  <p className="text-xs text-slate-600">{formatDate(currentSession.date)}</p>
+                  <p className="text-xs text-slate-600">{currentSession?.date ? formatDate(currentSession.date) : 'N/A'}</p>
                 </div>
               </div>
               <button

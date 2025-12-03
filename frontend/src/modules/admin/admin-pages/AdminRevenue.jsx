@@ -12,82 +12,31 @@ import {
   IoTimeOutline,
   IoFilterOutline,
 } from 'react-icons/io5'
+import { getRevenueOverview } from '../admin-services/adminService'
+import { useToast } from '../../../contexts/ToastContext'
 
-// Mock data - replace with API calls
-const mockRevenueData = {
-  totalRevenue: 1250000,
-  thisMonthRevenue: 125000,
-  lastMonthRevenue: 108000,
-  thisWeekRevenue: 35000,
-  lastWeekRevenue: 32000,
-  todayRevenue: 5000,
-  yesterdayRevenue: 4800,
+// Default data structure (will be replaced by API data)
+const defaultRevenueData = {
+  totalRevenue: 0,
+  thisMonthRevenue: 0,
+  lastMonthRevenue: 0,
+  thisWeekRevenue: 0,
+  lastWeekRevenue: 0,
+  todayRevenue: 0,
+  yesterdayRevenue: 0,
   revenueBySource: {
-    doctors: 750000,
-    pharmacies: 300000,
-    laboratories: 200000,
+    doctors: 0,
+    pharmacies: 0,
+    laboratories: 0,
   },
   revenueBreakdown: {
-    consultations: 600000,
-    labOrders: 200000,
-    pharmacyOrders: 300000,
-    commissions: 150000,
+    consultations: 0,
+    labOrders: 0,
+    pharmacyOrders: 0,
+    commissions: 0,
   },
-  monthlyRevenue: [
-    { month: 'Jul', revenue: 85000 },
-    { month: 'Aug', revenue: 92000 },
-    { month: 'Sep', revenue: 98000 },
-    { month: 'Oct', revenue: 105000 },
-    { month: 'Nov', revenue: 108000 },
-    { month: 'Dec', revenue: 125000 },
-  ],
-  recentTransactions: [
-    {
-      id: 'txn-1',
-      type: 'consultation',
-      source: 'Dr. Rajesh Kumar',
-      amount: 1500,
-      commission: 150,
-      date: '2025-01-15T10:30:00',
-      status: 'completed',
-    },
-    {
-      id: 'txn-2',
-      type: 'pharmacy',
-      source: 'City Pharmacy',
-      amount: 2500,
-      commission: 250,
-      date: '2025-01-15T09:15:00',
-      status: 'completed',
-    },
-    {
-      id: 'txn-3',
-      type: 'laboratory',
-      source: 'MediCare Diagnostics',
-      amount: 1200,
-      commission: 120,
-      date: '2025-01-15T08:45:00',
-      status: 'completed',
-    },
-    {
-      id: 'txn-4',
-      type: 'consultation',
-      source: 'Dr. Priya Sharma',
-      amount: 1800,
-      commission: 180,
-      date: '2025-01-14T16:20:00',
-      status: 'completed',
-    },
-    {
-      id: 'txn-5',
-      type: 'pharmacy',
-      source: 'MediCare Pharmacy',
-      amount: 3200,
-      commission: 320,
-      date: '2025-01-14T14:30:00',
-      status: 'completed',
-    },
-  ],
+  monthlyRevenue: [],
+  recentTransactions: [],
 }
 
 const formatCurrency = (amount) => {
@@ -124,12 +73,66 @@ const getSourceIcon = (type) => {
 }
 
 const AdminRevenue = () => {
-  const [revenueData, setRevenueData] = useState(mockRevenueData)
+  const toast = useToast()
+  const [revenueData, setRevenueData] = useState(defaultRevenueData)
   const [selectedPeriod, setSelectedPeriod] = useState('month') // 'today', 'week', 'month', 'year'
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const revenueChange = ((revenueData.thisMonthRevenue - revenueData.lastMonthRevenue) / revenueData.lastMonthRevenue) * 100
-  const weekChange = ((revenueData.thisWeekRevenue - revenueData.lastWeekRevenue) / revenueData.lastWeekRevenue) * 100
-  const dayChange = ((revenueData.todayRevenue - revenueData.yesterdayRevenue) / revenueData.yesterdayRevenue) * 100
+  // Fetch revenue data from API
+  useEffect(() => {
+    const fetchRevenueData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getRevenueOverview()
+        
+        if (response.success && response.data) {
+          const data = response.data
+          setRevenueData({
+            totalRevenue: data.totalRevenue || 0,
+            thisMonthRevenue: data.thisMonthRevenue || 0,
+            lastMonthRevenue: data.lastMonthRevenue || 0,
+            thisWeekRevenue: data.thisWeekRevenue || 0,
+            lastWeekRevenue: data.lastWeekRevenue || 0,
+            todayRevenue: data.todayRevenue || 0,
+            yesterdayRevenue: data.yesterdayRevenue || 0,
+            revenueBySource: data.revenueBySource || {
+              doctors: 0,
+              pharmacies: 0,
+              laboratories: 0,
+            },
+            revenueBreakdown: data.revenueBreakdown || {
+              consultations: 0,
+              labOrders: 0,
+              pharmacyOrders: 0,
+              commissions: 0,
+            },
+            monthlyRevenue: data.monthlyRevenue || [],
+            recentTransactions: data.recentTransactions || [],
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching revenue data:', err)
+        setError(err.message || 'Failed to load revenue data')
+        toast.error('Failed to load revenue data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRevenueData()
+  }, [toast])
+
+  const revenueChange = revenueData.lastMonthRevenue > 0
+    ? ((revenueData.thisMonthRevenue - revenueData.lastMonthRevenue) / revenueData.lastMonthRevenue) * 100
+    : 0
+  const weekChange = revenueData.lastWeekRevenue > 0
+    ? ((revenueData.thisWeekRevenue - revenueData.lastWeekRevenue) / revenueData.lastWeekRevenue) * 100
+    : 0
+  const dayChange = revenueData.yesterdayRevenue > 0
+    ? ((revenueData.todayRevenue - revenueData.yesterdayRevenue) / revenueData.yesterdayRevenue) * 100
+    : 0
 
   const getPeriodRevenue = () => {
     switch (selectedPeriod) {

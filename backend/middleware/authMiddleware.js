@@ -69,7 +69,8 @@ const protect = (...allowedRoles) =>
       ? allowedRoles[0]
       : allowedRoles;
 
-    if (roles.length && !roles.includes(role)) {
+    // If roles are specified, check if user's role matches
+    if (roles.length > 0 && !roles.includes(role)) {
       throw createError(403, 'You do not have access to this resource');
     }
 

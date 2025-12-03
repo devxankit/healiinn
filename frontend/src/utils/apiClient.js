@@ -161,30 +161,60 @@ const refreshAccessToken = async (module = 'admin') => {
 const apiRequest = async (endpoint, options = {}, module = 'admin') => {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
   
+  // Check if this is a public auth endpoint (login/signup) that shouldn't require token
+  const isAuthEndpoint = endpoint.includes('/auth/login') || 
+                         endpoint.includes('/auth/signup') || 
+                         endpoint.includes('/auth/forgot-password') ||
+                         endpoint.includes('/auth/verify-otp') ||
+                         endpoint.includes('/auth/reset-password') ||
+                         endpoint.includes('/auth/check-exists')
+  
   const config = {
     ...options,
     headers: {
-      ...getAuthHeaders(module, options.headers),
+      // Only add auth headers if not an auth endpoint
+      ...(isAuthEndpoint ? { 'Content-Type': 'application/json', ...options.headers } : getAuthHeaders(module, options.headers)),
     },
   }
 
   try {
     let response = await fetch(url, config)
 
-    // If 401 and we have a refresh token, try to refresh
-    if (response.status === 401 && getRefreshToken(module)) {
-      try {
-        await refreshAccessToken(module)
-        // Retry original request with new token
-        config.headers = getAuthHeaders(module, options.headers)
-        response = await fetch(url, config)
-      } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
-        clearTokens(module)
-        if (window.location.pathname !== `/${module}/login`) {
-          window.location.href = `/${module}/login`
+    // If 401 Unauthorized
+    if (response.status === 401) {
+      // For auth endpoints (login/signup), 401 means invalid credentials, not missing token
+      // Just return the response so the caller can handle the error message from backend
+      if (isAuthEndpoint) {
+        return response
+      }
+      
+      // For protected endpoints, handle token refresh/redirect
+      // If we have a refresh token, try to refresh
+      if (getRefreshToken(module)) {
+        try {
+          await refreshAccessToken(module)
+          // Retry original request with new token
+          config.headers = getAuthHeaders(module, options.headers)
+          response = await fetch(url, config)
+        } catch (refreshError) {
+          // Refresh failed, clear tokens and redirect to login
+          clearTokens(module)
+          if (window.location.pathname !== `/${module}/login`) {
+            window.location.href = `/${module}/login`
+          }
+          throw new Error('Session expired. Please login again.')
         }
-        throw new Error('Session expired. Please login again.')
+      } else {
+        // No refresh token, user is logged out - clear tokens and redirect
+        clearTokens(module)
+        if (window.location.pathname !== `/${module}/login` && !window.location.pathname.includes('/login')) {
+          // Only redirect if not already on login page
+          const loginPath = module === 'admin' ? '/admin/login' : `/${module}/login`
+          if (window.location.pathname !== loginPath) {
+            window.location.href = loginPath
+          }
+        }
+        throw new Error('Authentication token missing. Please login again.')
       }
     }
 
@@ -306,6 +336,45 @@ class ApiClient {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.message || `Request failed: ${response.statusText}`)
+    }
+    
+    return await response.json()
+  }
+
+  /**
+   * Upload file (multipart/form-data)
+   * @param {string} endpoint - API endpoint
+   * @param {FormData} formData - FormData with file
+   * @returns {Promise<object>} Response data
+   */
+  async upload(endpoint, formData) {
+    const token = getAuthToken(this.module)
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+    const url = endpoint.startsWith('http') ? endpoint : `${baseURL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+    
+    let response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+          // Don't set Content-Type - browser will set it with boundary for FormData
+        },
+        body: formData,
+      })
+    } catch (fetchError) {
+      // Handle network errors (connection refused, etc.)
+      if (fetchError.message?.includes('Failed to fetch') || 
+          fetchError.message?.includes('NetworkError') ||
+          fetchError.name === 'TypeError') {
+        throw new Error('Cannot connect to server. Please make sure the backend server is running on port 5000.')
+      }
+      throw fetchError
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || `Upload failed: ${response.statusText}`)
     }
     
     return await response.json()

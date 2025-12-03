@@ -15,130 +15,19 @@ import {
   IoListOutline,
 } from 'react-icons/io5'
 import { usePharmacySidebar } from '../pharmacy-components/PharmacySidebarContext'
+import { getPharmacyDashboard, getPharmacyOrders, getPharmacyRequestOrders, getPharmacyMedicines, getPharmacyPatients, getPharmacyProfile } from '../pharmacy-services/pharmacyService'
+import { useToast } from '../../../contexts/ToastContext'
+import NotificationBell from '../../../components/NotificationBell'
 
-const mockStats = {
-  totalOrders: 24,
-  activePatients: 156,
-  inactivePatients: 24,
-  pendingPrescriptions: 12,
+// Default stats (will be replaced by API data)
+const defaultStats = {
+  totalOrders: 0,
+  activePatients: 0,
+  inactivePatients: 0,
+  pendingPrescriptions: 0,
 }
 
-const todayOrders = [
-  {
-    id: 'order-1',
-    patientName: 'John Doe',
-    patientImage: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-    time: '09:00 AM',
-    status: 'pending',
-    totalAmount: 42.5,
-    deliveryType: 'home',
-    prescriptionId: 'prx-3021',
-  },
-  {
-    id: 'order-2',
-    patientName: 'Sarah Smith',
-    patientImage: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
-    time: '10:30 AM',
-    status: 'ready',
-    totalAmount: 34.0,
-    deliveryType: 'pickup',
-    prescriptionId: 'prx-3022',
-  },
-  {
-    id: 'order-3',
-    patientName: 'Mike Johnson',
-    patientImage: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
-    time: '02:00 PM',
-    status: 'pending',
-    totalAmount: 196.0,
-    deliveryType: 'home',
-    prescriptionId: 'prx-3023',
-  },
-  {
-    id: 'order-4',
-    patientName: 'Emily Brown',
-    patientImage: 'https://ui-avatars.com/api/?name=Emily+Brown&background=f59e0b&color=fff&size=128&bold=true',
-    time: '03:30 PM',
-    status: 'ready',
-    totalAmount: 125.5,
-    deliveryType: 'pickup',
-    prescriptionId: 'prx-3024',
-  },
-]
-
-const recentOrders = [
-  {
-    id: 'order-1',
-    patientName: 'David Wilson',
-    patientImage: 'https://ui-avatars.com/api/?name=David+Wilson&background=6366f1&color=fff&size=128&bold=true',
-    date: '2025-01-15',
-    time: '10:00 AM',
-    status: 'delivered',
-    totalAmount: 89.5,
-    prescriptionId: 'prx-3025',
-    deliveryType: 'home',
-  },
-  {
-    id: 'order-2',
-    patientName: 'Lisa Anderson',
-    patientImage: 'https://ui-avatars.com/api/?name=Lisa+Anderson&background=8b5cf6&color=fff&size=128&bold=true',
-    date: '2025-01-14',
-    time: '02:30 PM',
-    status: 'delivered',
-    totalAmount: 156.0,
-    prescriptionId: 'prx-3026',
-    deliveryType: 'home',
-  },
-  {
-    id: 'order-3',
-    patientName: 'Robert Taylor',
-    patientImage: 'https://ui-avatars.com/api/?name=Robert+Taylor&background=ef4444&color=fff&size=128&bold=true',
-    date: '2025-01-14',
-    time: '11:00 AM',
-    status: 'delivered',
-    totalAmount: 78.25,
-    prescriptionId: 'prx-3027',
-    deliveryType: 'pickup',
-  },
-  {
-    id: 'order-4',
-    patientName: 'Jennifer Martinez',
-    patientImage: 'https://ui-avatars.com/api/?name=Jennifer+Martinez&background=14b8a6&color=fff&size=128&bold=true',
-    date: '2025-01-13',
-    time: '09:30 AM',
-    status: 'cancelled',
-    totalAmount: 145.0,
-    prescriptionId: 'prx-3028',
-    deliveryType: 'home',
-  },
-]
-
-const recentPatients = [
-  {
-    id: 'pat-1',
-    name: 'John Doe',
-    image: 'https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff&size=128&bold=true',
-    lastOrderDate: '2025-01-15',
-    totalOrders: 12,
-    status: 'active',
-  },
-  {
-    id: 'pat-2',
-    name: 'Sarah Smith',
-    image: 'https://ui-avatars.com/api/?name=Sarah+Smith&background=ec4899&color=fff&size=128&bold=true',
-    lastOrderDate: '2025-01-14',
-    totalOrders: 8,
-    status: 'active',
-  },
-  {
-    id: 'pat-3',
-    name: 'Mike Johnson',
-    image: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=10b981&color=fff&size=128&bold=true',
-    lastOrderDate: '2025-01-12',
-    totalOrders: 15,
-    status: 'active',
-  },
-]
+// Mock data removed - using API data now
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -187,34 +76,162 @@ const getStatusIcon = (status) => {
 const PharmacyDashboard = () => {
   const navigate = useNavigate()
   const { toggleSidebar } = usePharmacySidebar()
+  const toast = useToast()
   const [availableMedicinesCount, setAvailableMedicinesCount] = useState(0)
+  const [todayOrders, setTodayOrders] = useState([])
+  const [recentOrders, setRecentOrders] = useState([])
+  const [recentPatients, setRecentPatients] = useState([])
+  const [requestOrdersCount, setRequestOrdersCount] = useState(0)
+  const [stats, setStats] = useState(defaultStats)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [profile, setProfile] = useState(null)
 
+  // Fetch profile data
   useEffect(() => {
-    // Load medicines count from localStorage
-    const medicines = JSON.parse(localStorage.getItem('pharmacyMedicines') || '[]')
-    setAvailableMedicinesCount(medicines.length)
-    
-    // Listen for storage changes to update count
-    const handleStorageChange = () => {
-      const updatedMedicines = JSON.parse(localStorage.getItem('pharmacyMedicines') || '[]')
-      setAvailableMedicinesCount(updatedMedicines.length)
-    }
-    
-    window.addEventListener('storage', handleStorageChange)
-    
-    // Also check periodically (for same-tab updates)
-    const interval = setInterval(() => {
-      const updatedMedicines = JSON.parse(localStorage.getItem('pharmacyMedicines') || '[]')
-      if (updatedMedicines.length !== availableMedicinesCount) {
-        setAvailableMedicinesCount(updatedMedicines.length)
+    const fetchProfile = async () => {
+      try {
+        const response = await getPharmacyProfile()
+        if (response.success && response.data) {
+          const pharmacy = response.data.pharmacy || response.data
+          setProfile({
+            name: pharmacy.pharmacyName || pharmacy.name || '',
+            address: pharmacy.address || {},
+            isActive: pharmacy.isActive !== undefined ? pharmacy.isActive : true,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching profile:', err)
+        // Don't show error toast as it's not critical
       }
-    }, 1000)
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      clearInterval(interval)
     }
-  }, [availableMedicinesCount])
+    fetchProfile()
+  }, [])
+
+  // Fetch dashboard data from API
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await getPharmacyDashboard()
+        
+        if (response.success && response.data) {
+          const data = response.data
+          setStats({
+            totalOrders: data.totalOrders || 0,
+            activePatients: data.activePatients || 0,
+            inactivePatients: data.inactivePatients || 0,
+            pendingPrescriptions: data.pendingPrescriptions || 0,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err)
+        setError(err.message || 'Failed to load dashboard data')
+        toast.error('Failed to load dashboard data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [toast])
+
+  // Fetch today's orders, medicines count, and request orders count
+  useEffect(() => {
+    const fetchDashboardDetails = async () => {
+      try {
+        // Fetch today's orders
+        const today = new Date().toISOString().split('T')[0]
+        const ordersResponse = await getPharmacyOrders({ date: today, limit: 10 })
+        if (ordersResponse.success && ordersResponse.data) {
+          const ordersData = Array.isArray(ordersResponse.data) 
+            ? ordersResponse.data 
+            : ordersResponse.data.orders || []
+          
+          const transformed = ordersData.map(order => ({
+            id: order._id || order.id,
+            patientName: order.patientId?.firstName && order.patientId?.lastName
+              ? `${order.patientId.firstName} ${order.patientId.lastName}`
+              : order.patientId?.name || order.patientName || 'Unknown Patient',
+            patientImage: order.patientId?.profileImage || order.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientId?.firstName || order.patientName || 'Patient')}&background=3b82f6&color=fff&size=128`,
+            time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
+            status: order.status || 'pending',
+            totalAmount: order.totalAmount || order.amount || 0,
+            deliveryType: order.deliveryType || order.deliveryOption || 'home',
+            prescriptionId: order.prescriptionId?._id || order.prescriptionId || '',
+          }))
+          setTodayOrders(transformed)
+        }
+
+        // Fetch recent orders (last 5 orders regardless of date)
+        const recentOrdersResponse = await getPharmacyOrders({ limit: 5 })
+        if (recentOrdersResponse.success && recentOrdersResponse.data) {
+          const recentOrdersData = Array.isArray(recentOrdersResponse.data) 
+            ? recentOrdersResponse.data 
+            : recentOrdersResponse.data.orders || []
+          
+          const transformed = recentOrdersData.map(order => ({
+            id: order._id || order.id,
+            patientName: order.patientId?.firstName && order.patientId?.lastName
+              ? `${order.patientId.firstName} ${order.patientId.lastName}`
+              : order.patientId?.name || order.patientName || 'Unknown Patient',
+            patientImage: order.patientId?.profileImage || order.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientId?.firstName || order.patientName || 'Patient')}&background=3b82f6&color=fff&size=128`,
+            time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
+            status: order.status || 'pending',
+            totalAmount: order.totalAmount || order.amount || 0,
+            deliveryType: order.deliveryType || order.deliveryOption || 'home',
+            prescriptionId: order.prescriptionId?._id || order.prescriptionId || '',
+          }))
+          setRecentOrders(transformed)
+        }
+
+        // Fetch recent patients (last 5 patients)
+        const patientsResponse = await getPharmacyPatients({ limit: 5 })
+        if (patientsResponse.success && patientsResponse.data) {
+          const patientsData = Array.isArray(patientsResponse.data.items) 
+            ? patientsResponse.data.items 
+            : patientsResponse.data.patients || []
+          
+          const transformed = patientsData.map(patient => ({
+            id: patient._id || patient.id,
+            name: patient.firstName && patient.lastName
+              ? `${patient.firstName} ${patient.lastName}`
+              : patient.name || 'Unknown Patient',
+            image: patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.firstName || patient.name || 'Patient')}&background=3b82f6&color=fff&size=128`,
+            totalOrders: patient.totalOrders || 0,
+            lastOrderDate: patient.lastOrderDate || null,
+            status: patient.status || 'active',
+          }))
+          setRecentPatients(transformed)
+        }
+
+        // Fetch medicines count
+        const medicinesResponse = await getPharmacyMedicines({ limit: 1 })
+        if (medicinesResponse.success && medicinesResponse.data) {
+          // Backend returns total in data.pagination.total
+          const totalCount = medicinesResponse.data.pagination?.total || 
+                            medicinesResponse.data.total || 
+                            (medicinesResponse.data.items?.length || 0)
+          setAvailableMedicinesCount(totalCount)
+        }
+
+        // Fetch request orders count
+        const requestsResponse = await getPharmacyRequestOrders({ status: 'pending', limit: 1 })
+        if (requestsResponse.success && requestsResponse.data) {
+          setRequestOrdersCount(requestsResponse.data.total || 0)
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard details:', err)
+        // Don't show error toast as these are not critical
+      }
+    }
+
+    fetchDashboardDetails()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchDashboardDetails, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <section className="flex flex-col gap-4 pb-24 -mt-20">
@@ -230,21 +247,17 @@ const PharmacyDashboard = () => {
           <div className="flex items-start justify-between mb-3.5">
             <div className="flex-1">
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight mb-0.5">
-                Rx Care Pharmacy
+                {profile?.name || 'Pharmacy'}
               </h1>
               <p className="text-sm font-normal text-white/95 leading-tight">
-                Market Street • <span className="text-white font-medium">Online</span>
+                {profile?.address?.city || profile?.address?.line1 || 'Address'} • <span className="text-white font-medium">{profile?.isActive ? 'Online' : 'Offline'}</span>
               </p>
             </div>
             <div className="flex items-center gap-2">
               {/* Notification Icon */}
-              <button
-                type="button"
-                className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
-                aria-label="Notifications"
-              >
-                <IoNotificationsOutline className="h-5 w-5 sm:h-6 sm:w-6" />
-              </button>
+              <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
+                <NotificationBell className="text-white" />
+              </div>
               <button
                 type="button"
                 onClick={toggleSidebar}
@@ -268,7 +281,7 @@ const PharmacyDashboard = () => {
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1">Total Orders</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.totalOrders}</p>
+              <p className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : stats.totalOrders}</p>
             </div>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white">
               <IoBagHandleOutline className="text-base" aria-hidden="true" />
@@ -285,7 +298,7 @@ const PharmacyDashboard = () => {
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-teal-700 leading-tight mb-1">Prescription</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{mockStats.pendingPrescriptions}</p>
+              <p className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : stats.pendingPrescriptions}</p>
             </div>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-white">
               <IoDocumentTextOutline className="text-base" aria-hidden="true" />
@@ -319,14 +332,7 @@ const PharmacyDashboard = () => {
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-blue-700 leading-tight mb-1">Request</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{(() => {
-                try {
-                  const requests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-                  return requests.filter(r => r.type === 'order_medicine').length
-                } catch {
-                  return 0
-                }
-              })()}</p>
+              <p className="text-xl font-bold text-slate-900 leading-none">{requestOrdersCount}</p>
             </div>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 text-white">
               <IoListOutline className="text-base" aria-hidden="true" />

@@ -42,7 +42,14 @@ const pharmacySchema = new mongoose.Schema(
     },
     deliveryOptions: [{ type: String, enum: ['pickup', 'delivery', 'both'] }],
     serviceRadiusKm: { type: Number, default: 0 },
-    timings: [{ type: String, trim: true }],
+    timings: [
+      {
+        day: { type: String, trim: true },
+        startTime: { type: String, trim: true },
+        endTime: { type: String, trim: true },
+        isOpen: { type: Boolean, default: true },
+      },
+    ],
     medicinesAvailable: [
       {
         name: { type: String, trim: true },
@@ -62,6 +69,7 @@ const pharmacySchema = new mongoose.Schema(
       gstCertificate: { type: String, trim: true },
     },
     profileImage: { type: String, trim: true },
+    bio: { type: String, trim: true },
     rating: { type: Number, min: 0, max: 5, default: 0 },
     status: {
       type: String,
