@@ -459,9 +459,24 @@ const PatientDashboard = () => {
               const doctorName = appointment.doctorId?.firstName && appointment.doctorId?.lastName
                 ? `Dr. ${appointment.doctorId.firstName} ${appointment.doctorId.lastName}`
                 : appointment.doctorName || 'Dr. Unknown'
-              const specialty = appointment.doctorId?.specialization || appointment.specialty || ''
+              const specialty = appointment.doctorId?.specialization || appointment.specialty || appointment.doctorSpecialty || ''
               const appointmentDate = new Date(appointment.appointmentDate || appointment.date)
-              const time = appointment.time || appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+              
+              // Convert time to 12-hour format if needed
+              const convertTimeTo12Hour = (timeStr) => {
+                if (!timeStr) return '';
+                if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                if (isNaN(hours) || isNaN(minutes)) return timeStr;
+                const period = hours >= 12 ? 'PM' : 'AM';
+                const hours12 = hours % 12 || 12;
+                return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+              };
+              
+              const time = convertTimeTo12Hour(appointment.time || appointment.appointmentTime) || appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+              
+              // Format location
+              const location = appointment.location || appointment.clinic || null
               
               return (
             <div
@@ -493,8 +508,8 @@ const PatientDashboard = () => {
                         <span>{time}</span>
                       </div>
                     </div>
-                    {appointment.clinic && (
-                      <p className="text-xs text-slate-500">{appointment.clinic}</p>
+                    {(appointment.clinic || location) && (
+                      <p className="text-xs text-slate-500">{location || appointment.clinic}</p>
                     )}
                   </div>
                 </div>
@@ -548,8 +563,11 @@ const PatientDashboard = () => {
                       {doctor.name || `Dr. ${doctor.firstName || ''} ${doctor.lastName || ''}`.trim()}
                     </h3>
                     <p className="text-xs text-slate-600 mb-0.5">{doctor.specialty || doctor.specialization || ''}</p>
-                    {doctor.clinic && (
-                    <p className="text-xs text-slate-500 mb-1.5">{doctor.clinic}</p>
+                    {doctor.clinicName && (
+                      <p className="text-xs font-semibold text-slate-700 mb-0.5">{doctor.clinicName}</p>
+                    )}
+                    {doctor.clinicAddress && (
+                      <p className="text-xs text-slate-500 mb-1.5 line-clamp-2">{doctor.clinicAddress}</p>
                     )}
                     <div className="flex items-center gap-1.5">
                       <div className="flex items-center gap-0.5">{renderStars(doctor.rating || doctor.averageRating || 0)}</div>
@@ -563,8 +581,8 @@ const PatientDashboard = () => {
                   </div>
                 </div>
 
-                {/* Availability Section */}
-                {doctor.isServing && (
+                {/* Availability Section - Now Serving */}
+                {doctor.isServing && doctor.nextToken && (
                   <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)', border: '1px solid rgba(17, 73, 108, 0.3)' }}>
                     <div className="flex items-center gap-2 mb-1.5">
                       <div className="h-2 w-2 rounded-full bg-green-500"></div>
@@ -572,11 +590,13 @@ const PatientDashboard = () => {
                     </div>
                     <p className="text-xs text-slate-600 mb-1.5">Your ETA if you book now:</p>
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-bold text-slate-900">Token #{doctor.currentToken}</span>
+                      <span className="text-sm font-bold text-slate-900">Token #{doctor.nextToken}</span>
+                      {doctor.eta && (
                       <div className="flex items-center gap-1 text-xs text-slate-600">
                         <IoTimeOutline className="h-3.5 w-3.5" />
                         <span className="font-medium">{doctor.eta}</span>
                       </div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -1,43 +1,24 @@
 import { useState, useEffect } from 'react'
-import { IoCloseOutline, IoCheckmarkCircleOutline } from 'react-icons/io5'
-import { createSupportTicket, getSupportTickets } from '../pharmacy-services/pharmacyService'
+import { IoCloseOutline, IoCheckmarkCircleOutline, IoTimeOutline, IoCheckmarkCircle, IoCloseCircle, IoHourglassOutline } from 'react-icons/io5'
+import { createSupportTicket, getSupportTickets, getSupportHistory } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
 
 const PharmacySupport = () => {
   const toast = useToast()
+  const [activeTab, setActiveTab] = useState('new') // 'new', 'tickets', 'history'
   const [formData, setFormData] = useState({
-    subject: '',
-    message: '',
-    priority: 'medium',
+    name: '',
+    pharmacyName: '',
+    email: '',
+    contactNumber: '',
+    note: '',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [tickets, setTickets] = useState([])
+  const [history, setHistory] = useState([])
   const [loadingTickets, setLoadingTickets] = useState(false)
-  const [activeTab, setActiveTab] = useState('new') // 'new' or 'tickets'
-
-  // Fetch support tickets
-  useEffect(() => {
-    const fetchTickets = async () => {
-      if (activeTab === 'tickets') {
-        try {
-          setLoadingTickets(true)
-          const response = await getSupportTickets()
-          if (response.success && response.data) {
-            const ticketsList = response.data.items || response.data || []
-            setTickets(ticketsList)
-          }
-        } catch (error) {
-          console.error('Error fetching tickets:', error)
-          toast.error('Failed to load support tickets')
-        } finally {
-          setLoadingTickets(false)
-        }
-      }
-    }
-
-    fetchTickets()
-  }, [activeTab, toast])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -53,65 +34,155 @@ const PharmacySupport = () => {
 
     try {
       const response = await createSupportTicket({
-        subject: formData.subject,
-        message: formData.message,
-        priority: formData.priority || 'medium',
+        subject: `Support Request from ${formData.name} - ${formData.pharmacyName}`,
+        message: formData.note,
+        priority: 'medium',
       })
 
       if (response.success) {
-        setIsSubmitting(false)
+        toast.success('Support request submitted successfully')
         setShowSuccessModal(true)
         setFormData({
-          subject: '',
-          message: '',
-          priority: 'medium',
+          name: '',
+          pharmacyName: '',
+          email: '',
+          contactNumber: '',
+          note: '',
         })
-        toast.success('Support ticket created successfully!')
-      } else {
-        throw new Error(response.message || 'Failed to create support ticket')
+        // Refresh tickets list if on tickets tab
+        if (activeTab === 'tickets') {
+          const ticketsResponse = await getSupportTickets()
+          if (ticketsResponse.success && ticketsResponse.data) {
+            const ticketsData = ticketsResponse.data.items || ticketsResponse.data || []
+            setTickets(ticketsData)
+          }
+        }
       }
     } catch (error) {
-      console.error('Error creating support ticket:', error)
-      toast.error(error.message || 'Failed to create support ticket. Please try again.')
+      console.error('Error submitting support request:', error)
+      toast.error(error.message || 'Failed to submit support request. Please try again.')
+    } finally {
       setIsSubmitting(false)
     }
   }
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'open':
-        return 'bg-blue-50 text-blue-700 border-blue-200'
-      case 'in_progress':
-        return 'bg-amber-50 text-amber-700 border-amber-200'
+  // Fetch support tickets
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setLoadingTickets(true)
+        console.log('📋 Fetching pharmacy support tickets...')
+        const response = await getSupportTickets()
+        console.log('📋 Pharmacy support tickets response:', response)
+        
+        if (response.success && response.data) {
+          // Backend returns { items: [...], pagination: {...} }
+          const ticketsData = response.data.items || response.data || []
+          console.log('✅ Processed pharmacy tickets:', ticketsData)
+          setTickets(ticketsData)
+        } else {
+          console.warn('⚠️ Invalid response format:', response)
+          setTickets([])
+        }
+      } catch (error) {
+        console.error('❌ Error fetching pharmacy support tickets:', error)
+        setTickets([])
+      } finally {
+        setLoadingTickets(false)
+      }
+    }
+
+    if (activeTab === 'tickets') {
+      fetchTickets()
+    }
+  }, [activeTab])
+
+  // Fetch support history
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoadingHistory(true)
+        console.log('📜 Fetching pharmacy support history...')
+        const response = await getSupportHistory()
+        console.log('📜 Pharmacy support history response:', response)
+        
+        if (response.success && response.data) {
+          // Backend returns array directly in data
+          const historyData = Array.isArray(response.data) ? response.data : []
+          console.log('✅ Processed pharmacy history:', historyData)
+          setHistory(historyData)
+        } else {
+          console.warn('⚠️ Invalid response format:', response)
+          setHistory([])
+        }
+      } catch (error) {
+        console.error('❌ Error fetching pharmacy support history:', error)
+        setHistory([])
+      } finally {
+        setLoadingHistory(false)
+      }
+    }
+
+    if (activeTab === 'history') {
+      fetchHistory()
+    }
+  }, [activeTab])
+
+  const getStatusIcon = (status) => {
+    switch (status?.toLowerCase()) {
       case 'resolved':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200'
       case 'closed':
-        return 'bg-slate-50 text-slate-700 border-slate-200'
+        return <IoCheckmarkCircle className="h-5 w-5 text-green-600" />
+      case 'open':
+      case 'pending':
+      case 'in_progress':
+        return <IoHourglassOutline className="h-5 w-5 text-yellow-600" />
+      case 'rejected':
+        return <IoCloseCircle className="h-5 w-5 text-red-600" />
       default:
-        return 'bg-slate-50 text-slate-700 border-slate-200'
+        return <IoTimeOutline className="h-5 w-5 text-slate-400" />
+    }
+  }
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'resolved':
+      case 'closed':
+        return 'bg-green-100 text-green-700'
+      case 'open':
+      case 'pending':
+      case 'in_progress':
+        return 'bg-yellow-100 text-yellow-700'
+      case 'rejected':
+        return 'bg-red-100 text-red-700'
+      default:
+        return 'bg-slate-100 text-slate-700'
     }
   }
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    const date = new Date(dateString)
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    if (!dateString) return '—'
+    try {
+      const date = new Date(dateString)
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date)
+    } catch {
+      return dateString
+    }
   }
 
-  const isFormValid = formData.subject && formData.message
+  const isFormValid = formData.name && formData.pharmacyName && formData.email && formData.contactNumber && formData.note
 
   return (
-    <div className="mx-auto max-w-4xl py-6">
+    <div className="mx-auto max-w-2xl lg:max-w-md py-6 lg:py-1">
       {/* Tabs */}
-      <div className="mb-6 flex gap-2 border-b border-slate-200">
+      <div className="mb-4 flex gap-2 border-b border-slate-200">
         <button
-          type="button"
           onClick={() => setActiveTab('new')}
           className={`px-4 py-2 text-sm font-semibold transition ${
             activeTab === 'new'
@@ -122,100 +193,145 @@ const PharmacySupport = () => {
           New Request
         </button>
         <button
-          type="button"
           onClick={() => setActiveTab('tickets')}
-          className={`px-4 py-2 text-sm font-semibold transition ${
+          className={`relative px-4 py-2 text-sm font-semibold transition ${
             activeTab === 'tickets'
               ? 'border-b-2 border-[#11496c] text-[#11496c]'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
           My Tickets
+          {tickets.length > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#11496c] px-1.5 text-[10px] font-bold text-white">
+              {tickets.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`px-4 py-2 text-sm font-semibold transition ${
+            activeTab === 'history'
+              ? 'border-b-2 border-[#11496c] text-[#11496c]'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          History
         </button>
       </div>
 
       {/* New Request Form */}
       {activeTab === 'new' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Support Request</h1>
-            <p className="mt-2 text-sm text-slate-600">Fill out the form below and we'll get back to you soon.</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:p-4 shadow-sm">
+          <div className="mb-2 lg:mb-3">
+            <h1 className="text-2xl lg:text-lg font-bold text-slate-900">Support Request</h1>
+            <p className="mt-1 lg:mt-1 text-sm lg:text-xs text-slate-600">Fill out the form below and we'll get back to you soon.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="subject" className="mb-2 block text-sm font-semibold text-slate-700">
-                Subject <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="subject"
-                name="subject"
-                value={formData.subject}
-                onChange={handleChange}
-                required
-                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                placeholder="Enter subject"
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-5 lg:space-y-3">
+          <div>
+            <label htmlFor="name" className="mb-1.5 lg:mb-1 block text-sm lg:text-xs font-semibold text-slate-700">
+              Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 lg:py-2 text-sm lg:text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              placeholder="Enter your full name"
+            />
+          </div>
 
-            <div>
-              <label htmlFor="priority" className="mb-2 block text-sm font-semibold text-slate-700">
-                Priority
-              </label>
-              <select
-                id="priority"
-                name="priority"
-                value={formData.priority}
-                onChange={handleChange}
-                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
+          <div>
+            <label htmlFor="pharmacyName" className="mb-1.5 lg:mb-1 block text-sm lg:text-xs font-semibold text-slate-700">
+              Pharmacy Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="pharmacyName"
+              name="pharmacyName"
+              value={formData.pharmacyName}
+              onChange={handleChange}
+              required
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 lg:py-2 text-sm lg:text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              placeholder="Enter your pharmacy name"
+            />
+          </div>
 
-            <div>
-              <label htmlFor="message" className="mb-2 block text-sm font-semibold text-slate-700">
-                Message <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                id="message"
-                name="message"
-                value={formData.message}
-                onChange={handleChange}
-                required
-                rows={5}
-                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
-                placeholder="Describe your issue or question..."
-              />
-            </div>
+          <div>
+            <label htmlFor="email" className="mb-1.5 lg:mb-1 block text-sm lg:text-xs font-semibold text-slate-700">
+              Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 lg:py-2 text-sm lg:text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              placeholder="Enter your email address"
+            />
+          </div>
 
-            <button
-              type="submit"
-              disabled={!isFormValid || isSubmitting}
-              className="w-full rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Submitting...
-                </span>
-              ) : (
-                'Submit Request'
-              )}
-            </button>
-          </form>
-        </div>
+          <div>
+            <label htmlFor="contactNumber" className="mb-1.5 lg:mb-1 block text-sm lg:text-xs font-semibold text-slate-700">
+              Contact Number <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="tel"
+              id="contactNumber"
+              name="contactNumber"
+              value={formData.contactNumber}
+              onChange={handleChange}
+              required
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 lg:py-2 text-sm lg:text-xs font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              placeholder="Enter your contact number"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="note" className="mb-1.5 lg:mb-1 block text-sm lg:text-xs font-semibold text-slate-700">
+              Note/Message <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="note"
+              name="note"
+              value={formData.note}
+              onChange={handleChange}
+              required
+              rows={5}
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 lg:py-2 lg:text-xs text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+              placeholder="Describe your issue or question..."
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={!isFormValid || isSubmitting}
+            className="w-full rounded-lg bg-[#11496c] px-4 py-3 lg:py-2 text-sm lg:text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Submitting...
+              </span>
+            ) : (
+              'Submit Request'
+            )}
+          </button>
+        </form>
+      </div>
       )}
 
-      {/* My Tickets List */}
+      {/* Support Tickets List */}
       {activeTab === 'tickets' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">My Support Tickets</h1>
-            <p className="mt-2 text-sm text-slate-600">View all your support requests and their status.</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:p-4 shadow-sm">
+          <div className="mb-2 lg:mb-3">
+            <h1 className="text-2xl lg:text-lg font-bold text-slate-900">My Support Tickets</h1>
+            <p className="mt-1 lg:mt-1 text-sm lg:text-xs text-slate-600">View and track your support requests</p>
           </div>
 
           {loadingTickets ? (
@@ -223,36 +339,116 @@ const PharmacySupport = () => {
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#11496c] border-t-transparent" />
             </div>
           ) : tickets.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-slate-600">No support tickets found.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <IoTimeOutline className="h-12 w-12 text-slate-400 mb-4" />
+              <p className="text-lg font-semibold text-slate-700">No support tickets</p>
+              <p className="text-sm text-slate-500 mt-2">You haven't submitted any support requests yet</p>
             </div>
           ) : (
             <div className="space-y-4">
               {tickets.map((ticket) => (
                 <div
                   key={ticket._id || ticket.id}
-                  className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition"
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-sm font-bold text-slate-900">{ticket.subject || 'No Subject'}</h3>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${getStatusColor(
-                            ticket.status
-                          )}`}
-                        >
-                          {ticket.status || 'open'}
+                      <div className="flex items-center gap-2 mb-2">
+                        {getStatusIcon(ticket.status)}
+                        <h3 className="text-lg font-semibold text-slate-900">{ticket.subject || 'Support Request'}</h3>
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(ticket.status)}`}>
+                          {ticket.status === 'open' ? 'Pending' : ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600 mb-2">{ticket.message || ticket.note || ''}</p>
+                      <p className="text-sm text-slate-600 mb-2">{ticket.message}</p>
                       <div className="flex items-center gap-4 text-xs text-slate-500">
-                        <span>ID: {ticket._id || ticket.id}</span>
-                        <span>{formatDate(ticket.createdAt || ticket.date)}</span>
+                        <span>Created: {formatDate(ticket.createdAt)}</span>
+                        {ticket.updatedAt && ticket.updatedAt !== ticket.createdAt && (
+                          <span>Updated: {formatDate(ticket.updatedAt)}</span>
+                        )}
                         {ticket.priority && (
                           <span className="capitalize">Priority: {ticket.priority}</span>
                         )}
                       </div>
+                      {ticket.responses && ticket.responses.length > 0 && (
+                        <div className="mt-4 rounded-lg bg-blue-50 p-3">
+                          <p className="mb-2 text-xs font-semibold text-blue-900">Admin Response:</p>
+                          {ticket.responses.map((response, idx) => (
+                            <div key={idx} className="mb-2 text-sm text-blue-800">
+                              <p>{response.message}</p>
+                              <p className="mt-1 text-xs text-blue-600">
+                                {formatDate(response.createdAt)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Support History */}
+      {activeTab === 'history' && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 lg:p-4 shadow-sm">
+          <div className="mb-2 lg:mb-3">
+            <h1 className="text-2xl lg:text-lg font-bold text-slate-900">Support History</h1>
+            <p className="mt-1 lg:mt-1 text-sm lg:text-xs text-slate-600">View your past support requests</p>
+          </div>
+
+          {loadingHistory ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#11496c] border-t-transparent" />
+            </div>
+          ) : history.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <IoTimeOutline className="h-12 w-12 text-slate-400 mb-4" />
+              <p className="text-lg font-semibold text-slate-700">No history</p>
+              <p className="text-sm text-slate-500 mt-2">You don't have any past support requests</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {history.map((item) => (
+                <div
+                  key={item._id || item.id}
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        {getStatusIcon(item.status)}
+                        <h3 className="text-lg font-semibold text-slate-900">{item.subject || 'Support Request'}</h3>
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(item.status)}`}>
+                          {item.status === 'open' ? 'Pending' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-600 mb-2">{item.message}</p>
+                      <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <span>Created: {formatDate(item.createdAt)}</span>
+                        {item.resolvedAt && (
+                          <span>Resolved: {formatDate(item.resolvedAt)}</span>
+                        )}
+                        {item.closedAt && (
+                          <span>Closed: {formatDate(item.closedAt)}</span>
+                        )}
+                      </div>
+                      {item.responses && item.responses.length > 0 && (
+                        <div className="mt-4 rounded-lg bg-green-50 p-3">
+                          <p className="mb-2 text-xs font-semibold text-green-900">Admin Response:</p>
+                          {item.responses.map((response, idx) => (
+                            <div key={idx} className="mb-2 text-sm text-green-800">
+                              <p>{response.message}</p>
+                              <p className="mt-1 text-xs text-green-600">
+                                {formatDate(response.createdAt)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -289,10 +485,13 @@ const PharmacySupport = () => {
               </p>
               <button
                 type="button"
-                onClick={() => setShowSuccessModal(false)}
+                onClick={() => {
+                  setShowSuccessModal(false)
+                  setActiveTab('tickets')
+                }}
                 className="w-full rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0d3a52]"
               >
-                Close
+                View My Tickets
               </button>
             </div>
           </div>
@@ -303,4 +502,3 @@ const PharmacySupport = () => {
 }
 
 export default PharmacySupport
-

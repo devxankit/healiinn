@@ -138,8 +138,23 @@ const getPaymentDetails = async (paymentId) => {
       },
     };
   } catch (error) {
-    console.error('Get payment details error:', error);
-    throw new Error('Failed to fetch payment details');
+    console.error('Get payment details error:', {
+      message: error.message,
+      statusCode: error.statusCode,
+      error: error.error,
+      paymentId,
+    });
+    
+    // Provide more specific error messages
+    if (error.statusCode === 400) {
+      throw new Error('Invalid payment ID');
+    } else if (error.statusCode === 401) {
+      throw new Error('Razorpay authentication failed. Please check your API credentials.');
+    } else if (error.statusCode === 500) {
+      throw new Error('Razorpay server error. Please try again later or contact support.');
+    } else {
+      throw new Error(`Failed to fetch payment details: ${error.message || 'Unknown error'}`);
+    }
   }
 };
 

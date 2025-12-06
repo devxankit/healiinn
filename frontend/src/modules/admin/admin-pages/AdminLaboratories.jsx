@@ -16,6 +16,7 @@ import {
   IoCloseOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   getLaboratories,
   verifyLaboratory,
@@ -39,6 +40,15 @@ const AdminLaboratories = () => {
   const [allLaboratories, setAllLaboratories] = useState([]) // Store all laboratories for stats
 
   const loadLaboratories = async () => {
+    // Check if user is authenticated before making API calls
+    const token = getAuthToken('admin')
+    if (!token) {
+      console.warn('No authentication token found. Redirecting to login...')
+      // Redirect immediately
+      window.location.href = '/admin/login'
+      return
+    }
+
     try {
       setLoading(true)
       
@@ -162,8 +172,14 @@ const AdminLaboratories = () => {
         setLaboratories([])
       }
     } catch (error) {
+      // Don't log or show errors if it's an authentication error (redirect is happening)
+      if (error.message && error.message.includes('Authentication token missing')) {
+        // Redirect is already happening in apiRequest, just return
+        return
+      }
       console.error('Error loading laboratories:', error)
       toast.error(error.message || 'Failed to load laboratories')
+      setLaboratories([])
     } finally {
       setLoading(false)
     }
@@ -171,11 +187,27 @@ const AdminLaboratories = () => {
 
   // Load laboratories from API
   useEffect(() => {
+    // Check token before making any API calls
+    const token = getAuthToken('admin')
+    if (!token) {
+      console.warn('No authentication token found. Redirecting to login...')
+      // Redirect immediately
+      window.location.href = '/admin/login'
+      return
+    }
     loadLaboratories()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter])
 
   useEffect(() => {
+    // Check token before making any API calls
+    const token = getAuthToken('admin')
+    if (!token) {
+      console.warn('No authentication token found. Redirecting to login...')
+      // Redirect immediately
+      window.location.href = '/admin/login'
+      return
+    }
     const timeoutId = setTimeout(() => {
       loadLaboratories()
     }, 500)

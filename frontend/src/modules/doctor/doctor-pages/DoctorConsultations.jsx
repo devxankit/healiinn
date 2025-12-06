@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import jsPDF from 'jspdf'
@@ -82,7 +82,9 @@ const getDoctorInfo = () => {
 // Mock data removed - using API data now
 
 const formatDateTime = (dateString) => {
+  if (!dateString) return 'N/A'
   const date = new Date(dateString)
+  if (isNaN(date.getTime())) return 'N/A'
   return date.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -95,6 +97,7 @@ const formatDateTime = (dateString) => {
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
+  if (isNaN(date.getTime())) return 'N/A'
   return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
@@ -108,6 +111,128 @@ const DoctorConsultations = () => {
   
   const [loadingConsultations, setLoadingConsultations] = useState(false)
   const [consultationsError, setConsultationsError] = useState(null)
+          
+          // Helper function to calculate age from dateOfBirth
+  const calculateAge = useCallback((dateOfBirth) => {
+            if (!dateOfBirth) return null
+    try {
+            const birthDate = new Date(dateOfBirth)
+      if (isNaN(birthDate.getTime())) return null
+            const today = new Date()
+            let age = today.getFullYear() - birthDate.getFullYear()
+            const monthDiff = today.getMonth() - birthDate.getMonth()
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              age--
+            }
+            return age
+    } catch (error) {
+      console.error('Error calculating age:', error)
+      return null
+          }
+  }, [])
+
+  // Helper function to transform consultation data from API
+  const transformConsultationData = useCallback((cons) => {
+            const patientDateOfBirth = cons.patientId?.dateOfBirth
+            const calculatedAge = patientDateOfBirth ? calculateAge(patientDateOfBirth) : (cons.patientId?.age || cons.age || null)
+    
+    // Format patient address properly
+    let formattedAddress = 'Not provided'
+    
+    // Debug: Log address data
+    if (cons.patientId?.address) {
+      console.log('Address found for patient:', cons.patientId._id || cons.patientId.id, cons.patientId.address)
+    }
+    
+    if (cons.patientId?.address) {
+      const address = cons.patientId.address
+      // Check if address object has any non-empty values
+      const hasAddressData = address && typeof address === 'object' && (
+        address.line1 || 
+        address.line2 || 
+        address.city || 
+        address.state || 
+        address.postalCode || 
+        address.country
+      )
+      
+      if (hasAddressData) {
+        const addressParts = [
+          address.line1,
+          address.line2,
+          address.city,
+          address.state,
+          address.postalCode,
+          address.country
+        ].filter(part => part && typeof part === 'string' && part.trim() !== '')
+        
+        if (addressParts.length > 0) {
+          formattedAddress = addressParts.join(', ')
+        }
+      }
+    } else if (cons.patientAddress && typeof cons.patientAddress === 'string' && cons.patientAddress.trim() !== '') {
+      formattedAddress = cons.patientAddress
+    }
+            
+            return {
+              id: cons._id || cons.id,
+              _id: cons._id || cons.id,
+              patientId: cons.patientId?._id || cons.patientId?.id || cons.patientId || 'pat-unknown',
+              patientName: cons.patientId?.firstName && cons.patientId?.lastName
+                ? `${cons.patientId.firstName} ${cons.patientId.lastName}`
+                : cons.patientId?.name || cons.patientName || 'Unknown Patient',
+              age: calculatedAge,
+              gender: cons.patientId?.gender || cons.gender || 'male',
+      appointmentTime: (() => {
+        if (cons.appointmentId?.appointmentDate) {
+          const dateStr = typeof cons.appointmentId.appointmentDate === 'string' 
+            ? cons.appointmentId.appointmentDate.split('T')[0]
+            : cons.appointmentId.appointmentDate instanceof Date
+            ? cons.appointmentId.appointmentDate.toISOString().split('T')[0]
+            : null
+          if (dateStr) {
+            return `${dateStr}T${cons.appointmentId.time || '00:00'}`
+          }
+        }
+        if (cons.appointmentTime) return cons.appointmentTime
+        if (cons.consultationDate) {
+          const dateStr = typeof cons.consultationDate === 'string'
+            ? cons.consultationDate.split('T')[0]
+            : cons.consultationDate instanceof Date
+            ? cons.consultationDate.toISOString().split('T')[0]
+            : null
+          if (dateStr) return `${dateStr}T00:00`
+        }
+        return new Date().toISOString()
+      })(),
+      appointmentDate: (() => {
+        const dateValue = cons.appointmentId?.appointmentDate || cons.appointmentDate || cons.consultationDate
+        if (!dateValue) return null
+        if (typeof dateValue === 'string') {
+          return dateValue.split('T')[0]
+        }
+        if (dateValue instanceof Date) {
+          if (isNaN(dateValue.getTime())) return null
+          return dateValue.toISOString().split('T')[0]
+        }
+        return null
+      })(),
+              appointmentType: cons.appointmentId?.appointmentType || cons.appointmentType || 'New',
+              status: cons.status || 'pending',
+              reason: cons.chiefComplaint || cons.reason || 'Consultation',
+              patientImage: cons.patientId?.profileImage || cons.patientId?.image || cons.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(cons.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+              patientPhone: cons.patientId?.phone || cons.patientPhone || '',
+              patientEmail: cons.patientId?.email || cons.patientEmail || '',
+      patientAddress: formattedAddress,
+              diagnosis: cons.diagnosis || '',
+              vitals: cons.vitals || {},
+              medications: cons.medications || [],
+              investigations: cons.investigations || [],
+              advice: cons.advice || cons.notes || '',
+              attachments: cons.attachments || [],
+              originalData: cons,
+            }
+  }, [calculateAge])
 
   // Fetch consultations from API
   useEffect(() => {
@@ -120,45 +245,27 @@ const DoctorConsultations = () => {
         if (response.success && response.data) {
           const consultationsData = Array.isArray(response.data) 
             ? response.data 
-            : response.data.consultations || []
+            : response.data.consultations || response.data.items || []
           
           // Transform API data to match component structure
-          const transformed = consultationsData.map(cons => ({
-            id: cons._id || cons.id,
-            _id: cons._id || cons.id,
-            patientId: cons.patientId?._id || cons.patientId?.id || cons.patientId || 'pat-unknown',
-            patientName: cons.patientId?.firstName && cons.patientId?.lastName
-              ? `${cons.patientId.firstName} ${cons.patientId.lastName}`
-              : cons.patientId?.name || cons.patientName || 'Unknown Patient',
-            age: cons.patientId?.age || cons.age || 30,
-            gender: cons.patientId?.gender || cons.gender || 'male',
-            appointmentTime: cons.appointmentId?.appointmentDate 
-              ? `${cons.appointmentId.appointmentDate}T${cons.appointmentId.time || '00:00'}`
-              : cons.appointmentTime || new Date().toISOString(),
-            appointmentType: cons.appointmentId?.appointmentType || cons.appointmentType || 'New',
-            status: cons.status || 'pending',
-            reason: cons.chiefComplaint || cons.reason || 'Consultation',
-            patientImage: cons.patientId?.profileImage || cons.patientId?.image || cons.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(cons.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
-            patientPhone: cons.patientId?.phone || cons.patientPhone || '',
-            patientEmail: cons.patientId?.email || cons.patientEmail || '',
-            patientAddress: cons.patientId?.address 
-              ? `${cons.patientId.address.line1 || ''}, ${cons.patientId.address.city || ''}, ${cons.patientId.address.state || ''}`.trim()
-              : cons.patientAddress || '',
-            diagnosis: cons.diagnosis || '',
-            vitals: cons.vitals || {},
-            medications: cons.medications || [],
-            investigations: cons.investigations || [],
-            advice: cons.advice || cons.notes || '',
-            attachments: cons.attachments || [],
-            originalData: cons,
-          }))
+          const transformed = consultationsData.map(transformConsultationData)
           
           // Set consultations from API data only
           setConsultations(transformed)
         }
       } catch (err) {
         console.error('Error fetching consultations:', err)
-        setConsultationsError(err.message || 'Failed to load consultations')
+        // Check if it's a connection error
+        const isConnectionError = err.message?.includes('Failed to fetch') || 
+                                  err.message?.includes('ERR_CONNECTION_REFUSED') ||
+                                  err.message?.includes('NetworkError') ||
+                                  err instanceof TypeError && err.message === 'Failed to fetch'
+        
+        if (isConnectionError) {
+          setConsultationsError('Unable to connect to server. Please check if the backend server is running.')
+        } else {
+          setConsultationsError(err.message || 'Failed to load consultations')
+        }
         // Don't show toast here as it might be too frequent
       } finally {
         setLoadingConsultations(false)
@@ -310,6 +417,10 @@ const DoctorConsultations = () => {
           const consultationResponse = await getConsultationById(passedConsultation.id)
           if (consultationResponse.success && consultationResponse.data) {
             const consultation = consultationResponse.data
+            
+            // Transform consultation data to get updated patient info (age, email, address)
+            const transformedConsultation = transformConsultationData(consultation)
+            
             // Load prescription data from consultation
             if (consultation.medications && consultation.medications.length > 0) {
               // Load prescription data into form
@@ -329,10 +440,11 @@ const DoctorConsultations = () => {
               height: '',
               bmi: '',
             })
+            }
             
-            // Update consultation with prescription data
+            // Update consultation with fresh patient data and prescription data
             updatedConsultation = {
-              ...updatedConsultation,
+              ...transformedConsultation,
                   diagnosis: consultation.diagnosis || updatedConsultation.diagnosis || '',
                   symptoms: consultation.symptoms || updatedConsultation.symptoms || '',
                   vitals: consultation.vitals || updatedConsultation.vitals || {},
@@ -340,7 +452,6 @@ const DoctorConsultations = () => {
                   investigations: consultation.investigations || updatedConsultation.investigations || [],
                   advice: consultation.advice || updatedConsultation.advice || '',
                   followUpDate: consultation.followUpDate || updatedConsultation.followUpDate || '',
-                }
             }
           }
         } catch (error) {
@@ -381,7 +492,11 @@ const DoctorConsultations = () => {
       if (passedConsultation.patientId) {
         const loadPatientHistory = async () => {
         try {
-          const historyResponse = await getPatientHistory(passedConsultation.patientId)
+          // Extract patient ID - handle both string and object
+          const patientId = typeof passedConsultation.patientId === 'object' 
+            ? (passedConsultation.patientId._id || passedConsultation.patientId.id || passedConsultation.patientId)
+            : passedConsultation.patientId
+          const historyResponse = await getPatientHistory(patientId)
           if (historyResponse.success && historyResponse.data) {
             // Patient history will be used in history tab
             // If viewing from all consultations page, show history tab
@@ -399,7 +514,7 @@ const DoctorConsultations = () => {
       // Clear the navigation state after using it
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [passedConsultation, location.state?.loadSavedData]) // Run when passedConsultation changes
+  }, [passedConsultation, location.state?.loadSavedData, transformConsultationData]) // Run when passedConsultation changes
   
   // Consultations are managed via API - no localStorage session checks needed
   
@@ -435,9 +550,13 @@ const DoctorConsultations = () => {
   // Function to load shared lab reports from API
   const loadSharedLabReports = async (patientId, doctorId) => {
     try {
+      // Extract patient ID - handle both string and object
+      const patientIdString = typeof patientId === 'object' 
+        ? (patientId._id || patientId.id || patientId)
+        : patientId
       // Fetch patient history which includes shared lab reports
       const { getPatientHistory } = await import('../doctor-services/doctorService')
-      const response = await getPatientHistory(patientId)
+      const response = await getPatientHistory(patientIdString)
       
       if (response.success && response.data) {
         // Get shared lab reports from patient history
@@ -738,7 +857,11 @@ const DoctorConsultations = () => {
     const loadPatientHistory = async () => {
       if (selectedConsultation?.patientId) {
         try {
-          const historyResponse = await getPatientHistory(selectedConsultation.patientId)
+          // Extract patient ID - handle both string and object
+          const patientId = typeof selectedConsultation.patientId === 'object' 
+            ? (selectedConsultation.patientId._id || selectedConsultation.patientId.id || selectedConsultation.patientId)
+            : selectedConsultation.patientId
+          const historyResponse = await getPatientHistory(patientId)
           if (historyResponse.success && historyResponse.data) {
             setPatientHistory(historyResponse.data)
           } else {
@@ -1729,7 +1852,21 @@ const DoctorConsultations = () => {
               {filteredConsultations.map((consultation) => (
                 <div
                   key={consultation.id}
-                  onClick={() => setSelectedConsultation(consultation)}
+                  onClick={async () => {
+                    // Refresh consultation data from API to get latest patient info
+                    try {
+                      const response = await getConsultationById(consultation.id)
+                      if (response.success && response.data) {
+                        const refreshedConsultation = transformConsultationData(response.data)
+                        setSelectedConsultation(refreshedConsultation)
+                      } else {
+                        setSelectedConsultation(consultation)
+                      }
+                    } catch (error) {
+                      console.error('Error refreshing consultation:', error)
+                      setSelectedConsultation(consultation)
+                    }
+                  }}
                   className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm cursor-pointer transition-all hover:shadow-md hover:border-[#11496c]/30 active:scale-[0.98]"
                 >
                   <div className="flex items-start gap-4">
@@ -1812,11 +1949,17 @@ const DoctorConsultations = () => {
                         <h3 className="text-sm sm:text-base lg:text-lg font-bold text-slate-900 truncate">{selectedConsultation.patientName}</h3>
                       <div className="mt-1 space-y-0.5 sm:space-y-1 text-[10px] sm:text-xs text-slate-600">
                         <p>
-                          {selectedConsultation.age} years • {selectedConsultation.gender}
+                          {selectedConsultation.age !== null && selectedConsultation.age !== undefined 
+                            ? `${selectedConsultation.age} years` 
+                            : 'Age not available'} • {selectedConsultation.gender ? selectedConsultation.gender.charAt(0).toUpperCase() + selectedConsultation.gender.slice(1) : 'N/A'}
                         </p>
                         <p className="flex items-center gap-1">
                           <IoTimeOutline className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
-                          <span className="truncate text-[10px] sm:text-xs">{formatDateTime(selectedConsultation.appointmentTime)}</span>
+                          <span className="truncate text-[10px] sm:text-xs">
+                            {selectedConsultation.appointmentDate 
+                              ? formatDate(selectedConsultation.appointmentDate) 
+                              : formatDateTime(selectedConsultation.appointmentTime)}
+                          </span>
                         </p>
                       </div>
                       <p className="mt-1.5 sm:mt-2.5 text-xs sm:text-sm font-medium text-slate-700 line-clamp-2">{selectedConsultation.reason}</p>
@@ -2336,13 +2479,24 @@ const DoctorConsultations = () => {
                         <div>
                           <h3 className="text-xs sm:text-sm font-bold text-slate-900 mb-2">Patient Information</h3>
                           <div className="space-y-1 text-[10px] sm:text-xs text-slate-700">
-                            <p><span className="font-semibold">Name:</span> {selectedConsultation.patientName}</p>
-                            <p><span className="font-semibold">Age:</span> {selectedConsultation.age} years | <span className="font-semibold">Gender:</span> {selectedConsultation.gender}</p>
-                            {selectedConsultation.patientPhone && (
+                            <p><span className="font-semibold">Name:</span> {selectedConsultation.patientName || 'N/A'}</p>
+                            <p>
+                              <span className="font-semibold">Age:</span> {selectedConsultation.age !== null && selectedConsultation.age !== undefined ? `${selectedConsultation.age} years` : 'N/A'} | <span className="font-semibold">Gender:</span> {selectedConsultation.gender ? selectedConsultation.gender.charAt(0).toUpperCase() + selectedConsultation.gender.slice(1) : 'N/A'}
+                            </p>
+                            {selectedConsultation.patientPhone ? (
                               <p><span className="font-semibold">Phone:</span> {selectedConsultation.patientPhone}</p>
+                            ) : (
+                              <p><span className="font-semibold">Phone:</span> Not provided</p>
                             )}
-                            {selectedConsultation.patientAddress && (
+                            {selectedConsultation.patientEmail ? (
+                              <p><span className="font-semibold">Email:</span> {selectedConsultation.patientEmail}</p>
+                            ) : (
+                              <p><span className="font-semibold">Email:</span> Not provided</p>
+                            )}
+                            {selectedConsultation.patientAddress ? (
                               <p><span className="font-semibold">Address:</span> {selectedConsultation.patientAddress}</p>
+                            ) : (
+                              <p><span className="font-semibold">Address:</span> Not provided</p>
                             )}
                           </div>
                         </div>
@@ -2354,7 +2508,9 @@ const DoctorConsultations = () => {
                             <p className="font-semibold">{doctorInfo.name}</p>
                             <p>{doctorInfo.qualification}</p>
                             <p>{doctorInfo.clinicName}</p>
-                            <p>License: {doctorInfo.licenseNumber}</p>
+                            {doctorInfo.phone && (
+                              <p><span className="font-semibold">Phone:</span> {doctorInfo.phone}</p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2557,10 +2713,18 @@ const DoctorConsultations = () => {
                                   alt="Doctor Signature"
                                   className="h-12 w-32 sm:h-16 sm:w-40 object-contain border border-slate-200 rounded bg-white p-1"
                                   onError={(e) => {
-                                    console.error('Error loading signature image:', e)
+                                    // Silently handle error - hide image and show placeholder
                                     e.target.style.display = 'none'
+                                    // Show placeholder instead
+                                    const placeholder = e.target.nextElementSibling
+                                    if (placeholder && placeholder.classList.contains('signature-placeholder')) {
+                                      placeholder.style.display = 'flex'
+                                    }
                                   }}
                                 />
+                                <div className="signature-placeholder h-12 w-32 sm:h-16 sm:w-40 border-2 border-dashed border-slate-300 rounded bg-slate-50 items-center justify-center mb-2 hidden">
+                                  <p className="text-[8px] sm:text-[10px] text-slate-400 text-center px-1">No Signature</p>
+                                </div>
                               </div>
                             ) : (
                               <div className="h-12 w-32 sm:h-16 sm:w-40 border-2 border-dashed border-slate-300 rounded bg-slate-50 flex items-center justify-center mb-2">
@@ -2888,6 +3052,7 @@ const DoctorConsultations = () => {
                     {patientHistory ? (
                     <div className="space-y-6">
                       {/* Personal Info */}
+                      {patientHistory.personalInfo && (
                       <div>
                         <h4 className="mb-3 text-sm font-semibold text-slate-900 uppercase tracking-wide">
                           Personal Information
@@ -2897,18 +3062,19 @@ const DoctorConsultations = () => {
                             <div>
                               <p className="text-xs text-slate-600">Blood Group</p>
                               <p className="text-sm font-semibold text-slate-900">
-                                {patientHistory.personalInfo.bloodGroup}
+                                {patientHistory.personalInfo?.bloodGroup || 'N/A'}
                               </p>
                             </div>
                             <div>
                               <p className="text-xs text-slate-600">Phone</p>
                               <p className="text-sm font-semibold text-slate-900">
-                                {patientHistory.personalInfo.phone}
+                                {patientHistory.personalInfo?.phone || 'N/A'}
                               </p>
                             </div>
                           </div>
                         </div>
                       </div>
+                      )}
 
                       {/* Conditions */}
                       <div>
@@ -2916,14 +3082,18 @@ const DoctorConsultations = () => {
                           Conditions
                         </h4>
                         <div className="space-y-2">
-                          {patientHistory.conditions.map((condition, idx) => (
+                          {patientHistory.conditions && Array.isArray(patientHistory.conditions) && patientHistory.conditions.length > 0 ? (
+                          patientHistory.conditions.map((condition, idx) => (
                             <div key={idx} className="rounded-lg bg-slate-50 p-3">
                               <p className="text-sm font-semibold text-slate-900">{condition.name}</p>
                               <p className="text-xs text-slate-600 mt-1">
                                 Since {formatDate(condition.diagnosedDate)} • {condition.status}
                               </p>
                             </div>
-                          ))}
+                          ))
+                          ) : (
+                            <p className="text-sm text-slate-500">No conditions recorded</p>
+                          )}
                         </div>
                       </div>
 
@@ -2933,14 +3103,18 @@ const DoctorConsultations = () => {
                           Allergies
                         </h4>
                         <div className="space-y-2">
-                          {patientHistory.allergies.map((allergy, idx) => (
+                          {patientHistory.allergies && Array.isArray(patientHistory.allergies) && patientHistory.allergies.length > 0 ? (
+                          patientHistory.allergies.map((allergy, idx) => (
                             <div key={idx} className="rounded-lg bg-red-50 p-3">
                               <p className="text-sm font-semibold text-red-900">{allergy.name}</p>
                               <p className="text-xs text-red-700 mt-1">
                                 {allergy.severity} • {allergy.reaction}
                               </p>
                             </div>
-                          ))}
+                          ))
+                          ) : (
+                            <p className="text-sm text-slate-500">No allergies recorded</p>
+                          )}
                         </div>
                       </div>
 
@@ -2950,7 +3124,8 @@ const DoctorConsultations = () => {
                           Current Medications
                         </h4>
                         <div className="space-y-2">
-                          {patientHistory.medications.map((med, idx) => (
+                          {patientHistory.medications && Array.isArray(patientHistory.medications) && patientHistory.medications.length > 0 ? (
+                          patientHistory.medications.map((med, idx) => (
                             <div key={idx} className="rounded-lg bg-emerald-50 p-3">
                               <p className="text-sm font-semibold text-emerald-900">{med.name}</p>
                               <p className="text-xs text-emerald-700 mt-1">
@@ -2958,7 +3133,10 @@ const DoctorConsultations = () => {
                               </p>
                               <p className="text-xs text-emerald-600 mt-1">Since {formatDate(med.startDate)}</p>
                             </div>
-                          ))}
+                          ))
+                          ) : (
+                            <p className="text-sm text-slate-500">No medications recorded</p>
+                          )}
                         </div>
                       </div>
 
@@ -3053,7 +3231,8 @@ const DoctorConsultations = () => {
                           Previous Consultations
                         </h4>
                         <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {patientHistory.previousConsultations.map((consult, idx) => (
+                          {patientHistory.previousConsultations && Array.isArray(patientHistory.previousConsultations) && patientHistory.previousConsultations.length > 0 ? (
+                          patientHistory.previousConsultations.map((consult, idx) => (
                             <div key={idx} className="rounded-lg border border-slate-200 bg-white p-4">
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -3075,7 +3254,10 @@ const DoctorConsultations = () => {
                                 </div>
                               </div>
                             </div>
-                          ))}
+                          ))
+                          ) : (
+                            <p className="text-sm text-slate-500">No previous consultations</p>
+                          )}
                         </div>
                       </div>
 
@@ -3147,7 +3329,8 @@ const DoctorConsultations = () => {
                           })}
                           
                           {/* Patient History Lab Reports */}
-                          {patientHistory.labReports.map((report, idx) => {
+                          {patientHistory.labReports && Array.isArray(patientHistory.labReports) && patientHistory.labReports.length > 0 ? (
+                          patientHistory.labReports.map((report, idx) => {
                             const pdfUrl = report.pdfFileUrl || report.downloadUrl
                             return (
                             <div key={idx} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -3202,10 +3385,11 @@ const DoctorConsultations = () => {
                               </div>
                             </div>
                             )
-                          })}
+                          })
+                          ) : null}
                           
                           {/* Show message if no reports */}
-                          {(!sharedLabReports || sharedLabReports.length === 0) && patientHistory.labReports.length === 0 && (
+                          {(!sharedLabReports || sharedLabReports.length === 0) && (!patientHistory.labReports || patientHistory.labReports.length === 0) && (
                             <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-center">
                               <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-300 mb-3" />
                               <p className="text-sm font-medium text-slate-600">No lab reports available</p>

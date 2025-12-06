@@ -141,9 +141,29 @@ const PatientSpecialtyDoctors = () => {
               ? `Dr. ${doctor.firstName} ${doctor.lastName}`
               : doctor.name || 'Doctor'
             const specialty = doctor.specialization || doctor.specialty || ''
-            const location = doctor.clinicDetails?.name 
-              ? `${doctor.clinicDetails.name}, ${doctor.clinicDetails.address?.city || ''}`
-              : doctor.location || 'Location not available'
+            
+            // Format full address
+            const formatFullAddress = (clinicDetails) => {
+              if (!clinicDetails) return 'Location not available'
+              
+              const parts = []
+              if (clinicDetails.name) parts.push(clinicDetails.name)
+              
+              if (clinicDetails.address) {
+                const addr = clinicDetails.address
+                if (addr.line1) parts.push(addr.line1)
+                if (addr.line2) parts.push(addr.line2)
+                if (addr.city) parts.push(addr.city)
+                if (addr.state) parts.push(addr.state)
+                if (addr.postalCode) parts.push(addr.postalCode)
+                if (addr.country) parts.push(addr.country)
+              }
+              
+              return parts.length > 0 ? parts.join(', ') : 'Location not available'
+            }
+            
+            const location = formatFullAddress(doctor.clinicDetails)
+            const clinicName = doctor.clinicDetails?.name || ''
             const rating = doctor.rating || 0
             const consultationFee = doctor.consultationFee || 0
             const profileImage = doctor.profileImage || doctor.image || ''

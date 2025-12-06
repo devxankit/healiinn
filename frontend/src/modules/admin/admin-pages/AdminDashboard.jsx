@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { getAuthToken } from '../../../utils/apiClient'
-import { getDashboardStats, getDashboardChartData, getPendingVerifications, getUsers, getDoctors, getPharmacies, getLaboratories, getAdminAppointments, getAdminRequests, getRecentActivities } from '../admin-services/adminService'
+import { getDashboardStats, getDashboardChartData, getUsers, getDoctors, getPharmacies, getLaboratories, getAdminAppointments, getAdminRequests, getRecentActivities } from '../admin-services/adminService'
 import { useToast } from '../../../contexts/ToastContext'
 import {
   IoPeopleOutline,
@@ -89,12 +89,22 @@ const getTimeAgo = (date) => {
 
 // Chart Components
 const RevenueLineChart = ({ data }) => {
-  // Validate and filter data
-  const validData = Array.isArray(data) && data.length > 0 
-    ? data.filter(d => d && typeof d.value === 'number' && !isNaN(d.value))
-    : []
+  // Validate and ensure data is an array
+  if (!Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="relative flex items-center justify-center h-32">
+        <p className="text-sm text-slate-400">No data available</p>
+      </div>
+    )
+  }
   
-  // If no valid data, return empty chart
+  // Process data - include all items, ensure values are numbers (0 is valid)
+  const validData = data.map((d, index) => ({
+    month: d?.month || `Month ${index + 1}`,
+    value: typeof d?.value === 'number' && !isNaN(d.value) ? d.value : 0,
+  })).filter(d => d !== null && d !== undefined)
+  
+  // If no valid data after processing, return empty chart
   if (validData.length === 0) {
     return (
       <div className="relative flex items-center justify-center h-32">
@@ -104,8 +114,8 @@ const RevenueLineChart = ({ data }) => {
   }
   
   const values = validData.map(d => d.value || 0)
-  const maxValue = Math.max(...values)
-  const minValue = Math.min(...values)
+  const maxValue = Math.max(...values, 0) // Ensure at least 0
+  const minValue = Math.min(...values, 0) // Ensure at least 0
   const range = maxValue - minValue || 1 // Avoid division by zero
   const width = 100
   const height = 120
@@ -165,12 +175,22 @@ const RevenueLineChart = ({ data }) => {
 }
 
 const UserGrowthBarChart = ({ data }) => {
-  // Validate and filter data
-  const validData = Array.isArray(data) && data.length > 0 
-    ? data.filter(d => d && typeof d.users === 'number' && !isNaN(d.users))
-    : []
+  // Validate and ensure data is an array
+  if (!Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="relative flex items-center justify-center h-32">
+        <p className="text-sm text-slate-400">No data available</p>
+      </div>
+    )
+  }
   
-  // If no valid data, return empty chart
+  // Process data - include all items, ensure values are numbers (0 is valid)
+  const validData = data.map((d, index) => ({
+    month: d?.month || `Month ${index + 1}`,
+    users: typeof d?.users === 'number' && !isNaN(d.users) ? d.users : 0,
+  })).filter(d => d !== null && d !== undefined)
+  
+  // If no valid data after processing, return empty chart
   if (validData.length === 0) {
     return (
       <div className="relative flex items-center justify-center h-32">
@@ -180,7 +200,7 @@ const UserGrowthBarChart = ({ data }) => {
   }
   
   const values = validData.map(d => d.users || 0)
-  const maxValue = Math.max(...values) || 1 // Avoid division by zero
+  const maxValue = Math.max(...values, 0) || 1 // Ensure at least 1 to show bars
   const width = 100
   const height = 120
   const padding = 10
@@ -220,12 +240,22 @@ const UserGrowthBarChart = ({ data }) => {
 }
 
 const ConsultationsAreaChart = ({ data }) => {
-  // Validate and filter data
-  const validData = Array.isArray(data) && data.length > 0 
-    ? data.filter(d => d && typeof d.consultations === 'number' && !isNaN(d.consultations))
-    : []
+  // Validate and ensure data is an array
+  if (!Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="relative flex items-center justify-center h-32">
+        <p className="text-sm text-slate-400">No data available</p>
+      </div>
+    )
+  }
   
-  // If no valid data, return empty chart
+  // Process data - include all items, ensure values are numbers (0 is valid)
+  const validData = data.map((d, index) => ({
+    month: d?.month || `Month ${index + 1}`,
+    consultations: typeof d?.consultations === 'number' && !isNaN(d.consultations) ? d.consultations : 0,
+  })).filter(d => d !== null && d !== undefined)
+  
+  // If no valid data after processing, return empty chart
   if (validData.length === 0) {
     return (
       <div className="relative flex items-center justify-center h-32">
@@ -235,8 +265,8 @@ const ConsultationsAreaChart = ({ data }) => {
   }
   
   const values = validData.map(d => d.consultations || 0)
-  const maxValue = Math.max(...values)
-  const minValue = Math.min(...values)
+  const maxValue = Math.max(...values, 0) // Ensure at least 0
+  const minValue = Math.min(...values, 0) // Ensure at least 0
   const range = maxValue - minValue || 1 // Avoid division by zero
   const width = 100
   const height = 120
@@ -431,17 +461,15 @@ const AdminDashboard = () => {
   const toast = useToast()
   const [stats, setStats] = useState(defaultStats)
   const [isLoadingStats, setIsLoadingStats] = useState(true)
-  const [todayVerifications, setTodayVerifications] = useState([])
-  const [isLoadingVerifications, setIsLoadingVerifications] = useState(true)
   const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(0)
+  const [todayScheduledCount, setTodayScheduledCount] = useState(0)
+  const [todayRescheduledCount, setTodayRescheduledCount] = useState(0)
   const [doctorAppointmentsOverview, setDoctorAppointmentsOverview] = useState([])
   const [pendingPaymentCount, setPendingPaymentCount] = useState(0)
   const [confirmedPaymentCount, setConfirmedPaymentCount] = useState(0)
   const [paymentNotifications, setPaymentNotifications] = useState([])
   const [recentActivities, setRecentActivities] = useState([])
-  const [pendingVerifications, setPendingVerifications] = useState([])
   const [isLoadingActivities, setIsLoadingActivities] = useState(true)
-  const [isLoadingPendingVerifications, setIsLoadingPendingVerifications] = useState(true)
   const [chartData, setChartData] = useState(defaultChartData)
   const [isLoadingCharts, setIsLoadingCharts] = useState(true)
 
@@ -474,7 +502,6 @@ const AdminDashboard = () => {
             getDoctors({ limit: 1 }),
             getPharmacies({ limit: 1 }),
             getLaboratories({ limit: 1 }),
-            getPendingVerifications({ limit: 1 }),
           ])
 
           // Extract total from pagination or items array
@@ -567,68 +594,6 @@ const AdminDashboard = () => {
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch pending verifications from backend
-  useEffect(() => {
-    const token = getAuthToken('admin')
-    if (!token) {
-      return
-    }
-
-    const fetchVerifications = async () => {
-      try {
-        setIsLoadingVerifications(true)
-        const response = await getPendingVerifications({ limit: 10 })
-        
-        if (response.success && response.data) {
-          const verifications = Array.isArray(response.data) ? response.data : (response.data.verifications || [])
-          
-          // Filter today's verifications
-          const today = new Date()
-          today.setHours(0, 0, 0, 0)
-          
-          const todayVerifs = verifications
-            .filter((ver) => {
-              const submittedDate = new Date(ver.submittedAt || ver.createdAt)
-              submittedDate.setHours(0, 0, 0, 0)
-              return submittedDate.getTime() === today.getTime() && ver.status === 'pending'
-            })
-            .map((ver) => {
-              const submittedDate = new Date(ver.submittedAt || ver.createdAt)
-              const timeStr = submittedDate.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true,
-              })
-              
-              return {
-                id: ver._id || ver.id,
-                type: ver.type || ver.role || 'doctor',
-                name: ver.name || ver.doctorName || ver.pharmacyName || ver.labName || 'Unknown',
-                email: ver.email || '',
-                specialty: ver.specialty || ver.specialization || '',
-                owner: ver.ownerName || ver.owner || '',
-                submittedAt: ver.submittedAt || ver.createdAt,
-                time: timeStr,
-                status: ver.status || 'pending',
-                image: ver.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(ver.name || ver.doctorName || ver.pharmacyName || ver.labName || 'User')}&background=${ver.type === 'doctor' ? '10b981' : ver.type === 'pharmacy' ? '8b5cf6' : 'f59e0b'}&color=fff&size=128&bold=true`,
-              }
-            })
-          
-          setTodayVerifications(todayVerifs)
-        }
-      } catch (error) {
-        console.error('Error fetching verifications:', error)
-        setTodayVerifications([])
-      } finally {
-        setIsLoadingVerifications(false)
-      }
-    }
-
-    fetchVerifications()
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchVerifications, 30000)
-    return () => clearInterval(interval)
-  }, [])
 
   // Load real appointment count and doctor overview from API
   // This MUST be called before any conditional returns to follow React Hooks rules
@@ -645,19 +610,67 @@ const AdminDashboard = () => {
           ? (response.data.items || response.data || [])
           : []
         
+        console.log('📊 Admin Dashboard - Appointments data:', {
+          total: allAppts.length,
+          sample: allAppts[0],
+        })
+        
+        // Get today's date range
         const today = new Date()
         today.setHours(0, 0, 0, 0)
         const tomorrow = new Date(today)
         tomorrow.setDate(tomorrow.getDate() + 1)
         
-        // Filter today's appointments
+        // Filter today's appointments - check appointmentDate field
         const todayApts = allAppts.filter((apt) => {
+          if (!apt.appointmentDate && !apt.date) return false
+          
           const aptDate = new Date(apt.appointmentDate || apt.date)
+          if (isNaN(aptDate.getTime())) return false
+          
           aptDate.setHours(0, 0, 0, 0)
-          return aptDate >= today && aptDate < tomorrow
+          const isToday = aptDate.getTime() >= today.getTime() && aptDate.getTime() < tomorrow.getTime()
+          return isToday
         })
         
-        setTodayAppointmentsCount(todayApts.length || 0)
+        console.log('📅 Today\'s appointments:', {
+          count: todayApts.length,
+          appointments: todayApts.map(apt => ({
+            id: apt._id,
+            date: apt.appointmentDate || apt.date,
+            status: apt.status,
+            rescheduledAt: apt.rescheduledAt,
+            hasRescheduledAt: !!apt.rescheduledAt,
+          })),
+        })
+        
+        // Calculate counts
+        // Rescheduled appointments: have rescheduledAt field AND are not completed/cancelled
+        const todayRescheduled = todayApts.filter(apt => {
+          const isRescheduled = !!apt.rescheduledAt
+          const isActive = apt.status !== 'completed' && apt.status !== 'cancelled'
+          return isRescheduled && isActive
+        }).length
+        
+        // Scheduled appointments: NOT rescheduled AND have active status (scheduled, confirmed, waiting)
+        const todayScheduled = todayApts.filter(apt => {
+          const isRescheduled = !!apt.rescheduledAt
+          const isActiveStatus = apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'waiting'
+          return !isRescheduled && isActiveStatus
+        }).length
+        
+        // Total count: all appointments for today (regardless of status)
+        const totalToday = todayApts.length
+        
+        console.log('📈 Appointment counts:', {
+          total: totalToday,
+          scheduled: todayScheduled,
+          rescheduled: todayRescheduled,
+        })
+        
+        setTodayAppointmentsCount(totalToday)
+        setTodayScheduledCount(todayScheduled)
+        setTodayRescheduledCount(todayRescheduled)
         
         // Create doctor aggregation for overview
         const doctorMap = new Map()
@@ -686,16 +699,28 @@ const AdminDashboard = () => {
           const doctorData = doctorMap.get(key)
           doctorData.total++
           
+          // Check if rescheduled first (has rescheduledAt field)
+          const isRescheduled = !!apt.rescheduledAt
+          
+          // If rescheduled, count it in rescheduled (and don't count in scheduled/confirmed)
+          if (isRescheduled) {
+            doctorData.rescheduled++
+            // Rescheduled appointments can still have status, but we don't double count
+            // They're already counted in rescheduled
+          } else {
+            // Only count in scheduled/confirmed if NOT rescheduled
           if (apt.status === 'scheduled' || apt.status === 'waiting') {
             doctorData.scheduled++
           } else if (apt.status === 'confirmed') {
             doctorData.confirmed++
-          } else if (apt.status === 'completed') {
+            }
+          }
+          
+          // Completed and cancelled are counted regardless of rescheduled status
+          if (apt.status === 'completed') {
             doctorData.completed++
           } else if (apt.status === 'cancelled') {
             doctorData.cancelled++
-          } else if (apt.status === 'rescheduled') {
-            doctorData.rescheduled++
           }
         })
         
@@ -709,8 +734,10 @@ const AdminDashboard = () => {
         if (error.message && error.message.includes('Authentication token missing')) {
           return
         }
-        console.error('Error loading appointments:', error)
+        console.error('❌ Error loading appointments:', error)
         setTodayAppointmentsCount(0)
+        setTodayScheduledCount(0)
+        setTodayRescheduledCount(0)
         setDoctorAppointmentsOverview([])
       }
     }
@@ -980,102 +1007,6 @@ const AdminDashboard = () => {
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch pending verifications list from backend
-  useEffect(() => {
-    const token = getAuthToken('admin')
-    if (!token) {
-      return
-    }
-
-    const fetchPendingVerifications = async () => {
-      // Check token before making request
-      const currentToken = getAuthToken('admin')
-      if (!currentToken) {
-        setIsLoadingPendingVerifications(false)
-        return
-      }
-
-      try {
-        setIsLoadingPendingVerifications(true)
-        const response = await getPendingVerifications({ limit: 10 })
-        
-        if (response.success && response.data) {
-          const verifications = Array.isArray(response.data) 
-            ? response.data 
-            : (response.data.verifications || response.data.items || [])
-          
-          // Transform verifications to match UI format
-          const transformedVerifications = verifications
-            .filter(ver => ver.status === 'pending')
-            .map((ver) => {
-              let name = ''
-              let type = 'doctor'
-              let image = ''
-              let specialty = ''
-              let owner = ''
-              let email = ''
-              
-              if (ver.firstName || ver.lastName) {
-                // Doctor
-                name = `Dr. ${ver.firstName || ''} ${ver.lastName || ''}`.trim()
-                type = 'doctor'
-                specialty = ver.specialization || ver.specialty || ''
-                email = ver.email || ''
-                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10b981&color=fff&size=128&bold=true`
-              } else if (ver.pharmacyName) {
-                // Pharmacy
-                name = ver.pharmacyName
-                type = 'pharmacy'
-                owner = ver.contactPerson || ver.owner || ''
-                email = ver.email || ''
-                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=8b5cf6&color=fff&size=128&bold=true`
-              } else if (ver.labName) {
-                // Laboratory
-                name = ver.labName
-                type = 'laboratory'
-                owner = ver.contactPerson || ver.owner || ''
-                email = ver.email || ''
-                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=f59e0b&color=fff&size=128&bold=true`
-              }
-              
-              return {
-                id: ver._id || ver.id || `ver-${Date.now()}-${Math.random()}`,
-                type,
-                name,
-                image,
-                email,
-                submittedAt: ver.createdAt || ver.submittedAt || new Date().toISOString(),
-                status: 'pending',
-                specialty,
-                owner,
-              }
-            })
-          
-          setPendingVerifications(transformedVerifications)
-        }
-      } catch (error) {
-        // Silently handle 401 errors (user logged out)
-        if (error.message && error.message.includes('Authentication token missing')) {
-          // User logged out, stop fetching
-          return
-        }
-        console.error('Error fetching pending verifications:', error)
-        setPendingVerifications([])
-      } finally {
-        setIsLoadingPendingVerifications(false)
-      }
-    }
-    
-    fetchPendingVerifications()
-    // Refresh every 30 seconds
-    const interval = setInterval(() => {
-      const token = getAuthToken('admin')
-      if (token) {
-        fetchPendingVerifications()
-      }
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [])
 
   // Fetch chart data from backend
   useEffect(() => {
@@ -1087,26 +1018,40 @@ const AdminDashboard = () => {
     const fetchChartData = async () => {
       try {
         setIsLoadingCharts(true)
+        console.log('📊 Fetching chart data from backend...')
         const response = await getDashboardChartData()
+        console.log('📊 Chart data response:', response)
         
         if (response.success && response.data) {
           // Normalize data to ensure all values are numbers
-          const normalizeArray = (arr) => {
-            if (!Array.isArray(arr)) return []
-            return arr.map(item => ({
-              ...item,
-              value: typeof item.value === 'number' ? item.value : (Number(item.value) || 0),
-              users: typeof item.users === 'number' ? item.users : (Number(item.users) || 0),
-              consultations: typeof item.consultations === 'number' ? item.consultations : (Number(item.consultations) || 0),
-            }))
+          const normalizeArray = (arr, type = 'value') => {
+            if (!Array.isArray(arr)) {
+              console.warn(`⚠️ Chart data ${type} is not an array:`, arr)
+              return []
+            }
+            const normalized = arr.map((item, index) => {
+              const normalizedItem = {
+                month: item.month || `Month ${index + 1}`,
+                value: typeof item.value === 'number' ? item.value : (Number(item.value) || 0),
+                users: typeof item.users === 'number' ? item.users : (Number(item.users) || 0),
+                consultations: typeof item.consultations === 'number' ? item.consultations : (Number(item.consultations) || 0),
+              }
+              return normalizedItem
+            })
+            console.log(`✅ Normalized ${type} data:`, normalized)
+            return normalized
           }
           
-          setChartData({
-            revenue: normalizeArray(response.data.revenue || []),
-            userGrowth: normalizeArray(response.data.userGrowth || []),
-            consultations: normalizeArray(response.data.consultations || []),
-          })
+          const normalizedData = {
+            revenue: normalizeArray(response.data.revenue || [], 'revenue'),
+            userGrowth: normalizeArray(response.data.userGrowth || [], 'userGrowth'),
+            consultations: normalizeArray(response.data.consultations || [], 'consultations'),
+          }
+          
+          console.log('📊 Setting chart data:', normalizedData)
+          setChartData(normalizedData)
         } else {
+          console.warn('⚠️ Invalid chart data response:', response)
           setChartData(defaultChartData)
         }
       } catch (error) {
@@ -1114,7 +1059,7 @@ const AdminDashboard = () => {
         if (error.message && error.message.includes('Authentication token missing')) {
           return
         }
-        console.error('Error fetching chart data:', error)
+        console.error('❌ Error fetching chart data:', error)
         setChartData(defaultChartData)
       } finally {
         setIsLoadingCharts(false)
@@ -1137,7 +1082,7 @@ const AdminDashboard = () => {
     : 0
   const revenueChange = stats.lastMonthRevenue > 0 
     ? ((stats.thisMonthRevenue - stats.lastMonthRevenue) / stats.lastMonthRevenue) * 100 
-    : 0
+    : (stats.thisMonthRevenue > 0 ? 100 : 0) // If last month was 0 and this month has revenue, show 100% increase
   const consultationsChange = stats.lastMonthConsultations > 0 
     ? ((stats.thisMonthConsultations - stats.lastMonthConsultations) / stats.lastMonthConsultations) * 100 
     : 0
@@ -1284,7 +1229,10 @@ const AdminDashboard = () => {
                 <IoCalendarOutline className="text-base sm:text-lg" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Scheduled</p>
+            <div className="space-y-0.5">
+              <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Scheduled: {todayScheduledCount}</p>
+              <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Rescheduled: {todayRescheduledCount}</p>
+            </div>
           </article>
 
           {/* Total Revenue */}
@@ -1363,8 +1311,7 @@ const AdminDashboard = () => {
               {doctorAppointmentsOverview.map((doctor) => (
                 <article
                   key={`${doctor.doctorName}_${doctor.specialty}`}
-                  onClick={() => navigate(`/admin/appointments?doctor=${encodeURIComponent(doctor.doctorName)}&specialty=${encodeURIComponent(doctor.specialty)}`)}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
                 >
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#11496c]/10">
@@ -1387,8 +1334,8 @@ const AdminDashboard = () => {
                           <p className="mt-0.5 text-lg font-bold text-blue-700">{doctor.scheduled}</p>
                         </div>
                         <div className="rounded-lg bg-emerald-50 p-2.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Confirmed</p>
-                          <p className="mt-0.5 text-lg font-bold text-emerald-700">{doctor.confirmed}</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Rescheduled</p>
+                          <p className="mt-0.5 text-lg font-bold text-emerald-700">{doctor.rescheduled}</p>
                         </div>
                         <div className="rounded-lg bg-emerald-50 p-2.5">
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">Completed</p>
@@ -1407,89 +1354,6 @@ const AdminDashboard = () => {
           </section>
         )}
 
-        {/* Today's Verifications */}
-        <section aria-labelledby="verifications-today-title" className="space-y-3 sm:space-y-4">
-          <header className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 id="verifications-today-title" className="text-base sm:text-lg font-semibold text-slate-900">
-                Today's Verifications
-              </h2>
-              <span className="flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)] px-2 text-xs font-medium text-[#11496c]">
-                {todayVerifications.length}
-              </span>
-            </div>
-          </header>
-
-          {isLoadingVerifications ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
-                <p className="mt-2 text-sm text-slate-600">Loading verifications...</p>
-              </div>
-            </div>
-          ) : todayVerifications.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
-              <p className="text-sm text-slate-600">No verifications pending for today</p>
-            </div>
-          ) : (
-            <div className="space-y-2 sm:space-y-3">
-              {todayVerifications.map((verification) => {
-              const VerificationIcon = getActivityIcon(verification.type)
-              return (
-                <article
-                  key={verification.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="relative shrink-0">
-                      <img
-                        src={verification.image}
-                        alt={verification.name}
-                        className="h-10 w-10 sm:h-12 sm:w-12 rounded-full object-cover ring-2 ring-slate-100"
-                        onError={(e) => {
-                          e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(verification.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                        }}
-                      />
-                      <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 ring-2 ring-white">
-                        <IoTimeOutline className="h-3 w-3 text-white" />
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-slate-900">{verification.name}</h3>
-                          <p className="mt-0.5 text-xs text-slate-600">
-                            {verification.specialty || verification.owner || 'Verification pending'}
-                          </p>
-                        </div>
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(verification.status)}`}>
-                          <IoTimeOutline className="h-3 w-3" />
-                          {verification.status}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] sm:text-xs text-slate-600">
-                        <div className="flex items-center gap-1">
-                          <IoTimeOutline className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                          <span className="font-medium">{verification.time}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <VerificationIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                          <span className="capitalize">{verification.type}</span>
-                        </div>
-                        <div className="flex items-center gap-1 min-w-0">
-                          <IoMailOutline className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
-                          <span className="truncate max-w-[100px] sm:max-w-[120px]">{verification.email}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              )
-            })}
-            </div>
-          )}
-        </section>
 
         {/* Payment Status Notifications */}
         {(pendingPaymentCount > 0 || confirmedPaymentCount > 0 || paymentNotifications.length > 0) && (
@@ -1584,140 +1448,68 @@ const AdminDashboard = () => {
           </section>
         )}
 
-        {/* Recent Activities & Pending Verifications Grid */}
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
-          {/* Recent Activities */}
-          <section aria-labelledby="activities-title" className="space-y-3 sm:space-y-4">
-            <header className="flex items-center justify-between">
-              <h2 id="activities-title" className="text-base sm:text-lg font-semibold text-slate-900">
-                Recent Activities
-              </h2>
-            </header>
+        {/* Recent Activities */}
+        <section aria-labelledby="activities-title" className="space-y-3 sm:space-y-4">
+          <header className="flex items-center justify-between">
+            <h2 id="activities-title" className="text-base sm:text-lg font-semibold text-slate-900">
+              Recent Activities
+            </h2>
+          </header>
 
-            <div className="space-y-2 sm:space-y-3">
-              {isLoadingActivities ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
-                  <p className="text-sm text-slate-600">Loading activities...</p>
-                </div>
-              ) : recentActivities.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
-                  <p className="text-sm text-slate-600">No recent activities</p>
-                </div>
-              ) : (
-                recentActivities.map((activity) => {
-                const ActivityIcon = getActivityIcon(activity.type)
-                return (
-                  <article
-                    key={activity.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm transition-all hover:shadow-md"
-                  >
-                    <div className="flex items-start gap-3">
-                      <img
-                        src={activity.image}
-                        alt={activity.name}
-                        className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
-                        onError={(e) => {
-                          e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(activity.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-semibold text-slate-900">{activity.action}</h3>
-                            <p className="mt-0.5 text-xs text-slate-600">{activity.name}</p>
-                          </div>
-                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(activity.status)}`}>
-                            {activity.status === 'success' ? (
-                              <IoCheckmarkCircleOutline className="h-3 w-3" />
-                            ) : (
-                              <IoTimeOutline className="h-3 w-3" />
-                            )}
-                            {activity.status}
-                          </span>
+          <div className="space-y-2 sm:space-y-3">
+            {isLoadingActivities ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
+                <p className="text-sm text-slate-600">Loading activities...</p>
+              </div>
+            ) : recentActivities.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
+                <p className="text-sm text-slate-600">No recent activities</p>
+              </div>
+            ) : (
+              recentActivities.map((activity) => {
+              const ActivityIcon = getActivityIcon(activity.type)
+              return (
+                <article
+                  key={activity.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm transition-all hover:shadow-md"
+                >
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={activity.image}
+                      alt={activity.name}
+                      className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
+                      onError={(e) => {
+                        e.target.onerror = null
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(activity.name)}&background=3b82f6&color=fff&size=128&bold=true`
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-slate-900">{activity.action}</h3>
+                          <p className="mt-0.5 text-xs text-slate-600">{activity.name}</p>
                         </div>
-                        <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-                          <IoTimeOutline className="h-3.5 w-3.5" />
-                          <span>{activity.time}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </article>
-                )
-                })
-              )}
-            </div>
-          </section>
-
-          {/* Pending Verifications */}
-          <section aria-labelledby="verifications-title" className="space-y-3 sm:space-y-4">
-            <header className="flex items-center justify-between">
-              <h2 id="verifications-title" className="text-base sm:text-lg font-semibold text-slate-900">
-                Pending Verifications
-              </h2>
-            </header>
-
-            <div className="space-y-2 sm:space-y-3">
-              {isLoadingPendingVerifications ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
-                  <p className="text-sm text-slate-600">Loading verifications...</p>
-                </div>
-              ) : pendingVerifications.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center">
-                  <p className="text-sm text-slate-600">No pending verifications</p>
-                </div>
-              ) : (
-                pendingVerifications.map((verification) => {
-                const VerificationIcon = getActivityIcon(verification.type)
-                return (
-                  <article
-                    key={verification.id}
-                    onClick={() => navigate(`/admin/${verification.type}s`)}
-                    className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
-                  >
-                    <div className="flex items-start gap-3">
-                      <img
-                        src={verification.image}
-                        alt={verification.name}
-                        className="h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
-                        onError={(e) => {
-                          e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(verification.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-semibold text-slate-900">{verification.name}</h3>
-                            <p className="mt-0.5 text-xs text-slate-600">
-                              {verification.specialty || verification.owner || verification.email}
-                            </p>
-                          </div>
-                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(verification.status)}`}>
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(activity.status)}`}>
+                          {activity.status === 'success' ? (
+                            <IoCheckmarkCircleOutline className="h-3 w-3" />
+                          ) : (
                             <IoTimeOutline className="h-3 w-3" />
-                            {verification.status}
-                          </span>
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-slate-600">
-                          <div className="flex items-center gap-1">
-                            <IoCalendarOutline className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                            <span>Submitted: {formatDate(verification.submittedAt)}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <VerificationIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                            <span className="capitalize">{verification.type}</span>
-                          </div>
-                        </div>
+                          )}
+                          {activity.status}
+                        </span>
                       </div>
-                      <IoArrowForwardOutline className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-slate-400" />
+                      <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+                        <IoTimeOutline className="h-3.5 w-3.5" />
+                        <span>{activity.time}</span>
+                      </div>
                     </div>
-                  </article>
-                )
-                })
-              )}
-            </div>
-          </section>
-        </div>
+                  </div>
+                </article>
+              )
+              })
+            )}
+          </div>
+        </section>
 
         {/* Revenue & Statistics Overview */}
         <section aria-labelledby="overview-title">
@@ -1840,10 +1632,10 @@ const AdminDashboard = () => {
               <p className="mt-1 text-[10px] sm:text-xs text-slate-600">By user type</p>
             </header>
             <UserDistributionChart 
-              patients={isLoadingStats ? 0 : Math.max(0, stats.totalUsers - stats.totalDoctors - stats.totalPharmacies - stats.totalLaboratories)}
-              doctors={isLoadingStats ? 0 : stats.totalDoctors}
-              pharmacies={isLoadingStats ? 0 : stats.totalPharmacies}
-              laboratories={isLoadingStats ? 0 : stats.totalLaboratories}
+              patients={isLoadingStats ? 0 : (stats.totalUsers || 0)}
+              doctors={isLoadingStats ? 0 : (stats.totalDoctors || 0)}
+              pharmacies={isLoadingStats ? 0 : (stats.totalPharmacies || 0)}
+              laboratories={isLoadingStats ? 0 : (stats.totalLaboratories || 0)}
             />
           </section>
         </div>

@@ -113,8 +113,15 @@ exports.getSessions = asyncHandler(async (req, res) => {
 // PATCH /api/doctors/sessions/:id
 exports.updateSession = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { sessionId } = req.params;
+  const sessionId = req.params.id || req.params.sessionId; // Support both :id and :sessionId
   const { status, sessionStartTime, sessionEndTime, notes } = req.body;
+
+  if (!sessionId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Session ID is required',
+    });
+  }
 
   const session = await Session.findOne({
     _id: sessionId,
@@ -142,6 +149,34 @@ exports.updateSession = asyncHandler(async (req, res) => {
   if (notes) session.notes = notes;
 
   await session.save();
+
+  // If session status changed to LIVE, recalculate ETAs for all waiting appointments
+  if (status === SESSION_STATUS.LIVE) {
+    try {
+      const { recalculateSessionETAs } = require('../../services/etaService');
+      const { getIO } = require('../../config/socket');
+      const io = getIO();
+      
+      const etas = await recalculateSessionETAs(session._id);
+      
+      // Send ETA updates to all waiting patients via Socket.IO
+      for (const eta of etas) {
+        if (eta.patientId) {
+          io.to(`patient-${eta.patientId}`).emit('token:eta:update', {
+            appointmentId: eta.appointmentId,
+            estimatedWaitMinutes: eta.estimatedWaitMinutes,
+            estimatedCallTime: eta.estimatedCallTime,
+            patientsAhead: eta.patientsAhead,
+            tokenNumber: eta.tokenNumber,
+          });
+        }
+      }
+      
+      console.log(`✅ Session started: Recalculated and sent ETAs for ${etas.length} appointments`);
+    } catch (error) {
+      console.error('Error recalculating ETAs on session start:', error);
+    }
+  }
 
   // Emit real-time event
   try {
@@ -191,7 +226,14 @@ exports.updateSession = asyncHandler(async (req, res) => {
 // DELETE /api/doctors/sessions/:id
 exports.deleteSession = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { sessionId } = req.params;
+  const sessionId = req.params.id || req.params.sessionId; // Support both :id and :sessionId
+  
+  if (!sessionId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Session ID is required',
+    });
+  }
 
   const session = await Session.findOne({
     _id: sessionId,

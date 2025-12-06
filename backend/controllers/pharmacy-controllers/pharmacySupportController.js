@@ -1,5 +1,12 @@
 const asyncHandler = require('../../middleware/asyncHandler');
 const SupportTicket = require('../../models/SupportTicket');
+const Pharmacy = require('../../models/Pharmacy');
+const Admin = require('../../models/Admin');
+const { 
+  sendSupportTicketNotification, 
+  sendAdminSupportTicketNotification,
+  createSupportTicketNotification 
+} = require('../../services/notificationService');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -30,6 +37,9 @@ exports.createSupportTicket = asyncHandler(async (req, res) => {
     status: 'open',
   });
 
+  // Get pharmacy data for notifications
+  const pharmacy = await Pharmacy.findById(id);
+
   // Emit real-time event to admins
   try {
     const { getIO } = require('../../config/socket');
@@ -40,6 +50,40 @@ exports.createSupportTicket = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error('Socket.IO error:', error);
+  }
+
+  // Send email and in-app notifications
+  try {
+    // Send confirmation email to pharmacy
+    if (pharmacy) {
+      await sendSupportTicketNotification({
+        user: pharmacy,
+        ticket,
+        userType: 'pharmacy',
+        isResponse: false,
+      }).catch((error) => console.error('Error sending support ticket email to pharmacy:', error));
+      
+      // Create in-app notification for pharmacy
+      await createSupportTicketNotification({
+        userId: id,
+        userType: 'pharmacy',
+        ticket,
+        eventType: 'created',
+      }).catch((error) => console.error('Error creating support ticket notification:', error));
+    }
+
+    // Send notification to all admins
+    const admins = await Admin.find({ isActive: true }).select('email name');
+    for (const admin of admins) {
+      await sendAdminSupportTicketNotification({
+        admin,
+        ticket,
+        user: pharmacy,
+        userType: 'pharmacy',
+      }).catch((error) => console.error(`Error sending admin support ticket email to ${admin.email}:`, error));
+    }
+  } catch (error) {
+    console.error('Error sending email notifications:', error);
   }
 
   return res.status(201).json({

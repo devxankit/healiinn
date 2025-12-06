@@ -8,6 +8,7 @@ const Order = require('../../models/Order');
 const Request = require('../../models/Request');
 const Transaction = require('../../models/Transaction');
 const { APPROVAL_STATUS } = require('../../utils/constants');
+const { calculateProviderEarning } = require('../../utils/commissionConfig');
 
 // GET /api/admin/dashboard/stats
 exports.getDashboardStats = asyncHandler(async (req, res) => {
@@ -74,35 +75,93 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
       isActive: true,
       createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd },
     }),
-    // Total revenue (all time)
-    Transaction.aggregate([
-      { $match: { userType: 'admin', type: 'payment', status: 'completed' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then(result => result[0]?.total || 0),
-    // This month revenue
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
-          createdAt: { $gte: thisMonthStart, $lte: thisMonthEnd },
-        },
-      },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then(result => result[0]?.total || 0),
-    // Last month revenue
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
-          createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd },
-        },
-      },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then(result => result[0]?.total || 0),
+    // Total revenue (all time) - Calculate commission from all paid appointments and orders
+    (async () => {
+      const allAppointments = await Appointment.find({ paymentStatus: 'paid' }).lean();
+      const allOrders = await Order.find({ paymentStatus: 'paid' }).lean();
+      
+      let totalCommission = 0;
+      for (const apt of allAppointments) {
+        if (apt.fee) {
+          const { commission } = calculateProviderEarning(apt.fee, 'doctor');
+          totalCommission += commission;
+        }
+      }
+      for (const order of allOrders) {
+        if (order.totalAmount) {
+          const providerType = order.providerType === 'laboratory' ? 'laboratory' : 'pharmacy';
+          const { commission } = calculateProviderEarning(order.totalAmount, providerType);
+          totalCommission += commission;
+        }
+      }
+      return totalCommission;
+    })(),
+    // This month revenue - Calculate commission from this month's paid appointments and orders
+    (async () => {
+      const thisMonthAppointments = await Appointment.find({
+        paymentStatus: 'paid',
+        $or: [
+          { paidAt: { $gte: thisMonthStart, $lte: thisMonthEnd } },
+          { $and: [
+            { paidAt: { $exists: false } },
+            { createdAt: { $gte: thisMonthStart, $lte: thisMonthEnd } }
+          ]}
+        ]
+      }).lean();
+      const thisMonthOrders = await Order.find({
+        paymentStatus: 'paid',
+        createdAt: { $gte: thisMonthStart, $lte: thisMonthEnd },
+      }).lean();
+      
+      let monthCommission = 0;
+      for (const apt of thisMonthAppointments) {
+        if (apt.fee) {
+          const { commission } = calculateProviderEarning(apt.fee, 'doctor');
+          monthCommission += commission;
+        }
+      }
+      for (const order of thisMonthOrders) {
+        if (order.totalAmount) {
+          const providerType = order.providerType === 'laboratory' ? 'laboratory' : 'pharmacy';
+          const { commission } = calculateProviderEarning(order.totalAmount, providerType);
+          monthCommission += commission;
+        }
+      }
+      return monthCommission;
+    })(),
+    // Last month revenue - Calculate commission from last month's paid appointments and orders
+    (async () => {
+      const lastMonthAppointments = await Appointment.find({
+        paymentStatus: 'paid',
+        $or: [
+          { paidAt: { $gte: lastMonthStart, $lte: lastMonthEnd } },
+          { $and: [
+            { paidAt: { $exists: false } },
+            { createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } }
+          ]}
+        ]
+      }).lean();
+      const lastMonthOrders = await Order.find({
+        paymentStatus: 'paid',
+        createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd },
+      }).lean();
+      
+      let monthCommission = 0;
+      for (const apt of lastMonthAppointments) {
+        if (apt.fee) {
+          const { commission } = calculateProviderEarning(apt.fee, 'doctor');
+          monthCommission += commission;
+        }
+      }
+      for (const order of lastMonthOrders) {
+        if (order.totalAmount) {
+          const providerType = order.providerType === 'laboratory' ? 'laboratory' : 'pharmacy';
+          const { commission } = calculateProviderEarning(order.totalAmount, providerType);
+          monthCommission += commission;
+        }
+      }
+      return monthCommission;
+    })(),
     // This month consultations (appointments completed)
     Appointment.countDocuments({
       status: 'completed',
@@ -208,20 +267,40 @@ exports.getChartData = asyncHandler(async (req, res) => {
     });
   }
 
-  // Get revenue data for each month
-  const revenuePromises = months.map(({ start, end }) =>
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
-          createdAt: { $gte: start, $lte: end },
-        },
-      },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then(result => result[0]?.total || 0)
-  );
+  // Get revenue data for each month - Calculate commission
+  const revenuePromises = months.map(async ({ start, end }) => {
+    const monthAppointments = await Appointment.find({
+      paymentStatus: 'paid',
+      $or: [
+        { paidAt: { $gte: start, $lte: end } },
+        { $and: [
+          { paidAt: { $exists: false } },
+          { createdAt: { $gte: start, $lte: end } }
+        ]}
+      ]
+    }).lean();
+    
+    const monthOrders = await Order.find({
+      paymentStatus: 'paid',
+      createdAt: { $gte: start, $lte: end },
+    }).lean();
+    
+    let monthCommission = 0;
+    for (const apt of monthAppointments) {
+      if (apt.fee) {
+        const { commission } = calculateProviderEarning(apt.fee, 'doctor');
+        monthCommission += commission;
+      }
+    }
+    for (const order of monthOrders) {
+      if (order.totalAmount) {
+        const providerType = order.providerType === 'laboratory' ? 'laboratory' : 'pharmacy';
+        const { commission } = calculateProviderEarning(order.totalAmount, providerType);
+        monthCommission += commission;
+      }
+    }
+    return monthCommission;
+  });
 
   // Get user growth data for each month (cumulative)
   const userGrowthPromises = months.map(({ end }) =>
@@ -245,20 +324,20 @@ exports.getChartData = asyncHandler(async (req, res) => {
     Promise.all(consultationsPromises),
   ]);
 
-  // Format data for charts
+  // Format data for charts - Ensure all values are numbers
   const revenueChart = months.map((month, index) => ({
     month: month.monthName,
-    value: revenueData[index],
+    value: typeof revenueData[index] === 'number' ? revenueData[index] : 0,
   }));
 
   const userGrowthChart = months.map((month, index) => ({
     month: month.monthName,
-    users: userGrowthData[index],
+    users: typeof userGrowthData[index] === 'number' ? userGrowthData[index] : 0,
   }));
 
   const consultationsChart = months.map((month, index) => ({
     month: month.monthName,
-    consultations: consultationsData[index],
+    consultations: typeof consultationsData[index] === 'number' ? consultationsData[index] : 0,
   }));
 
   return res.status(200).json({

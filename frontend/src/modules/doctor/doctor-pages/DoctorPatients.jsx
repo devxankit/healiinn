@@ -11,7 +11,8 @@ import {
   recallPatient,
   updateQueueStatus,
   pauseSession,
-  resumeSession
+  resumeSession,
+  updateSession
 } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 import {
@@ -32,6 +33,7 @@ import {
   IoStopOutline,
   IoAddOutline,
   IoCloseCircleOutline,
+  IoVideocamOutline,
 } from 'react-icons/io5'
 
 // Helper function to get today's date in YYYY-MM-DD format
@@ -46,8 +48,21 @@ const getTodayDateString = () => {
 // Mock data removed - now using getPatientHistory API
 
 const formatTime = (dateString) => {
-  const date = new Date(dateString)
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  if (!dateString) return 'N/A'
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) {
+      // If invalid date, try to parse as time string directly
+      if (typeof dateString === 'string' && (dateString.includes('AM') || dateString.includes('PM'))) {
+        return dateString
+      }
+      return 'Invalid Date'
+    }
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  } catch (error) {
+    console.error('Error formatting time:', error, dateString)
+    return 'N/A'
+  }
 }
 
 const formatDate = (dateString) => {
@@ -68,6 +83,7 @@ const getAverageConsultationMinutes = () => {
 
 // Calculate max tokens based on session time and average consultation minutes
 const calculateMaxTokens = (startTime, endTime, averageMinutes) => {
+  if (!startTime || !endTime || !averageMinutes) return 0
   const start = new Date(`2000-01-01T${startTime}`)
   const end = new Date(`2000-01-01T${endTime}`)
   const diffMs = end - start
@@ -105,9 +121,12 @@ const DoctorPatients = () => {
         setLoadingSession(true)
         setAppointmentsError(null)
         
-        console.log('🔍 Fetching patient queue...') // Debug log
+        // Get today's date in YYYY-MM-DD format
+        const todayStr = getTodayDateString()
         
-        const response = await getPatientQueue()
+        console.log('🔍 Fetching patient queue for date:', todayStr) // Debug log
+        
+        const response = await getPatientQueue(todayStr)
         
         console.log('📊 Patient queue API response:', response) // Debug log
         
@@ -124,8 +143,9 @@ const DoctorPatients = () => {
           
           // Set session data
           if (sessionData) {
-            setCurrentSession({
+            const sessionToSet = {
               id: sessionData._id || sessionData.id,
+              _id: sessionData._id || sessionData.id,
               date: sessionData.date,
               startTime: sessionData.sessionStartTime || sessionData.startTime,
               endTime: sessionData.sessionEndTime || sessionData.endTime,
@@ -133,9 +153,16 @@ const DoctorPatients = () => {
               currentToken: sessionData.currentToken || response.data.currentToken || 0,
               maxTokens: sessionData.maxTokens || 0,
               averageConsultationMinutes: sessionData.averageConsultationMinutes || getAverageConsultationMinutes(),
-            })
+              startedAt: sessionData.startedAt,
+              endedAt: sessionData.endedAt,
+            }
+            console.log('✅ Setting session data:', sessionToSet) // Debug log
+            setCurrentSession(sessionToSet)
           } else {
+            console.log('⚠️ No session data in response') // Debug log
             setCurrentSession(null)
+            // Clear any cached session data
+            localStorage.removeItem('doctorCurrentSession')
           }
           
           // Transform API data to match component structure
@@ -148,11 +175,36 @@ const DoctorPatients = () => {
               : appt.patientId?.name || appt.patientName || 'Patient',
             age: appt.patientId?.age || appt.age || 0,
             gender: appt.patientId?.gender || appt.gender || 'unknown',
-            appointmentTime: appt.appointmentDate 
-              ? `${appt.appointmentDate}T${appt.time || '00:00'}`
-              : appt.appointmentTime || new Date().toISOString(),
+            appointmentTime: (() => {
+              // Properly format appointment time
+              if (appt.appointmentTime) {
+                return appt.appointmentTime
+              }
+              if (appt.appointmentDate && appt.time) {
+                // Convert 12-hour time to 24-hour for ISO format
+                const convertTo24Hour = (time12) => {
+                  if (!time12) return '00:00'
+                  if (time12.includes('AM') || time12.includes('PM')) {
+                    const [time, period] = time12.split(' ')
+                    const [hours, minutes] = time.split(':').map(Number)
+                    let hour24 = hours
+                    if (period === 'PM' && hours !== 12) hour24 = hours + 12
+                    if (period === 'AM' && hours === 12) hour24 = 0
+                    return `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+                  }
+                  return time12
+                }
+                const time24 = convertTo24Hour(appt.time)
+                const dateStr = appt.appointmentDate instanceof Date 
+                  ? appt.appointmentDate.toISOString().split('T')[0]
+                  : appt.appointmentDate.split('T')[0]
+                return `${dateStr}T${time24}:00`
+              }
+              return new Date().toISOString()
+            })(),
             appointmentDate: appt.appointmentDate || appt.date,
             appointmentType: appt.appointmentType || appt.type || 'New',
+            consultationMode: appt.consultationMode || 'in_person', // Add consultation mode
             status: appt.status || 'waiting',
             queueNumber: appt.tokenNumber || appt.queueNumber || 0,
             reason: appt.reason || appt.chiefComplaint || 'Consultation',
@@ -215,18 +267,42 @@ const DoctorPatients = () => {
   // Check session date on mount and clear if not today
   useEffect(() => {
     if (currentSession) {
-      const today = new Date().toISOString().split('T')[0]
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayStr = today.toISOString().split('T')[0]
+      
       const sessionDate = currentSession.date
       
-      // If session is cancelled, completed, or not for today, clear it
+      // Format session date for comparison
+      let sessionDateStr = null
+      if (sessionDate) {
+        if (sessionDate instanceof Date) {
+          sessionDateStr = sessionDate.toISOString().split('T')[0]
+        } else if (typeof sessionDate === 'string') {
+          // Handle both YYYY-MM-DD and ISO format
+          sessionDateStr = sessionDate.split('T')[0]
+        }
+      }
+      
+      console.log('🔍 Checking session date:', {
+        today: todayStr,
+        sessionDate: sessionDateStr,
+        sessionStatus: currentSession.status,
+        match: sessionDateStr === todayStr,
+      }) // Debug log
+      
+      // Only clear if session is cancelled or completed
+      // Don't clear based on date mismatch - let backend handle that
       if (
         currentSession.status === 'cancelled' ||
-        currentSession.status === 'completed' ||
-        sessionDate !== today
+        currentSession.status === 'completed'
       ) {
+        console.log('🗑️ Clearing session due to status:', currentSession.status) // Debug log
         setCurrentSession(null)
         localStorage.removeItem('doctorCurrentSession')
       }
+      // Note: We're not clearing based on date mismatch anymore
+      // The backend will return the correct session for the requested date
     }
   }, [currentSession])
 
@@ -234,45 +310,151 @@ const DoctorPatients = () => {
   const maxTokens = currentSession ? currentSession.maxTokens : 0
 
   const filteredAppointments = appointments.filter((appt) => {
-    // Filter by session date if session exists
-    if (currentSession) {
-      const sessionDate = new Date(currentSession.date)
-      const appointmentDate = new Date(appt.appointmentTime)
-      
-      // Compare dates (year, month, day only, ignore time)
-      const sessionDateStr = sessionDate.toISOString().split('T')[0]
-      const appointmentDateStr = appointmentDate.toISOString().split('T')[0]
-      
-      if (sessionDateStr !== appointmentDateStr) {
-        return false
+    try {
+      // Filter by session date if session exists
+      if (currentSession && currentSession.date) {
+        const sessionDate = new Date(currentSession.date)
+        if (isNaN(sessionDate.getTime())) {
+          console.warn('Invalid session date:', currentSession.date)
+        } else {
+          const appointmentDate = appt.appointmentTime ? new Date(appt.appointmentTime) : null
+          if (appointmentDate && !isNaN(appointmentDate.getTime())) {
+            // Compare dates (year, month, day only, ignore time)
+            const sessionDateStr = sessionDate.toISOString().split('T')[0]
+            const appointmentDateStr = appointmentDate.toISOString().split('T')[0]
+            
+            if (sessionDateStr !== appointmentDateStr) {
+              return false
+            }
+          }
+        }
       }
+      
+      // Filter by search term
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase()
+        const patientName = appt.patientName || ''
+        const reason = appt.reason || ''
+        return (
+          patientName.toLowerCase().includes(searchLower) ||
+          reason.toLowerCase().includes(searchLower)
+        )
+      }
+      
+      return true
+    } catch (error) {
+      console.error('Error filtering appointment:', error, appt)
+      return false
     }
-    
-    // Filter by search term
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase()
-      return (
-        appt.patientName.toLowerCase().includes(searchLower) ||
-        appt.reason.toLowerCase().includes(searchLower)
-      )
-    }
-    
-    return true
   })
 
   // Session management functions
-  const handleStartSession = () => {
-    if (!currentSession) return
-    
-    const updatedSession = {
-      ...currentSession,
-      status: 'active',
-      startedAt: new Date().toISOString(),
+  const handleStartSession = async () => {
+    if (!currentSession) {
+      toast.error('No session available')
+      return
     }
     
-    setCurrentSession(updatedSession)
-    localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
-    alert('Session started! Queue is now active.')
+    try {
+      const sessionId = currentSession._id || currentSession.id
+      if (!sessionId) {
+        toast.error('Session ID not found')
+        return
+      }
+
+      // Call backend API to update session status to 'live'
+      const response = await updateSession(sessionId, { status: 'live' })
+      
+      if (response.success && response.data) {
+        // Update local state with backend response
+        const updatedSession = {
+          ...currentSession,
+          _id: response.data._id || sessionId,
+          id: response.data._id || sessionId,
+          status: response.data.status || 'live',
+          startedAt: response.data.startedAt || new Date().toISOString(),
+        }
+        
+        setCurrentSession(updatedSession)
+        localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
+        
+        toast.success('Session started! ETA is now active for all patients.')
+        
+        // Refresh appointments to get updated data and ETAs
+        const queueResponse = await getPatientQueue(getTodayDateString())
+        if (queueResponse.success && queueResponse.data) {
+          const sessionData = queueResponse.data.session
+          const queueData = queueResponse.data.appointments || []
+          
+          if (sessionData) {
+            setCurrentSession({
+              id: sessionData._id || sessionData.id,
+              _id: sessionData._id || sessionData.id,
+              date: sessionData.date,
+              startTime: sessionData.sessionStartTime || sessionData.startTime,
+              endTime: sessionData.sessionEndTime || sessionData.endTime,
+              status: sessionData.status || 'live',
+              currentToken: sessionData.currentToken || response.data.currentToken || 0,
+              maxTokens: sessionData.maxTokens || 0,
+              averageConsultationMinutes: sessionData.averageConsultationMinutes || getAverageConsultationMinutes(),
+            })
+          }
+          
+          // Update appointments list
+          const transformedAppointments = Array.isArray(queueData) ? queueData.map((appt) => ({
+            id: appt._id || appt.id,
+            _id: appt._id || appt.id,
+            patientId: appt.patientId?._id || appt.patientId || appt.patientId?.id,
+            patientName: appt.patientId?.firstName && appt.patientId?.lastName
+              ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
+              : appt.patientId?.name || appt.patientName || 'Patient',
+            age: appt.patientId?.age || appt.age || 0,
+            gender: appt.patientId?.gender || appt.gender || 'unknown',
+            appointmentTime: (() => {
+              // Properly format appointment time
+              if (appt.appointmentTime) {
+                return appt.appointmentTime
+              }
+              if (appt.appointmentDate && appt.time) {
+                // Convert 12-hour time to 24-hour for ISO format
+                const convertTo24Hour = (time12) => {
+                  if (!time12) return '00:00'
+                  if (time12.includes('AM') || time12.includes('PM')) {
+                    const [time, period] = time12.split(' ')
+                    const [hours, minutes] = time.split(':').map(Number)
+                    let hour24 = hours
+                    if (period === 'PM' && hours !== 12) hour24 = hours + 12
+                    if (period === 'AM' && hours === 12) hour24 = 0
+                    return `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+                  }
+                  return time12
+                }
+                const time24 = convertTo24Hour(appt.time)
+                const dateStr = appt.appointmentDate instanceof Date 
+                  ? appt.appointmentDate.toISOString().split('T')[0]
+                  : appt.appointmentDate.split('T')[0]
+                return `${dateStr}T${time24}:00`
+              }
+              return new Date().toISOString()
+            })(),
+            appointmentDate: appt.appointmentDate || appt.date,
+            appointmentType: appt.appointmentType || appt.type || 'New',
+            status: appt.status || 'waiting',
+            queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            reason: appt.reason || appt.chiefComplaint || 'Consultation',
+            patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            originalData: appt,
+          })) : []
+          
+          setAppointments(transformedAppointments)
+        }
+      } else {
+        toast.error(response.message || 'Failed to start session')
+      }
+    } catch (error) {
+      console.error('Error starting session:', error)
+      toast.error(error.message || 'Failed to start session')
+    }
   }
 
   const handleEndSession = () => {
@@ -334,9 +516,12 @@ const DoctorPatients = () => {
   const getSessionStatusColor = (status) => {
     switch (status) {
       case 'active':
+      case 'live':
         return 'bg-emerald-100 text-emerald-700 border-emerald-200'
       case 'scheduled':
         return 'bg-blue-100 text-blue-700 border-blue-200'
+      case 'paused':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-200'
       case 'completed':
         return 'bg-slate-100 text-slate-700 border-slate-200'
       case 'cancelled':
@@ -349,15 +534,18 @@ const DoctorPatients = () => {
   const getSessionStatusText = (status) => {
     switch (status) {
       case 'active':
-        return 'Active'
+      case 'live':
+        return 'Live'
       case 'scheduled':
         return 'Scheduled'
+      case 'paused':
+        return 'Paused'
       case 'completed':
         return 'Completed'
       case 'cancelled':
         return 'Cancelled'
       default:
-        return 'Not Started'
+        return status || 'Not Started'
     }
   }
 
@@ -368,8 +556,8 @@ const DoctorPatients = () => {
       return
     }
 
-    // Check if session is active
-    if (!currentSession || currentSession.status !== 'active') {
+    // Check if session is active/live
+    if (!currentSession || (currentSession.status !== 'active' && currentSession.status !== 'live')) {
       toast.warning('Please start the session first before calling patients')
       return
     }
@@ -458,7 +646,7 @@ const DoctorPatients = () => {
           )
         )
         // Refresh appointments
-        const queueResponse = await getPatientQueue()
+        const queueResponse = await getPatientQueue(getTodayDateString())
         if (queueResponse.success && queueResponse.data) {
           const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
           const transformedAppointments = queueData.map((appt) => ({
@@ -505,7 +693,7 @@ const DoctorPatients = () => {
           )
         )
         // Refresh appointments
-        const queueResponse = await getPatientQueue()
+        const queueResponse = await getPatientQueue(getTodayDateString())
         if (queueResponse.success && queueResponse.data) {
           const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
           const transformedAppointments = queueData.map((appt) => ({
@@ -545,7 +733,7 @@ const DoctorPatients = () => {
           )
         )
         // Refresh appointments
-        const queueResponse = await getPatientQueue()
+        const queueResponse = await getPatientQueue(getTodayDateString())
         if (queueResponse.success && queueResponse.data) {
           const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
           const transformedAppointments = queueData.map((appt) => ({
@@ -713,7 +901,23 @@ const DoctorPatients = () => {
                       </span>
                       <span className="text-xs text-slate-600">
                         {currentSession?.date && currentSession?.startTime && currentSession?.endTime
-                          ? `${formatTime(`${currentSession.date}T${currentSession.startTime}`)} - ${formatTime(`${currentSession.date}T${currentSession.endTime}`)}`
+                          ? (() => {
+                              // Helper to convert time to 12-hour format if needed
+                              const formatTime12Hour = (time) => {
+                                if (!time) return 'N/A'
+                                // If already in 12-hour format (contains AM/PM), return as is
+                                if (time.toString().includes('AM') || time.toString().includes('PM')) {
+                                  return time
+                                }
+                                // Convert 24-hour to 12-hour
+                                const [hours, minutes] = time.split(':').map(Number)
+                                if (isNaN(hours) || isNaN(minutes)) return time
+                                const period = hours >= 12 ? 'PM' : 'AM'
+                                const hours12 = hours % 12 || 12
+                                return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`
+                              }
+                              return `${formatTime12Hour(currentSession.startTime)} - ${formatTime12Hour(currentSession.endTime)}`
+                            })()
                           : 'N/A'}
                       </span>
                     </div>
@@ -724,24 +928,24 @@ const DoctorPatients = () => {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">Session will be created automatically based on your profile settings</p>
+                  <p className="text-xs text-slate-500">No session scheduled for today</p>
                 )}
               </div>
               
               <div className="flex items-center gap-2 flex-wrap">
                 {currentSession && (
                   <>
-                    {currentSession.status === 'scheduled' && (
+                    {(currentSession.status === 'scheduled' || currentSession.status === 'paused') && (
                       <button
                         type="button"
                         onClick={handleStartSession}
                         className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
                       >
                         <IoPlayOutline className="h-4 w-4" />
-                        Start Session
+                        {currentSession.status === 'paused' ? 'Resume Session' : 'Start Session'}
                       </button>
                     )}
-                    {currentSession.status === 'active' && (
+                    {(currentSession.status === 'active' || currentSession.status === 'live') && (
                       <button
                         type="button"
                         onClick={handleEndSession}
@@ -751,7 +955,7 @@ const DoctorPatients = () => {
                         End Session
                       </button>
                     )}
-                    {(currentSession.status === 'scheduled' || currentSession.status === 'active') && (
+                    {(currentSession.status === 'scheduled' || currentSession.status === 'active' || currentSession.status === 'live' || currentSession.status === 'paused') && (
                       <button
                         type="button"
                         onClick={() => setShowCancelSessionModal(true)}
@@ -787,9 +991,12 @@ const DoctorPatients = () => {
               <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                 <IoCalendarOutline className="mx-auto h-12 w-12 text-slate-300" />
                 <p className="mt-4 text-sm font-medium text-slate-600">No session available</p>
-                <p className="mt-1 text-xs text-slate-500">Session will be created automatically based on your profile availability settings</p>
+                <p className="mt-1 text-xs text-slate-500">A session will be created when you book an appointment or manually create one</p>
+                {loadingSession && (
+                  <p className="mt-2 text-xs text-slate-400">Loading session...</p>
+                )}
               </div>
-            ) : currentSession.status !== 'active' ? (
+            ) : currentSession.status !== 'active' && currentSession.status !== 'live' && currentSession.status !== 'scheduled' ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
                 <IoPeopleOutline className="mx-auto h-12 w-12 text-slate-300" />
                 <p className="mt-4 text-sm font-medium text-slate-600">Session not started</p>
@@ -864,8 +1071,8 @@ const DoctorPatients = () => {
                       </div>
                     </div>
 
-                    {/* Appointment Type Badge */}
-                    <div className="flex items-center gap-2">
+                    {/* Appointment Type Badge and Consultation Mode */}
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                           appointment.appointmentType === 'New'
@@ -875,11 +1082,42 @@ const DoctorPatients = () => {
                       >
                         {appointment.appointmentType === 'New' ? 'New' : 'Follow up'}
                       </span>
+                      {/* Consultation Mode Badge */}
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          appointment.consultationMode === 'in_person'
+                            ? 'bg-blue-100 text-blue-700'
+                            : appointment.consultationMode === 'video_call'
+                            ? 'bg-purple-100 text-purple-700'
+                            : appointment.consultationMode === 'call'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {appointment.consultationMode === 'in_person' ? (
+                          <>
+                            <IoPersonOutline className="h-2.5 w-2.5" />
+                            <span>In-Person</span>
+                          </>
+                        ) : appointment.consultationMode === 'video_call' ? (
+                          <>
+                            <IoVideocamOutline className="h-2.5 w-2.5" />
+                            <span>Video Call</span>
+                          </>
+                        ) : appointment.consultationMode === 'call' ? (
+                          <>
+                            <IoCallOutline className="h-2.5 w-2.5" />
+                            <span>Call</span>
+                          </>
+                        ) : (
+                          <span>In-Person</span>
+                        )}
+                      </span>
                     </div>
 
                       {/* Action Buttons - Below patient info */}
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {appointment.status === 'waiting' && currentSession?.status === 'active' && (
+                      {appointment.status === 'waiting' && (currentSession?.status === 'active' || currentSession?.status === 'live') && (
                         <>
                           <button
                             type="button"

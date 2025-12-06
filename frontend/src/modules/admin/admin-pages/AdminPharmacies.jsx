@@ -16,6 +16,7 @@ import {
   IoCloseOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
+import { getAuthToken } from '../../../utils/apiClient'
 import {
   getPharmacies,
   getPharmacyById,
@@ -49,10 +50,26 @@ const AdminPharmacies = () => {
 
   // Load pharmacies from API
   useEffect(() => {
+    // Check token before making any API calls
+    const token = getAuthToken('admin')
+    if (!token) {
+      console.warn('No authentication token found. Redirecting to login...')
+      // Redirect immediately
+      window.location.href = '/admin/login'
+      return
+    }
     loadPharmacies()
   }, [statusFilter])
 
   useEffect(() => {
+    // Check token before making any API calls
+    const token = getAuthToken('admin')
+    if (!token) {
+      console.warn('No authentication token found. Redirecting to login...')
+      // Redirect immediately
+      window.location.href = '/admin/login'
+      return
+    }
     const timeoutId = setTimeout(() => {
       loadPharmacies()
     }, 500)
@@ -62,6 +79,15 @@ const AdminPharmacies = () => {
   const [allPharmacies, setAllPharmacies] = useState([]) // Store all pharmacies for stats
 
   const loadPharmacies = async () => {
+    // Check if user is authenticated before making API calls
+    const token = getAuthToken('admin')
+    if (!token) {
+      console.warn('No authentication token found. Redirecting to login...')
+      // Redirect immediately
+      window.location.href = '/admin/login'
+      return
+    }
+
     try {
       setLoading(true)
       
@@ -124,8 +150,14 @@ const AdminPharmacies = () => {
         setPharmacies([])
       }
     } catch (error) {
+      // Don't log or show errors if it's an authentication error (redirect is happening)
+      if (error.message && error.message.includes('Authentication token missing')) {
+        // Redirect is already happening in apiRequest, just return
+        return
+      }
       console.error('Error loading pharmacies:', error)
       toast.error(error.message || 'Failed to load pharmacies')
+      setPharmacies([])
     } finally {
       setLoading(false)
     }

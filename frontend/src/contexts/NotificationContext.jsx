@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { useNavigate, useLocation } from 'react-router-dom'
 import { initSocket, disconnectSocket } from '../utils/socketClient'
 import { useToast } from './ToastContext'
-import ApiClient from '../utils/apiClient'
+import { ApiClient } from '../utils/apiClient'
 
 const NotificationContext = createContext()
 
@@ -282,6 +282,17 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
       fetchUnreadCount()
     })
 
+    // Listen for support ticket events
+    socket.on('support:ticket:responded', () => {
+      fetchUnreadCount()
+      fetchNotifications()
+    })
+
+    socket.on('support:ticket:status:updated', () => {
+      fetchUnreadCount()
+      fetchNotifications()
+    })
+
       // Fetch initial notifications
       fetchNotifications()
     } catch (error) {
@@ -302,6 +313,8 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
           socket.off('report:created')
           socket.off('request:responded')
           socket.off('request:assigned')
+          socket.off('support:ticket:responded')
+          socket.off('support:ticket:status:updated')
           disconnectSocket()
         } catch (error) {
           console.error('Error cleaning up socket:', error)

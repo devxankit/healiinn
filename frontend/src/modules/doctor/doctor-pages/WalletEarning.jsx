@@ -116,6 +116,31 @@ const WalletEarning = () => {
             ? data 
             : (data.items || data.earnings || [])
           
+          // Generate description from transaction data
+          const getDescription = (earn) => {
+            if (earn.description) return earn.description
+            if (earn.notes) return earn.notes
+            if (earn.appointmentId) {
+              const appointment = earn.appointmentId
+              if (appointment && typeof appointment === 'object') {
+                return `Consultation fee - Appointment on ${new Date(appointment.appointmentDate || earn.createdAt).toLocaleDateString()}`
+              }
+              return 'Consultation fee'
+            }
+            if (earn.orderId) {
+              return `Order payment - Order #${earn.orderId._id || earn.orderId}`
+            }
+            return 'Earning'
+          }
+          
+          // Get category from transaction
+          const getCategory = (earn) => {
+            if (earn.category) return earn.category
+            if (earn.appointmentId) return 'Consultation'
+            if (earn.orderId) return 'Order Payment'
+            return 'Earning'
+          }
+          
           setEarningData({
             totalEarnings: Number(data.totalEarnings || 0),
             thisMonthEarnings: Number(data.thisMonthEarnings || 0),
@@ -125,10 +150,10 @@ const WalletEarning = () => {
             earnings: earningsList.map(earn => ({
               id: earn._id || earn.id,
               amount: Number(earn.amount || 0),
-              description: earn.description || earn.notes || 'Earning',
+              description: getDescription(earn),
               date: earn.createdAt || earn.date || new Date().toISOString(),
               status: earn.status || 'completed',
-              category: earn.category || 'Consultation',
+              category: getCategory(earn),
             })),
           })
           

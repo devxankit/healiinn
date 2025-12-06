@@ -2,386 +2,263 @@ const asyncHandler = require('../../middleware/asyncHandler');
 const Transaction = require('../../models/Transaction');
 const Appointment = require('../../models/Appointment');
 const Order = require('../../models/Order');
+const WalletTransaction = require('../../models/WalletTransaction');
+const { calculateProviderEarning } = require('../../utils/commissionConfig');
 
-// Helper function to get date ranges
-const getDateRanges = () => {
+// Helper function to get date ranges based on period
+const getDateRange = (period) => {
   const now = new Date();
-  
-  // Today
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(now);
-  todayEnd.setHours(23, 59, 59, 999);
-  
-  // Yesterday
-  const yesterdayStart = new Date(todayStart);
-  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-  const yesterdayEnd = new Date(todayEnd);
-  yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
-  
-  // This week (Monday to Sunday)
-  const thisWeekStart = new Date(now);
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-  thisWeekStart.setDate(diff);
-  thisWeekStart.setHours(0, 0, 0, 0);
-  const thisWeekEnd = new Date(todayEnd);
-  
-  // Last week
-  const lastWeekStart = new Date(thisWeekStart);
-  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-  const lastWeekEnd = new Date(thisWeekStart);
-  lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
-  lastWeekEnd.setHours(23, 59, 59, 999);
-  
-  // This month
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  thisMonthStart.setHours(0, 0, 0, 0);
-  const thisMonthEnd = new Date(todayEnd);
-  
-  // Last month
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  lastMonthStart.setHours(0, 0, 0, 0);
-  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-  lastMonthEnd.setHours(23, 59, 59, 999);
-  
-  // Last 6 months for monthly data
-  const sixMonthsAgo = new Date(now);
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-  sixMonthsAgo.setDate(1);
-  sixMonthsAgo.setHours(0, 0, 0, 0);
-  
-  return {
-    todayStart,
-    todayEnd,
-    yesterdayStart,
-    yesterdayEnd,
-    thisWeekStart,
-    thisWeekEnd,
-    lastWeekStart,
-    lastWeekEnd,
-    thisMonthStart,
-    thisMonthEnd,
-    lastMonthStart,
-    lastMonthEnd,
-    sixMonthsAgo,
-  };
+  let startDate, endDate;
+
+  switch (period) {
+    case 'today':
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    case 'week':
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      startDate = new Date(now);
+      startDate.setDate(diff);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    case 'month':
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    case 'year':
+      startDate = new Date(now.getFullYear(), 0, 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    default:
+      // All time
+      startDate = null;
+      endDate = null;
+  }
+
+  return { startDate, endDate };
 };
 
-// GET /api/admin/revenue
+// GET /api/admin/revenue?period=today|week|month|year
 exports.getRevenueOverview = asyncHandler(async (req, res) => {
-  const { todayStart, todayEnd, yesterdayStart, yesterdayEnd, thisWeekStart, thisWeekEnd, lastWeekStart, lastWeekEnd, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd, sixMonthsAgo } = getDateRanges();
+  const { period = 'all' } = req.query;
+  const { startDate, endDate } = getDateRange(period);
 
-  // Get total revenue (all time) - from admin transactions
-  const totalRevenueResult = await Transaction.aggregate([
-    { $match: { userType: 'admin', type: 'payment', status: 'completed' } },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
-  const totalRevenue = totalRevenueResult[0]?.total || 0;
+  // Build date filter
+  const dateFilter = startDate && endDate 
+    ? { createdAt: { $gte: startDate, $lte: endDate } }
+    : {};
 
-  // Today's revenue
-  const todayRevenueResult = await Transaction.aggregate([
-    {
-      $match: {
-        userType: 'admin',
-        type: 'payment',
-        status: 'completed',
-        createdAt: { $gte: todayStart, $lte: todayEnd },
-      },
-    },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
-  const todayRevenue = todayRevenueResult[0]?.total || 0;
-
-  // Yesterday's revenue
-  const yesterdayRevenueResult = await Transaction.aggregate([
-    {
-      $match: {
-        userType: 'admin',
-        type: 'payment',
-        status: 'completed',
-        createdAt: { $gte: yesterdayStart, $lte: yesterdayEnd },
-      },
-    },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
-  const yesterdayRevenue = yesterdayRevenueResult[0]?.total || 0;
-
-  // This week's revenue
-  const thisWeekRevenueResult = await Transaction.aggregate([
-    {
-      $match: {
-        userType: 'admin',
-        type: 'payment',
-        status: 'completed',
-        createdAt: { $gte: thisWeekStart, $lte: thisWeekEnd },
-      },
-    },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
-  const thisWeekRevenue = thisWeekRevenueResult[0]?.total || 0;
-
-  // Last week's revenue
-  const lastWeekRevenueResult = await Transaction.aggregate([
-    {
-      $match: {
-        userType: 'admin',
-        type: 'payment',
-        status: 'completed',
-        createdAt: { $gte: lastWeekStart, $lte: lastWeekEnd },
-      },
-    },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
-  const lastWeekRevenue = lastWeekRevenueResult[0]?.total || 0;
-
-  // This month's revenue
-  const thisMonthRevenueResult = await Transaction.aggregate([
-    {
-      $match: {
-        userType: 'admin',
-        type: 'payment',
-        status: 'completed',
-        createdAt: { $gte: thisMonthStart, $lte: thisMonthEnd },
-      },
-    },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
-  const thisMonthRevenue = thisMonthRevenueResult[0]?.total || 0;
-
-  // Last month's revenue
-  const lastMonthRevenueResult = await Transaction.aggregate([
-    {
-      $match: {
-        userType: 'admin',
-        type: 'payment',
-        status: 'completed',
-        createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd },
-      },
-    },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
-  const lastMonthRevenue = lastMonthRevenueResult[0]?.total || 0;
-
-  // Revenue by source (doctors, pharmacies, laboratories)
-  // This is based on commission/admin share from transactions
-  const revenueBySourceResult = await Transaction.aggregate([
-    {
-      $match: {
-        userType: 'admin',
-        type: 'payment',
-        status: 'completed',
-      },
-    },
-    {
-      $group: {
-        _id: '$category',
-        total: { $sum: '$amount' },
-      },
-    },
-  ]);
-
-  // Map categories to sources
-  const revenueBySource = {
-    doctors: 0,
-    pharmacies: 0,
-    laboratories: 0,
+  // Get patient payments (GBV - Gross Booking Value)
+  const patientPaymentFilter = {
+    userType: 'patient',
+    type: 'payment',
+    status: 'completed',
+    ...dateFilter,
   };
 
-  revenueBySourceResult.forEach((item) => {
-    if (item._id === 'appointment' || item._id === 'consultation') {
-      revenueBySource.doctors += item.total;
-    } else if (item._id === 'medicine' || item._id === 'order') {
-      // Check if it's pharmacy or lab based on order
-      // For now, we'll need to check the actual orders
-      revenueBySource.pharmacies += item.total * 0.5; // Approximate split
-      revenueBySource.laboratories += item.total * 0.5;
+  const [patientPayments, appointments, orders] = await Promise.all([
+    // Patient transactions (GBV)
+    Transaction.find(patientPaymentFilter)
+      .populate('appointmentId', 'doctorId fee appointmentDate')
+      .populate('orderId', 'providerId providerType totalAmount')
+      .sort({ createdAt: -1 })
+      .lean(),
+
+    // Appointments with payments
+    Appointment.find({
+      paymentStatus: 'paid',
+      ...(startDate && endDate ? {
+        $or: [
+          { paidAt: { $gte: startDate, $lte: endDate } },
+          { $and: [
+            { paidAt: { $exists: false } },
+            { createdAt: { $gte: startDate, $lte: endDate } }
+          ]}
+        ]
+      } : {}),
+    })
+      .populate('doctorId', 'firstName lastName')
+      .populate('patientId', 'firstName lastName')
+      .lean(),
+
+    // Orders with payments
+    Order.find({
+      paymentStatus: 'paid',
+      ...(startDate && endDate ? {
+        createdAt: { $gte: startDate, $lte: endDate }
+      } : {}),
+    })
+      .populate('providerId')
+      .populate('patientId', 'firstName lastName')
+      .lean(),
+  ]);
+
+  // Calculate totals
+  let totalGBV = 0;
+  let totalCommission = 0;
+  let totalPayout = 0;
+  let transactionsCount = 0;
+
+  // Doctor revenue
+  let doctorGBV = 0;
+  let doctorCommission = 0;
+  let doctorPayout = 0;
+  let doctorAppointments = 0;
+
+  // Lab revenue
+  let labGBV = 0;
+  let labCommission = 0;
+  let labPayout = 0;
+  let labOrders = 0;
+
+  // Pharmacy revenue
+  let pharmacyGBV = 0;
+  let pharmacyCommission = 0;
+  let pharmacyPayout = 0;
+  let pharmacyOrders = 0;
+
+  // Process appointments
+  for (const appointment of appointments) {
+    if (!appointment.fee) continue;
+
+    const gbv = appointment.fee;
+    const { commission, earning } = calculateProviderEarning(gbv, 'doctor');
+
+    doctorGBV += gbv;
+    doctorCommission += commission;
+    doctorPayout += earning;
+    doctorAppointments += 1;
+
+    totalGBV += gbv;
+    totalCommission += commission;
+    totalPayout += earning;
+    transactionsCount += 1;
+  }
+
+  // Process orders
+  for (const order of orders) {
+    if (!order.totalAmount) continue;
+
+    const gbv = order.totalAmount;
+    const providerType = order.providerType === 'laboratory' ? 'laboratory' : 'pharmacy';
+    const { commission, earning } = calculateProviderEarning(gbv, providerType);
+
+    if (providerType === 'laboratory') {
+      labGBV += gbv;
+      labCommission += commission;
+      labPayout += earning;
+      labOrders += 1;
+    } else {
+      pharmacyGBV += gbv;
+      pharmacyCommission += commission;
+      pharmacyPayout += earning;
+      pharmacyOrders += 1;
     }
-  });
 
-  // Get more accurate revenue by source from actual orders and appointments
-  const [appointmentRevenue, pharmacyOrderRevenue, labOrderRevenue] = await Promise.all([
-    // Revenue from appointments (consultations)
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
-          category: { $in: ['appointment', 'consultation'] },
-        },
-      },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then((result) => result[0]?.total || 0),
-    
-    // Revenue from pharmacy orders
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
-          category: 'order',
-        },
-      },
-      {
-        $lookup: {
-          from: 'orders',
-          localField: 'orderId',
-          foreignField: '_id',
-          as: 'order',
-        },
-      },
-      { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
-      { $match: { 'order.providerType': 'pharmacy' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then((result) => result[0]?.total || 0),
-    
-    // Revenue from lab orders
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
-          category: 'order',
-        },
-      },
-      {
-        $lookup: {
-          from: 'orders',
-          localField: 'orderId',
-          foreignField: '_id',
-          as: 'order',
-        },
-      },
-      { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
-      { $match: { 'order.providerType': 'laboratory' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then((result) => result[0]?.total || 0),
-  ]);
+    totalGBV += gbv;
+    totalCommission += commission;
+    totalPayout += earning;
+    transactionsCount += 1;
+  }
 
-  revenueBySource.doctors = appointmentRevenue;
-  revenueBySource.pharmacies = pharmacyOrderRevenue;
-  revenueBySource.laboratories = labOrderRevenue;
+  // Build transactions list
+  const Patient = require('../../models/Patient');
+  const Doctor = require('../../models/Doctor');
+  const Pharmacy = require('../../models/Pharmacy');
+  const Laboratory = require('../../models/Laboratory');
 
-  // Revenue breakdown by type
-  const revenueBreakdownResult = await Transaction.aggregate([
-    {
-      $match: {
-        userType: 'admin',
-        type: 'payment',
-        status: 'completed',
-      },
-    },
-    {
-      $group: {
-        _id: '$category',
-        total: { $sum: '$amount' },
-      },
-    },
-  ]);
+  const transactions = [];
 
-  const revenueBreakdown = {
-    consultations: 0,
-    labOrders: 0,
-    pharmacyOrders: 0,
-    commissions: 0,
-  };
+  // Add appointment transactions
+  for (const appointment of appointments) {
+    if (!appointment.fee) continue;
 
-  revenueBreakdownResult.forEach((item) => {
-    if (item._id === 'consultation' || item._id === 'appointment') {
-      revenueBreakdown.consultations += item.total;
-    } else if (item._id === 'order') {
-      // We'll need to check if it's pharmacy or lab
-      revenueBreakdown.pharmacyOrders += item.total * 0.5;
-      revenueBreakdown.labOrders += item.total * 0.5;
-    } else if (item._id === 'medicine') {
-      revenueBreakdown.pharmacyOrders += item.total;
-    } else if (item._id === 'test') {
-      revenueBreakdown.labOrders += item.total;
-    } else if (item._id === 'other') {
-      revenueBreakdown.commissions += item.total;
+    const gbv = appointment.fee;
+    const { commission, earning } = calculateProviderEarning(gbv, 'doctor');
+
+    const doctor = appointment.doctorId;
+    const patient = appointment.patientId;
+
+    transactions.push({
+      type: 'Doctor',
+      provider: doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'Unknown Doctor',
+      patient: patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown Patient',
+      gbv,
+      commission,
+      payout: earning,
+      date: appointment.paidAt || appointment.createdAt || new Date(),
+      appointments: 1,
+      orders: 0,
+    });
+  }
+
+  // Add order transactions
+  for (const order of orders) {
+    if (!order.totalAmount) continue;
+
+    const gbv = order.totalAmount;
+    const providerType = order.providerType === 'laboratory' ? 'laboratory' : 'pharmacy';
+    const { commission, earning } = calculateProviderEarning(gbv, providerType);
+
+    let providerName = 'Unknown Provider';
+    if (order.providerId) {
+      if (providerType === 'laboratory') {
+        const lab = await Laboratory.findById(order.providerId).select('labName').lean();
+        providerName = lab ? lab.labName : 'Unknown Lab';
+      } else {
+        const pharmacy = await Pharmacy.findById(order.providerId).select('pharmacyName').lean();
+        providerName = pharmacy ? pharmacy.pharmacyName : 'Unknown Pharmacy';
+      }
     }
-  });
 
-  // Get more accurate breakdown
-  const [consultationRev, pharmacyOrderRev, labOrderRev] = await Promise.all([
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
-          category: { $in: ['appointment', 'consultation'] },
-        },
-      },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then((result) => result[0]?.total || 0),
-    
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
-          category: 'order',
-        },
-      },
-      {
-        $lookup: {
-          from: 'orders',
-          localField: 'orderId',
-          foreignField: '_id',
-          as: 'order',
-        },
-      },
-      { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
-      { $match: { 'order.providerType': 'pharmacy' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then((result) => result[0]?.total || 0),
-    
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
-          category: 'order',
-        },
-      },
-      {
-        $lookup: {
-          from: 'orders',
-          localField: 'orderId',
-          foreignField: '_id',
-          as: 'order',
-        },
-      },
-      { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
-      { $match: { 'order.providerType': 'laboratory' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then((result) => result[0]?.total || 0),
-  ]);
+    const patient = order.patientId;
 
-  revenueBreakdown.consultations = consultationRev;
-  revenueBreakdown.pharmacyOrders = pharmacyOrderRev;
-  revenueBreakdown.labOrders = labOrderRev;
+    transactions.push({
+      type: providerType === 'laboratory' ? 'Lab' : 'Pharmacy',
+      provider: providerName,
+      patient: patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown Patient',
+      gbv,
+      commission,
+      payout: earning,
+      date: order.createdAt,
+      appointments: 0,
+      orders: 1,
+    });
+  }
 
-  // Commission revenue (from type: 'commission')
-  const commissionRev = await Transaction.aggregate([
+  // Sort transactions by date (newest first)
+  transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // Calculate revenue contribution percentages
+  const totalRevenueForPie = doctorCommission + labCommission + pharmacyCommission;
+  const pieChartData = [
     {
-      $match: {
-        userType: 'admin',
-        type: 'commission',
-        status: 'completed',
-      },
+      label: 'Doctors',
+      value: totalRevenueForPie > 0 ? (doctorCommission / totalRevenueForPie) * 100 : 0,
+      amount: doctorCommission,
     },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
-  revenueBreakdown.commissions = commissionRev[0]?.total || 0;
+    {
+      label: 'Labs',
+      value: totalRevenueForPie > 0 ? (labCommission / totalRevenueForPie) * 100 : 0,
+      amount: labCommission,
+    },
+    {
+      label: 'Pharmacy',
+      value: totalRevenueForPie > 0 ? (pharmacyCommission / totalRevenueForPie) * 100 : 0,
+      amount: pharmacyCommission,
+    },
+  ];
 
-  // Monthly revenue for last 6 months
+  // Monthly revenue for line chart (last 6 months)
   const now = new Date();
   const monthlyRevenue = [];
   for (let i = 5; i >= 0; i--) {
@@ -390,101 +267,278 @@ exports.getRevenueOverview = asyncHandler(async (req, res) => {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
     monthEnd.setHours(23, 59, 59, 999);
 
-    const monthRevenueResult = await Transaction.aggregate([
+    // Get commission for this month
+    const monthAppointments = await Appointment.countDocuments({
+      paymentStatus: 'paid',
+      $or: [
+        { paidAt: { $gte: monthStart, $lte: monthEnd } },
+        { $and: [
+          { paidAt: { $exists: false } },
+          { createdAt: { $gte: monthStart, $lte: monthEnd } }
+        ]}
+      ]
+    });
+
+    const monthAppointmentFees = await Appointment.aggregate([
       {
         $match: {
-          userType: 'admin',
-          type: 'payment',
-          status: 'completed',
+          paymentStatus: 'paid',
+          $or: [
+            { paidAt: { $gte: monthStart, $lte: monthEnd } },
+            { $and: [
+              { paidAt: { $exists: false } },
+              { createdAt: { $gte: monthStart, $lte: monthEnd } }
+            ]}
+          ]
+        },
+      },
+      { $group: { _id: null, total: { $sum: '$fee' } } },
+    ]);
+
+    const monthOrders = await Order.aggregate([
+      {
+        $match: {
+          paymentStatus: 'paid',
           createdAt: { $gte: monthStart, $lte: monthEnd },
         },
       },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } },
     ]);
+
+    let monthCommission = 0;
+    if (monthAppointmentFees[0]?.total) {
+      const { commission } = calculateProviderEarning(monthAppointmentFees[0].total, 'doctor');
+      monthCommission += commission;
+    }
+    if (monthOrders[0]?.total) {
+      // Approximate split (can be improved)
+      const { commission: labComm } = calculateProviderEarning(monthOrders[0].total * 0.5, 'laboratory');
+      const { commission: pharmComm } = calculateProviderEarning(monthOrders[0].total * 0.5, 'pharmacy');
+      monthCommission += labComm + pharmComm;
+    }
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     monthlyRevenue.push({
       month: monthNames[monthStart.getMonth()],
-      revenue: monthRevenueResult[0]?.total || 0,
+      revenue: monthCommission,
     });
   }
 
-  // Recent transactions (last 10)
-  const recentTransactions = await Transaction.find({
-    userType: 'admin',
-    type: 'payment',
-    status: 'completed',
-  })
-    .populate('appointmentId', 'appointmentDate fee')
-    .populate('orderId', 'totalAmount status providerType')
-    .sort({ createdAt: -1 })
-    .limit(10)
-    .lean();
+  return res.status(200).json({
+    success: true,
+    data: {
+      // Summary cards
+      totalRevenue: totalCommission,
+      totalGBV,
+      totalPayouts: totalPayout,
+      transactionsCount,
 
-  // Enrich transactions with source information
-  const Patient = require('../../models/Patient');
+      // Revenue breakdown
+      revenueBreakdown: {
+        doctor: {
+          gbv: doctorGBV,
+          commission: doctorCommission,
+          payout: doctorPayout,
+          appointments: doctorAppointments,
+        },
+        lab: {
+          gbv: labGBV,
+          commission: labCommission,
+          payout: labPayout,
+          orders: labOrders,
+        },
+        pharmacy: {
+          gbv: pharmacyGBV,
+          commission: pharmacyCommission,
+          payout: pharmacyPayout,
+          orders: pharmacyOrders,
+        },
+      },
+
+      // Charts data
+      pieChartData,
+      monthlyRevenue,
+
+      // Transactions
+      transactions,
+    },
+  });
+});
+
+// GET /api/admin/revenue/providers/:type (doctor|lab|pharmacy)
+exports.getProviderRevenue = asyncHandler(async (req, res) => {
+  const { type } = req.params;
+  const { period = 'all' } = req.query;
+  const { startDate, endDate } = getDateRange(period);
+
+  if (!['doctor', 'lab', 'pharmacy'].includes(type)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid provider type. Must be doctor, lab, or pharmacy',
+    });
+  }
+
   const Doctor = require('../../models/Doctor');
   const Pharmacy = require('../../models/Pharmacy');
   const Laboratory = require('../../models/Laboratory');
 
-  const enrichedTransactions = await Promise.all(
-    recentTransactions.map(async (transaction) => {
-      const enriched = {
-        id: transaction._id.toString(),
-        type: transaction.category || 'other',
-        amount: transaction.amount,
-        date: transaction.createdAt,
-        status: transaction.status,
-        commission: 0, // Calculate commission if needed
-        source: '',
+  let providers = [];
+  let providerSummaries = [];
+
+  if (type === 'doctor') {
+    providers = await Doctor.find({ isActive: true })
+      .select('firstName lastName email specialty')
+      .lean();
+
+    // Get revenue for each doctor
+    for (const doctor of providers) {
+      const appointmentFilter = {
+        doctorId: doctor._id,
+        paymentStatus: 'paid',
+        ...(startDate && endDate ? {
+          $or: [
+            { paidAt: { $gte: startDate, $lte: endDate } },
+            { $and: [
+              { paidAt: { $exists: false } },
+              { createdAt: { $gte: startDate, $lte: endDate } }
+            ]}
+          ]
+        } : {}),
       };
 
-      // Determine source based on transaction
-      if (transaction.appointmentId) {
-        enriched.type = 'consultation';
-        if (transaction.metadata?.doctorId) {
-          const doctor = await Doctor.findById(transaction.metadata.doctorId).select('firstName lastName').lean();
-          enriched.source = doctor ? `Dr. ${doctor.firstName} ${doctor.lastName}` : 'Unknown Doctor';
-        }
-        // Calculate commission (e.g., 10% of appointment fee)
-        enriched.commission = transaction.amount * 0.1;
-      } else if (transaction.orderId) {
-        if (transaction.orderId.providerType === 'pharmacy') {
-          enriched.type = 'pharmacy';
-          if (transaction.metadata?.pharmacyId) {
-            const pharmacy = await Pharmacy.findById(transaction.metadata.pharmacyId).select('pharmacyName').lean();
-            enriched.source = pharmacy ? pharmacy.pharmacyName : 'Unknown Pharmacy';
-          }
-        } else if (transaction.orderId.providerType === 'laboratory') {
-          enriched.type = 'laboratory';
-          if (transaction.metadata?.laboratoryId) {
-            const lab = await Laboratory.findById(transaction.metadata.laboratoryId).select('labName').lean();
-            enriched.source = lab ? lab.labName : 'Unknown Laboratory';
-          }
-        }
-        // Calculate commission (e.g., 10% of order amount)
-        enriched.commission = transaction.amount * 0.1;
+      const appointments = await Appointment.find(appointmentFilter).lean();
+      
+      let gbv = 0;
+      let commission = 0;
+      let payout = 0;
+      let appointmentsCount = 0;
+
+      for (const apt of appointments) {
+        if (!apt.fee) continue;
+        const { commission: comm, earning } = calculateProviderEarning(apt.fee, 'doctor');
+        gbv += apt.fee;
+        commission += comm;
+        payout += earning;
+        appointmentsCount += 1;
       }
 
-      return enriched;
-    })
+      providerSummaries.push({
+        id: doctor._id.toString(),
+        name: `Dr. ${doctor.firstName} ${doctor.lastName}`,
+        email: doctor.email,
+        specialty: doctor.specialty,
+        gbv,
+        commission,
+        payout,
+        appointments: appointmentsCount,
+        transactions: appointmentsCount,
+      });
+    }
+  } else if (type === 'lab') {
+    providers = await Laboratory.find({ isActive: true })
+      .select('labName email')
+      .lean();
+
+    for (const lab of providers) {
+      const orderFilter = {
+        providerId: lab._id,
+        providerType: 'laboratory',
+        paymentStatus: 'paid',
+        ...(startDate && endDate ? {
+          createdAt: { $gte: startDate, $lte: endDate }
+        } : {}),
+      };
+
+      const orders = await Order.find(orderFilter).lean();
+      
+      let gbv = 0;
+      let commission = 0;
+      let payout = 0;
+      let ordersCount = 0;
+
+      for (const order of orders) {
+        if (!order.totalAmount) continue;
+        const { commission: comm, earning } = calculateProviderEarning(order.totalAmount, 'laboratory');
+        gbv += order.totalAmount;
+        commission += comm;
+        payout += earning;
+        ordersCount += 1;
+      }
+
+      providerSummaries.push({
+        id: lab._id.toString(),
+        name: lab.labName,
+        email: lab.email,
+        gbv,
+        commission,
+        payout,
+        orders: ordersCount,
+        transactions: ordersCount,
+      });
+    }
+  } else if (type === 'pharmacy') {
+    providers = await Pharmacy.find({ isActive: true })
+      .select('pharmacyName email')
+      .lean();
+
+    for (const pharmacy of providers) {
+      const orderFilter = {
+        providerId: pharmacy._id,
+        providerType: 'pharmacy',
+        paymentStatus: 'paid',
+        ...(startDate && endDate ? {
+          createdAt: { $gte: startDate, $lte: endDate }
+        } : {}),
+      };
+
+      const orders = await Order.find(orderFilter).lean();
+      
+      let gbv = 0;
+      let commission = 0;
+      let payout = 0;
+      let ordersCount = 0;
+
+      for (const order of orders) {
+        if (!order.totalAmount) continue;
+        const { commission: comm, earning } = calculateProviderEarning(order.totalAmount, 'pharmacy');
+        gbv += order.totalAmount;
+        commission += comm;
+        payout += earning;
+        ordersCount += 1;
+      }
+
+      providerSummaries.push({
+        id: pharmacy._id.toString(),
+        name: pharmacy.pharmacyName,
+        email: pharmacy.email,
+        gbv,
+        commission,
+        payout,
+        orders: ordersCount,
+        transactions: ordersCount,
+      });
+    }
+  }
+
+  // Calculate totals
+  const totals = providerSummaries.reduce(
+    (acc, provider) => ({
+      totalGBV: acc.totalGBV + provider.gbv,
+      totalCommission: acc.totalCommission + provider.commission,
+      totalPayout: acc.totalPayout + provider.payout,
+      totalAppointments: acc.totalAppointments + (provider.appointments || 0),
+      totalOrders: acc.totalOrders + (provider.orders || 0),
+      totalTransactions: acc.totalTransactions + provider.transactions,
+    }),
+    { totalGBV: 0, totalCommission: 0, totalPayout: 0, totalAppointments: 0, totalOrders: 0, totalTransactions: 0 }
   );
 
   return res.status(200).json({
     success: true,
     data: {
-      totalRevenue,
-      todayRevenue,
-      yesterdayRevenue,
-      thisWeekRevenue,
-      lastWeekRevenue,
-      thisMonthRevenue,
-      lastMonthRevenue,
-      revenueBySource,
-      revenueBreakdown,
-      monthlyRevenue,
-      recentTransactions: enrichedTransactions,
+      type,
+      totals,
+      providers: providerSummaries,
     },
   });
 });
-

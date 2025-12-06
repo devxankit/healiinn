@@ -3,11 +3,51 @@ const Session = require('../models/Session');
 const Doctor = require('../models/Doctor');
 
 /**
- * Calculate time difference in minutes between two time strings (HH:MM format)
+ * Convert 12-hour format to 24-hour format for calculation
+ */
+const convert12HourTo24Hour = (time12) => {
+  if (!time12) return '';
+  
+  // If already in 24-hour format (no AM/PM), return as is
+  if (!time12.toString().includes('AM') && !time12.toString().includes('PM')) {
+    return time12;
+  }
+  
+  const timeStr = time12.toString().trim();
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  
+  if (!match) return time12;
+  
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const period = match[3].toUpperCase();
+  
+  if (period === 'PM' && hours !== 12) {
+    hours += 12;
+  } else if (period === 'AM' && hours === 12) {
+    hours = 0;
+  }
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes}`;
+};
+
+/**
+ * Calculate time difference in minutes between two time strings
+ * Handles both 12-hour (HH:MM AM/PM) and 24-hour (HH:MM) formats
  */
 const timeToMinutes = (timeString) => {
   if (!timeString) return 0;
-  const [hours, minutes] = timeString.split(':').map(Number);
+  
+  // Convert to 24-hour format if needed
+  const time24 = convert12HourTo24Hour(timeString);
+  
+  // Extract hours and minutes
+  const [hours, minutes] = time24.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes)) {
+    console.error(`❌ Invalid time format: ${timeString}`);
+    return 0;
+  }
+  
   return hours * 60 + (minutes || 0);
 };
 

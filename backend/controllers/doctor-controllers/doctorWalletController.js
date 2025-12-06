@@ -122,8 +122,8 @@ exports.getWalletBalance = asyncHandler(async (req, res) => {
     allWithdrawalsCalcResult: allWithdrawalsCalc,
   });
 
-  // Calculate this month and last month earnings
-  const [thisMonthEarnings, lastMonthEarnings, totalTransactions] = await Promise.all([
+  // Calculate this month and last month earnings and withdrawals
+  const [thisMonthEarnings, lastMonthEarnings, thisMonthWithdrawals, totalTransactions] = await Promise.all([
     WalletTransaction.aggregate([
       {
         $match: {
@@ -148,6 +148,22 @@ exports.getWalletBalance = asyncHandler(async (req, res) => {
       },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]).then(result => result[0]?.total || 0),
+    // Calculate this month withdrawals from WithdrawalRequest model
+    WithdrawalRequest.aggregate([
+      {
+        $match: {
+          userId: doctorObjectId,
+          userType: 'doctor',
+          createdAt: { $gte: currentMonthStart },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]).then(result => result[0]?.total || 0),
     WalletTransaction.countDocuments({ userId: doctorObjectId, userType: 'doctor' }),
   ]);
   
@@ -167,6 +183,13 @@ exports.getWalletBalance = asyncHandler(async (req, res) => {
     })),
   });
 
+  console.log(`📊 Monthly stats:`, {
+    doctorId: doctorObjectId.toString(),
+    thisMonthEarnings,
+    thisMonthWithdrawals,
+    lastMonthEarnings,
+  });
+
   return res.status(200).json({
     success: true,
     data: {
@@ -178,6 +201,7 @@ exports.getWalletBalance = asyncHandler(async (req, res) => {
       totalEarnings,
       totalWithdrawals,
       thisMonthEarnings,
+      thisMonthWithdrawals, // Add this month withdrawals
       lastMonthEarnings,
       totalTransactions,
     },
@@ -196,12 +220,36 @@ exports.getEarnings = asyncHandler(async (req, res) => {
   const { dateFrom, dateTo } = req.query;
   const { page, limit, skip } = buildPagination(req);
 
-  const filter = {
+  // Calculate date ranges for aggregations
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  currentMonthStart.setHours(0, 0, 0, 0);
+  
+  const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  lastMonthStart.setHours(0, 0, 0, 0);
+  
+  const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+  lastMonthEnd.setHours(23, 59, 59, 999);
+  
+  const currentYearStart = new Date(today.getFullYear(), 0, 1);
+  currentYearStart.setHours(0, 0, 0, 0);
+  
+  const currentYearEnd = new Date(today.getFullYear(), 11, 31);
+  currentYearEnd.setHours(23, 59, 59, 999);
+
+  const baseFilter = {
     userId: doctorObjectId,
     userType: 'doctor',
     type: 'earning',
     status: 'completed',
   };
+
+  // Filter for earnings list (with optional date range)
+  const filter = { ...baseFilter };
   if (dateFrom || dateTo) {
     filter.createdAt = {};
     if (dateFrom) {
@@ -216,7 +264,16 @@ exports.getEarnings = asyncHandler(async (req, res) => {
     }
   }
 
-  const [earnings, total] = await Promise.all([
+  // Calculate aggregated totals
+  const [
+    earnings,
+    total,
+    totalEarnings,
+    todayEarnings,
+    thisMonthEarnings,
+    lastMonthEarnings,
+    thisYearEarnings,
+  ] = await Promise.all([
     WalletTransaction.find(filter)
       .populate('appointmentId', 'appointmentDate fee')
       .populate('orderId', 'totalAmount status')
@@ -224,18 +281,101 @@ exports.getEarnings = asyncHandler(async (req, res) => {
       .skip(skip)
       .limit(limit),
     WalletTransaction.countDocuments(filter),
+    // Total earnings (all time)
+    WalletTransaction.aggregate([
+      {
+        $match: baseFilter,
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]).then(result => result[0]?.total || 0),
+    // Today earnings
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          ...baseFilter,
+          createdAt: { $gte: today, $lt: tomorrow },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]).then(result => result[0]?.total || 0),
+    // This month earnings
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          ...baseFilter,
+          createdAt: { $gte: currentMonthStart },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]).then(result => result[0]?.total || 0),
+    // Last month earnings
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          ...baseFilter,
+          createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]).then(result => result[0]?.total || 0),
+    // This year earnings
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          ...baseFilter,
+          createdAt: { $gte: currentYearStart, $lte: currentYearEnd },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]).then(result => result[0]?.total || 0),
   ]);
 
-  console.log(`📊 Earnings fetched:`, {
+  console.log(`📊 Earnings fetched with totals:`, {
     doctorId: doctorObjectId.toString(),
     count: earnings.length,
     total,
+    totalEarnings,
+    todayEarnings,
+    thisMonthEarnings,
+    lastMonthEarnings,
+    thisYearEarnings,
   });
 
   return res.status(200).json({
     success: true,
     data: {
-      items: earnings,
+      totalEarnings,
+      todayEarnings,
+      thisMonthEarnings,
+      lastMonthEarnings,
+      thisYearEarnings,
+      earnings: earnings,
+      items: earnings, // Alias for compatibility
       pagination: {
         page,
         limit,
@@ -252,21 +392,33 @@ exports.getWithdrawals = asyncHandler(async (req, res) => {
   const { status } = req.query;
   const { page, limit, skip } = buildPagination(req);
 
+  // Convert id to ObjectId to ensure proper matching
+  const doctorObjectId = mongoose.Types.ObjectId.isValid(id) 
+    ? new mongoose.Types.ObjectId(id) 
+    : id;
+
   const filter = {
-    userId: id,
+    userId: doctorObjectId,
     userType: 'doctor',
-    type: 'withdrawal',
   };
   if (status) filter.status = status;
 
+  // Fetch withdrawal requests from WithdrawalRequest model (not WalletTransaction)
   const [withdrawals, total] = await Promise.all([
-    WalletTransaction.find(filter)
-      .populate('withdrawalRequestId')
+    WithdrawalRequest.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
-    WalletTransaction.countDocuments(filter),
+      .limit(limit)
+      .lean(),
+    WithdrawalRequest.countDocuments(filter),
   ]);
+
+  console.log(`📊 Withdrawals fetched:`, {
+    doctorId: doctorObjectId.toString(),
+    count: withdrawals.length,
+    total,
+    statuses: withdrawals.map(w => w.status),
+  });
 
   return res.status(200).json({
     success: true,
@@ -294,20 +446,49 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     });
   }
 
-  // Get current wallet balance
-  const latestTransaction = await WalletTransaction.findOne({
-    userId: id,
+  // Convert id to ObjectId to ensure proper matching
+  const doctorObjectId = mongoose.Types.ObjectId.isValid(id) 
+    ? new mongoose.Types.ObjectId(id) 
+    : id;
+
+  // Calculate balance from all transactions (same logic as getWalletBalance)
+  const [allEarningsCalc, allWithdrawalsCalc, pendingWithdrawals] = await Promise.all([
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          userId: doctorObjectId,
+          userType: 'doctor',
+          type: 'earning',
+          status: 'completed',
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]),
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          userId: doctorObjectId,
     userType: 'doctor',
+          type: 'withdrawal',
     status: 'completed',
-  }).sort({ createdAt: -1 });
-
-  const balance = latestTransaction?.balance || 0;
-
-  // Calculate available balance (excluding pending withdrawals)
-  const pendingWithdrawals = await WithdrawalRequest.aggregate([
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]),
+    WithdrawalRequest.aggregate([
     {
       $match: {
-        userId: id,
+          userId: doctorObjectId,
         userType: 'doctor',
         status: { $in: ['pending', 'approved'] },
       },
@@ -318,10 +499,23 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
         total: { $sum: '$amount' },
       },
     },
+    ]),
   ]);
 
+  // Calculate balance from transactions
+  const balance = (allEarningsCalc[0]?.total || 0) - (allWithdrawalsCalc[0]?.total || 0);
   const pendingAmount = pendingWithdrawals[0]?.total || 0;
   const availableBalance = Math.max(0, balance - pendingAmount);
+
+  console.log(`💰 Withdrawal balance check:`, {
+    doctorId: doctorObjectId.toString(),
+    totalEarnings: allEarningsCalc[0]?.total || 0,
+    totalWithdrawals: allWithdrawalsCalc[0]?.total || 0,
+    balance,
+    pendingAmount,
+    availableBalance,
+    requestedAmount: amount,
+  });
 
   if (amount > availableBalance) {
     return res.status(400).json({
@@ -352,26 +546,106 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     });
   }
 
-  // Create withdrawal request
+  // Map paymentMethod to payoutMethod format expected by model
+  let payoutMethod = {};
+  
+  if (paymentMethod === 'bank') {
+    payoutMethod = {
+      type: 'bank_transfer',
+      details: {
+        accountNumber: bankAccount?.accountNumber || '',
+        ifscCode: bankAccount?.ifscCode || '',
+        accountHolderName: bankAccount?.accountHolderName || '',
+      },
+    };
+  } else if (paymentMethod === 'upi') {
+    payoutMethod = {
+      type: 'upi',
+      details: {
+        upiId: upiId || '',
+      },
+    };
+  } else if (paymentMethod === 'wallet') {
+    payoutMethod = {
+      type: 'paytm',
+      details: {
+        paytmNumber: walletNumber || '',
+      },
+    };
+  } else {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid payment method',
+    });
+  }
+
+  // Create withdrawal request with proper payoutMethod structure
   const withdrawalRequest = await WithdrawalRequest.create({
     userId: id,
     userType: 'doctor',
     amount,
-    paymentMethod,
-    bankAccount: paymentMethod === 'bank' ? bankAccount : null,
-    upiId: paymentMethod === 'upi' ? upiId : null,
-    walletNumber: paymentMethod === 'wallet' ? walletNumber : null,
+    payoutMethod,
     status: 'pending',
   });
 
-  // Send notification to admin
+  // Get doctor data
+  const doctor = await Doctor.findById(id);
+
+  // Emit real-time event to admins
   try {
-    await sendWithdrawalRequestNotification({
-      withdrawalRequest,
-      doctor: await Doctor.findById(id),
+    const { getIO } = require('../../config/socket');
+    const io = getIO();
+    io.to('admins').emit('withdrawal:requested', {
+      withdrawal: await WithdrawalRequest.findById(withdrawalRequest._id)
+        .populate('userId', 'firstName lastName email phone'),
     });
   } catch (error) {
-    console.error('Error sending withdrawal request notification:', error);
+    console.error('Socket.IO error:', error);
+  }
+
+  // Send email notification to doctor
+  try {
+    await sendWithdrawalRequestNotification({
+      provider: doctor,
+      withdrawal: withdrawalRequest,
+      providerType: 'doctor',
+    }).catch((error) => console.error('Error sending withdrawal request email:', error));
+  } catch (error) {
+    console.error('Error sending email notifications:', error);
+  }
+
+  // Create in-app notifications
+  try {
+    const { createWalletNotification, createAdminNotification } = require('../../services/notificationService');
+
+    // Notify doctor
+    await createWalletNotification({
+      userId: id,
+      userType: 'doctor',
+      amount,
+      eventType: 'withdrawal_requested',
+      withdrawal: withdrawalRequest,
+    }).catch((error) => console.error('Error creating doctor withdrawal notification:', error));
+
+    // Notify all admins
+    const Admin = require('../../models/Admin');
+    const admins = await Admin.find({});
+    for (const admin of admins) {
+      await createAdminNotification({
+        userId: admin._id,
+        userType: 'admin',
+        eventType: 'withdrawal_requested',
+        data: {
+          withdrawalId: withdrawalRequest._id,
+          doctorId: id,
+          amount,
+          payoutMethod: payoutMethod.type,
+        },
+        actionUrl: `/admin/wallet/withdrawals/${withdrawalRequest._id}`,
+      }).catch((error) => console.error('Error creating admin withdrawal notification:', error));
+    }
+  } catch (error) {
+    console.error('Error creating notifications:', error);
   }
 
   return res.status(201).json({

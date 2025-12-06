@@ -435,12 +435,27 @@ export const resetPassword = async (data) => {
 
 /**
  * Get revenue overview
+ * @param {string} period - 'today', 'week', 'month', 'year', or 'all'
  */
-export const getRevenueOverview = async () => {
+export const getRevenueOverview = async (period = 'all') => {
   try {
-    return await apiClient.get('/admin/revenue')
+    return await apiClient.get(`/admin/revenue?period=${period}`)
   } catch (error) {
     console.error('Error fetching revenue overview:', error)
+    throw error
+  }
+}
+
+/**
+ * Get provider revenue details
+ * @param {string} type - 'doctor', 'lab', or 'pharmacy'
+ * @param {string} period - 'today', 'week', 'month', 'year', or 'all'
+ */
+export const getProviderRevenue = async (type, period = 'all') => {
+  try {
+    return await apiClient.get(`/admin/revenue/providers/${type}?period=${period}`)
+  } catch (error) {
+    console.error('Error fetching provider revenue:', error)
     throw error
   }
 }
@@ -750,11 +765,12 @@ export const respondToSupportTicket = async (ticketId, responseData) => {
  * Update support ticket status
  * @param {string} ticketId - Ticket ID
  * @param {string} status - New status (open, in_progress, resolved, closed)
+ * @param {string} adminNote - Optional admin note
  * @returns {Promise<object>} Response data
  */
-export const updateSupportTicketStatus = async (ticketId, status) => {
+export const updateSupportTicketStatus = async (ticketId, status, adminNote = '') => {
   try {
-    return await apiClient.patch(`/admin/support/${ticketId}/status`, { status })
+    return await apiClient.patch(`/admin/support/${ticketId}/status`, { status, adminNote })
   } catch (error) {
     console.error('Error updating support ticket status:', error)
     throw error

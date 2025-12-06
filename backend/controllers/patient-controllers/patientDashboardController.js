@@ -5,6 +5,8 @@ const Prescription = require('../../models/Prescription');
 const LabReport = require('../../models/LabReport');
 const Transaction = require('../../models/Transaction');
 const Request = require('../../models/Request');
+const Session = require('../../models/Session');
+const { calculateQueueETAs } = require('../../services/etaService');
 
 // GET /api/patients/dashboard
 exports.getDashboard = asyncHandler(async (req, res) => {
@@ -36,7 +38,8 @@ exports.getDashboard = asyncHandler(async (req, res) => {
       appointmentDate: { $gte: today },
       status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
     })
-      .populate('doctorId', 'firstName lastName specialization profileImage consultationFee rating')
+      .populate('doctorId', 'firstName lastName specialization profileImage consultationFee rating clinicDetails')
+      .populate('sessionId', 'date sessionStartTime sessionEndTime')
       .sort({ appointmentDate: 1 })
       .limit(5),
     // Total orders
@@ -73,13 +76,27 @@ exports.getDashboard = asyncHandler(async (req, res) => {
     // Recommended doctors (top rated, approved)
     require('../../models/Doctor')
       .find({ status: 'approved', isActive: true })
-      .select('firstName lastName specialization profileImage consultationFee rating')
+      .select('firstName lastName specialization profileImage consultationFee rating clinicDetails reviewCount')
       .sort({ rating: -1 })
       .limit(5),
   ]);
 
-  // Transform upcoming appointments
-  const transformedUpcomingAppointments = upcomingAppointments.map(apt => ({
+  // Transform upcoming appointments with full data including location
+  const transformedUpcomingAppointments = upcomingAppointments.map(apt => {
+    // Format clinic address
+    const formatFullAddress = (clinicDetails) => {
+      if (!clinicDetails?.address) return null;
+      const addr = clinicDetails.address;
+      const parts = [];
+      if (addr.line1) parts.push(addr.line1);
+      if (addr.line2) parts.push(addr.line2);
+      if (addr.city) parts.push(addr.city);
+      if (addr.state) parts.push(addr.state);
+      if (addr.pincode || addr.postalCode) parts.push(addr.pincode || addr.postalCode);
+      return parts.join(', ').trim();
+    };
+
+    return {
     _id: apt._id,
     id: apt._id,
     doctorId: apt.doctorId?._id || apt.doctorId,
@@ -89,14 +106,74 @@ exports.getDashboard = asyncHandler(async (req, res) => {
     doctorSpecialty: apt.doctorId?.specialization || apt.doctorId?.specialty || 'General',
     doctorImage: apt.doctorId?.profileImage || null,
     appointmentDate: apt.appointmentDate,
-    appointmentTime: apt.appointmentTime,
+      appointmentTime: apt.time || apt.appointmentTime,
     status: apt.status,
     consultationFee: apt.doctorId?.consultationFee || 0,
-    type: apt.type || 'in_person',
-  }));
+      type: apt.appointmentType || apt.type || 'in_person',
+      clinic: apt.doctorId?.clinicDetails?.name || null,
+      location: formatFullAddress(apt.doctorId?.clinicDetails) || null,
+      tokenNumber: apt.tokenNumber || null,
+      fee: apt.fee || apt.doctorId?.consultationFee || 0,
+    };
+  });
 
-  // Transform recommended doctors
-  const transformedDoctors = recommendedDoctors.map(doctor => ({
+  // Transform recommended doctors with session/token info
+  // Reuse today variable from above (already set at line 14)
+  const todayEnd = new Date(today);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const transformedDoctors = await Promise.all(
+    recommendedDoctors.map(async (doctor) => {
+      // Get today's session for this doctor
+      const todaySession = await Session.findOne({
+        doctorId: doctor._id,
+        date: { $gte: today, $lt: todayEnd },
+        status: { $in: ['scheduled', 'live', 'paused'] },
+      });
+
+      let currentToken = 0;
+      let isServing = false;
+      let eta = null;
+      let nextToken = null;
+
+      if (todaySession) {
+        currentToken = todaySession.currentToken || 0;
+        isServing = todaySession.status === 'live' && !todaySession.isPaused;
+        
+        // Calculate next token number if slots available
+        if (todaySession.currentToken < todaySession.maxTokens) {
+          nextToken = todaySession.currentToken + 1;
+          
+          // Calculate ETA for next patient
+          const etas = await calculateQueueETAs(todaySession._id);
+          const nextPatient = etas.find(e => e.patientsAhead === 0);
+          if (nextPatient) {
+            eta = `${nextPatient.estimatedWaitMinutes} min`;
+          }
+        }
+      }
+
+      // Format full address
+      const formatFullAddress = (clinicDetails) => {
+        if (!clinicDetails) return null;
+        
+        const parts = [];
+        if (clinicDetails.name) parts.push(clinicDetails.name);
+        
+        if (clinicDetails.address) {
+          const addr = clinicDetails.address;
+          if (addr.line1) parts.push(addr.line1);
+          if (addr.line2) parts.push(addr.line2);
+          if (addr.city) parts.push(addr.city);
+          if (addr.state) parts.push(addr.state);
+          if (addr.postalCode) parts.push(addr.postalCode);
+          if (addr.country) parts.push(addr.country);
+        }
+        
+        return parts.length > 0 ? parts.join(', ') : null;
+      };
+
+      return {
     _id: doctor._id,
     id: doctor._id,
     firstName: doctor.firstName,
@@ -107,7 +184,16 @@ exports.getDashboard = asyncHandler(async (req, res) => {
     profileImage: doctor.profileImage,
     consultationFee: doctor.consultationFee,
     rating: doctor.rating || 0,
-  }));
+        reviewCount: doctor.reviewCount || 0,
+        clinicName: doctor.clinicDetails?.name || null,
+        clinicAddress: formatFullAddress(doctor.clinicDetails),
+        isServing,
+        currentToken,
+        nextToken,
+        eta,
+      };
+    })
+  );
 
   // Transform recent orders
   const transformedRecentOrders = recentOrders.map(order => ({

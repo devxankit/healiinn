@@ -152,19 +152,41 @@ const AdminWallet = () => {
           const withdrawalsData = withdrawalsResponse.success && withdrawalsResponse.data
             ? (Array.isArray(withdrawalsResponse.data) 
                 ? withdrawalsResponse.data 
-                : withdrawalsResponse.data.withdrawals || [])
+                : withdrawalsResponse.data.items || withdrawalsResponse.data.withdrawals || [])
             : []
           
+          // Backend now returns:
+          // totalCommission = Admin's total commission (Total Platform Earnings)
+          // availableBalance = Commission - Money already paid out (Available Balance)
+          // pendingWithdrawals = Pending withdrawal requests (Pending)
           setWalletOverview({
-            totalEarnings: overview.totalEarnings || 0,
-            totalCommission: overview.totalCommission || (overview.totalPatientPayments || 0) - (overview.totalEarnings || 0),
-            availableBalance: overview.adminWalletBalance || overview.availableBalance || 0,
+            // Total Platform Earnings = Admin's Commission
+            totalEarnings: overview.totalCommission || 0,
+            totalCommission: overview.totalCommission || 0,
+            // Available Balance = Commission - Paid Out
+            availableBalance: overview.availableBalance || 0,
+            // Pending = Pending withdrawal requests
             pendingWithdrawals: overview.pendingWithdrawals || 0,
+            // Monthly commission
             thisMonthEarnings: overview.thisMonthEarnings || 0,
             lastMonthEarnings: overview.lastMonthEarnings || 0,
-            totalWithdrawals: overview.totalWithdrawals || 0,
-            pendingWithdrawalRequests: withdrawalsData.filter(w => (w.status || w.originalData?.status) === 'pending').length,
+            // Total paid out to providers
+            totalWithdrawals: overview.totalPaidOut || 0,
+            // Count of pending withdrawal requests
+            pendingWithdrawalRequests: withdrawalsData.filter(w => {
+              const status = w.status || w.originalData?.status
+              return status === 'pending'
+            }).length,
             totalTransactions: overview.totalTransactions || 0,
+          })
+          
+          console.log('💰 Admin Wallet Overview:', {
+            totalCommission: overview.totalCommission,
+            availableBalance: overview.availableBalance,
+            pendingWithdrawals: overview.pendingWithdrawals,
+            totalPaidOut: overview.totalPaidOut,
+            totalPatientPayments: overview.totalPatientPayments,
+            totalEarnings: overview.totalEarnings,
           })
         }
         
@@ -173,6 +195,19 @@ const AdminWallet = () => {
           // Backend returns data directly as array, not wrapped in summaries
           const summaries = Array.isArray(providersData) ? providersData : providersData.summaries || providersData.data || []
           
+          console.log('📊 Provider Summaries from Backend:', {
+            count: summaries.length,
+            sample: summaries[0],
+            allProviders: summaries.map(p => ({
+              name: p.name,
+              totalEarnings: p.totalEarnings,
+              availableBalance: p.availableBalance,
+              pendingBalance: p.pendingBalance,
+              totalWithdrawals: p.totalWithdrawals,
+              balance: p.balance,
+            })),
+          })
+          
           // Group by role
           const grouped = {
             doctors: summaries.filter(p => p.role === 'doctor' || p.type === 'doctor').map(p => ({
@@ -180,7 +215,7 @@ const AdminWallet = () => {
               name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
               email: p.email || '',
               totalEarnings: p.totalEarnings || 0,
-              availableBalance: p.availableBalance || p.balance || 0,
+              availableBalance: p.availableBalance || 0, // Use availableBalance directly, don't fallback to balance
               pendingBalance: p.pendingBalance || 0,
               totalWithdrawals: p.totalWithdrawals || 0,
               totalTransactions: p.totalTransactions || 0,
@@ -191,7 +226,7 @@ const AdminWallet = () => {
               name: p.name || p.pharmacyName || '',
               email: p.email || '',
               totalEarnings: p.totalEarnings || 0,
-              availableBalance: p.availableBalance || p.balance || 0,
+              availableBalance: p.availableBalance || 0, // Use availableBalance directly
               pendingBalance: p.pendingBalance || 0,
               totalWithdrawals: p.totalWithdrawals || 0,
               totalTransactions: p.totalTransactions || 0,
@@ -202,7 +237,7 @@ const AdminWallet = () => {
               name: p.name || p.labName || '',
               email: p.email || '',
               totalEarnings: p.totalEarnings || 0,
-              availableBalance: p.availableBalance || p.balance || 0,
+              availableBalance: p.availableBalance || 0, // Use availableBalance directly
               pendingBalance: p.pendingBalance || 0,
               totalWithdrawals: p.totalWithdrawals || 0,
               totalTransactions: p.totalTransactions || 0,
@@ -214,28 +249,111 @@ const AdminWallet = () => {
         }
         
         if (withdrawalsResponse.success && withdrawalsResponse.data) {
-          const withdrawalsData = Array.isArray(withdrawalsResponse.data) 
-            ? withdrawalsResponse.data 
-            : withdrawalsResponse.data.withdrawals || []
-          setWithdrawals(withdrawalsData.map(wd => ({
-            id: wd._id || wd.id,
-            providerName: wd.providerId?.name || wd.providerName || 'Provider',
-            providerType: wd.providerType || 'doctor',
-            providerEmail: wd.providerId?.email || wd.providerEmail || '',
-            amount: wd.amount || 0,
-            status: wd.status || 'pending',
-            requestedAt: wd.createdAt || wd.requestedAt || new Date().toISOString(),
-            payoutMethod: wd.paymentMethod || 'Bank Transfer',
-            accountNumber: wd.bankAccount?.accountNumber || wd.accountNumber || '****',
-            bankName: wd.bankAccount?.bankName || wd.bankName || '',
-            ifscCode: wd.bankAccount?.ifscCode || wd.ifscCode || '',
-            accountHolderName: wd.bankAccount?.accountHolderName || wd.accountHolderName || '',
-            availableBalance: wd.availableBalance || 0,
-            totalEarnings: wd.totalEarnings || 0,
-            totalWithdrawals: wd.totalWithdrawals || 0,
-            transactionId: wd.transactionId || wd._id || wd.id,
-            originalData: wd,
-          })))
+          // Backend returns: { success: true, data: { items: [...], pagination: {...} } }
+          let withdrawalsData = []
+          if (Array.isArray(withdrawalsResponse.data)) {
+            withdrawalsData = withdrawalsResponse.data
+          } else if (withdrawalsResponse.data?.items) {
+            withdrawalsData = withdrawalsResponse.data.items
+          } else if (withdrawalsResponse.data?.withdrawals) {
+            withdrawalsData = withdrawalsResponse.data.withdrawals
+          }
+          
+          if (withdrawalsData.length === 0) {
+            setWithdrawals([])
+          } else {
+            setWithdrawals(withdrawalsData.map(wd => {
+              console.log('🔍 Processing withdrawal:', {
+                _id: wd._id,
+                userType: wd.userType,
+                userId: wd.userId,
+                userIdType: typeof wd.userId,
+                userIdIsObject: wd.userId && typeof wd.userId === 'object',
+                userIdKeys: wd.userId ? Object.keys(wd.userId) : [],
+              })
+              
+              // Extract provider info from userId (populated by backend)
+              let providerName = 'Provider'
+              let providerEmail = ''
+              let providerPhone = ''
+              let providerId = null
+              
+              if (wd.userId) {
+                if (typeof wd.userId === 'object' && (wd.userId._id || wd.userId.id)) {
+                  // userId is populated object
+                  providerId = wd.userId._id || wd.userId.id
+                  providerEmail = wd.userId.email || ''
+                  providerPhone = wd.userId.phone || ''
+                  
+                  if (wd.userType === 'doctor') {
+                    const firstName = wd.userId.firstName || ''
+                    const lastName = wd.userId.lastName || ''
+                    providerName = `${firstName} ${lastName}`.trim()
+                    if (!providerName) {
+                      // Fallback to email username if name is empty
+                      providerName = wd.userId.email?.split('@')[0] || 'Doctor'
+                    }
+                  } else if (wd.userType === 'pharmacy') {
+                    providerName = wd.userId.pharmacyName || wd.userId.ownerName || 'Pharmacy'
+                  } else if (wd.userType === 'laboratory') {
+                    providerName = wd.userId.labName || wd.userId.ownerName || 'Laboratory'
+                  }
+                  
+                  console.log('✅ Extracted provider data:', {
+                    providerName,
+                    providerEmail,
+                    providerPhone,
+                    providerId,
+                  })
+                } else if (typeof wd.userId === 'string') {
+                  // userId is just ObjectId string (not populated)
+                  providerId = wd.userId
+                  console.warn('⚠️ Withdrawal userId not populated, only ObjectId:', providerId)
+                }
+              } else {
+                console.warn('⚠️ Withdrawal has no userId:', wd._id)
+              }
+              
+              // Extract payout method
+              let payoutMethodText = 'Bank Transfer'
+              if (wd.payoutMethod) {
+                if (wd.payoutMethod.type === 'bank_transfer') {
+                  payoutMethodText = 'Bank Transfer'
+                } else if (wd.payoutMethod.type === 'upi') {
+                  payoutMethodText = 'UPI'
+                } else if (wd.payoutMethod.type === 'paytm') {
+                  payoutMethodText = 'Paytm'
+                }
+              }
+              
+              return {
+                id: wd._id || wd.id,
+                providerName: providerName,
+                providerType: wd.userType || 'doctor',
+                providerEmail: providerEmail,
+                providerPhone: providerPhone,
+                providerId: providerId,
+                amount: wd.amount || 0,
+                status: wd.status || 'pending',
+                requestedAt: wd.createdAt || wd.requestedAt || new Date().toISOString(),
+                payoutMethod: payoutMethodText,
+                accountNumber: wd.payoutMethod?.details?.accountNumber || '****',
+                bankName: wd.payoutMethod?.details?.bankName || '',
+                ifscCode: wd.payoutMethod?.details?.ifscCode || '',
+                accountHolderName: wd.payoutMethod?.details?.accountHolderName || '',
+                upiId: wd.payoutMethod?.details?.upiId || '',
+                paytmNumber: wd.payoutMethod?.details?.paytmNumber || '',
+                availableBalance: wd.availableBalance || 0,
+                totalEarnings: wd.totalEarnings || 0,
+                totalWithdrawals: wd.totalWithdrawals || 0,
+                transactionId: wd.transactionId || wd._id || wd.id,
+                rejectionReason: wd.rejectionReason || '',
+                originalData: wd,
+              }
+            }))
+          }
+        } else {
+          setWithdrawals([])
         }
         
         console.log('🔍 Full admin transactions API response:', transactionsResponse) // Debug log
@@ -328,53 +446,119 @@ const AdminWallet = () => {
 
   const handleApprove = async (withdrawalId) => {
     try {
-      await updateWithdrawalStatus(withdrawalId, { status: 'approved' })
+      // Set status to 'paid' to process the payment
+      await updateWithdrawalStatus(withdrawalId, { status: 'paid' })
       
-      // Update local state
-      setWithdrawals(prev => prev.map(wd => 
-        wd.id === withdrawalId ? { ...wd, status: 'approved' } : wd
-      ))
+      toast.success('Withdrawal processed and paid successfully!')
       
-      toast.success('Withdrawal approved successfully!')
-      
-      // Refresh wallet data
-      const [overviewResponse, withdrawalsResponse] = await Promise.all([
+      // Refresh all wallet data to update balances
+      const [overviewResponse, withdrawalsResponse, providersResponse] = await Promise.all([
         getAdminWalletOverview(),
         getWithdrawals(),
+        getProviderSummaries(),
       ])
       
       if (overviewResponse.success && overviewResponse.data) {
         const overview = overviewResponse.data
-        setWalletOverview(prev => ({
-          ...prev,
+        setWalletOverview({
+          // Total Platform Earnings = Admin's Commission
+          totalEarnings: overview.totalCommission || 0,
+          totalCommission: overview.totalCommission || 0,
+          // Available Balance = Commission - Paid Out (should decrease after payment)
+          availableBalance: overview.availableBalance || 0,
+          // Pending = Pending withdrawal requests (should decrease after payment)
           pendingWithdrawals: overview.pendingWithdrawals || 0,
-          pendingWithdrawalRequests: overview.pendingWithdrawalRequests || withdrawalsResponse.data?.filter(w => w.status === 'pending').length || 0,
-        }))
+          // Monthly commission
+          thisMonthEarnings: overview.thisMonthEarnings || 0,
+          lastMonthEarnings: overview.lastMonthEarnings || 0,
+          // Total paid out to providers (should increase after payment)
+          totalWithdrawals: overview.totalPaidOut || 0,
+          // Count of pending withdrawal requests
+          pendingWithdrawalRequests: withdrawalsResponse.success && withdrawalsResponse.data
+            ? (Array.isArray(withdrawalsResponse.data) 
+                ? withdrawalsResponse.data 
+                : withdrawalsResponse.data.items || [])
+                .filter(w => (w.status || w.originalData?.status) === 'pending').length
+            : 0,
+          totalTransactions: overview.totalTransactions || 0,
+        })
       }
       
       if (withdrawalsResponse.success && withdrawalsResponse.data) {
-        const withdrawalsData = Array.isArray(withdrawalsResponse.data) 
-          ? withdrawalsResponse.data 
-          : withdrawalsResponse.data.withdrawals || []
-        setWithdrawals(withdrawalsData.map(wd => ({
-          id: wd._id || wd.id,
-          providerName: wd.providerId?.name || wd.providerName || 'Provider',
-          providerType: wd.providerType || 'doctor',
-          providerEmail: wd.providerId?.email || wd.providerEmail || '',
-          amount: wd.amount || 0,
-          status: wd.status || 'pending',
-          requestedAt: wd.createdAt || wd.requestedAt || new Date().toISOString(),
-          payoutMethod: wd.paymentMethod || 'Bank Transfer',
-          accountNumber: wd.bankAccount?.accountNumber || wd.accountNumber || '****',
-          bankName: wd.bankAccount?.bankName || wd.bankName || '',
-          ifscCode: wd.bankAccount?.ifscCode || wd.ifscCode || '',
-          accountHolderName: wd.bankAccount?.accountHolderName || wd.accountHolderName || '',
-          availableBalance: wd.availableBalance || 0,
-          totalEarnings: wd.totalEarnings || 0,
-          totalWithdrawals: wd.totalWithdrawals || 0,
-          transactionId: wd.transactionId || wd._id || wd.id,
-          originalData: wd,
-        })))
+        // Backend returns: { success: true, data: { items: [...], pagination: {...} } }
+        let withdrawalsData = []
+        if (Array.isArray(withdrawalsResponse.data)) {
+          withdrawalsData = withdrawalsResponse.data
+        } else if (withdrawalsResponse.data?.items) {
+          withdrawalsData = withdrawalsResponse.data.items
+        } else if (withdrawalsResponse.data?.withdrawals) {
+          withdrawalsData = withdrawalsResponse.data.withdrawals
+        }
+        
+        setWithdrawals(withdrawalsData.map(wd => {
+          // Extract provider info from userId (populated by backend)
+          let providerName = 'Provider'
+          let providerEmail = ''
+          let providerPhone = ''
+          let providerId = null
+          
+          if (wd.userId) {
+            if (typeof wd.userId === 'object' && wd.userId._id) {
+              providerId = wd.userId._id
+              providerEmail = wd.userId.email || ''
+              providerPhone = wd.userId.phone || ''
+              
+              if (wd.userType === 'doctor') {
+                const firstName = wd.userId.firstName || ''
+                const lastName = wd.userId.lastName || ''
+                providerName = `${firstName} ${lastName}`.trim() || 'Doctor'
+              } else if (wd.userType === 'pharmacy') {
+                providerName = wd.userId.pharmacyName || wd.userId.ownerName || 'Pharmacy'
+              } else if (wd.userType === 'laboratory') {
+                providerName = wd.userId.labName || wd.userId.ownerName || 'Laboratory'
+              }
+            } else if (typeof wd.userId === 'string') {
+              providerId = wd.userId
+            }
+          }
+          
+          // Extract payout method
+          let payoutMethodText = 'Bank Transfer'
+          if (wd.payoutMethod) {
+            if (wd.payoutMethod.type === 'bank_transfer') {
+              payoutMethodText = 'Bank Transfer'
+            } else if (wd.payoutMethod.type === 'upi') {
+              payoutMethodText = 'UPI'
+            } else if (wd.payoutMethod.type === 'paytm') {
+              payoutMethodText = 'Paytm'
+            }
+          }
+          
+          return {
+            id: wd._id || wd.id,
+            providerName: providerName,
+            providerType: wd.userType || 'doctor',
+            providerEmail: providerEmail,
+            providerPhone: providerPhone,
+            providerId: providerId,
+            amount: wd.amount || 0,
+            status: wd.status || 'pending',
+            requestedAt: wd.createdAt || wd.requestedAt || new Date().toISOString(),
+            payoutMethod: payoutMethodText,
+            accountNumber: wd.payoutMethod?.details?.accountNumber || '****',
+            bankName: wd.payoutMethod?.details?.bankName || '',
+            ifscCode: wd.payoutMethod?.details?.ifscCode || '',
+            accountHolderName: wd.payoutMethod?.details?.accountHolderName || '',
+            upiId: wd.payoutMethod?.details?.upiId || '',
+            paytmNumber: wd.payoutMethod?.details?.paytmNumber || '',
+            availableBalance: wd.availableBalance || 0,
+            totalEarnings: wd.totalEarnings || 0,
+            totalWithdrawals: wd.totalWithdrawals || 0,
+            transactionId: wd.transactionId || wd._id || wd.id,
+            rejectionReason: wd.rejectionReason || '',
+            originalData: wd,
+          }
+        }))
       }
     } catch (err) {
       console.error('Error approving withdrawal:', err)
@@ -420,6 +604,108 @@ const AdminWallet = () => {
           : w
       ))
 
+      toast.success('Withdrawal rejected successfully!')
+      setShowRejectModal(false)
+      setRejectingWithdrawalId(null)
+      setRejectionReason('')
+      
+      // Refresh wallet data to update pending count
+      const [overviewResponse, withdrawalsResponse] = await Promise.all([
+        getAdminWalletOverview(),
+        getWithdrawals(),
+      ])
+      
+      if (overviewResponse.success && overviewResponse.data) {
+        const overview = overviewResponse.data
+        setWalletOverview(prev => ({
+          ...prev,
+          pendingWithdrawals: overview.pendingWithdrawals || 0,
+          pendingWithdrawalRequests: withdrawalsResponse.success && withdrawalsResponse.data
+            ? (Array.isArray(withdrawalsResponse.data) 
+                ? withdrawalsResponse.data 
+                : withdrawalsResponse.data.items || [])
+                .filter(w => (w.status || w.originalData?.status) === 'pending').length
+            : 0,
+        }))
+      }
+      
+      if (withdrawalsResponse.success && withdrawalsResponse.data) {
+        // Backend returns: { success: true, data: { items: [...], pagination: {...} } }
+        let withdrawalsData = []
+        if (Array.isArray(withdrawalsResponse.data)) {
+          withdrawalsData = withdrawalsResponse.data
+        } else if (withdrawalsResponse.data?.items) {
+          withdrawalsData = withdrawalsResponse.data.items
+        } else if (withdrawalsResponse.data?.withdrawals) {
+          withdrawalsData = withdrawalsResponse.data.withdrawals
+        }
+        
+        setWithdrawals(withdrawalsData.map(wd => {
+          // Extract provider info from userId (populated by backend)
+          let providerName = 'Provider'
+          let providerEmail = ''
+          let providerPhone = ''
+          let providerId = null
+          
+          if (wd.userId) {
+            if (typeof wd.userId === 'object' && wd.userId._id) {
+              providerId = wd.userId._id
+              providerEmail = wd.userId.email || ''
+              providerPhone = wd.userId.phone || ''
+              
+              if (wd.userType === 'doctor') {
+                const firstName = wd.userId.firstName || ''
+                const lastName = wd.userId.lastName || ''
+                providerName = `${firstName} ${lastName}`.trim() || 'Doctor'
+              } else if (wd.userType === 'pharmacy') {
+                providerName = wd.userId.pharmacyName || wd.userId.ownerName || 'Pharmacy'
+              } else if (wd.userType === 'laboratory') {
+                providerName = wd.userId.labName || wd.userId.ownerName || 'Laboratory'
+              }
+            } else if (typeof wd.userId === 'string') {
+              providerId = wd.userId
+            }
+          }
+          
+          // Extract payout method
+          let payoutMethodText = 'Bank Transfer'
+          if (wd.payoutMethod) {
+            if (wd.payoutMethod.type === 'bank_transfer') {
+              payoutMethodText = 'Bank Transfer'
+            } else if (wd.payoutMethod.type === 'upi') {
+              payoutMethodText = 'UPI'
+            } else if (wd.payoutMethod.type === 'paytm') {
+              payoutMethodText = 'Paytm'
+            }
+          }
+          
+          return {
+            id: wd._id || wd.id,
+            providerName: providerName,
+            providerType: wd.userType || 'doctor',
+            providerEmail: providerEmail,
+            providerPhone: providerPhone,
+            providerId: providerId,
+            amount: wd.amount || 0,
+            status: wd.status || 'pending',
+            requestedAt: wd.createdAt || wd.requestedAt || new Date().toISOString(),
+            payoutMethod: payoutMethodText,
+            accountNumber: wd.payoutMethod?.details?.accountNumber || '****',
+            bankName: wd.payoutMethod?.details?.bankName || '',
+            ifscCode: wd.payoutMethod?.details?.ifscCode || '',
+            accountHolderName: wd.payoutMethod?.details?.accountHolderName || '',
+            upiId: wd.payoutMethod?.details?.upiId || '',
+            paytmNumber: wd.payoutMethod?.details?.paytmNumber || '',
+            availableBalance: wd.availableBalance || 0,
+            totalEarnings: wd.totalEarnings || 0,
+            totalWithdrawals: wd.totalWithdrawals || 0,
+            transactionId: wd.transactionId || wd._id || wd.id,
+            rejectionReason: wd.rejectionReason || '',
+            originalData: wd,
+          }
+        }))
+      }
+      
       // Send notification to provider
       const notificationData = {
         providerId: withdrawal.providerEmail,
@@ -431,8 +717,6 @@ const AdminWallet = () => {
         type: 'withdrawal_rejected',
         timestamp: new Date().toISOString(),
       }
-
-      toast.success(`Withdrawal request rejected. Notification sent to ${withdrawal.providerName}.`)
 
       // Update modal if open
       if (viewingWithdrawal?.id === rejectingWithdrawalId) {
@@ -446,51 +730,6 @@ const AdminWallet = () => {
             rejectionReason: rejectionReason.trim(),
           })
         }
-      }
-
-      // Close reject modal
-      setShowRejectModal(false)
-      setRejectingWithdrawalId(null)
-      setRejectionReason('')
-      
-      // Refresh wallet data
-      const [overviewResponse, withdrawalsResponse] = await Promise.all([
-        getAdminWalletOverview(),
-        getWithdrawals(),
-      ])
-      
-      if (overviewResponse.success && overviewResponse.data) {
-        const overview = overviewResponse.data
-        setWalletOverview(prev => ({
-          ...prev,
-          pendingWithdrawals: overview.pendingWithdrawals || 0,
-          pendingWithdrawalRequests: overview.pendingWithdrawalRequests || withdrawalsResponse.data?.filter(w => w.status === 'pending').length || 0,
-        }))
-      }
-      
-      if (withdrawalsResponse.success && withdrawalsResponse.data) {
-        const withdrawalsData = Array.isArray(withdrawalsResponse.data) 
-          ? withdrawalsResponse.data 
-          : withdrawalsResponse.data.withdrawals || []
-        setWithdrawals(withdrawalsData.map(wd => ({
-          id: wd._id || wd.id,
-          providerName: wd.providerId?.name || wd.providerName || 'Provider',
-          providerType: wd.providerType || 'doctor',
-          providerEmail: wd.providerId?.email || wd.providerEmail || '',
-          amount: wd.amount || 0,
-          status: wd.status || 'pending',
-          requestedAt: wd.createdAt || wd.requestedAt || new Date().toISOString(),
-          payoutMethod: wd.paymentMethod || 'Bank Transfer',
-          accountNumber: wd.bankAccount?.accountNumber || wd.accountNumber || '****',
-          bankName: wd.bankAccount?.bankName || wd.bankName || '',
-          ifscCode: wd.bankAccount?.ifscCode || wd.ifscCode || '',
-          accountHolderName: wd.bankAccount?.accountHolderName || wd.accountHolderName || '',
-          availableBalance: wd.availableBalance || 0,
-          totalEarnings: wd.totalEarnings || 0,
-          totalWithdrawals: wd.totalWithdrawals || 0,
-          transactionId: wd.transactionId || wd._id || wd.id,
-          originalData: wd,
-        })))
       }
     } catch (err) {
       console.error('Error rejecting withdrawal:', err)
@@ -967,7 +1206,56 @@ const AdminWallet = () => {
                           {getStatusBadge(withdrawal.status)}
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => setViewingWithdrawal(withdrawal)}
+                              onClick={() => {
+                                // Find provider wallet data from providers list
+                                const allProviders = Object.values(providers).flat()
+                                const withdrawalUserId = withdrawal.providerId || withdrawal.originalData?.userId?._id || withdrawal.originalData?.userId
+                                
+                                const providerData = allProviders.find(p => {
+                                  const providerIdStr = (p.id || p.providerId)?.toString()
+                                  const userIdStr = withdrawalUserId?.toString()
+                                  return providerIdStr === userIdStr
+                                })
+                                
+                                // Also ensure provider info is extracted from originalData if missing
+                                let finalWithdrawal = { ...withdrawal }
+                                
+                                // If provider name/email/phone are missing, try to get from originalData
+                                if (!finalWithdrawal.providerName || finalWithdrawal.providerName === 'Provider') {
+                                  const origUserId = withdrawal.originalData?.userId
+                                  if (origUserId && typeof origUserId === 'object' && origUserId._id) {
+                                    if (withdrawal.providerType === 'doctor') {
+                                      const firstName = origUserId.firstName || ''
+                                      const lastName = origUserId.lastName || ''
+                                      finalWithdrawal.providerName = `${firstName} ${lastName}`.trim()
+                                      if (!finalWithdrawal.providerName) {
+                                        finalWithdrawal.providerName = origUserId.email?.split('@')[0] || 'Doctor'
+                                      }
+                                    } else if (withdrawal.providerType === 'pharmacy') {
+                                      finalWithdrawal.providerName = origUserId.pharmacyName || origUserId.ownerName || 'Pharmacy'
+                                    } else if (withdrawal.providerType === 'laboratory') {
+                                      finalWithdrawal.providerName = origUserId.labName || origUserId.ownerName || 'Laboratory'
+                                    }
+                                  }
+                                }
+                                
+                                if (!finalWithdrawal.providerEmail && withdrawal.originalData?.userId?.email) {
+                                  finalWithdrawal.providerEmail = withdrawal.originalData.userId.email
+                                }
+                                
+                                if (!finalWithdrawal.providerPhone && withdrawal.originalData?.userId?.phone) {
+                                  finalWithdrawal.providerPhone = withdrawal.originalData.userId.phone
+                                }
+                                
+                                // Add provider wallet data if found
+                                if (providerData) {
+                                  finalWithdrawal.totalEarnings = providerData.totalEarnings || 0
+                                  finalWithdrawal.availableBalance = providerData.availableBalance || 0
+                                  finalWithdrawal.totalWithdrawals = providerData.totalWithdrawals || 0
+                                }
+                                
+                                setViewingWithdrawal(finalWithdrawal)
+                              }}
                               className="flex items-center gap-1 rounded-lg bg-slate-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
                             >
                               <IoEyeOutline className="h-3.5 w-3.5" />
@@ -1034,9 +1322,13 @@ const AdminWallet = () => {
                     <p className="text-xs text-slate-500">Provider Type</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900 capitalize">{viewingWithdrawal.providerType}</p>
                   </div>
-                  <div className="sm:col-span-2">
+                  <div>
                     <p className="text-xs text-slate-500">Email</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.providerEmail}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.providerEmail || viewingWithdrawal.originalData?.userId?.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Phone</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.providerPhone || viewingWithdrawal.originalData?.userId?.phone || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -1098,26 +1390,45 @@ const AdminWallet = () => {
               <div>
                 <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Payment Details</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
+                  <div className="sm:col-span-2">
                     <p className="text-xs text-slate-500">Payout Method</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.payoutMethod}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Bank Name</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.bankName}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Account Number</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.accountNumber}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">IFSC Code</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.ifscCode}</p>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <p className="text-xs text-slate-500">Account Holder Name</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.accountHolderName}</p>
-                  </div>
+                  {/* Show bank details only if payout method is bank_transfer */}
+                  {viewingWithdrawal.originalData?.payoutMethod?.type === 'bank_transfer' && (
+                    <>
+                      <div>
+                        <p className="text-xs text-slate-500">Bank Name</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.bankName || viewingWithdrawal.originalData?.payoutMethod?.details?.bankName || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Account Number</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.accountNumber || viewingWithdrawal.originalData?.payoutMethod?.details?.accountNumber || '****'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">IFSC Code</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.ifscCode || viewingWithdrawal.originalData?.payoutMethod?.details?.ifscCode || 'N/A'}</p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">Account Holder Name</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.accountHolderName || viewingWithdrawal.originalData?.payoutMethod?.details?.accountHolderName || 'N/A'}</p>
+                      </div>
+                    </>
+                  )}
+                  {/* Show UPI ID only if payout method is upi */}
+                  {viewingWithdrawal.originalData?.payoutMethod?.type === 'upi' && (
+                    <div className="sm:col-span-2">
+                      <p className="text-xs text-slate-500">UPI ID</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.upiId || viewingWithdrawal.originalData?.payoutMethod?.details?.upiId || 'N/A'}</p>
+                    </div>
+                  )}
+                  {/* Show Paytm number only if payout method is paytm */}
+                  {viewingWithdrawal.originalData?.payoutMethod?.type === 'paytm' && (
+                    <div className="sm:col-span-2">
+                      <p className="text-xs text-slate-500">Paytm Number</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{viewingWithdrawal.paytmNumber || viewingWithdrawal.originalData?.payoutMethod?.details?.paytmNumber || 'N/A'}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

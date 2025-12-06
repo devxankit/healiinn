@@ -10,7 +10,7 @@ import {
   IoMailOutline,
   IoMedicalOutline,
 } from 'react-icons/io5'
-import { getDoctorPatients } from '../doctor-services/doctorService'
+import { getDoctorPatients, getPatientById } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 
 const formatDate = (dateString) => {
@@ -52,7 +52,22 @@ const DoctorAllPatients = () => {
             patientImage: patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.firstName || patient.name || 'Patient')}&background=3b82f6&color=fff&size=160`,
             patientPhone: patient.phone || '',
             patientEmail: patient.email || '',
-            patientAddress: patient.address || '',
+            patientAddress: (() => {
+              if (patient.address && typeof patient.address === 'object') {
+                const addressParts = [
+                  patient.address.line1,
+                  patient.address.line2,
+                  patient.address.city,
+                  patient.address.state,
+                  patient.address.postalCode,
+                  patient.address.country
+                ].filter(Boolean)
+                return addressParts.length > 0 ? addressParts.join(', ') : 'Not provided'
+              }
+              return patient.address || 'Not provided'
+            })(),
+            // Preserve original address object for later use
+            originalAddress: patient.address,
             firstVisit: patient.firstVisit || patient.firstAppointmentDate || null,
             lastVisit: patient.lastVisit || patient.lastAppointmentDate || null,
             totalVisits: patient.totalVisits || patient.totalAppointments || 0,
@@ -109,22 +124,105 @@ const DoctorAllPatients = () => {
     }
   }, [patients])
 
-  const handleViewPatient = (patient) => {
-    // Navigate to consultations page with patient data
+  const handleViewPatient = async (patient) => {
+    try {
+      // Fetch full patient data from backend to ensure we have complete address
+      let fullPatientData = null
+      
+      if (patient.patientId) {
+        try {
+          const patientResponse = await getPatientById(patient.patientId)
+          if (patientResponse.success && patientResponse.data) {
+            fullPatientData = patientResponse.data
+          }
+        } catch (error) {
+          console.error('Error fetching patient data:', error)
+        }
+      }
+      
+      // Use full patient data or fallback to patient data from list
+      const finalPatientData = fullPatientData || patient
+      
+      // Format address properly
+      let formattedAddress = 'Not provided'
+      const address = finalPatientData.address || finalPatientData.originalAddress
+      if (address && typeof address === 'object') {
+        const addressParts = [
+          address.line1,
+          address.line2,
+          address.city,
+          address.state,
+          address.postalCode,
+          address.country
+        ].filter(Boolean)
+        if (addressParts.length > 0) {
+          formattedAddress = addressParts.join(', ')
+        }
+      } else if (finalPatientData.patientAddress && typeof finalPatientData.patientAddress === 'string' && finalPatientData.patientAddress !== 'Not provided') {
+        formattedAddress = finalPatientData.patientAddress
+      }
+      
+      // Calculate age from dateOfBirth
+      const calculateAge = (dateOfBirth) => {
+        if (!dateOfBirth) return null
+        try {
+          const birthDate = new Date(dateOfBirth)
+          if (isNaN(birthDate.getTime())) return null
+          const today = new Date()
+          let age = today.getFullYear() - birthDate.getFullYear()
+          const monthDiff = today.getMonth() - birthDate.getMonth()
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--
+          }
+          return age
+        } catch (error) {
+          return null
+        }
+      }
+      
+      const patientDateOfBirth = finalPatientData.dateOfBirth || patient.dateOfBirth
+      const calculatedAge = patientDateOfBirth ? calculateAge(patientDateOfBirth) : (finalPatientData.age || patient.age || null)
+      
+      // Get patient ID as string
+      const patientIdString = patient.patientId || finalPatientData._id || finalPatientData.id
+      
+      // Create consultation data with real patient information
     const consultationData = {
-      id: `cons-${patient.id}`,
-      patientId: patient.patientId,
-      patientName: patient.patientName,
-      age: patient.age,
-      gender: patient.gender,
+        id: `cons-${patient.id}-${Date.now()}`,
+        _id: `cons-${patient.id}-${Date.now()}`,
+        patientName: finalPatientData.firstName && finalPatientData.lastName
+          ? `${finalPatientData.firstName} ${finalPatientData.lastName}`
+          : patient.patientName || 'Unknown Patient',
+        age: calculatedAge,
+        gender: finalPatientData.gender || patient.gender || 'male',
       appointmentTime: patient.lastVisit || new Date().toISOString(),
+        appointmentDate: patient.lastVisit ? (typeof patient.lastVisit === 'string' ? patient.lastVisit.split('T')[0] : new Date(patient.lastVisit).toISOString().split('T')[0]) : null,
       appointmentType: patient.patientType === 'new' ? 'New' : 'Follow-up',
       status: 'completed',
       reason: patient.lastDiagnosis || 'Consultation',
-      patientImage: patient.patientImage,
-      patientPhone: patient.patientPhone,
-      patientEmail: patient.patientEmail,
-      patientAddress: patient.patientAddress,
+        patientImage: finalPatientData.profileImage || patient.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(finalPatientData.firstName || patient.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+        patientPhone: finalPatientData.phone || patient.patientPhone || '',
+        patientEmail: finalPatientData.email || patient.patientEmail || '',
+        patientAddress: formattedAddress,
+        // Include patientId object structure for transformConsultationData
+        patientId: {
+          _id: patientIdString,
+          id: patientIdString,
+          firstName: finalPatientData.firstName || patient.patientName?.split(' ')[0] || '',
+          lastName: finalPatientData.lastName || patient.patientName?.split(' ').slice(1).join(' ') || '',
+          email: finalPatientData.email || patient.patientEmail || '',
+          phone: finalPatientData.phone || patient.patientPhone || '',
+          dateOfBirth: patientDateOfBirth || null,
+          gender: finalPatientData.gender || patient.gender || 'male',
+          profileImage: finalPatientData.profileImage || patient.patientImage || null,
+          address: address || null,
+        },
+        diagnosis: '',
+        vitals: {},
+        medications: [],
+        investigations: [],
+        advice: '',
+        attachments: [],
     }
     
     navigate('/doctor/consultations', {
@@ -132,6 +230,10 @@ const DoctorAllPatients = () => {
         selectedConsultation: consultationData,
       },
     })
+    } catch (error) {
+      console.error('Error handling patient view:', error)
+      toast.error('Failed to load patient data')
+    }
   }
 
   return (

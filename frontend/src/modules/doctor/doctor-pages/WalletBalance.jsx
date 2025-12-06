@@ -65,20 +65,44 @@ const WalletBalance = () => {
         
         if (balanceResponse.success && balanceResponse.data) {
           const balance = balanceResponse.data
-          const recentActivity = transactionsResponse.success && transactionsResponse.data
-            ? (Array.isArray(transactionsResponse.data) 
-                ? transactionsResponse.data 
-                : transactionsResponse.data.transactions || [])
-                .slice(0, 5)
-                .map(txn => ({
-                  id: txn._id || txn.id,
-                  type: txn.type === 'earning' ? 'available' : txn.status === 'pending' ? 'pending' : 'available',
-                  amount: txn.amount || 0,
-                  description: txn.description || txn.notes || 'Transaction',
-                  date: txn.createdAt || txn.date || new Date().toISOString(),
-                  status: txn.status || 'completed',
-                }))
-            : []
+          // Backend returns: { success: true, data: { items: [...], pagination: {...} } }
+          let transactionsData = []
+          if (transactionsResponse.success && transactionsResponse.data) {
+            if (Array.isArray(transactionsResponse.data)) {
+              transactionsData = transactionsResponse.data
+            } else if (transactionsResponse.data?.items) {
+              transactionsData = transactionsResponse.data.items
+            } else if (transactionsResponse.data?.transactions) {
+              transactionsData = transactionsResponse.data.transactions
+            }
+          }
+          
+          const recentActivity = transactionsData
+            .slice(0, 5)
+            .map(txn => {
+              // Generate description based on transaction type and related data
+              let description = txn.description || txn.notes || 'Transaction'
+              if (txn.type === 'earning') {
+                if (txn.appointmentId) {
+                  description = `Appointment fee - ${txn.appointmentId.appointmentDate ? new Date(txn.appointmentId.appointmentDate).toLocaleDateString() : ''}`
+                } else if (txn.orderId) {
+                  description = `Order payment`
+                } else {
+                  description = 'Earning'
+                }
+              } else if (txn.type === 'withdrawal') {
+                description = 'Withdrawal'
+              }
+              
+              return {
+                id: txn._id || txn.id,
+                type: txn.type === 'earning' ? 'available' : txn.status === 'pending' ? 'pending' : 'available',
+                amount: txn.amount || 0,
+                description: description,
+                date: txn.createdAt || txn.date || new Date().toISOString(),
+                status: txn.status || 'completed',
+              }
+            })
           
           setBalanceData({
             totalBalance: balance.totalBalance || balance.balance || 0,

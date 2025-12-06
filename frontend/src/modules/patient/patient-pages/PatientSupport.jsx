@@ -47,6 +47,14 @@ const PatientSupport = () => {
           contactNumber: '',
           note: '',
         })
+        // Refresh tickets list if on tickets tab
+        if (activeTab === 'tickets') {
+          const refreshResponse = await getSupportTickets()
+          if (refreshResponse.success && refreshResponse.data) {
+            const ticketsData = refreshResponse.data.items || refreshResponse.data || []
+            setTickets(ticketsData)
+          }
+        }
       }
     } catch (error) {
       console.error('Error submitting support request:', error)
@@ -61,15 +69,21 @@ const PatientSupport = () => {
     const fetchTickets = async () => {
       try {
         setLoadingTickets(true)
+        console.log('📋 Fetching support tickets...')
         const response = await getSupportTickets()
+        console.log('📋 Support tickets response:', response)
+        
         if (response.success && response.data) {
-          const ticketsData = Array.isArray(response.data)
-            ? response.data
-            : response.data.tickets || []
+          // Backend returns { items: [...], pagination: {...} }
+          const ticketsData = response.data.items || response.data || []
+          console.log('✅ Processed tickets:', ticketsData)
           setTickets(ticketsData)
+        } else {
+          console.warn('⚠️ Invalid response format:', response)
+          setTickets([])
         }
       } catch (error) {
-        console.error('Error fetching support tickets:', error)
+        console.error('❌ Error fetching support tickets:', error)
         setTickets([])
       } finally {
         setLoadingTickets(false)
@@ -86,15 +100,21 @@ const PatientSupport = () => {
     const fetchHistory = async () => {
       try {
         setLoadingHistory(true)
+        console.log('📜 Fetching support history...')
         const response = await getSupportHistory()
+        console.log('📜 Support history response:', response)
+        
         if (response.success && response.data) {
-          const historyData = Array.isArray(response.data)
-            ? response.data
-            : response.data.history || []
+          // Backend returns array directly in data
+          const historyData = Array.isArray(response.data) ? response.data : []
+          console.log('✅ Processed history:', historyData)
           setHistory(historyData)
+        } else {
+          console.warn('⚠️ Invalid response format:', response)
+          setHistory([])
         }
       } catch (error) {
-        console.error('Error fetching support history:', error)
+        console.error('❌ Error fetching support history:', error)
         setHistory([])
       } finally {
         setLoadingHistory(false)
@@ -170,13 +190,18 @@ const PatientSupport = () => {
         </button>
         <button
           onClick={() => setActiveTab('tickets')}
-          className={`px-4 py-2 text-sm font-semibold transition ${
+          className={`relative px-4 py-2 text-sm font-semibold transition ${
             activeTab === 'tickets'
               ? 'border-b-2 border-[#11496c] text-[#11496c]'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          My Tickets ({tickets.length})
+          My Tickets
+          {tickets.length > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#11496c] px-1.5 text-[10px] font-bold text-white">
+              {tickets.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('history')}
@@ -281,6 +306,137 @@ const PatientSupport = () => {
         </div>
       )}
 
+      {/* My Tickets Tab */}
+      {activeTab === 'tickets' && (
+        <div className="space-y-4">
+          {loadingTickets ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+              <div className="mb-4 flex justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#11496c] border-t-transparent" />
+              </div>
+              <p className="text-sm text-slate-600">Loading tickets...</p>
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center shadow-sm">
+              <p className="text-sm font-medium text-slate-600">No tickets found</p>
+              <p className="mt-1 text-xs text-slate-500">You haven't created any support tickets yet</p>
+            </div>
+          ) : (
+            tickets.map((ticket) => (
+              <div
+                key={ticket._id || ticket.id}
+                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="mb-2 flex items-center gap-2">
+                      {getStatusIcon(ticket.status)}
+                      <h3 className="text-lg font-bold text-slate-900">{ticket.subject || 'Support Request'}</h3>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(ticket.status)}`}>
+                        {ticket.status === 'open' ? 'Pending' : ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                      </span>
+                    </div>
+                    <p className="mb-3 text-sm text-slate-600">{ticket.message}</p>
+                    <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+                      <div className="flex items-center gap-1">
+                        <IoTimeOutline className="h-4 w-4" />
+                        <span>Created: {formatDate(ticket.createdAt)}</span>
+                      </div>
+                      {ticket.priority && (
+                        <span className="capitalize">Priority: {ticket.priority}</span>
+                      )}
+                    </div>
+                    {ticket.responses && ticket.responses.length > 0 && (
+                      <div className="mt-4 rounded-lg bg-blue-50 p-3">
+                        <p className="mb-2 text-xs font-semibold text-blue-900">Admin Response:</p>
+                        {ticket.responses.map((response, idx) => (
+                          <div key={idx} className="mb-2 text-sm text-blue-800">
+                            <p>{response.message}</p>
+                            <p className="mt-1 text-xs text-blue-600">
+                              {formatDate(response.createdAt)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* History Tab */}
+      {activeTab === 'history' && (
+        <div className="space-y-4">
+          {loadingHistory ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+              <div className="mb-4 flex justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#11496c] border-t-transparent" />
+              </div>
+              <p className="text-sm text-slate-600">Loading history...</p>
+            </div>
+          ) : history.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center shadow-sm">
+              <p className="text-sm font-medium text-slate-600">No history found</p>
+              <p className="mt-1 text-xs text-slate-500">You don't have any resolved or closed tickets</p>
+            </div>
+          ) : (
+            history.map((ticket) => (
+              <div
+                key={ticket._id || ticket.id}
+                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="mb-2 flex items-center gap-2">
+                      {getStatusIcon(ticket.status)}
+                      <h3 className="text-lg font-bold text-slate-900">{ticket.subject || 'Support Request'}</h3>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(ticket.status)}`}>
+                        {ticket.status === 'open' ? 'Pending' : ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                      </span>
+                    </div>
+                    <p className="mb-3 text-sm text-slate-600">{ticket.message}</p>
+                    <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+                      <div className="flex items-center gap-1">
+                        <IoTimeOutline className="h-4 w-4" />
+                        <span>Created: {formatDate(ticket.createdAt)}</span>
+                      </div>
+                      {ticket.resolvedAt && (
+                        <div className="flex items-center gap-1">
+                          <IoCheckmarkCircle className="h-4 w-4" />
+                          <span>Resolved: {formatDate(ticket.resolvedAt)}</span>
+                        </div>
+                      )}
+                      {ticket.closedAt && (
+                        <div className="flex items-center gap-1">
+                          <IoCloseCircle className="h-4 w-4" />
+                          <span>Closed: {formatDate(ticket.closedAt)}</span>
+                        </div>
+                      )}
+                    </div>
+                    {ticket.responses && ticket.responses.length > 0 && (
+                      <div className="mt-4 rounded-lg bg-green-50 p-3">
+                        <p className="mb-2 text-xs font-semibold text-green-900">Admin Response:</p>
+                        {ticket.responses.map((response, idx) => (
+                          <div key={idx} className="mb-2 text-sm text-green-800">
+                            <p>{response.message}</p>
+                            <p className="mt-1 text-xs text-green-600">
+                              {formatDate(response.createdAt)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {/* Success Modal */}
       {showSuccessModal && (
         <div
@@ -308,10 +464,13 @@ const PatientSupport = () => {
               </p>
               <button
                 type="button"
-                onClick={() => setShowSuccessModal(false)}
+                onClick={() => {
+                  setShowSuccessModal(false)
+                  setActiveTab('tickets')
+                }}
                 className="w-full rounded-lg bg-[#11496c] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#0d3a52]"
               >
-                Close
+                View My Tickets
               </button>
             </div>
           </div>

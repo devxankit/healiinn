@@ -10,7 +10,7 @@ const { calculateQueueETAs } = require('../../services/etaService');
 // Helper functions
 const buildPagination = (req) => {
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 10000); // Increased max limit to 10000
   const skip = (page - 1) * limit;
   return { page, limit, skip };
 };
@@ -25,6 +25,13 @@ const buildSearchFilter = (search, fields = []) => {
 exports.getDoctors = asyncHandler(async (req, res) => {
   const { search, specialty, city, state, rating } = req.query;
   const { page, limit, skip } = buildPagination(req);
+
+  console.log('🔍 GET /api/patients/doctors - Request received:', {
+    query: req.query,
+    page,
+    limit,
+    skip,
+  });
 
   const filter = { status: APPROVAL_STATUS.APPROVED, isActive: true };
 
@@ -49,6 +56,8 @@ exports.getDoctors = asyncHandler(async (req, res) => {
     ? { $and: [filter, searchFilter] }
     : filter;
 
+  console.log('🔍 Final filter:', JSON.stringify(finalFilter, null, 2));
+
   const [doctors, total] = await Promise.all([
     Doctor.find(finalFilter)
       .select('firstName lastName specialization profileImage consultationFee rating clinicDetails bio experienceYears reviewCount')
@@ -62,9 +71,18 @@ exports.getDoctors = asyncHandler(async (req, res) => {
     specialty: specialty || 'all',
     search: search || 'none',
     total,
+    filter: finalFilter,
+    doctorsCount: doctors.length,
+    firstDoctor: doctors[0] ? {
+      id: doctors[0]._id,
+      name: `${doctors[0].firstName} ${doctors[0].lastName}`,
+      specialization: doctors[0].specialization,
+      status: doctors[0].status,
+      isActive: doctors[0].isActive,
+    } : null,
   });
 
-  return res.status(200).json({
+  const response = {
     success: true,
     data: {
       items: doctors,
@@ -75,7 +93,35 @@ exports.getDoctors = asyncHandler(async (req, res) => {
         totalPages: Math.ceil(total / limit) || 1,
       },
     },
+  };
+
+  console.log('📤 Sending response:', {
+    success: response.success,
+    itemsCount: response.data.items.length,
+    total: response.data.pagination.total,
   });
+  
+  // Log first doctor details to verify data structure
+  if (response.data.items.length > 0) {
+    const firstDoctor = response.data.items[0];
+    console.log('📋 First doctor in response:', {
+      id: firstDoctor._id,
+      name: `${firstDoctor.firstName} ${firstDoctor.lastName}`,
+      specialization: firstDoctor.specialization,
+      hasClinicDetails: !!firstDoctor.clinicDetails,
+      clinicName: firstDoctor.clinicDetails?.name,
+      hasAddress: !!firstDoctor.clinicDetails?.address,
+    });
+  }
+
+  // Set cache-control headers to prevent caching issues
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+
+  return res.status(200).json(response);
 });
 
 // GET /api/patients/doctors/:id
@@ -127,13 +173,15 @@ exports.getDoctorById = asyncHandler(async (req, res) => {
   let currentToken = 0;
   let isServing = false;
   let eta = null;
+  let nextToken = null;
 
   if (todaySession) {
     currentToken = todaySession.currentToken || 0;
     isServing = todaySession.status === 'live' && !todaySession.isPaused;
     
-    // Calculate ETA for next patient (if any)
+    // Calculate next token number and ETA for next patient (if any)
     if (todaySession.currentToken < todaySession.maxTokens) {
+      nextToken = currentToken + 1; // Next available token number
       const etas = await calculateQueueETAs(todaySession._id);
       const nextPatient = etas.find(e => e.patientsAhead === 0);
       if (nextPatient) {
@@ -150,6 +198,7 @@ exports.getDoctorById = asyncHandler(async (req, res) => {
       reviewStats: reviewStats[0] || { averageRating: 0, totalReviews: 0 },
       queueInfo: {
         currentToken,
+        nextToken,
         isServing,
         eta,
       },
@@ -188,7 +237,7 @@ exports.getSpecialtyDoctors = asyncHandler(async (req, res) => {
       status: APPROVAL_STATUS.APPROVED,
       isActive: true,
     })
-      .select('firstName lastName specialization profileImage consultationFee rating')
+      .select('firstName lastName specialization profileImage consultationFee rating clinicDetails')
       .sort({ rating: -1 })
       .skip(skip)
       .limit(limit),

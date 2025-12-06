@@ -249,6 +249,21 @@ export const resumeSession = async (sessionId) => {
 }
 
 /**
+ * Update session status
+ * @param {string} sessionId - Session ID
+ * @param {object} updateData - Update data (status, etc.)
+ * @returns {Promise<object>} Updated session data
+ */
+export const updateSession = async (sessionId, updateData) => {
+  try {
+    return await apiClient.patch(`/doctors/sessions/${sessionId}`, updateData)
+  } catch (error) {
+    console.error('Error updating session:', error)
+    throw error
+  }
+}
+
+/**
  * Update appointment status
  * @param {string} appointmentId - Appointment ID
  * @param {object} updateData - Update data (status, cancelReason, etc.)
@@ -344,9 +359,21 @@ export const getPatientHistory = async (patientId) => {
  * Get patient queue (today's appointments)
  * @returns {Promise<object>} Queue data
  */
-export const getPatientQueue = async () => {
+export const getPatientQueue = async (date = null) => {
   try {
-    return await apiClient.get('/doctors/patients/queue')
+    // If no date provided, use today's date in YYYY-MM-DD format
+    let url = '/doctors/patients/queue'
+    if (date) {
+      url += `?date=${date}`
+    } else {
+      const today = new Date()
+      const year = today.getFullYear()
+      const month = String(today.getMonth() + 1).padStart(2, '0')
+      const day = String(today.getDate()).padStart(2, '0')
+      const todayStr = `${year}-${month}-${day}`
+      url += `?date=${todayStr}`
+    }
+    return await apiClient.get(url)
   } catch (error) {
     console.error('Error fetching patient queue:', error)
     throw error

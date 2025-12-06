@@ -9,7 +9,7 @@ import {
   IoCloseCircleOutline,
   IoCallOutline,
 } from 'react-icons/io5'
-import { getPatientAppointments, cancelAppointment, rescheduleAppointment } from '../patient-services/patientService'
+import { getPatientAppointments, rescheduleAppointment } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
 
 // Default appointments (will be replaced by API data)
@@ -32,6 +32,21 @@ const mapBackendStatusToDisplay = (backendStatus) => {
       return backendStatus || 'scheduled'
   }
 }
+
+// Helper function to convert time to 12-hour format
+const convertTimeTo12Hour = (timeStr) => {
+  if (!timeStr) return '';
+  // If already in 12-hour format (contains AM/PM), return as is
+  if (timeStr.includes('AM') || timeStr.includes('PM')) {
+    return timeStr;
+  }
+  // Convert 24-hour format to 12-hour format
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return timeStr;
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours % 12 || 12;
+  return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+};
 
 const getStatusColor = (status) => {
   // Handle both backend and frontend statuses
@@ -80,15 +95,15 @@ const PatientAppointments = () => {
   const [appointments, setAppointments] = useState(defaultAppointments)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [cancellingId, setCancellingId] = useState(null)
 
-  // Fetch appointments from API
+  // Fetch appointments from API - Always fetch all appointments, filter on frontend
   useEffect(() => {
     const fetchAppointments = async () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getPatientAppointments()
+        // Always fetch all appointments, we'll filter on frontend
+        const response = await getPatientAppointments({})
         
         if (response.success && response.data) {
           // Handle both array and object with items/appointments property
@@ -109,17 +124,41 @@ const PatientAppointments = () => {
               image: apt.doctorId.profileImage || apt.doctorId.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.doctorId.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
             } : apt.doctor || {},
             date: apt.appointmentDate || apt.date,
-            time: apt.time || '',
+            time: convertTimeTo12Hour(apt.time || ''),
             status: apt.status || 'scheduled',
             type: apt.appointmentType || apt.type || 'In-Person',
-            clinic: apt.clinicDetails?.name || apt.clinic || '',
-            location: apt.clinicDetails?.address 
-              ? `${apt.clinicDetails.address.line1 || ''}, ${apt.clinicDetails.address.city || ''}, ${apt.clinicDetails.address.state || ''}`.trim()
-              : apt.location || '',
+            clinic: apt.doctorId?.clinicDetails?.name || apt.clinicDetails?.name || apt.clinic || '',
+            location: (() => {
+              // Try to get location from doctor's clinicDetails first
+              const doctorClinic = apt.doctorId?.clinicDetails;
+              if (doctorClinic?.address) {
+                const parts = [];
+                if (doctorClinic.address.line1) parts.push(doctorClinic.address.line1);
+                if (doctorClinic.address.city) parts.push(doctorClinic.address.city);
+                if (doctorClinic.address.state) parts.push(doctorClinic.address.state);
+                if (doctorClinic.address.pincode) parts.push(doctorClinic.address.pincode);
+                return parts.join(', ').trim();
+              }
+              // Fallback to appointment's clinicDetails
+              const aptClinic = apt.clinicDetails;
+              if (aptClinic?.address) {
+                const parts = [];
+                if (aptClinic.address.line1) parts.push(aptClinic.address.line1);
+                if (aptClinic.address.city) parts.push(aptClinic.address.city);
+                if (aptClinic.address.state) parts.push(aptClinic.address.state);
+                if (aptClinic.address.pincode) parts.push(aptClinic.address.pincode);
+                return parts.join(', ').trim();
+              }
+              return apt.location || '';
+            })(),
             token: apt.tokenNumber ? `Token #${apt.tokenNumber}` : apt.token || null,
             fee: apt.fee || apt.consultationFee || 0,
             cancelledBy: apt.cancelledBy,
             cancelReason: apt.cancelReason,
+            rescheduledAt: apt.rescheduledAt,
+            rescheduledBy: apt.rescheduledBy,
+            rescheduleReason: apt.rescheduleReason,
+            isRescheduled: !!apt.rescheduledAt, // Flag to identify rescheduled appointments
           }))
           
           setAppointments(transformedAppointments)
@@ -144,109 +183,35 @@ const PatientAppointments = () => {
     return () => {
       window.removeEventListener('appointmentBooked', handleAppointmentBooked)
     }
-  }, [toast])
-
-  const filteredAppointments = filter === 'all'
-    ? appointments
-    : appointments.filter(apt => {
-        const displayStatus = mapBackendStatusToDisplay(apt.status)
-        // Support both backend status and legacy 'upcoming' status
-        return displayStatus === filter || (filter === 'scheduled' && apt.status === 'upcoming')
-      })
+  }, [toast]) // Remove filter dependency - fetch all appointments once
 
   const handleRescheduleAppointment = (appointmentId, doctorId) => {
     navigate(`/patient/doctors/${doctorId}?reschedule=${appointmentId}`)
   }
 
-  const handleCancelAppointment = async (appointmentId) => {
-    if (!window.confirm('Are you sure you want to cancel this appointment?')) {
-      return
+  // Calculate filtered appointments - MUST be before early returns (React Hooks rule)
+  const filteredAppointments = useMemo(() => {
+    if (!appointments || appointments.length === 0) {
+      return []
     }
-
-    try {
-      setCancellingId(appointmentId)
-      const response = await cancelAppointment(appointmentId)
-      
-      if (response.success) {
-        toast.success('Appointment cancelled successfully')
-        // Refresh appointments list
-        const updatedResponse = await getPatientAppointments()
-        if (updatedResponse.success && updatedResponse.data) {
-          const appointmentsData = Array.isArray(updatedResponse.data) 
-            ? updatedResponse.data 
-            : updatedResponse.data.appointments || []
-          
-          const transformedAppointments = appointmentsData.map(apt => ({
-            id: apt._id || apt.id,
-            _id: apt._id || apt.id,
-            doctor: apt.doctorId ? {
-              id: apt.doctorId._id || apt.doctorId.id,
-              name: apt.doctorId.firstName && apt.doctorId.lastName
-                ? `Dr. ${apt.doctorId.firstName} ${apt.doctorId.lastName}`
-                : apt.doctorId.name || 'Dr. Unknown',
-              specialty: apt.doctorId.specialization || apt.doctorId.specialty || '',
-              image: apt.doctorId.profileImage || apt.doctorId.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.doctorId.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
-            } : apt.doctor || {},
-            date: apt.appointmentDate || apt.date,
-            time: apt.time || '',
-            status: apt.status || 'scheduled',
-            type: apt.appointmentType || apt.type || 'In-Person',
-            clinic: apt.clinicDetails?.name || apt.clinic || '',
-            location: apt.clinicDetails?.address 
-              ? `${apt.clinicDetails.address.line1 || ''}, ${apt.clinicDetails.address.city || ''}, ${apt.clinicDetails.address.state || ''}`.trim()
-              : apt.location || '',
-            token: apt.tokenNumber ? `Token #${apt.tokenNumber}` : apt.token || null,
-            fee: apt.fee || apt.consultationFee || 0,
-            cancelledBy: apt.cancelledBy,
-            cancelReason: apt.cancelReason,
-          }))
-          
-          setAppointments(transformedAppointments)
-        }
-      } else {
-        toast.error(response.message || 'Failed to cancel appointment')
-      }
-    } catch (err) {
-      console.error('Error cancelling appointment:', err)
-      toast.error(err.message || 'Failed to cancel appointment')
-    } finally {
-      setCancellingId(null)
+    
+    if (filter === 'all') {
+      return appointments
+    } else if (filter === 'rescheduled') {
+      return appointments.filter(apt => apt.isRescheduled)
+    } else if (filter === 'scheduled') {
+      return appointments.filter(apt => {
+        const displayStatus = mapBackendStatusToDisplay(apt.status)
+        // Show scheduled appointments but exclude rescheduled ones
+        return (displayStatus === 'scheduled' || apt.status === 'upcoming') && !apt.isRescheduled
+      })
+    } else {
+      return appointments.filter(apt => {
+        const displayStatus = mapBackendStatusToDisplay(apt.status)
+        return displayStatus === filter
+      })
     }
-  }
-
-  // Show loading state
-  if (loading) {
-    return (
-      <section className="flex flex-col gap-4 pb-4">
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <p className="text-lg font-semibold text-slate-700">Loading appointments...</p>
-        </div>
-      </section>
-    )
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <section className="flex flex-col gap-4 pb-4">
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <p className="text-lg font-semibold text-red-700">Error loading appointments</p>
-          <p className="text-sm text-slate-500 mt-2">{error}</p>
-        </div>
-      </section>
-    )
-  }
-
-  // Ensure we have data
-  if (!appointments || appointments.length === 0) {
-    return (
-      <section className="flex flex-col gap-4 pb-4">
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <p className="text-lg font-semibold text-slate-700">No appointments available</p>
-        </div>
-      </section>
-    )
-  }
+  }, [appointments, filter])
 
   const formatDate = (dateString) => {
     try {
@@ -269,7 +234,7 @@ const PatientAppointments = () => {
     <section className="flex flex-col gap-4 pb-4">
       {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {['all', 'scheduled', 'confirmed', 'completed', 'cancelled'].map((status) => (
+        {['all', 'scheduled', 'rescheduled', 'completed', 'cancelled'].map((status) => (
           <button
             key={status}
             onClick={() => setFilter(status)}
@@ -279,7 +244,7 @@ const PatientAppointments = () => {
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
           >
-            {status === 'scheduled' ? 'Scheduled' : status}
+            {status === 'scheduled' ? 'Scheduled' : status === 'rescheduled' ? 'Rescheduled' : status.charAt(0).toUpperCase() + status.slice(1)}
           </button>
         ))}
       </div>
@@ -320,10 +285,16 @@ const PatientAppointments = () => {
                   </div>
                   {(() => {
                     const displayStatus = mapBackendStatusToDisplay(appointment.status)
+                    // Show "Rescheduled" badge for rescheduled appointments
+                    const statusText = appointment.isRescheduled 
+                      ? 'Rescheduled' 
+                      : displayStatus === 'scheduled' 
+                        ? 'Scheduled' 
+                        : displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)
                     return (
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold shrink-0 ${getStatusColor(appointment.status)}`}>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold shrink-0 ${appointment.isRescheduled ? 'bg-blue-100 text-blue-700' : getStatusColor(appointment.status)}`}>
                         {getStatusIcon(appointment.status)}
-                        {displayStatus === 'scheduled' ? 'Scheduled' : displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)}
+                        {statusText}
                       </span>
                     )
                   })()}
@@ -343,10 +314,12 @@ const PatientAppointments = () => {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <IoLocationOutline className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="truncate">{appointment.clinic}</span>
-                  </div>
+                  {(appointment.location || appointment.clinic) && (
+                    <div className="flex items-center gap-2">
+                      <IoLocationOutline className="h-4 w-4 shrink-0 text-slate-400" />
+                      <span className="truncate">{appointment.location || appointment.clinic || 'Location not available'}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                     <span className="text-xs text-slate-500">{appointment.type}</span>
                     <span className="text-sm font-semibold text-slate-900">₹{appointment.fee}</span>
@@ -386,23 +359,36 @@ const PatientAppointments = () => {
                     >
                       View Details
                     </button>
-                    <button
-                      onClick={() => handleRescheduleAppointment(appointment.id, appointment.doctor.id)}
-                      className="flex-1 rounded-xl border border-[#11496c] bg-white px-3 py-2 text-xs font-semibold text-[#11496c] transition hover:bg-[#11496c]/5 active:scale-95"
-                    >
-                      Reschedule
-                    </button>
-                    <button
-                      onClick={() => handleCancelAppointment(appointment.id)}
-                      disabled={cancellingId === appointment.id}
-                      className="flex items-center justify-center rounded-xl border border-red-200 bg-white px-3 py-2 text-red-600 transition hover:bg-red-50 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {cancellingId === appointment.id ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
-                      ) : (
-                        <IoCloseCircleOutline className="h-4 w-4" />
+                    {!appointment.isRescheduled && (
+                      <button
+                        onClick={() => handleRescheduleAppointment(appointment.id, appointment.doctor.id)}
+                        className="flex-1 rounded-xl border border-[#11496c] bg-white px-3 py-2 text-xs font-semibold text-[#11496c] transition hover:bg-[#11496c]/5 active:scale-95"
+                      >
+                        Reschedule
+                      </button>
+                    )}
+                  </div>
+                )}
+                {appointment.isRescheduled && (
+                  <div className="mt-3 space-y-2">
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5">
+                      <p className="text-xs font-semibold text-blue-800 mb-1">
+                        Rescheduled Appointment
+                      </p>
+                      {appointment.rescheduleReason && (
+                        <p className="text-xs text-blue-700">
+                          {appointment.rescheduleReason}
+                        </p>
                       )}
-                    </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => navigate(`/patient/doctors/${appointment.doctor.id}`)}
+                        className="flex-1 rounded-xl bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"
+                      >
+                        View Details
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -411,13 +397,19 @@ const PatientAppointments = () => {
         ))}
       </div>
 
-      {filteredAppointments.length === 0 && (
+      {!loading && filteredAppointments.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-4">
             <IoCalendarOutline className="h-8 w-8" />
           </div>
-          <p className="text-lg font-semibold text-slate-700">No appointments found</p>
-          <p className="text-sm text-slate-500">Try selecting a different filter</p>
+          <p className="text-lg font-semibold text-slate-700">
+            {appointments && appointments.length > 0 
+              ? `No ${filter === 'all' ? '' : filter.charAt(0).toUpperCase() + filter.slice(1)} appointments found`
+              : 'No appointments available'}
+          </p>
+          {appointments && appointments.length > 0 && (
+            <p className="text-sm text-slate-500 mt-1">Try selecting a different filter</p>
+          )}
         </div>
       )}
     </section>

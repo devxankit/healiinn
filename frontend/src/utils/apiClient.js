@@ -169,11 +169,36 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
                          endpoint.includes('/auth/reset-password') ||
                          endpoint.includes('/auth/check-exists')
   
+  // Check if this is a public discovery endpoint (doctors, pharmacies, laboratories, specialties)
+  // NOTE: Only patient-facing discovery endpoints are public, admin endpoints require auth
+  const isPublicDiscoveryEndpoint = (endpoint.includes('/patients/doctors') ||
+                                    endpoint.includes('/patients/specialties') ||
+                                    endpoint.includes('/patients/pharmacies') ||
+                                    endpoint.includes('/patients/laboratories') ||
+                                    endpoint.includes('/specialties')) &&
+                                    !endpoint.includes('/admin/')
+  
+  // For protected endpoints (not auth or public discovery), check token before making request
+  if (!isAuthEndpoint && !isPublicDiscoveryEndpoint) {
+    const token = getAuthToken(module)
+    if (!token) {
+      // No token, clear any stale tokens and redirect immediately
+      clearTokens(module)
+      const loginPath = module === 'admin' ? '/admin/login' : `/${module}/login`
+      if (window.location.pathname !== loginPath && !window.location.pathname.includes('/login')) {
+        window.location.href = loginPath
+      }
+      throw new Error('Authentication token missing. Please login again.')
+    }
+  }
+  
   const config = {
     ...options,
     headers: {
-      // Only add auth headers if not an auth endpoint
-      ...(isAuthEndpoint ? { 'Content-Type': 'application/json', ...options.headers } : getAuthHeaders(module, options.headers)),
+      // Only add auth headers if not an auth endpoint or public discovery endpoint
+      ...((isAuthEndpoint || isPublicDiscoveryEndpoint) 
+        ? { 'Content-Type': 'application/json', ...options.headers } 
+        : getAuthHeaders(module, options.headers)),
     },
   }
 
@@ -183,8 +208,9 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
     // If 401 Unauthorized
     if (response.status === 401) {
       // For auth endpoints (login/signup), 401 means invalid credentials, not missing token
+      // For public discovery endpoints, 401 shouldn't happen, but if it does, return response
       // Just return the response so the caller can handle the error message from backend
-      if (isAuthEndpoint) {
+      if (isAuthEndpoint || isPublicDiscoveryEndpoint) {
         return response
       }
       
@@ -207,12 +233,13 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
       } else {
         // No refresh token, user is logged out - clear tokens and redirect
         clearTokens(module)
-        if (window.location.pathname !== `/${module}/login` && !window.location.pathname.includes('/login')) {
-          // Only redirect if not already on login page
-          const loginPath = module === 'admin' ? '/admin/login' : `/${module}/login`
-          if (window.location.pathname !== loginPath) {
+        const loginPath = module === 'admin' ? '/admin/login' : `/${module}/login`
+        // Only redirect if not already on login page
+        if (window.location.pathname !== loginPath && !window.location.pathname.includes('/login')) {
+          // Use setTimeout to allow error to be thrown first, then redirect
+          setTimeout(() => {
             window.location.href = loginPath
-          }
+          }, 100)
         }
         throw new Error('Authentication token missing. Please login again.')
       }
@@ -240,17 +267,33 @@ class ApiClient {
    * @returns {Promise<object>} Response data
    */
   async get(endpoint, params = {}) {
-    const queryString = new URLSearchParams(params).toString()
+    // Filter out undefined, null, and empty string values
+    const cleanParams = {}
+    Object.keys(params).forEach(key => {
+      const value = params[key]
+      if (value !== undefined && value !== null && value !== '') {
+        cleanParams[key] = value
+      }
+    })
+    const queryString = new URLSearchParams(cleanParams).toString()
     const url = queryString ? `${endpoint}?${queryString}` : endpoint
+    
+    console.log(`🌐 API GET Request [${this.module}]:`, url) // Debug log
+    console.log(`🌐 Clean params:`, cleanParams) // Debug log
     
     const response = await apiRequest(url, { method: 'GET' }, this.module)
     
+    console.log(`📡 API Response Status [${this.module}]:`, response.status, response.statusText) // Debug log
+    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
+      console.error(`❌ API Error [${this.module}]:`, errorData) // Debug log
       throw new Error(errorData.message || `Request failed: ${response.statusText}`)
     }
     
-    return await response.json()
+    const jsonData = await response.json()
+    console.log(`✅ API Response Data [${this.module}]:`, jsonData) // Debug log
+    return jsonData
   }
 
   /**

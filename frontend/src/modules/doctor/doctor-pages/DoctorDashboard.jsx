@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from 'react'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import DoctorSidebar from '../doctor-components/DoctorSidebar'
 import { useToast } from '../../../contexts/ToastContext'
-import { getDoctorDashboard, getDoctorAppointments, getDoctorQueue, getDoctorConsultations, getDoctorProfile, getDoctorWalletBalance } from '../doctor-services/doctorService'
+import { getDoctorDashboard, getDoctorAppointments, getDoctorQueue, getDoctorConsultations, getDoctorProfile, getDoctorWalletBalance, getPatientById, getConsultationById } from '../doctor-services/doctorService'
 import NotificationBell from '../../../components/NotificationBell'
 import {
   IoPeopleOutline,
@@ -95,6 +95,7 @@ const DoctorDashboard = () => {
   const toast = useToast()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [appointments, setAppointments] = useState([])
+  const [appointmentStatistics, setAppointmentStatistics] = useState(null) // Statistics from backend
   const [recentConsultations, setRecentConsultations] = useState([])
   const [stats, setStats] = useState(defaultStats)
   const [loading, setLoading] = useState(true)
@@ -198,6 +199,11 @@ const DoctorDashboard = () => {
         const response = await getDoctorAppointments()
         
         if (response.success && response.data) {
+          // Store statistics from backend if available
+          if (response.data.statistics) {
+            setAppointmentStatistics(response.data.statistics)
+          }
+          
           // Handle both array and object with items/appointments property
           const appointmentsData = Array.isArray(response.data) 
             ? response.data 
@@ -205,6 +211,8 @@ const DoctorDashboard = () => {
           
           // Transform API data to match component structure
           const transformed = appointmentsData.map(apt => ({
+            rescheduledAt: apt.rescheduledAt,
+            isRescheduled: !!apt.rescheduledAt,
             id: apt._id || apt.id,
             patientId: apt.patientId?._id || apt.patientId || 'pat-unknown',
             patientName: apt.patientId?.firstName && apt.patientId?.lastName
@@ -220,10 +228,31 @@ const DoctorDashboard = () => {
             appointmentType: apt.appointmentType || 'New',
             patientPhone: apt.patientId?.phone || apt.patientPhone || '',
             patientEmail: apt.patientId?.email || apt.patientEmail || '',
-            patientAddress: apt.patientId?.address ? 
-              `${apt.patientId.address.line1 || ''}, ${apt.patientId.address.city || ''}`.trim() : 
-              apt.patientAddress || '',
-            age: apt.patientId?.age || apt.age || null,
+            patientAddress: apt.patientId?.address 
+              ? [
+                  apt.patientId.address.line1,
+                  apt.patientId.address.line2,
+                  apt.patientId.address.city,
+                  apt.patientId.address.state,
+                  apt.patientId.address.postalCode,
+                  apt.patientId.address.country
+                ].filter(Boolean).join(', ').trim() || 'Not provided'
+              : apt.patientAddress || 'Not provided',
+            age: (() => {
+              if (apt.patientId?.dateOfBirth) {
+                const birthDate = new Date(apt.patientId.dateOfBirth)
+                if (!isNaN(birthDate.getTime())) {
+                  const today = new Date()
+                  let age = today.getFullYear() - birthDate.getFullYear()
+                  const monthDiff = today.getMonth() - birthDate.getMonth()
+                  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--
+                  }
+                  return age
+                }
+              }
+              return apt.patientId?.age || apt.age || null
+            })(),
             gender: apt.patientId?.gender || apt.gender || '',
             originalData: apt,
           }))
@@ -316,8 +345,31 @@ const DoctorDashboard = () => {
     return null
   }
 
-  // Calculate appointment counts
+  // Calculate appointment counts - use backend statistics if available
   const appointmentStats = useMemo(() => {
+    // If backend statistics are available, use them
+    if (appointmentStatistics) {
+      const todayScheduled = appointmentStatistics.today?.scheduled || 0
+      const todayRescheduled = appointmentStatistics.today?.rescheduled || 0
+      const monthScheduled = appointmentStatistics.monthly?.scheduled || 0
+      const monthRescheduled = appointmentStatistics.monthly?.rescheduled || 0
+      const yearScheduled = appointmentStatistics.yearly?.scheduled || 0
+      const yearRescheduled = appointmentStatistics.yearly?.rescheduled || 0
+      
+      return {
+        todayCount: appointmentStatistics.today?.total || (todayScheduled + todayRescheduled),
+        todayScheduled: todayScheduled,
+        todayRescheduled: todayRescheduled,
+        monthCount: appointmentStatistics.monthly?.total || (monthScheduled + monthRescheduled),
+        monthScheduled: monthScheduled,
+        monthRescheduled: monthRescheduled,
+        yearCount: appointmentStatistics.yearly?.total || (yearScheduled + yearRescheduled),
+        yearScheduled: yearScheduled,
+        yearRescheduled: yearRescheduled,
+      }
+    }
+    
+    // Fallback: calculate from appointments (client-side)
     const today = getTodayDateString()
     const todayDate = new Date()
     todayDate.setHours(0, 0, 0, 0)
@@ -333,8 +385,14 @@ const DoctorDashboard = () => {
     currentYearEnd.setHours(23, 59, 59, 999)
     
     let todayCount = 0
+    let todayScheduled = 0
+    let todayRescheduled = 0
     let monthCount = 0
+    let monthScheduled = 0
+    let monthRescheduled = 0
     let yearCount = 0
+    let yearScheduled = 0
+    let yearRescheduled = 0
     
     appointments.forEach(apt => {
       // Try both date and appointmentDate fields
@@ -345,25 +403,56 @@ const DoctorDashboard = () => {
       if (isNaN(aptDate.getTime())) return
       
       aptDate.setHours(0, 0, 0, 0)
+      const isRescheduled = apt.isRescheduled || apt.rescheduledAt
       
       // Today count - compare normalized date strings
       if (dateStr === today || aptDate.getTime() === todayDate.getTime()) {
         todayCount++
+        if (isRescheduled) {
+          todayRescheduled++
+        } else {
+          todayScheduled++
+        }
       }
       
       // Month count
       if (aptDate >= currentMonthStart && aptDate <= currentMonthEnd) {
         monthCount++
+        if (isRescheduled) {
+          monthRescheduled++
+        } else {
+          monthScheduled++
+        }
       }
       
       // Year count
       if (aptDate >= currentYearStart && aptDate <= currentYearEnd) {
         yearCount++
+        if (isRescheduled) {
+          yearRescheduled++
+        } else {
+          yearScheduled++
+        }
       }
     })
     
-    return { todayCount, monthCount, yearCount }
-  }, [appointments])
+    // Always use the sum of scheduled and rescheduled for total counts
+    const finalTodayCount = todayScheduled + todayRescheduled
+    const finalMonthCount = monthScheduled + monthRescheduled
+    const finalYearCount = yearScheduled + yearRescheduled
+    
+    return { 
+      todayCount: finalTodayCount, 
+      todayScheduled, 
+      todayRescheduled,
+      monthCount: finalMonthCount, 
+      monthScheduled,
+      monthRescheduled,
+      yearCount: finalYearCount,
+      yearScheduled,
+      yearRescheduled,
+    }
+  }, [appointmentStatistics, appointments])
 
   // Filter today's appointments dynamically
   const todayAppointments = useMemo(() => {
@@ -427,35 +516,158 @@ const DoctorDashboard = () => {
     }, 500)
   }
 
-  const handleViewAppointment = (appointment) => {
-    // Navigate to consultations page with this appointment data
+  const handleViewAppointment = async (appointment) => {
+    try {
+      // First, try to find existing consultation for this appointment
+      const consultationsResponse = await getDoctorConsultations()
+      let existingConsultation = null
+      
+      if (consultationsResponse.success && consultationsResponse.data) {
+        const consultations = Array.isArray(consultationsResponse.data)
+          ? consultationsResponse.data
+          : consultationsResponse.data.items || consultationsResponse.data.consultations || []
+        
+        // Find consultation by appointmentId
+        existingConsultation = consultations.find(cons => 
+          cons.appointmentId?._id?.toString() === appointment.id?.toString() ||
+          cons.appointmentId?.id?.toString() === appointment.id?.toString() ||
+          cons.appointmentId?.toString() === appointment.id?.toString()
+        )
+      }
+      
+      // If consultation exists, fetch full consultation data
+      if (existingConsultation) {
+        try {
+          const consultationResponse = await getConsultationById(existingConsultation._id || existingConsultation.id)
+          if (consultationResponse.success && consultationResponse.data) {
     navigate('/doctor/consultations', {
       state: {
-        selectedConsultation: {
-          id: `cons-${appointment.id}`,
-          patientId: appointment.patientId,
-          patientName: appointment.patientName,
-          age: appointment.age || 30,
-          gender: appointment.gender || 'male',
-          appointmentTime: `${appointment.date}T${appointment.time}`,
+                selectedConsultation: consultationResponse.data,
+                loadSavedData: true,
+              },
+            })
+            return
+          }
+        } catch (error) {
+          console.error('Error fetching consultation:', error)
+        }
+      }
+      
+      // If no consultation exists, fetch patient data and create consultation object
+      let patientData = null
+      if (appointment.patientId) {
+        try {
+          const patientResponse = await getPatientById(appointment.patientId)
+          if (patientResponse.success && patientResponse.data) {
+            patientData = patientResponse.data
+          }
+        } catch (error) {
+          console.error('Error fetching patient data:', error)
+        }
+      }
+      
+      // Calculate age from dateOfBirth
+      const calculateAge = (dateOfBirth) => {
+        if (!dateOfBirth) return null
+        try {
+          const birthDate = new Date(dateOfBirth)
+          if (isNaN(birthDate.getTime())) return null
+          const today = new Date()
+          let age = today.getFullYear() - birthDate.getFullYear()
+          const monthDiff = today.getMonth() - birthDate.getMonth()
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--
+          }
+          return age
+        } catch (error) {
+          return null
+        }
+      }
+      
+      // Use patient data from API or fallback to appointment data
+      const finalPatientData = patientData || appointment.originalData?.patientId || {}
+      const patientDateOfBirth = finalPatientData.dateOfBirth || appointment.originalData?.patientId?.dateOfBirth
+      const calculatedAge = patientDateOfBirth ? calculateAge(patientDateOfBirth) : (finalPatientData.age || appointment.age || null)
+      
+      // Format address properly
+      let formattedAddress = 'Not provided'
+      const address = finalPatientData.address || appointment.originalData?.patientId?.address
+      if (address) {
+        const addressParts = [
+          address.line1,
+          address.line2,
+          address.city,
+          address.state,
+          address.postalCode,
+          address.country
+        ].filter(Boolean)
+        if (addressParts.length > 0) {
+          formattedAddress = addressParts.join(', ')
+        }
+      } else if (appointment.patientAddress && appointment.patientAddress !== 'Address not provided' && appointment.patientAddress !== 'Not provided') {
+        formattedAddress = appointment.patientAddress
+      }
+      
+      // Format appointment date properly
+      const appointmentDate = appointment.date || appointment.appointmentDate
+      const appointmentTime = appointment.time || '00:00'
+      const formattedAppointmentTime = appointmentDate 
+        ? `${appointmentDate.split('T')[0]}T${appointmentTime}`
+        : new Date().toISOString()
+      
+      // Get patient ID as string
+      const patientIdString = appointment.patientId || finalPatientData._id || finalPatientData.id
+      
+      // Create consultation object with real data
+      const consultationData = {
+        id: `cons-${appointment.id}-${Date.now()}`,
+        _id: `cons-${appointment.id}-${Date.now()}`,
+        patientName: finalPatientData.firstName && finalPatientData.lastName
+          ? `${finalPatientData.firstName} ${finalPatientData.lastName}`
+          : appointment.patientName || 'Unknown Patient',
+        age: calculatedAge,
+        gender: finalPatientData.gender || appointment.gender || 'male',
+        appointmentTime: formattedAppointmentTime,
+        appointmentDate: appointmentDate ? appointmentDate.split('T')[0] : null,
           appointmentType: appointment.appointmentType || 'New',
-          status: appointment.status === 'scheduled' ? 'in-progress' : appointment.status,
+        status: appointment.status === 'scheduled' || appointment.status === 'confirmed' ? 'in-progress' : appointment.status,
           reason: appointment.reason || 'Consultation',
-          patientImage: appointment.patientImage,
-          patientPhone: appointment.patientPhone || '+1-555-000-0000',
-          patientEmail: appointment.patientEmail || `${appointment.patientName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-          patientAddress: appointment.patientAddress || 'Address not provided',
+        patientImage: finalPatientData.profileImage || appointment.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(finalPatientData.firstName || appointment.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+        patientPhone: finalPatientData.phone || appointment.patientPhone || '',
+        patientEmail: finalPatientData.email || appointment.patientEmail || '',
+        patientAddress: formattedAddress,
+        // Include patientId object structure for transformConsultationData
+        patientId: {
+          _id: patientIdString,
+          id: patientIdString,
+          firstName: finalPatientData.firstName || appointment.patientName?.split(' ')[0] || '',
+          lastName: finalPatientData.lastName || appointment.patientName?.split(' ').slice(1).join(' ') || '',
+          email: finalPatientData.email || appointment.patientEmail || '',
+          phone: finalPatientData.phone || appointment.patientPhone || '',
+          dateOfBirth: patientDateOfBirth || null,
+          gender: finalPatientData.gender || appointment.gender || 'male',
+          profileImage: finalPatientData.profileImage || appointment.patientImage || null,
+          address: address || null,
+        },
           diagnosis: '',
           vitals: {},
           medications: [],
           investigations: [],
           advice: '',
           attachments: [],
-          // Include original appointment data if available
+        appointmentId: appointment.id || appointment._id,
           originalAppointment: appointment.originalData || appointment,
-        },
+      }
+      
+      navigate('/doctor/consultations', {
+        state: {
+          selectedConsultation: consultationData,
       },
     })
+    } catch (error) {
+      console.error('Error handling appointment view:', error)
+      toast.error('Failed to load consultation data')
+    }
   }
 
   return (
@@ -590,7 +802,9 @@ const DoctorDashboard = () => {
               <div className="relative flex items-start justify-between mb-2 lg:mb-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1 lg:mb-2 group-hover:text-purple-800 transition-colors">Appointment</p>
-                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-purple-700 transition-colors duration-300">{stats.todayAppointments || appointmentStats.todayCount}</p>
+                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-purple-700 transition-colors duration-300">
+                    {appointmentStats.todayCount || ((appointmentStats.todayScheduled || 0) + (appointmentStats.todayRescheduled || 0))}
+                  </p>
                 </div>
                 <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-purple-500 text-white group-hover:bg-purple-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
                   <IoCalendarOutline className="text-base lg:text-2xl" aria-hidden="true" />
@@ -598,7 +812,12 @@ const DoctorDashboard = () => {
               </div>
               <div className="relative space-y-0.5">
                 <p className="text-[10px] lg:text-xs text-slate-600 leading-tight font-medium group-hover:text-slate-700 transition-colors">Today</p>
-                <div className="flex items-center gap-2 text-[9px] lg:text-xs text-slate-500 group-hover:text-slate-600 transition-colors">
+                <div className="flex items-center gap-1.5 text-[8px] lg:text-[9px] text-slate-500 group-hover:text-slate-600 transition-colors flex-wrap">
+                  <span>Scheduled: {appointmentStats.todayScheduled || 0}</span>
+                  <span>•</span>
+                  <span>Rescheduled: {appointmentStats.todayRescheduled || 0}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[9px] lg:text-xs text-slate-500 group-hover:text-slate-600 transition-colors mt-0.5">
                   <span>Month: {appointmentStats.monthCount || 0}</span>
                   <span>•</span>
                   <span>Year: {appointmentStats.yearCount || 0}</span>

@@ -17,49 +17,158 @@ exports.getPatientQueue = asyncHandler(async (req, res) => {
   const { id } = req.auth;
   const { date } = req.query;
 
-  const sessionDate = date ? new Date(date) : new Date();
+  // Handle date properly - can be query param or default to today
+  let sessionDate;
+  if (date) {
+    // If date is provided as query param (YYYY-MM-DD format)
+    if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Parse as UTC to avoid timezone issues
+      const [year, month, day] = date.split('-').map(Number);
+      sessionDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    } else {
+      sessionDate = new Date(date);
+    }
+  } else {
+    sessionDate = new Date();
+  }
+  
+  // Set to start of day in local timezone for query
   sessionDate.setHours(0, 0, 0, 0);
   const sessionEndDate = new Date(sessionDate);
   sessionEndDate.setHours(23, 59, 59, 999);
-
-  const Session = require('../../models/Session');
-  const session = await Session.findOne({
-    doctorId: id,
-    date: { $gte: sessionDate, $lt: sessionEndDate },
-    status: { $in: ['scheduled', 'active'] },
+  
+  console.log(`📅 Doctor ${id} requesting patient queue for date:`, {
+    queryDate: date,
+    parsedDate: sessionDate.toISOString(),
+    dayName: new Date(sessionDate).toLocaleDateString('en-US', { weekday: 'long' }),
   });
 
+  const Session = require('../../models/Session');
+  const { getOrCreateSession } = require('../../services/sessionService');
+  const Doctor = require('../../models/Doctor');
+
+  // Try to get existing session first (include all statuses except cancelled and completed)
+  // Don't filter by status initially - we'll check status later
+  let session = await Session.findOne({
+    doctorId: id,
+    date: { $gte: sessionDate, $lt: sessionEndDate },
+    status: { $nin: ['cancelled', 'completed'] }, // Exclude only cancelled and completed
+  });
+  
+  // If session is cancelled or completed, treat as no session
+  if (session && (session.status === 'cancelled' || session.status === 'completed')) {
+    session = null;
+  }
+
+  // If no session exists, return null (do NOT auto-create)
+  // Sessions should only be created when appointments are booked or manually by doctor
   if (!session) {
+    console.log(`ℹ️ No session found for doctor ${id} on ${sessionDate.toISOString().split('T')[0]}. Returning null.`);
+    // Check if there are any rescheduled appointments for this date that might need a session
+    const rescheduledAppointments = await Appointment.find({
+      doctorId: id,
+      appointmentDate: { $gte: sessionDate, $lt: sessionEndDate },
+      status: { $in: ['scheduled', 'confirmed'] },
+      rescheduledAt: { $exists: true },
+    }).countDocuments();
+    
+    if (rescheduledAppointments > 0) {
+      console.log(`⚠️ Found ${rescheduledAppointments} rescheduled appointment(s) for this date but no session exists. Session should have been created during reschedule.`);
+    }
+    
     return res.status(200).json({
       success: true,
       data: {
         session: null,
         appointments: [],
         currentToken: 0,
+        message: 'No session available for this date',
       },
     });
   }
 
+  // Get appointments for this session - include all scheduled/confirmed appointments
+  // This includes both regular appointments and rescheduled appointments
   const appointments = await Appointment.find({
     sessionId: session._id,
     status: { $in: ['scheduled', 'confirmed'] },
   })
-    .populate('patientId', 'firstName lastName phone profileImage')
+    .populate('patientId', 'firstName lastName phone profileImage dateOfBirth gender')
+    .select('-__v -updatedAt') // Exclude unnecessary fields
     .sort({ tokenNumber: 1 });
+  
+  // Additional verification: Check if there are any appointments with matching appointmentDate
+  // that might not be in the session (shouldn't happen, but good to verify)
+  const appointmentsByDate = await Appointment.find({
+    doctorId: id,
+    appointmentDate: { $gte: sessionDate, $lt: sessionEndDate },
+    status: { $in: ['scheduled', 'confirmed'] },
+    sessionId: { $ne: session._id }, // Different session
+  }).countDocuments();
+  
+  if (appointmentsByDate > 0) {
+    console.warn(`⚠️ Found ${appointmentsByDate} appointment(s) with matching date but different sessionId. This might indicate a data inconsistency.`);
+  }
+  
+  console.log(`📋 Found ${appointments.length} appointments for session ${session._id} on ${sessionDate.toISOString().split('T')[0]}:`, {
+    sessionId: session._id,
+    sessionDate: sessionDate.toISOString().split('T')[0],
+    appointmentsCount: appointments.length,
+    appointmentIds: appointments.map(a => a._id.toString()),
+    rescheduledCount: appointments.filter(a => a.rescheduledAt).length,
+    regularCount: appointments.filter(a => !a.rescheduledAt).length,
+    appointmentsWithMatchingDate: appointments.filter(a => {
+      const aptDate = new Date(a.appointmentDate);
+      aptDate.setHours(0, 0, 0, 0);
+      return aptDate.getTime() === sessionDate.getTime();
+    }).length,
+  });
+  
+  // Calculate age from dateOfBirth for each appointment
+  const appointmentsWithAge = appointments.map(appt => {
+    const apptObj = appt.toObject(); // Convert to plain object
+    if (apptObj.patientId && apptObj.patientId.dateOfBirth) {
+      const today = new Date();
+      const birthDate = new Date(apptObj.patientId.dateOfBirth);
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      // Add calculated age to patient object
+      apptObj.patientId.age = age;
+    } else if (apptObj.patientId) {
+      apptObj.patientId.age = 0; // Default to 0 if no dateOfBirth
+    }
+    return apptObj;
+  });
+
+  // Get doctor for average consultation minutes
+  const doctor = await Doctor.findById(id).select('averageConsultationMinutes');
+
+  // Format session date to ISO string for frontend
+  const sessionDateISO = session.date instanceof Date 
+    ? session.date.toISOString().split('T')[0] 
+    : new Date(session.date).toISOString().split('T')[0];
 
   return res.status(200).json({
     success: true,
     data: {
       session: {
         _id: session._id,
-        date: session.date,
+        id: session._id, // Also include id for frontend compatibility
+        date: sessionDateISO,
         sessionStartTime: session.sessionStartTime,
         sessionEndTime: session.sessionEndTime,
-        currentToken: session.currentToken,
-        maxTokens: session.maxTokens,
+        currentToken: session.currentToken || 0,
+        maxTokens: session.maxTokens || 0,
+        status: session.status,
+        startedAt: session.startedAt,
+        endedAt: session.endedAt,
+        averageConsultationMinutes: doctor?.averageConsultationMinutes || 20,
       },
-      appointments,
-      currentToken: session.currentToken,
+      appointments: appointmentsWithAge || [],
+      currentToken: session.currentToken || 0,
     },
   });
 });
@@ -67,7 +176,7 @@ exports.getPatientQueue = asyncHandler(async (req, res) => {
 // GET /api/doctors/patients/:id
 exports.getPatientById = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { patientId } = req.params;
+  const patientId = req.params.id; // Fix: route parameter is :id, not :patientId
 
   // Verify patient has appointments with this doctor
   const appointment = await Appointment.findOne({
@@ -93,7 +202,7 @@ exports.getPatientById = asyncHandler(async (req, res) => {
 // GET /api/doctors/patients/:id/history
 exports.getPatientHistory = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { patientId } = req.params;
+  const patientId = req.params.id; // Fix: route parameter is :id, not :patientId
 
   // Verify patient has appointments with this doctor
   const appointment = await Appointment.findOne({
@@ -163,7 +272,7 @@ exports.getAllPatients = asyncHandler(async (req, res) => {
 
   const [patients, total] = await Promise.all([
     Patient.find(filter)
-      .select('firstName lastName email phone profileImage dateOfBirth gender')
+      .select('firstName lastName email phone profileImage dateOfBirth gender address')
       .sort({ firstName: 1, lastName: 1 })
       .skip(skip)
       .limit(limit),

@@ -5,6 +5,7 @@ const Admin = require('../../models/Admin');
 const {
   sendSupportTicketNotification,
   sendAdminSupportTicketNotification,
+  createSupportTicketNotification,
 } = require('../../services/notificationService');
 
 // Helper functions
@@ -51,15 +52,25 @@ exports.createSupportTicket = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
-  // Send email notifications
+  // Send email and in-app notifications
   try {
-    // Send confirmation to patient
-    await sendSupportTicketNotification({
-      user: patient,
-      ticket,
-      userType: 'patient',
-      isResponse: false,
-    }).catch((error) => console.error('Error sending support ticket email to patient:', error));
+    // Send confirmation email to patient
+    if (patient) {
+      await sendSupportTicketNotification({
+        user: patient,
+        ticket,
+        userType: 'patient',
+        isResponse: false,
+      }).catch((error) => console.error('Error sending support ticket email to patient:', error));
+      
+      // Create in-app notification for patient
+      await createSupportTicketNotification({
+        userId: id,
+        userType: 'patient',
+        ticket,
+        eventType: 'created',
+      }).catch((error) => console.error('Error creating support ticket notification:', error));
+    }
 
     // Send notification to all admins
     const admins = await Admin.find({ isActive: true }).select('email name');

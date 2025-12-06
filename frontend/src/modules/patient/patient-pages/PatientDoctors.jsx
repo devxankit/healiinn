@@ -105,102 +105,107 @@ const PatientDoctors = () => {
   const [error, setError] = useState(null)
   const sortBy = 'relevance' // Default sort: by rating (highest first)
 
-  // Fetch doctors and specialties from API
+  // Debug: Log doctors state changes
   useEffect(() => {
-    const fetchData = async () => {
+    console.log('📊 Doctors state updated:', {
+      count: doctors.length,
+      doctors: doctors.map(d => ({ id: d.id, name: d.name, specialty: d.specialty })),
+    })
+  }, [doctors])
+
+  // Fetch all doctors first to build specialties list (only once on mount)
+  useEffect(() => {
+    const fetchAllDoctorsForSpecialties = async () => {
       try {
-        setLoading(true)
-        setError(null)
+        console.log('🔄 Fetching all doctors for specialties list...') // Debug log
+        // Fetch all doctors without filters to build complete specialties list
+        const allDoctorsResponse = await getDiscoveryDoctors({ limit: 1000, page: 1, _t: Date.now() })
+        console.log('📊 All doctors response:', allDoctorsResponse) // Debug log
         
-        // First fetch specialties to get the mapping
-        const specialtiesResponse = await getSpecialties().catch(() => ({ success: false, data: [] }))
-        
-        // Build filters object, only include defined values
-        const filters = {}
-        if (selectedSpecialty && selectedSpecialty !== 'all') {
-          // Find the actual specialty name from the list
-          let specialtyName = selectedSpecialty
+        if (allDoctorsResponse && allDoctorsResponse.success && allDoctorsResponse.data) {
+          const allDoctorsData = Array.isArray(allDoctorsResponse.data) 
+            ? allDoctorsResponse.data 
+            : (allDoctorsResponse.data.items || [])
+          
+          console.log('📋 All doctors data extracted:', allDoctorsData.length) // Debug log
+          
+          // Extract unique specialties from ALL doctors
+          const doctorSpecialties = new Set()
+          allDoctorsData.forEach(doctor => {
+            const specialty = doctor.specialization || doctor.specialty
+            if (specialty && specialty.trim()) {
+              doctorSpecialties.add(specialty.trim())
+            }
+          })
+          
+          // Fetch API specialties
+          const specialtiesResponse = await getSpecialties().catch(() => ({ success: false, data: [] }))
+          
+          // Process API specialties
+          const apiSpecialties = new Map()
           if (specialtiesResponse.success && specialtiesResponse.data) {
             const specialtiesData = Array.isArray(specialtiesResponse.data) 
               ? specialtiesResponse.data 
-              : []
-            const specialtyObj = specialtiesData.find(s => {
+              : specialtiesResponse.data.specialties || []
+            
+            specialtiesData.forEach(s => {
               const sName = typeof s === 'string' ? s : (s.name || s.label || '')
-              const sId = sName.toLowerCase().replace(/\s+/g, '_')
-              return sId === selectedSpecialty
+              if (sName && sName.trim()) {
+                const normalized = sName.trim()
+                apiSpecialties.set(normalized.toLowerCase(), {
+                  id: normalized.toLowerCase().replace(/\s+/g, '_'),
+                  label: normalized,
+                  name: normalized,
+                })
+              }
             })
-            if (specialtyObj) {
-              specialtyName = typeof specialtyObj === 'string' ? specialtyObj : (specialtyObj.name || specialtyObj.label || selectedSpecialty)
-            } else {
-              // Fallback: try to convert ID back to name format
-              specialtyName = selectedSpecialty.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-            }
-          } else {
-            // Fallback: try to convert ID back to name format
-            specialtyName = selectedSpecialty.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
           }
-          filters.specialty = specialtyName
-        }
-        if (searchTerm && searchTerm.trim()) {
-          filters.search = searchTerm.trim()
-        }
-        
-        const doctorsResponse = await getDiscoveryDoctors(filters)
-        
-        if (doctorsResponse.success && doctorsResponse.data) {
-          const doctorsData = Array.isArray(doctorsResponse.data) 
-            ? doctorsResponse.data 
-            : doctorsResponse.data.items || []
           
-          const transformed = doctorsData.map(doctor => ({
-            id: doctor._id || doctor.id,
-            _id: doctor._id || doctor.id,
-            name: doctor.firstName && doctor.lastName
-              ? `Dr. ${doctor.firstName} ${doctor.lastName}`
-              : doctor.name || 'Dr. Unknown',
-            specialty: doctor.specialization || doctor.specialty || 'General',
-            experience: doctor.experienceYears 
-              ? `${doctor.experienceYears} years` 
-              : doctor.experience || 'N/A',
-            rating: doctor.rating || 0,
-            reviewCount: doctor.reviewCount || 0,
-            consultationFee: doctor.consultationFee || 0,
-            distance: doctor.distance || 'N/A',
-            location: doctor.clinicDetails?.name 
-              ? `${doctor.clinicDetails.name}, ${doctor.clinicDetails.address?.city || ''}`
-              : doctor.location || 'Location not available',
-            availability: 'Available', // TODO: Calculate from schedule
-            nextSlot: 'N/A', // TODO: Get from schedule
-            image: doctor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
-            languages: doctor.languages || ['English'],
-            education: doctor.qualification || doctor.education || 'MBBS',
-            bio: doctor.bio || '',
-            originalData: doctor,
-          }))
+          // Merge API specialties with doctor specialties
+          const allSpecialties = new Map(apiSpecialties)
+          doctorSpecialties.forEach(specialty => {
+            const normalized = specialty.toLowerCase()
+            if (!allSpecialties.has(normalized)) {
+              allSpecialties.set(normalized, {
+                id: specialty.toLowerCase().replace(/\s+/g, '_'),
+                label: specialty,
+                name: specialty,
+              })
+            }
+          })
           
-          setDoctors(transformed)
+          // Convert to array and sort
+          const processedSpecialties = Array.from(allSpecialties.values())
+            .sort((a, b) => a.label.localeCompare(b.label))
+          
+          // Set specialties list with "All Specialties" first
+          setSpecialtiesList([
+            { id: 'all', label: 'All Specialties', icon: TbStethoscope, name: 'all' },
+            ...processedSpecialties.map(s => ({
+              id: s.id,
+              label: s.label,
+              name: s.name,
+              icon: TbStethoscope,
+            })),
+          ])
         }
-        
+      } catch (err) {
+        console.error('Error fetching all doctors for specialties:', err)
+        // Still try to set specialties from API
+        const specialtiesResponse = await getSpecialties().catch(() => ({ success: false, data: [] }))
         if (specialtiesResponse.success && specialtiesResponse.data) {
           const specialtiesData = Array.isArray(specialtiesResponse.data) 
             ? specialtiesResponse.data 
             : specialtiesResponse.data.specialties || []
           
-          // Handle both string array and object array
           const processedSpecialties = specialtiesData.map(s => {
-            if (typeof s === 'string') {
-              return {
-                id: s.toLowerCase().replace(/\s+/g, '_'),
-                label: s,
-                name: s,
-              }
-            }
+            const sName = typeof s === 'string' ? s : (s.name || s.label || '')
             return {
-              id: (s.name || s.label || s).toLowerCase().replace(/\s+/g, '_'),
-              label: s.name || s.label || s,
-              name: s.name || s.label || s,
+              id: sName.toLowerCase().replace(/\s+/g, '_'),
+              label: sName,
+              name: sName,
             }
-          })
+          }).filter(s => s.label)
           
           if (processedSpecialties.length > 0) {
             setSpecialtiesList([
@@ -214,10 +219,178 @@ const PatientDoctors = () => {
             ])
           }
         }
+      }
+    }
+    
+    // Only fetch once on mount to build specialties list
+    fetchAllDoctorsForSpecialties()
+  }, []) // Empty dependency array - only run once
+  
+  // Fetch doctors based on selected specialty and search term
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Build filters object, only include defined values
+        const filters = {
+          limit: 1000, // Fetch all doctors (up to 1000)
+          page: 1,
+          _t: Date.now(), // Cache busting parameter
+        }
+        if (selectedSpecialty && selectedSpecialty !== 'all') {
+          // Find the actual specialty name from the current specialties list
+          const specialtyObj = specialtiesList.find(s => s.id === selectedSpecialty)
+          if (specialtyObj && specialtyObj.name && specialtyObj.name !== 'all') {
+            filters.specialty = specialtyObj.name
+          } else if (specialtiesList.length > 0) {
+            // If specialty not found in list, try to convert ID back to name format
+            filters.specialty = selectedSpecialty.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+          }
+          // If specialties list is empty, skip specialty filter (will fetch all)
+        }
+        // When "all" is selected, don't add specialty filter - fetch all doctors
+        if (searchTerm && searchTerm.trim()) {
+          filters.search = searchTerm.trim()
+        }
+        
+        console.log('🔍 Fetching doctors with filters:', filters) // Debug log
+        console.log('🔍 Selected specialty:', selectedSpecialty) // Debug log
+        console.log('🔍 Specialties list length:', specialtiesList.length) // Debug log
+        
+        let doctorsResponse
+        try {
+          doctorsResponse = await getDiscoveryDoctors(filters)
+          console.log('📊 Doctors API response received:', doctorsResponse) // Debug log
+          console.log('📊 Response type:', typeof doctorsResponse) // Debug log
+          console.log('📊 Response success:', doctorsResponse?.success) // Debug log
+          console.log('📊 Response data type:', typeof doctorsResponse?.data) // Debug log
+          console.log('📊 Response data:', doctorsResponse?.data) // Debug log
+          console.log('📊 Is data array?', Array.isArray(doctorsResponse?.data)) // Debug log
+          console.log('📊 Data items?', doctorsResponse?.data?.items) // Debug log
+        } catch (apiError) {
+          console.error('❌ API Error:', apiError) // Debug log
+          console.error('❌ API Error message:', apiError.message) // Debug log
+          console.error('❌ API Error response:', apiError.response) // Debug log
+          throw apiError
+        }
+        
+        if (doctorsResponse && doctorsResponse.success) {
+          // Handle response data structure
+          let doctorsData = []
+          
+          console.log('🔍 Parsing response data structure...') // Debug log
+          console.log('🔍 Full response structure:', JSON.stringify(doctorsResponse, null, 2)) // Debug log
+          
+          if (Array.isArray(doctorsResponse.data)) {
+            // If data is directly an array
+            doctorsData = doctorsResponse.data
+            console.log('📋 Data is array, count:', doctorsData.length) // Debug log
+          } else if (doctorsResponse.data && doctorsResponse.data.items) {
+            // If data has items property
+            doctorsData = Array.isArray(doctorsResponse.data.items) 
+              ? doctorsResponse.data.items 
+              : []
+            console.log('📋 Data has items property, count:', doctorsData.length) // Debug log
+            console.log('📋 First item in items array:', doctorsData[0]) // Debug log
+          } else if (doctorsResponse.data) {
+            // Try to extract any array from data
+            doctorsData = []
+            console.warn('⚠️ Unexpected data structure:', doctorsResponse.data) // Debug log
+            console.warn('⚠️ Data keys:', Object.keys(doctorsResponse.data || {})) // Debug log
+          } else {
+            console.error('❌ No data property in response!') // Debug log
+            console.error('❌ Response keys:', Object.keys(doctorsResponse || {})) // Debug log
+          }
+          
+          console.log('📋 Final doctors data array:', doctorsData) // Debug log
+          console.log('📋 Doctors count:', doctorsData.length) // Debug log
+          
+          if (doctorsData.length === 0) {
+            console.warn('⚠️ No doctors found in response data') // Debug log
+            console.warn('⚠️ Full response for debugging:', JSON.stringify(doctorsResponse, null, 2)) // Debug log
+            setDoctors([])
+            setLoading(false)
+            return
+          }
+          
+          console.log('✅ Starting transformation of', doctorsData.length, 'doctors') // Debug log
+          
+          const transformed = doctorsData.map((doctor, index) => {
+            console.log(`🔄 Transforming doctor ${index + 1}/${doctorsData.length}:`, {
+              id: doctor._id || doctor.id,
+              firstName: doctor.firstName,
+              lastName: doctor.lastName,
+              specialization: doctor.specialization,
+              hasClinicDetails: !!doctor.clinicDetails,
+            }) // Debug log
+            // Format full address
+            const formatFullAddress = (clinicDetails) => {
+              if (!clinicDetails) return 'Location not available'
+              
+              const parts = []
+              if (clinicDetails.name) parts.push(clinicDetails.name)
+              
+              if (clinicDetails.address) {
+                const addr = clinicDetails.address
+                if (addr.line1) parts.push(addr.line1)
+                if (addr.line2) parts.push(addr.line2)
+                if (addr.city) parts.push(addr.city)
+                if (addr.state) parts.push(addr.state)
+                if (addr.postalCode) parts.push(addr.postalCode)
+                if (addr.country) parts.push(addr.country)
+              }
+              
+              return parts.length > 0 ? parts.join(', ') : 'Location not available'
+            }
+            
+            return {
+            id: doctor._id || doctor.id,
+            _id: doctor._id || doctor.id,
+            name: doctor.firstName && doctor.lastName
+              ? `Dr. ${doctor.firstName} ${doctor.lastName}`
+              : doctor.name || 'Dr. Unknown',
+            specialty: doctor.specialization || doctor.specialty || 'General',
+              experience: doctor.experienceYears 
+                ? `${doctor.experienceYears} years` 
+                : doctor.experience || 'N/A',
+            rating: doctor.rating || 0,
+            reviewCount: doctor.reviewCount || 0,
+            consultationFee: doctor.consultationFee || 0,
+            distance: doctor.distance || 'N/A',
+              location: formatFullAddress(doctor.clinicDetails),
+              clinicName: doctor.clinicDetails?.name || '',
+              clinicAddress: doctor.clinicDetails?.address || {},
+            availability: 'Available', // TODO: Calculate from schedule
+            nextSlot: 'N/A', // TODO: Get from schedule
+            image: doctor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
+            languages: doctor.languages || ['English'],
+            education: doctor.qualification || doctor.education || 'MBBS',
+            bio: doctor.bio || '',
+            originalData: doctor,
+            }
+          })
+          
+          console.log('✅ Transformation complete. Setting', transformed.length, 'doctors') // Debug log
+          console.log('✅ First transformed doctor:', transformed[0]) // Debug log
+          
+          setDoctors(transformed)
+          console.log('✅ Doctors state updated successfully:', transformed.length) // Debug log
+        } else {
+          console.warn('⚠️ No doctors data in response:', doctorsResponse) // Debug log
+          setDoctors([])
+        }
       } catch (err) {
-        console.error('Error fetching doctors:', err)
+        console.error('❌ Error fetching doctors:', err) // Debug log
+        console.error('❌ Error details:', {
+          message: err.message,
+          stack: err.stack,
+          response: err.response,
+        }) // Debug log
         setError(err.message || 'Failed to load doctors')
         toast.error('Failed to load doctors')
+        setDoctors([]) // Ensure doctors array is empty on error
       } finally {
         setLoading(false)
       }
@@ -225,7 +398,7 @@ const PatientDoctors = () => {
 
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSpecialty, searchTerm, toast])
+  }, [selectedSpecialty, searchTerm, toast, specialtiesList])
 
   // Set specialty from URL query parameter
   useEffect(() => {
@@ -236,13 +409,21 @@ const PatientDoctors = () => {
   }, [searchParams])
 
   const filteredDoctors = useMemo(() => {
+    console.log('🔄 Computing filteredDoctors...', {
+      doctorsCount: doctors.length,
+      selectedSpecialty,
+      searchTerm,
+      specialtiesListLength: specialtiesList.length,
+    }) // Debug log
+    
     const normalizedSearch = searchTerm.trim().toLowerCase()
 
     let filtered = doctors.filter((doctor) => {
-      // Filter by active status first
-      if (!isDoctorActive(doctor.name)) {
-        return false
-      }
+      // For patient view, show all doctors from backend
+      // The backend already filters by status: approved and isActive: true
+      // So we don't need to filter here
+      // Only filter by specialty and search term
+      
       // Filter by specialty
       if (selectedSpecialty !== 'all') {
         // Find the actual specialty name from the list
@@ -250,6 +431,13 @@ const PatientDoctors = () => {
         const selectedSpecialtyName = specialtyObj?.name || selectedSpecialty.replace(/_/g, ' ')
         const doctorSpecialty = (doctor.specialty || '').toLowerCase()
         const selectedSpecialtyLower = selectedSpecialtyName.toLowerCase()
+        
+        console.log('🔍 Filtering by specialty:', {
+          selectedSpecialty,
+          selectedSpecialtyName,
+          doctorSpecialty,
+          match: doctorSpecialty.includes(selectedSpecialtyLower) || selectedSpecialtyLower.includes(doctorSpecialty),
+        }) // Debug log
         
         // Match by name (case-insensitive, partial match)
         if (!doctorSpecialty.includes(selectedSpecialtyLower) && !selectedSpecialtyLower.includes(doctorSpecialty)) {
@@ -272,13 +460,15 @@ const PatientDoctors = () => {
 
         // Check if any word in search term matches
         const searchWords = normalizedSearch.split(/\s+/).filter(Boolean)
-        const matches = searchWords.every((word) => searchableFields.includes(word))
+        const matches = searchWords.some((word) => searchableFields.includes(word))
         
         return matches
       }
 
       return true
     })
+
+    console.log('✅ Filtered doctors count:', filtered.length) // Debug log
 
     // Sort results
     return filtered.sort((a, b) => {
@@ -298,7 +488,7 @@ const PatientDoctors = () => {
       }
       return b.rating - a.rating
     })
-  }, [searchTerm, selectedSpecialty, sortBy])
+  }, [doctors, searchTerm, selectedSpecialty, sortBy, specialtiesList])
 
   const handleCardClick = (doctorId) => {
     navigate(`/patient/doctors/${doctorId}`)
@@ -420,7 +610,10 @@ const PatientDoctors = () => {
                   <div className="flex-1 min-w-0">
                     <h3 className="text-base font-bold text-slate-900 mb-0.5 leading-tight">{doctor.name}</h3>
                     <p className="text-xs text-slate-600 mb-0.5">{doctor.specialty}</p>
-                    <p className="text-xs text-slate-500 mb-1.5">{doctor.location}</p>
+                    {doctor.clinicName && (
+                      <p className="text-xs font-semibold text-slate-700 mb-0.5">{doctor.clinicName}</p>
+                    )}
+                    <p className="text-xs text-slate-500 mb-1.5 line-clamp-2">{doctor.location}</p>
                     <div className="flex items-center gap-1.5">
                       <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
                       <span className="text-xs font-semibold text-slate-700">

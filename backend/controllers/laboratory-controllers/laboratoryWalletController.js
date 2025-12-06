@@ -155,31 +155,77 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     });
   }
 
-  const latestTransaction = await WalletTransaction.findOne({
-    userId: id,
-    userType: 'laboratory',
-  }).sort({ createdAt: -1 });
+  // Convert id to ObjectId to ensure proper matching
+  const mongoose = require('mongoose');
+  const laboratoryObjectId = mongoose.Types.ObjectId.isValid(id) 
+    ? new mongoose.Types.ObjectId(id) 
+    : id;
 
-  const balance = latestTransaction?.balance || 0;
-
-  const pendingWithdrawals = await WithdrawalRequest.aggregate([
-    {
-      $match: {
-        userId: id,
-        userType: 'laboratory',
-        status: { $in: ['pending', 'approved'] },
+  // Calculate balance from all transactions (same logic as getWalletBalance)
+  const [allEarningsCalc, allWithdrawalsCalc, pendingWithdrawals] = await Promise.all([
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          userId: laboratoryObjectId,
+          userType: 'laboratory',
+          type: 'earning',
+          status: 'completed',
+        },
       },
-    },
-    {
-      $group: {
-        _id: null,
-        total: { $sum: '$amount' },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
       },
-    },
+    ]),
+    WalletTransaction.aggregate([
+      {
+        $match: {
+          userId: laboratoryObjectId,
+          userType: 'laboratory',
+          type: 'withdrawal',
+          status: 'completed',
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]),
+    WithdrawalRequest.aggregate([
+      {
+        $match: {
+          userId: laboratoryObjectId,
+          userType: 'laboratory',
+          status: { $in: ['pending', 'approved'] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]),
   ]);
 
+  // Calculate balance from transactions
+  const balance = (allEarningsCalc[0]?.total || 0) - (allWithdrawalsCalc[0]?.total || 0);
   const pendingAmount = pendingWithdrawals[0]?.total || 0;
   const availableBalance = Math.max(0, balance - pendingAmount);
+
+  console.log(`💰 Laboratory withdrawal balance check:`, {
+    laboratoryId: laboratoryObjectId.toString(),
+    totalEarnings: allEarningsCalc[0]?.total || 0,
+    totalWithdrawals: allWithdrawalsCalc[0]?.total || 0,
+    balance,
+    pendingAmount,
+    availableBalance,
+    requestedAmount: amount,
+  });
 
   if (amount > availableBalance) {
     return res.status(400).json({

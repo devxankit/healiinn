@@ -105,6 +105,7 @@ import AdminVerification from './modules/admin/admin-pages/AdminVerification'
 import AdminProfile from './modules/admin/admin-pages/AdminProfile'
 import AdminWallet from './modules/admin/admin-pages/AdminWallet'
 import AdminRevenue from './modules/admin/admin-pages/AdminRevenue'
+import AdminProviderRevenue from './modules/admin/admin-pages/AdminProviderRevenue'
 import AdminSupport from './modules/admin/admin-pages/AdminSupport'
 import AdminAppointments from './modules/admin/admin-pages/AdminAppointments'
 import AdminOrders from './modules/admin/admin-pages/AdminOrders'
@@ -191,6 +192,7 @@ function AdminRoutes() {
           <Route path="/laboratories" element={<ProtectedRoute module="admin"><AdminLaboratories /></ProtectedRoute>} />
           <Route path="/wallet" element={<ProtectedRoute module="admin"><AdminWallet /></ProtectedRoute>} />
           <Route path="/revenue" element={<ProtectedRoute module="admin"><AdminRevenue /></ProtectedRoute>} />
+          <Route path="/revenue/:type" element={<ProtectedRoute module="admin"><AdminProviderRevenue /></ProtectedRoute>} />
           <Route path="/verification" element={<ProtectedRoute module="admin"><AdminVerification /></ProtectedRoute>} />
           <Route path="/appointments" element={<ProtectedRoute module="admin"><AdminAppointments /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute module="admin"><AdminOrders /></ProtectedRoute>} />

@@ -1,5 +1,12 @@
 const asyncHandler = require('../../middleware/asyncHandler');
 const SupportTicket = require('../../models/SupportTicket');
+const Laboratory = require('../../models/Laboratory');
+const Admin = require('../../models/Admin');
+const { 
+  sendSupportTicketNotification, 
+  sendAdminSupportTicketNotification,
+  createSupportTicketNotification 
+} = require('../../services/notificationService');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -30,6 +37,9 @@ exports.createSupportTicket = asyncHandler(async (req, res) => {
     status: 'open',
   });
 
+  // Get laboratory data for notifications
+  const laboratory = await Laboratory.findById(id);
+
   // Emit real-time event to admins
   try {
     const { getIO } = require('../../config/socket');
@@ -40,6 +50,40 @@ exports.createSupportTicket = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error('Socket.IO error:', error);
+  }
+
+  // Send email and in-app notifications
+  try {
+    // Send confirmation email to laboratory
+    if (laboratory) {
+      await sendSupportTicketNotification({
+        user: laboratory,
+        ticket,
+        userType: 'laboratory',
+        isResponse: false,
+      }).catch((error) => console.error('Error sending support ticket email to laboratory:', error));
+      
+      // Create in-app notification for laboratory
+      await createSupportTicketNotification({
+        userId: id,
+        userType: 'laboratory',
+        ticket,
+        eventType: 'created',
+      }).catch((error) => console.error('Error creating support ticket notification:', error));
+    }
+
+    // Send notification to all admins
+    const admins = await Admin.find({ isActive: true }).select('email name');
+    for (const admin of admins) {
+      await sendAdminSupportTicketNotification({
+        admin,
+        ticket,
+        user: laboratory,
+        userType: 'laboratory',
+      }).catch((error) => console.error(`Error sending admin support ticket email to ${admin.email}:`, error));
+    }
+  } catch (error) {
+    console.error('Error sending email notifications:', error);
   }
 
   return res.status(201).json({
@@ -78,6 +122,24 @@ exports.getSupportTickets = asyncHandler(async (req, res) => {
         totalPages: Math.ceil(total / limit) || 1,
       },
     },
+  });
+});
+
+// GET /api/laboratory/support/history
+exports.getSupportHistory = asyncHandler(async (req, res) => {
+  const { id } = req.auth;
+
+  const tickets = await SupportTicket.find({
+    userId: id,
+    userType: 'laboratory',
+    status: { $in: ['resolved', 'closed'] },
+  })
+    .sort({ createdAt: -1 })
+    .limit(20);
+
+  return res.status(200).json({
+    success: true,
+    data: tickets,
   });
 });
 

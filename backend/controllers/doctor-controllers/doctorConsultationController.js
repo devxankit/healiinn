@@ -28,15 +28,53 @@ exports.getConsultations = asyncHandler(async (req, res) => {
     };
   }
 
+  const Patient = require('../../models/Patient');
+  
   const [consultations, total] = await Promise.all([
     Consultation.find(filter)
-      .populate('patientId', 'firstName lastName phone profileImage')
+      .populate({
+        path: 'patientId',
+        select: 'firstName lastName phone email profileImage dateOfBirth gender',
+      })
       .populate('appointmentId', 'appointmentDate time')
       .sort({ consultationDate: -1 })
       .skip(skip)
       .limit(limit),
     Consultation.countDocuments(filter),
   ]);
+
+  // Fetch patient addresses separately to ensure all nested fields are included
+  const patientIds = consultations
+    .map(c => c.patientId?._id || c.patientId?.id)
+    .filter(Boolean);
+  
+  const patientsWithAddress = await Patient.find({ _id: { $in: patientIds } })
+    .select('_id address');
+  
+  const addressMap = new Map();
+  patientsWithAddress.forEach(patient => {
+    if (patient.address) {
+      addressMap.set(patient._id.toString(), patient.address);
+    }
+  });
+
+  // Attach addresses to consultations
+  consultations.forEach(consultation => {
+    if (consultation.patientId) {
+      const patientId = consultation.patientId._id?.toString() || consultation.patientId.id?.toString();
+      if (patientId) {
+        // Always set address, even if empty, to ensure the field exists
+        const address = addressMap.get(patientId) || {};
+        consultation.patientId.address = address;
+        // Convert to plain object to ensure address is included in JSON response
+        if (consultation.patientId.toObject) {
+          const patientObj = consultation.patientId.toObject();
+          patientObj.address = address;
+          consultation.patientId = patientObj;
+        }
+      }
+    }
+  });
 
   return res.status(200).json({
     success: true,
@@ -177,11 +215,16 @@ exports.getConsultationById = asyncHandler(async (req, res) => {
 
   const LabReport = require('../../models/LabReport');
 
+  const Patient = require('../../models/Patient');
+  
   const consultation = await Consultation.findOne({
     _id: consultationId,
     doctorId: id,
   })
-    .populate('patientId', 'firstName lastName phone profileImage dateOfBirth gender bloodGroup')
+    .populate({
+      path: 'patientId',
+      select: 'firstName lastName phone email profileImage dateOfBirth gender bloodGroup',
+    })
     .populate('appointmentId', 'appointmentDate time reason')
     .populate('prescriptionId');
 
@@ -190,6 +233,20 @@ exports.getConsultationById = asyncHandler(async (req, res) => {
       success: false,
       message: 'Consultation not found',
     });
+  }
+
+  // Fetch patient address separately to ensure all nested fields are included
+  if (consultation.patientId) {
+    const patientId = consultation.patientId._id || consultation.patientId.id;
+    const fullPatient = await Patient.findById(patientId).select('address');
+    if (fullPatient) {
+      // Always set address, even if empty, to ensure the field exists
+      consultation.patientId.address = fullPatient.address || {};
+      // Mark the address field as modified so Mongoose includes it in toObject()
+      if (consultation.patientId.markModified) {
+        consultation.patientId.markModified('address');
+      }
+    }
   }
 
   // Get shared lab reports for this patient and doctor
@@ -201,7 +258,12 @@ exports.getConsultationById = asyncHandler(async (req, res) => {
     .populate('orderId', 'createdAt')
     .sort({ createdAt: -1 });
 
+  // Convert to plain object and ensure address is included
   const consultationData = consultation.toObject();
+  // Ensure patient address is in the response
+  if (consultationData.patientId && consultation.patientId.address) {
+    consultationData.patientId.address = consultation.patientId.address;
+  }
   consultationData.sharedLabReports = sharedReports;
 
   return res.status(200).json({
@@ -215,15 +277,53 @@ exports.getAllConsultations = asyncHandler(async (req, res) => {
   const { id } = req.auth;
   const { page, limit, skip } = buildPagination(req);
 
+  const Patient = require('../../models/Patient');
+  
   const [consultations, total] = await Promise.all([
     Consultation.find({ doctorId: id })
-      .populate('patientId', 'firstName lastName phone profileImage')
+      .populate({
+        path: 'patientId',
+        select: 'firstName lastName phone email profileImage dateOfBirth gender',
+      })
       .populate('appointmentId', 'appointmentDate time')
       .sort({ consultationDate: -1 })
       .skip(skip)
       .limit(limit),
     Consultation.countDocuments({ doctorId: id }),
   ]);
+
+  // Fetch patient addresses separately to ensure all nested fields are included
+  const patientIds = consultations
+    .map(c => c.patientId?._id || c.patientId?.id)
+    .filter(Boolean);
+  
+  const patientsWithAddress = await Patient.find({ _id: { $in: patientIds } })
+    .select('_id address');
+  
+  const addressMap = new Map();
+  patientsWithAddress.forEach(patient => {
+    if (patient.address) {
+      addressMap.set(patient._id.toString(), patient.address);
+    }
+  });
+
+  // Attach addresses to consultations
+  consultations.forEach(consultation => {
+    if (consultation.patientId) {
+      const patientId = consultation.patientId._id?.toString() || consultation.patientId.id?.toString();
+      if (patientId) {
+        // Always set address, even if empty, to ensure the field exists
+        const address = addressMap.get(patientId) || {};
+        consultation.patientId.address = address;
+        // Convert to plain object to ensure address is included in JSON response
+        if (consultation.patientId.toObject) {
+          const patientObj = consultation.patientId.toObject();
+          patientObj.address = address;
+          consultation.patientId = patientObj;
+        }
+      }
+    }
+  });
 
   return res.status(200).json({
     success: true,

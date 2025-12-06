@@ -14,12 +14,33 @@ import {
   IoPersonOutline,
   IoCardOutline,
   IoCheckmarkCircle,
+  IoInformationCircleOutline,
 } from 'react-icons/io5'
-import { getDoctorById, bookAppointment, getPatientAppointments, getPatientProfile, getPatientPrescriptions, checkDoctorSlotAvailability, createAppointmentPaymentOrder, verifyAppointmentPayment, submitReview } from '../patient-services/patientService'
+import { getDoctorById, bookAppointment, getPatientAppointments, getPatientProfile, getPatientPrescriptions, checkDoctorSlotAvailability, createAppointmentPaymentOrder, verifyAppointmentPayment, submitReview, rescheduleAppointment, cancelAppointment } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
 
 // Default doctor data (will be replaced by API)
 const defaultDoctor = null
+
+// Helper function to convert 24-hour format to 12-hour format (or return as is if already 12-hour)
+const convertTo12Hour = (time) => {
+  if (!time) return ''
+  
+  // If already in 12-hour format (contains AM/PM), return as is
+  if (time.toString().includes('AM') || time.toString().includes('PM')) {
+    return time
+  }
+  
+  // Handle both "HH:MM" and "HH:MM:SS" formats (24-hour format)
+  const [hours, minutes] = time.split(':').map(Number)
+  if (isNaN(hours) || isNaN(minutes)) return time
+  
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const hours12 = hours % 12 || 12 // Convert 0 to 12 for 12 AM
+  const minutesStr = minutes.toString().padStart(2, '0')
+  
+  return `${hours12}:${minutesStr} ${period}`
+}
 
 // Helper function to format availability
 const formatAvailability = (availability) => {
@@ -27,21 +48,37 @@ const formatAvailability = (availability) => {
     return 'Available'
   }
   
-  // Format: "Mon-Fri: 9:00 AM - 5:00 PM"
-  const days = availability.map(av => av.day).filter(Boolean)
-  if (days.length === 0) return 'Available'
-  
-  // Get common time range if all days have same time
-  const firstTime = availability[0]
-  const allSameTime = availability.every(av => 
-    av.startTime === firstTime.startTime && av.endTime === firstTime.endTime
+  // Filter out entries without day or time
+  const validAvailability = availability.filter(av => 
+    av.day && av.startTime && av.endTime
   )
   
-  if (allSameTime && firstTime.startTime && firstTime.endTime) {
-    return `${days.join(', ')}: ${firstTime.startTime} - ${firstTime.endTime}`
-  }
+  if (validAvailability.length === 0) return 'Available'
   
-  return days.join(', ')
+  // Group by time slots (same start and end time)
+  const timeGroups = {}
+  validAvailability.forEach(av => {
+    const timeKey = `${av.startTime}-${av.endTime}`
+    if (!timeGroups[timeKey]) {
+      timeGroups[timeKey] = {
+        days: [],
+        startTime: av.startTime,
+        endTime: av.endTime,
+      }
+    }
+    timeGroups[timeKey].days.push(av.day)
+  })
+  
+  // Format each time group
+  const formattedGroups = Object.values(timeGroups).map(group => {
+    const startTime12 = convertTo12Hour(group.startTime)
+    const endTime12 = convertTo12Hour(group.endTime)
+    const daysStr = group.days.join(', ')
+    return `${daysStr}: ${startTime12} - ${endTime12}`
+  })
+  
+  // Join all groups with line breaks or commas
+  return formattedGroups.join('; ')
 }
 
 const renderStars = (rating) => {
@@ -126,15 +163,34 @@ const PatientDoctorDetails = () => {
             reviewCount: response.data.reviewStats?.totalReviews || doctorData.reviewCount || 0,
             consultationFee: doctorData.consultationFee || 0,
             distance: doctorData.distance || 'N/A',
-            location: doctorData.clinicDetails?.name 
-              ? `${doctorData.clinicDetails.name}, ${doctorData.clinicDetails.address?.city || ''}`
-              : doctorData.location || 'Location not available',
+            location: (() => {
+              if (!doctorData.clinicDetails) return doctorData.location || 'Location not available'
+              
+              const parts = []
+              if (doctorData.clinicDetails.name) parts.push(doctorData.clinicDetails.name)
+              
+              if (doctorData.clinicDetails.address) {
+                const addr = doctorData.clinicDetails.address
+                if (addr.line1) parts.push(addr.line1)
+                if (addr.line2) parts.push(addr.line2)
+                if (addr.city) parts.push(addr.city)
+                if (addr.state) parts.push(addr.state)
+                if (addr.postalCode) parts.push(addr.postalCode)
+                if (addr.country) parts.push(addr.country)
+              }
+              
+              return parts.length > 0 ? parts.join(', ') : 'Location not available'
+            })(),
+            clinicName: doctorData.clinicDetails?.name || '',
+            clinicAddress: doctorData.clinicDetails?.address || {},
             availability: doctorData.availability && doctorData.availability.length > 0
               ? formatAvailability(doctorData.availability)
               : (doctorData.availableTimings && doctorData.availableTimings.length > 0
                 ? doctorData.availableTimings.join(', ')
                 : 'Available'),
-            nextSlot: response.data.queueInfo?.eta || 'N/A',
+            nextSlot: response.data.queueInfo?.nextToken 
+              ? `Token #${response.data.queueInfo.nextToken}${response.data.queueInfo?.eta ? ` (${response.data.queueInfo.eta})` : ''}`
+              : (response.data.queueInfo?.eta || null),
             image: doctorData.profileImage || doctorData.documents?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((doctorData.firstName && doctorData.lastName ? `${doctorData.firstName} ${doctorData.lastName}` : doctorData.firstName || 'Doctor'))}&background=11496c&color=fff&size=128&bold=true`,
             languages: doctorData.languages || ['English'],
             education: doctorData.qualification || doctorData.education || 'MBBS',
@@ -177,6 +233,8 @@ const PatientDoctorDetails = () => {
   const [selectedPrescriptions, setSelectedPrescriptions] = useState([]) // Prescriptions to share
   const [bookingStep, setBookingStep] = useState(1) // 1: Date/Time, 2: Details, 3: Confirmation
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isRescheduling, setIsRescheduling] = useState(false) // Track if rescheduling
+  const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState(null) // Appointment ID to reschedule
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewComment, setReviewComment] = useState('')
@@ -291,7 +349,16 @@ const PatientDoctorDetails = () => {
   const getSessionInfoForDate = (date) => {
     // Return cached slot availability if available
     if (slotAvailability[date]) {
-      return slotAvailability[date]
+      const info = slotAvailability[date]
+      // Ensure we have valid data and calculate availability correctly
+      const available = info.available && (info.maxTokens > 0) && (info.currentBookings < info.maxTokens)
+      return {
+        available,
+        maxTokens: info.maxTokens || 0,
+        currentBookings: info.currentBookings || 0,
+        nextToken: info.nextToken || (available ? (info.currentBookings + 1) : null),
+        sessionId: info.sessionId || null,
+      }
     }
     
     // Fallback: return unavailable if not yet loaded
@@ -326,13 +393,27 @@ const PatientDoctorDetails = () => {
     }
   }, [showBookingModal])
 
-  // Auto-open booking modal if 'book' query parameter is present
+  // Auto-open booking modal if 'book' or 'reschedule' query parameter is present
   useEffect(() => {
-    if (doctor && id && searchParams.get('book') === 'true') {
-      setShowBookingModal(true)
-      setBookingStep(1)
-      // Remove the query parameter from URL
-      navigate(`/patient/doctors/${id}`, { replace: true })
+    if (doctor && id) {
+      const rescheduleId = searchParams.get('reschedule')
+      if (rescheduleId) {
+        // Reschedule mode
+        setIsRescheduling(true)
+        setRescheduleAppointmentId(rescheduleId)
+        setShowBookingModal(true)
+        setBookingStep(1)
+        // Remove the query parameter from URL
+        navigate(`/patient/doctors/${id}`, { replace: true })
+      } else if (searchParams.get('book') === 'true') {
+        // Normal booking mode
+        setIsRescheduling(false)
+        setRescheduleAppointmentId(null)
+        setShowBookingModal(true)
+        setBookingStep(1)
+        // Remove the query parameter from URL
+        navigate(`/patient/doctors/${id}`, { replace: true })
+      }
     }
   }, [doctor, searchParams, navigate, id])
 
@@ -365,29 +446,39 @@ const PatientDoctorDetails = () => {
   const [loadingSlots, setLoadingSlots] = useState(false)
 
   // Fetch slot availability for a specific date
-  const fetchSlotAvailabilityForDate = useCallback(async (date, doctorId) => {
+  const fetchSlotAvailabilityForDate = useCallback(async (date, doctorId, forceRefresh = false) => {
     if (!date || !doctorId) return
     
     try {
       const response = await checkDoctorSlotAvailability(doctorId, date)
       if (response.success && response.data) {
+        // Debug log to verify API response
+        console.log(`📅 Slot availability for ${date}:`, {
+          totalSlots: response.data.totalSlots,
+          bookedSlots: response.data.bookedSlots,
+          availableSlots: response.data.availableSlots,
+          sessionStartTime: response.data.sessionStartTime,
+          sessionEndTime: response.data.sessionEndTime,
+          avgConsultationMinutes: response.data.avgConsultationMinutes,
+        })
+        
         setSlotAvailability(prev => {
-          // Don't overwrite if already cached
-          if (prev[date]) return prev
+          // If forceRefresh is true, always update. Otherwise, don't overwrite if already cached
+          if (!forceRefresh && prev[date]) return prev
           return {
             ...prev,
             [date]: {
               available: response.data.available,
-              maxTokens: response.data.totalSlots,
-              currentBookings: response.data.bookedSlots,
-              nextToken: response.data.availableSlots > 0 ? response.data.bookedSlots + 1 : null,
+              maxTokens: response.data.totalSlots || 0,
+              currentBookings: response.data.bookedSlots || 0,
+              nextToken: response.data.availableSlots > 0 ? (response.data.bookedSlots || 0) + 1 : null,
               sessionId: response.data.sessionId,
             }
           }
         })
       } else {
         setSlotAvailability(prev => {
-          if (prev[date]) return prev
+          if (!forceRefresh && prev[date]) return prev
           return {
             ...prev,
             [date]: {
@@ -395,6 +486,7 @@ const PatientDoctorDetails = () => {
               maxTokens: 0,
               currentBookings: 0,
               nextToken: null,
+              sessionId: null,
             }
           }
         })
@@ -402,7 +494,7 @@ const PatientDoctorDetails = () => {
     } catch (error) {
       console.error(`Error fetching slot availability for ${date}:`, error)
       setSlotAvailability(prev => {
-        if (prev[date]) return prev
+        if (!forceRefresh && prev[date]) return prev
         return {
           ...prev,
           [date]: {
@@ -410,6 +502,7 @@ const PatientDoctorDetails = () => {
             maxTokens: 0,
             currentBookings: 0,
             nextToken: null,
+            sessionId: null,
           }
         }
       })
@@ -461,6 +554,8 @@ const PatientDoctorDetails = () => {
   const handleCloseModal = () => {
     setShowBookingModal(false)
     setBookingStep(1)
+    setIsRescheduling(false)
+    setRescheduleAppointmentId(null)
   }
 
   const handleNextStep = () => {
@@ -492,6 +587,58 @@ const PatientDoctorDetails = () => {
     setIsSubmitting(true)
     
     try {
+      // Handle reschedule (no payment required)
+      if (isRescheduling && rescheduleAppointmentId) {
+        const rescheduleData = {
+          appointmentDate: selectedDate,
+          time: '10:00 AM', // Backend will calculate based on token number
+        }
+        
+        const rescheduleResponse = await rescheduleAppointment(rescheduleAppointmentId, rescheduleData)
+        
+        if (!rescheduleResponse.success) {
+          toast.error(rescheduleResponse.message || 'Failed to reschedule appointment. Please try again.')
+          setIsSubmitting(false)
+          return
+        }
+        
+        toast.success('Appointment rescheduled successfully!')
+        
+        // Refresh slot availability for both old and new dates
+        if (selectedDate && doctor?.id) {
+          fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+        }
+        
+        // Refresh all dates availability
+        const dates = getAvailableDates()
+        dates.slice(0, 14).forEach(date => {
+          fetchSlotAvailabilityForDate(date.value, doctor.id, true)
+        })
+        
+        handleCloseModal()
+        // Reset form
+        setSelectedDate('')
+        setAppointmentType('in_person')
+        setReason('')
+        setNotes('')
+        setSelectedPrescriptions([])
+        setBookingStep(1)
+        setIsRescheduling(false)
+        setRescheduleAppointmentId(null)
+        setIsSubmitting(false)
+        
+        // Emit custom event to refresh appointments with a slight delay to ensure backend has updated
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('appointmentBooked'))
+        }, 500)
+        
+        setTimeout(() => {
+          navigate('/patient/appointments')
+        }, 1500)
+        return
+      }
+      
+      // Normal booking flow
       const returningPatientInfo = checkIsReturningPatient(doctor.id)
       const isFreeBooking = returningPatientInfo.isReturning
       
@@ -510,6 +657,7 @@ const PatientDoctorDetails = () => {
         time: '10:00 AM', // Backend will calculate based on token number
         reason: reason || 'Consultation',
         appointmentType: mappedAppointmentType, // Use mapped value
+        consultationMode: appointmentType || 'in_person', // Send consultation mode (in_person, video_call, or call)
       }
 
       // Step 1: Book appointment first (creates appointment with paymentStatus: 'pending')
@@ -522,9 +670,24 @@ const PatientDoctorDetails = () => {
 
       const appointmentId = bookingResponse.data?._id || bookingResponse.data?.id
 
+      // Store appointmentId for potential cancellation if payment fails
+      let createdAppointmentId = appointmentId
+
       // Step 2: If free booking, skip payment
       if (isFreeBooking) {
         toast.success('Appointment booked successfully! (Free consultation)')
+        
+        // Refresh slot availability for the booked date
+        if (selectedDate && doctor?.id) {
+          fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+        }
+        
+        // Refresh all dates availability
+        const dates = getAvailableDates()
+        dates.slice(0, 14).forEach(date => {
+          fetchSlotAvailabilityForDate(date.value, doctor.id, true)
+        })
+        
         handleCloseModal()
         // Reset form
         setSelectedDate('')
@@ -545,6 +708,23 @@ const PatientDoctorDetails = () => {
       
       if (!paymentOrderResponse.success) {
         toast.error(paymentOrderResponse.message || 'Failed to create payment order. Please try again.')
+        
+        // Cancel the appointment if payment order creation failed
+        if (createdAppointmentId) {
+          try {
+            await cancelAppointment(createdAppointmentId, 'Payment order creation failed')
+            console.log('Appointment cancelled due to payment order creation failure')
+            
+            // Refresh slot availability
+            if (selectedDate && doctor?.id) {
+              fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+            }
+          } catch (cancelError) {
+            console.error('Error cancelling appointment after payment order failure:', cancelError)
+          }
+        }
+        
+        setIsSubmitting(false)
         return
       }
 
@@ -553,11 +733,45 @@ const PatientDoctorDetails = () => {
       // Step 4: Initialize Razorpay payment
       if (!window.Razorpay) {
         toast.error('Payment gateway not loaded. Please refresh the page and try again.')
+        
+        // Cancel the appointment if Razorpay is not available
+        if (createdAppointmentId) {
+          try {
+            await cancelAppointment(createdAppointmentId, 'Payment gateway not loaded')
+            console.log('Appointment cancelled due to Razorpay not being loaded')
+            
+            // Refresh slot availability
+            if (selectedDate && doctor?.id) {
+              fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+            }
+          } catch (cancelError) {
+            console.error('Error cancelling appointment:', cancelError)
+          }
+        }
+        
+        setIsSubmitting(false)
         return
       }
 
       if (!razorpayKeyId) {
         toast.error('Payment gateway not configured. Please contact support.')
+        
+        // Cancel the appointment if Razorpay key is not configured
+        if (createdAppointmentId) {
+          try {
+            await cancelAppointment(createdAppointmentId, 'Payment gateway not configured')
+            console.log('Appointment cancelled due to Razorpay key not configured')
+            
+            // Refresh slot availability
+            if (selectedDate && doctor?.id) {
+              fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+            }
+          } catch (cancelError) {
+            console.error('Error cancelling appointment:', cancelError)
+          }
+        }
+        
+        setIsSubmitting(false)
         return
       }
 
@@ -582,6 +796,17 @@ const PatientDoctorDetails = () => {
             if (verifyResponse.success) {
               toast.success('Payment successful! Appointment booked successfully!')
               
+              // Refresh slot availability for the booked date
+              if (selectedDate && doctor?.id) {
+                fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+              }
+              
+              // Refresh all dates availability
+              const dates = getAvailableDates()
+              dates.slice(0, 14).forEach(date => {
+                fetchSlotAvailabilityForDate(date.value, doctor.id, true)
+              })
+              
               // Close modal and reset form immediately
               handleCloseModal()
               setSelectedDate('')
@@ -602,12 +827,42 @@ const PatientDoctorDetails = () => {
             } else {
               toast.error(verifyResponse.message || 'Payment verification failed. Please contact support.')
               setIsSubmitting(false)
+              
+              // Cancel appointment if payment verification failed
+              if (appointmentId) {
+                try {
+                  await cancelAppointment(appointmentId, 'Payment verification failed')
+                  console.log('Appointment cancelled due to payment verification failure')
+                  
+                  // Refresh slot availability
+                  if (selectedDate && doctor?.id) {
+                    fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+                  }
+                } catch (cancelError) {
+                  console.error('Error cancelling appointment after verification failure:', cancelError)
+                }
+              }
             }
           } catch (error) {
             console.error('Error verifying payment:', error)
             const errorMessage = error.response?.data?.message || error.message || 'Payment verification failed. Please contact support.'
             toast.error(errorMessage)
             setIsSubmitting(false)
+            
+            // Cancel appointment if payment verification error occurred
+            if (appointmentId) {
+              try {
+                await cancelAppointment(appointmentId, `Payment verification error: ${errorMessage}`)
+                console.log('Appointment cancelled due to payment verification error')
+                
+                // Refresh slot availability
+                if (selectedDate && doctor?.id) {
+                  fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+                }
+              } catch (cancelError) {
+                console.error('Error cancelling appointment after verification error:', cancelError)
+              }
+            }
           }
         },
         prefill: {
@@ -621,20 +876,120 @@ const PatientDoctorDetails = () => {
           color: '#11496c',
         },
         modal: {
-          ondismiss: () => {
+          ondismiss: async () => {
             setIsSubmitting(false)
             toast.info('Payment cancelled')
+            
+            // Cancel the appointment if payment was cancelled
+            if (createdAppointmentId) {
+              try {
+                await cancelAppointment(createdAppointmentId, 'Payment cancelled by user')
+                console.log('Appointment cancelled due to payment cancellation')
+                
+                // Refresh slot availability
+                if (selectedDate && doctor?.id) {
+                  fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+                }
+              } catch (error) {
+                console.error('Error cancelling appointment after payment cancellation:', error)
+                // Don't show error toast as user already cancelled
+              }
+            }
           },
+        },
+        retry: {
+          enabled: true,
+          max_count: 3,
         },
       }
 
       const razorpay = new window.Razorpay(options)
+      
+      // Handle Razorpay errors
+      razorpay.on('payment.failed', async (response) => {
+        console.error('Razorpay payment failed:', response)
+        setIsSubmitting(false)
+        const errorMessage = response.error?.description || response.error?.reason || 'Payment failed. Please try again.'
+        toast.error(errorMessage)
+        
+        // Cancel the appointment if payment failed
+        if (createdAppointmentId) {
+          try {
+            await cancelAppointment(createdAppointmentId, `Payment failed: ${errorMessage}`)
+            console.log('Appointment cancelled due to payment failure')
+            
+            // Refresh slot availability
+            if (selectedDate && doctor?.id) {
+              fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+            }
+          } catch (error) {
+            console.error('Error cancelling appointment after payment failure:', error)
+            // Don't show additional error toast
+          }
+        }
+      })
+
+      razorpay.on('payment.authorized', (response) => {
+        console.log('Payment authorized:', response)
+      })
+
       razorpay.open()
+      
+      // Handle Razorpay modal errors
+      razorpay.on('error', async (error) => {
+        console.error('Razorpay error:', error)
+        setIsSubmitting(false)
+        
+        // Handle specific error types
+        let errorMessage = 'Payment error. Please try again.'
+        if (error.error?.code === 'BAD_REQUEST_ERROR') {
+          errorMessage = 'Invalid payment request. Please try again.'
+        } else if (error.error?.code === 'GATEWAY_ERROR') {
+          errorMessage = 'Payment gateway error. Please try again later.'
+        } else if (error.error?.code === 'SERVER_ERROR') {
+          errorMessage = 'Payment server error. Please try again later or contact support.'
+        } else {
+          errorMessage = error.error?.description || error.error?.reason || 'Payment error. Please try again.'
+        }
+        toast.error(errorMessage)
+        
+        // Cancel the appointment if there was an error (but not if user just closed modal)
+        // Only cancel if it's a critical error, not user cancellation
+        if (createdAppointmentId && error.error?.code !== 'USER_CLOSED_MODAL') {
+          try {
+            await cancelAppointment(createdAppointmentId, `Payment error: ${errorMessage}`)
+            console.log('Appointment cancelled due to payment error')
+            
+            // Refresh slot availability
+            if (selectedDate && doctor?.id) {
+              fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+            }
+          } catch (cancelError) {
+            console.error('Error cancelling appointment after payment error:', cancelError)
+            // Don't show additional error toast
+          }
+        }
+      })
       
     } catch (error) {
       console.error('Error booking appointment:', error)
       toast.error(error.message || 'Failed to book appointment. Please try again.')
       setIsSubmitting(false)
+      
+      // Cancel appointment if it was created but booking process failed
+      if (createdAppointmentId) {
+        try {
+          await cancelAppointment(createdAppointmentId, 'Booking process failed')
+          console.log('Appointment cancelled due to booking error')
+          
+          // Refresh slot availability
+          if (selectedDate && doctor?.id) {
+            fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
+          }
+        } catch (cancelError) {
+          console.error('Error cancelling appointment after booking error:', cancelError)
+        }
+      }
     }
   }
 
@@ -701,19 +1056,36 @@ const PatientDoctorDetails = () => {
             </div>
 
             <div className="space-y-2 text-sm text-slate-600">
-              <div className="flex items-center gap-2">
-                <IoLocationOutline className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
-                <span>{doctor.location}</span>
-              </div>
+              {doctor.clinicName && (
+                <div className="flex items-start gap-2">
+                  <IoLocationOutline className="h-5 w-5 shrink-0 text-slate-400 mt-0.5" aria-hidden="true" />
+                  <div>
+                    <p className="font-semibold text-slate-900">{doctor.clinicName}</p>
+                    <p className="text-slate-600">{doctor.location}</p>
+                  </div>
+                </div>
+              )}
+              {!doctor.clinicName && (
+                <div className="flex items-center gap-2">
+                  <IoLocationOutline className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+                  <span>{doctor.location}</span>
+                </div>
+              )}
 
-              <div className="flex items-center gap-2">
-                <IoTimeOutline className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
-                <span className="font-medium text-slate-700">{doctor.availability}</span>
-                {doctor.nextSlot && (
-                  <span className="rounded-full bg-[rgba(17,73,108,0.1)] px-3 py-1 text-sm font-semibold text-[#11496c]">
-                    {doctor.nextSlot}
-                  </span>
-                )}
+              <div className="flex items-start gap-2">
+                <IoTimeOutline className="h-5 w-5 shrink-0 text-slate-400 mt-0.5" aria-hidden="true" />
+                <div className="flex-1">
+                  <div className="font-medium text-slate-700">
+                    {doctor.availability.split('; ').map((line, idx) => (
+                      <div key={idx} className={idx > 0 ? 'mt-1' : ''}>{line}</div>
+                    ))}
+                  </div>
+                  {doctor.nextSlot && doctor.nextSlot !== 'N/A' && (
+                    <span className="mt-2 inline-block rounded-full bg-[rgba(17,73,108,0.1)] px-3 py-1 text-sm font-semibold text-[#11496c]">
+                      {doctor.nextSlot}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -811,7 +1183,9 @@ const PatientDoctorDetails = () => {
             {/* Header */}
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">Book Appointment</h2>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {isRescheduling ? 'Reschedule Appointment' : 'Book Appointment'}
+                </h2>
                 <p className="text-sm text-slate-600">{doctor.name} - {doctor.specialty}</p>
               </div>
               <button
@@ -864,17 +1238,25 @@ const PatientDoctorDetails = () => {
                         <div className="flex gap-2">
                           {availableDates.map((date) => {
                             const sessionInfo = getSessionInfoForDate(date.value)
-                            const isFull = !sessionInfo.available
+                            const isFull = !sessionInfo.available || (sessionInfo.maxTokens > 0 && sessionInfo.currentBookings >= sessionInfo.maxTokens)
                             const slotsRemaining = sessionInfo.maxTokens > 0 
-                              ? sessionInfo.maxTokens - sessionInfo.currentBookings 
+                              ? Math.max(0, sessionInfo.maxTokens - sessionInfo.currentBookings)
                               : 0
-                            const hasSlots = slotsRemaining > 0
+                            const hasSlots = slotsRemaining > 0 && sessionInfo.maxTokens > 0
                             
                             return (
                               <button
                                 key={date.value}
                                 type="button"
-                                onClick={() => !isFull && setSelectedDate(date.value)}
+                                onClick={() => {
+                                  if (!isFull) {
+                                    setSelectedDate(date.value)
+                                    // Fetch fresh data when date is selected
+                                    if (doctor?._id && (!slotAvailability[date.value] || loadingSlots)) {
+                                      fetchSlotAvailabilityForDate(date.value, doctor._id, true)
+                                    }
+                                  }
+                                }}
                                 disabled={isFull}
                                 className={`shrink-0 rounded-xl border-2 px-4 py-3 text-sm font-semibold transition ${
                                   isFull
@@ -886,11 +1268,17 @@ const PatientDoctorDetails = () => {
                               >
                                 <div className="text-xs text-slate-500">{date.label.split(',')[0]}</div>
                                 <div className="mt-1 whitespace-nowrap">{date.label.split(',')[1]?.trim()}</div>
-                                {isFull ? (
+                                {loadingSlots && !slotAvailability[date.value] ? (
+                                  <div className="mt-1 text-[10px] text-slate-400 font-semibold">Loading...</div>
+                                ) : isFull ? (
                                   <div className="mt-1 text-[10px] text-red-500 font-semibold">Full</div>
-                                ) : hasSlots && sessionInfo.maxTokens > 0 ? (
+                                ) : hasSlots && slotsRemaining > 0 ? (
                                   <div className="mt-1 text-[10px] text-emerald-600 font-semibold">
                                     {slotsRemaining} slot{slotsRemaining !== 1 ? 's' : ''}
+                                  </div>
+                                ) : sessionInfo.maxTokens > 0 ? (
+                                  <div className="mt-1 text-[10px] text-slate-500 font-semibold">
+                                    {sessionInfo.maxTokens} slots
                                   </div>
                                 ) : null}
                               </button>
@@ -979,39 +1367,55 @@ const PatientDoctorDetails = () => {
                     <h3 className="mb-4 text-lg font-semibold text-slate-900">Appointment Details</h3>
                     
                     <div className="mb-6">
-                      <label className="mb-3 block text-sm font-semibold text-slate-700">Appointment Type</label>
-                      <div className="flex gap-3">
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">Appointment Type</label>
+                      <div className="flex gap-2">
                         <button
                           type="button"
                           onClick={() => setAppointmentType('in_person')}
-                          className={`flex flex-1 items-center gap-3 rounded-xl border-2 p-4 transition ${
+                          className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
                             appointmentType === 'in_person'
                               ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                               : 'border-slate-200 bg-white hover:border-slate-300'
                           }`}
                         >
-                          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
                             appointmentType === 'in_person' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
                           }`}>
-                            <IoPersonOutline className="h-5 w-5" />
+                            <IoPersonOutline className="h-4 w-4" />
                           </div>
-                          <span className="text-sm font-semibold text-slate-900">In-Person</span>
+                          <span className="text-xs font-semibold text-slate-900">In-Person</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAppointmentType('call')}
+                          className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
+                            appointmentType === 'call'
+                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                            appointmentType === 'call' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            <IoCallOutline className="h-4 w-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-900">Call</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setAppointmentType('video_call')}
-                          className={`flex flex-1 items-center gap-3 rounded-xl border-2 p-4 transition ${
+                          className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
                             appointmentType === 'video_call'
                               ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                               : 'border-slate-200 bg-white hover:border-slate-300'
                           }`}
                         >
-                          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
                             appointmentType === 'video_call' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
                           }`}>
-                            <IoVideocamOutline className="h-5 w-5" />
+                            <IoVideocamOutline className="h-4 w-4" />
                           </div>
-                          <span className="text-sm font-semibold text-slate-900">Video Call</span>
+                          <span className="text-xs font-semibold text-slate-900">Video Call</span>
                         </button>
                       </div>
                     </div>
@@ -1118,9 +1522,28 @@ const PatientDoctorDetails = () => {
                       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)]">
                         <IoCheckmarkCircle className="h-10 w-10 text-[#11496c]" />
                       </div>
-                      <h3 className="mb-2 text-xl font-bold text-slate-900">Confirm Your Appointment</h3>
-                      <p className="text-sm text-slate-600">Please review your appointment details</p>
+                      <h3 className="mb-2 text-xl font-bold text-slate-900">
+                        {isRescheduling ? 'Reschedule Your Appointment' : 'Confirm Your Appointment'}
+                      </h3>
+                      <p className="text-sm text-slate-600">
+                        {isRescheduling ? 'Please review your rescheduled appointment details' : 'Please review your appointment details'}
+                      </p>
                     </div>
+                    
+                    {/* Rescheduling Notice */}
+                    {isRescheduling && (
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                        <div className="flex items-center gap-2">
+                          <IoInformationCircleOutline className="h-5 w-5 text-blue-600" />
+                          <p className="text-sm font-semibold text-blue-900">
+                            Rescheduling Appointment
+                          </p>
+                        </div>
+                        <p className="text-xs text-blue-700 mt-1">
+                          Your previous appointment will be cancelled and a new appointment will be created for the selected date. No additional payment is required.
+                        </p>
+                      </div>
+                    )}
 
                     {/* Returning Patient Badge */}
                     {isFreeBooking && (
@@ -1187,7 +1610,7 @@ const PatientDoctorDetails = () => {
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-600">Type</span>
                             <span className="text-sm font-semibold text-slate-900">
-                              {appointmentType === 'video_call' ? 'Video Call' : 'In-Person'}
+                              {appointmentType === 'video_call' ? 'Video Call' : appointmentType === 'call' ? 'Call' : 'In-Person'}
                             </span>
                           </div>
                           {reason && (
@@ -1206,7 +1629,12 @@ const PatientDoctorDetails = () => {
                           )}
                           <div className="flex items-center justify-between border-t border-slate-200 pt-3">
                             <span className="text-base font-semibold text-slate-900">Consultation Fee</span>
-                            {isFreeBooking ? (
+                            {isRescheduling ? (
+                              <div className="text-right">
+                                <span className="text-lg font-bold text-blue-600">Already Paid</span>
+                                <p className="text-xs text-slate-500">No additional payment required</p>
+                              </div>
+                            ) : isFreeBooking ? (
                               <div className="text-right">
                                 <span className="text-lg font-bold text-emerald-600">FREE</span>
                                 <p className="text-xs text-slate-500 line-through">₹{doctor.consultationFee}</p>
@@ -1255,7 +1683,9 @@ const PatientDoctorDetails = () => {
                         onClick={handleConfirmBooking}
                         disabled={isSubmitting}
                         className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                          isFreeBooking
+                          isRescheduling
+                            ? 'bg-blue-500 shadow-blue-400/40 hover:bg-blue-600'
+                            : isFreeBooking
                             ? 'bg-emerald-500 shadow-emerald-400/40 hover:bg-emerald-600'
                             : 'bg-emerald-500 shadow-emerald-400/40 hover:bg-emerald-600'
                         }`}
@@ -1263,7 +1693,12 @@ const PatientDoctorDetails = () => {
                         {isSubmitting ? (
                           <>
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                            Confirming...
+                            {isRescheduling ? 'Rescheduling...' : 'Confirming...'}
+                          </>
+                        ) : isRescheduling ? (
+                          <>
+                            <IoCheckmarkCircleOutline className="h-5 w-5" />
+                            Reschedule
                           </>
                         ) : isFreeBooking ? (
                           <>

@@ -82,27 +82,57 @@ const WalletWithdraw = () => {
         
         if (balanceResponse.success && balanceResponse.data) {
           const balance = balanceResponse.data
-          const withdrawalHistory = withdrawalsResponse.success && withdrawalsResponse.data
-            ? (Array.isArray(withdrawalsResponse.data) 
-                ? withdrawalsResponse.data 
-                : withdrawalsResponse.data.withdrawals || [])
-                .map(wd => ({
-                  id: wd._id || wd.id,
-                  amount: wd.amount || 0,
-                  description: wd.description || 'Withdrawal',
-                  date: wd.createdAt || wd.date || new Date().toISOString(),
-                  status: wd.status || 'pending',
-                  paymentMethod: wd.paymentMethod || 'Bank Account',
-                  accountNumber: wd.accountNumber || wd.bankAccount?.accountNumber || '****',
-                  upiId: wd.upiId || '',
-                  walletNumber: wd.walletNumber || '',
-                }))
-            : []
+          // Backend returns: { success: true, data: { items: [...], pagination: {...} } }
+          let withdrawalsData = []
+          if (withdrawalsResponse.success && withdrawalsResponse.data) {
+            if (Array.isArray(withdrawalsResponse.data)) {
+              withdrawalsData = withdrawalsResponse.data
+            } else if (withdrawalsResponse.data?.items) {
+              withdrawalsData = withdrawalsResponse.data.items
+            } else if (withdrawalsResponse.data?.withdrawals) {
+              withdrawalsData = withdrawalsResponse.data.withdrawals
+            }
+          }
+          
+          const withdrawalHistory = withdrawalsData.map(wd => {
+            // Extract payment method details from withdrawalRequestId if populated
+            const payoutMethod = wd.withdrawalRequestId?.payoutMethod || wd.payoutMethod
+            let paymentMethod = 'Bank Account'
+            let accountNumber = '****'
+            let upiId = ''
+            let walletNumber = ''
+            
+            if (payoutMethod) {
+              if (payoutMethod.type === 'bank_transfer') {
+                paymentMethod = 'Bank Transfer'
+                accountNumber = payoutMethod.details?.accountNumber || '****'
+              } else if (payoutMethod.type === 'upi') {
+                paymentMethod = 'UPI'
+                upiId = payoutMethod.details?.upiId || ''
+              } else if (payoutMethod.type === 'paytm') {
+                paymentMethod = 'Paytm'
+                walletNumber = payoutMethod.details?.paytmNumber || ''
+              }
+            }
+            
+            return {
+              id: wd._id || wd.id,
+              amount: wd.amount || 0,
+              description: wd.description || 'Withdrawal',
+              date: wd.createdAt || wd.date || new Date().toISOString(),
+              status: wd.status || 'pending',
+              paymentMethod: paymentMethod,
+              accountNumber: accountNumber,
+              upiId: upiId,
+              walletNumber: walletNumber,
+            }
+          })
           
           setWithdrawData({
             availableBalance: balance.availableBalance || balance.available || 0,
             totalWithdrawals: balance.totalWithdrawals || 0,
-            thisMonthWithdrawals: withdrawalsResponse.data?.thisMonthWithdrawals || 0,
+            // Get thisMonthWithdrawals from balance response, not withdrawals response
+            thisMonthWithdrawals: balance.thisMonthWithdrawals || 0,
             withdrawalHistory,
           })
         }
@@ -213,27 +243,58 @@ const WalletWithdraw = () => {
       
       if (balanceResponse.success && balanceResponse.data) {
         const balance = balanceResponse.data
-        const withdrawalHistory = withdrawalsResponse.success && withdrawalsResponse.data
-          ? (Array.isArray(withdrawalsResponse.data) 
-              ? withdrawalsResponse.data 
-              : withdrawalsResponse.data.withdrawals || [])
-              .map(wd => ({
-                id: wd._id || wd.id,
-                amount: wd.amount || 0,
-                description: wd.description || 'Withdrawal',
-                date: wd.createdAt || wd.date || new Date().toISOString(),
-                status: wd.status || 'pending',
-                paymentMethod: wd.paymentMethod || 'Bank Account',
-                accountNumber: wd.accountNumber || wd.bankAccount?.accountNumber || '****',
-                upiId: wd.upiId || '',
-                walletNumber: wd.walletNumber || '',
-              }))
-          : []
+        
+        // Backend returns: { success: true, data: { items: [...], pagination: {...} } }
+        let withdrawalsData = []
+        if (withdrawalsResponse.success && withdrawalsResponse.data) {
+          if (Array.isArray(withdrawalsResponse.data)) {
+            withdrawalsData = withdrawalsResponse.data
+          } else if (withdrawalsResponse.data?.items) {
+            withdrawalsData = withdrawalsResponse.data.items
+          } else if (withdrawalsResponse.data?.withdrawals) {
+            withdrawalsData = withdrawalsResponse.data.withdrawals
+          }
+        }
+        
+        const withdrawalHistory = withdrawalsData.map(wd => {
+          // Extract payment method details from payoutMethod
+          const payoutMethod = wd.payoutMethod
+          let paymentMethod = 'Bank Account'
+          let accountNumber = '****'
+          let upiId = ''
+          let walletNumber = ''
+          
+          if (payoutMethod) {
+            if (payoutMethod.type === 'bank_transfer') {
+              paymentMethod = 'Bank Transfer'
+              accountNumber = payoutMethod.details?.accountNumber || '****'
+            } else if (payoutMethod.type === 'upi') {
+              paymentMethod = 'UPI'
+              upiId = payoutMethod.details?.upiId || ''
+            } else if (payoutMethod.type === 'paytm') {
+              paymentMethod = 'Paytm'
+              walletNumber = payoutMethod.details?.paytmNumber || ''
+            }
+          }
+          
+          return {
+            id: wd._id || wd.id,
+            amount: wd.amount || 0,
+            description: wd.description || 'Withdrawal',
+            date: wd.createdAt || wd.date || new Date().toISOString(),
+            status: wd.status || 'pending',
+            paymentMethod: paymentMethod,
+            accountNumber: accountNumber,
+            upiId: upiId,
+            walletNumber: walletNumber,
+          }
+        })
         
         setWithdrawData({
           availableBalance: balance.availableBalance || balance.available || 0,
           totalWithdrawals: balance.totalWithdrawals || 0,
-          thisMonthWithdrawals: withdrawalsResponse.data?.thisMonthWithdrawals || 0,
+          // Get thisMonthWithdrawals from balance response, not withdrawals response
+          thisMonthWithdrawals: balance.thisMonthWithdrawals || 0,
           withdrawalHistory,
         })
       }
@@ -468,13 +529,47 @@ const WalletWithdraw = () => {
                     ₹
                   </span>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Allow empty string or valid number format (including decimals)
+                      // Let user type freely without any restrictions
+                      if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                        setWithdrawAmount(value)
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.target.value.trim()
+                      
+                      // If empty, keep it empty
+                      if (value === '') {
+                        return
+                      }
+                      
+                      const numValue = parseFloat(value)
+                      
+                      // If invalid number, clear it
+                      if (isNaN(numValue) || numValue <= 0) {
+                        setWithdrawAmount('')
+                        return
+                      }
+                      
+                      // Only round if it has more than 2 decimal places
+                      // Don't change the value if it's already valid
+                      const roundedValue = Math.round(numValue * 100) / 100
+                      
+                      // Only update if the value actually needs rounding (more than 2 decimals)
+                      if (roundedValue !== numValue) {
+                        // Format to remove unnecessary trailing zeros
+                        const formatted = roundedValue % 1 === 0 
+                          ? roundedValue.toString() 
+                          : roundedValue.toFixed(2).replace(/\.?0+$/, '')
+                        setWithdrawAmount(formatted)
+                      }
+                    }}
                     placeholder="0"
-                    min="0"
-                    max={withdrawData.availableBalance}
-                    step="1"
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 sm:px-4 py-2.5 sm:py-3 pl-9 sm:pl-10 text-base sm:text-lg font-semibold text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                   />
                 </div>

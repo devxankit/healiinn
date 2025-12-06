@@ -11,8 +11,10 @@ import {
   IoDocumentTextOutline,
   IoCloseCircleOutline,
   IoCloseOutline,
+  IoRefreshOutline,
+  IoInformationCircleOutline,
 } from 'react-icons/io5'
-import { getDoctorAppointments, cancelDoctorAppointment } from '../doctor-services/doctorService'
+import { getDoctorAppointments, cancelDoctorAppointment, getPatientById, getConsultationById, getDoctorConsultations } from '../doctor-services/doctorService'
 
 // Default appointments (will be replaced by API data)
 const defaultAppointments = []
@@ -92,6 +94,7 @@ const DoctorAppointments = () => {
   const navigate = useNavigate()
   const toast = useToast()
   const [appointments, setAppointments] = useState(defaultAppointments)
+  const [statistics, setStatistics] = useState(null) // Statistics from backend
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPeriod, setFilterPeriod] = useState('all') // 'today', 'monthly', 'yearly', 'all'
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -108,11 +111,16 @@ const DoctorAppointments = () => {
         setError(null)
         const response = await getDoctorAppointments()
         
-        if (response.success && response.data) {
+        if (response && response.success && response.data) {
           // Handle both array and object with items/appointments property
           const appointmentsData = Array.isArray(response.data) 
             ? response.data 
             : response.data.items || response.data.appointments || []
+          
+          // Store statistics from backend if available
+          if (response.data.statistics) {
+            setStatistics(response.data.statistics)
+          }
           
           // Transform API data to match component structure
           const transformed = appointmentsData.map(apt => ({
@@ -134,10 +142,22 @@ const DoctorAppointments = () => {
             patientPhone: apt.patientId?.phone || apt.patientPhone || '',
             patientEmail: apt.patientId?.email || apt.patientEmail || '',
             patientAddress: apt.patientId?.address 
-              ? `${apt.patientId.address.line1 || ''}, ${apt.patientId.address.city || ''}, ${apt.patientId.address.state || ''}`.trim()
-              : apt.patientAddress || 'Address not provided',
+              ? [
+                  apt.patientId.address.line1,
+                  apt.patientId.address.line2,
+                  apt.patientId.address.city,
+                  apt.patientId.address.state,
+                  apt.patientId.address.postalCode,
+                  apt.patientId.address.country
+                ].filter(Boolean).join(', ').trim() || 'Not provided'
+              : apt.patientAddress || 'Not provided',
             age: apt.patientId?.age || apt.age || 30,
             gender: apt.patientId?.gender || apt.gender || 'male',
+            // Rescheduled appointment data
+            rescheduledAt: apt.rescheduledAt,
+            rescheduledBy: apt.rescheduledBy,
+            rescheduleReason: apt.rescheduleReason,
+            isRescheduled: !!apt.rescheduledAt,
             // Preserve original appointment data for reference
             originalData: apt,
           }))
@@ -146,8 +166,19 @@ const DoctorAppointments = () => {
         }
       } catch (err) {
         console.error('Error fetching appointments:', err)
-        setError(err.message || 'Failed to load appointments')
-        toast.error('Failed to load appointments')
+        // Check if it's a connection error
+        const isConnectionError = err.message?.includes('Failed to fetch') || 
+                                  err.message?.includes('ERR_CONNECTION_REFUSED') ||
+                                  err.message?.includes('NetworkError') ||
+                                  err instanceof TypeError && err.message === 'Failed to fetch'
+        
+        if (isConnectionError) {
+          setError('Unable to connect to server. Please check if the backend server is running.')
+          // Don't show toast for connection errors to avoid spam
+        } else {
+          setError(err.message || 'Failed to load appointments')
+          toast.error('Failed to load appointments')
+        }
       } finally {
         setLoading(false)
       }
@@ -216,8 +247,19 @@ const DoctorAppointments = () => {
     })
   }, [appointments, filterPeriod, searchTerm, today, tomorrow, currentMonthStart, currentMonthEnd, currentYearStart, currentYearEnd])
 
-  // Calculate statistics
+  // Calculate statistics - use backend statistics if available, otherwise calculate from appointments
   const stats = useMemo(() => {
+    // If backend statistics are available, use them
+    if (statistics) {
+      return {
+        today: statistics.today || { scheduled: 0, rescheduled: 0, total: 0 },
+        monthly: statistics.monthly || { scheduled: 0, rescheduled: 0, total: 0 },
+        yearly: statistics.yearly || { scheduled: 0, rescheduled: 0, total: 0 },
+        total: statistics.total || { scheduled: 0, rescheduled: 0, total: 0 },
+      }
+    }
+    
+    // Fallback: calculate from appointments (client-side)
     const todayApts = appointments.filter((apt) => {
       const aptDate = new Date(apt.date)
       return aptDate >= today && aptDate < tomorrow
@@ -231,43 +273,177 @@ const DoctorAppointments = () => {
       return aptDate >= currentYearStart && aptDate <= currentYearEnd
     })
 
-    return {
-      today: todayApts.length,
-      monthly: monthlyApts.length,
-      yearly: yearlyApts.length,
-      total: appointments.length,
-    }
-  }, [appointments, today, tomorrow, currentMonthStart, currentMonthEnd, currentYearStart, currentYearEnd])
+    // Calculate scheduled and rescheduled counts
+    const todayScheduled = todayApts.filter(apt => !apt.isRescheduled).length
+    const todayRescheduled = todayApts.filter(apt => apt.isRescheduled).length
+    const monthlyScheduled = monthlyApts.filter(apt => !apt.isRescheduled).length
+    const monthlyRescheduled = monthlyApts.filter(apt => apt.isRescheduled).length
+    const yearlyScheduled = yearlyApts.filter(apt => !apt.isRescheduled).length
+    const yearlyRescheduled = yearlyApts.filter(apt => apt.isRescheduled).length
+    const totalScheduled = appointments.filter(apt => !apt.isRescheduled).length
+    const totalRescheduled = appointments.filter(apt => apt.isRescheduled).length
 
-  const handleViewAppointment = (appointment) => {
-    // Navigate to consultations page with this appointment data
+    return {
+      today: {
+        scheduled: todayScheduled,
+        rescheduled: todayRescheduled,
+        total: todayApts.length,
+      },
+      monthly: {
+        scheduled: monthlyScheduled,
+        rescheduled: monthlyRescheduled,
+        total: monthlyApts.length,
+      },
+      yearly: {
+        scheduled: yearlyScheduled,
+        rescheduled: yearlyRescheduled,
+        total: yearlyApts.length,
+      },
+      total: {
+        scheduled: totalScheduled,
+        rescheduled: totalRescheduled,
+        total: appointments.length,
+      },
+    }
+  }, [statistics, appointments, today, tomorrow, currentMonthStart, currentMonthEnd, currentYearStart, currentYearEnd])
+
+  const handleViewAppointment = async (appointment) => {
+    try {
+      // First, try to find existing consultation for this appointment
+      const consultationsResponse = await getDoctorConsultations()
+      let existingConsultation = null
+      
+      if (consultationsResponse.success && consultationsResponse.data) {
+        const consultations = Array.isArray(consultationsResponse.data)
+          ? consultationsResponse.data
+          : consultationsResponse.data.items || consultationsResponse.data.consultations || []
+        
+        // Find consultation by appointmentId
+        existingConsultation = consultations.find(cons => 
+          cons.appointmentId?._id?.toString() === appointment.id?.toString() ||
+          cons.appointmentId?.id?.toString() === appointment.id?.toString() ||
+          cons.appointmentId?.toString() === appointment.id?.toString()
+        )
+      }
+      
+      // If consultation exists, fetch full consultation data
+      if (existingConsultation) {
+        try {
+          const consultationResponse = await getConsultationById(existingConsultation._id || existingConsultation.id)
+          if (consultationResponse.success && consultationResponse.data) {
     navigate('/doctor/consultations', {
       state: {
-        selectedConsultation: {
-          id: `cons-${appointment.id}`,
-          patientId: appointment.patientId,
-          patientName: appointment.patientName,
-          age: appointment.age || 30,
-          gender: appointment.gender || 'male',
-          appointmentTime: `${appointment.date}T${appointment.time}`,
+                selectedConsultation: consultationResponse.data,
+                loadSavedData: true,
+              },
+            })
+            return
+          }
+        } catch (error) {
+          console.error('Error fetching consultation:', error)
+        }
+      }
+      
+      // If no consultation exists, fetch patient data and create consultation object
+      let patientData = null
+      if (appointment.patientId) {
+        try {
+          const patientResponse = await getPatientById(appointment.patientId)
+          if (patientResponse.success && patientResponse.data) {
+            patientData = patientResponse.data
+          }
+        } catch (error) {
+          console.error('Error fetching patient data:', error)
+        }
+      }
+      
+      // Calculate age from dateOfBirth
+      const calculateAge = (dateOfBirth) => {
+        if (!dateOfBirth) return null
+        try {
+          const birthDate = new Date(dateOfBirth)
+          if (isNaN(birthDate.getTime())) return null
+          const today = new Date()
+          let age = today.getFullYear() - birthDate.getFullYear()
+          const monthDiff = today.getMonth() - birthDate.getMonth()
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--
+          }
+          return age
+        } catch (error) {
+          return null
+        }
+      }
+      
+      // Use patient data from API or fallback to appointment data
+      const finalPatientData = patientData || appointment.originalData?.patientId || {}
+      const patientDateOfBirth = finalPatientData.dateOfBirth || appointment.originalData?.patientId?.dateOfBirth
+      const calculatedAge = patientDateOfBirth ? calculateAge(patientDateOfBirth) : (finalPatientData.age || appointment.age || null)
+      
+      // Format address properly
+      let formattedAddress = 'Not provided'
+      const address = finalPatientData.address || appointment.originalData?.patientId?.address
+      if (address) {
+        const addressParts = [
+          address.line1,
+          address.line2,
+          address.city,
+          address.state,
+          address.postalCode,
+          address.country
+        ].filter(Boolean)
+        if (addressParts.length > 0) {
+          formattedAddress = addressParts.join(', ')
+        }
+      } else if (appointment.patientAddress && appointment.patientAddress !== 'Address not provided') {
+        formattedAddress = appointment.patientAddress
+      }
+      
+      // Format appointment date properly
+      const appointmentDate = appointment.date || appointment.appointmentDate
+      const appointmentTime = appointment.time || '00:00'
+      const formattedAppointmentTime = appointmentDate 
+        ? `${appointmentDate.split('T')[0]}T${appointmentTime}`
+        : new Date().toISOString()
+      
+      // Create consultation object with real data
+      const consultationData = {
+        id: `cons-${appointment.id}-${Date.now()}`,
+        _id: `cons-${appointment.id}-${Date.now()}`,
+        patientId: appointment.patientId || finalPatientData._id || finalPatientData.id,
+        patientName: finalPatientData.firstName && finalPatientData.lastName
+          ? `${finalPatientData.firstName} ${finalPatientData.lastName}`
+          : appointment.patientName || 'Unknown Patient',
+        age: calculatedAge,
+        gender: finalPatientData.gender || appointment.gender || 'male',
+        appointmentTime: formattedAppointmentTime,
+        appointmentDate: appointmentDate ? appointmentDate.split('T')[0] : null,
           appointmentType: appointment.appointmentType || 'New',
-          status: appointment.status === 'scheduled' ? 'in-progress' : appointment.status,
+        status: appointment.status === 'scheduled' || appointment.status === 'confirmed' ? 'in-progress' : appointment.status,
           reason: appointment.reason || 'Consultation',
-          patientImage: appointment.patientImage,
-          patientPhone: appointment.patientPhone || '+1-555-000-0000',
-          patientEmail: appointment.patientEmail || `${appointment.patientName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-          patientAddress: appointment.patientAddress || 'Address not provided',
+        patientImage: finalPatientData.profileImage || appointment.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(finalPatientData.firstName || appointment.patientName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+        patientPhone: finalPatientData.phone || appointment.patientPhone || '',
+        patientEmail: finalPatientData.email || appointment.patientEmail || '',
+        patientAddress: formattedAddress,
           diagnosis: '',
           vitals: {},
           medications: [],
           investigations: [],
           advice: '',
           attachments: [],
-          // Include original appointment data if available
+        appointmentId: appointment.id || appointment._id,
           originalAppointment: appointment.originalData || appointment,
-        },
+      }
+      
+      navigate('/doctor/consultations', {
+        state: {
+          selectedConsultation: consultationData,
       },
     })
+    } catch (error) {
+      console.error('Error handling appointment view:', error)
+      toast.error('Failed to load consultation data')
+    }
   }
 
   const handleCancelClick = (e, appointment) => {
@@ -334,7 +510,12 @@ const DoctorAppointments = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-purple-500/0 group-hover:from-purple-500/10 group-hover:to-purple-500/20 transition-all duration-300"></div>
             <div className="relative">
               <p className="text-[10px] font-semibold uppercase text-purple-700 mb-1 group-hover:text-purple-900 transition-colors">Today</p>
-              <p className="text-xl font-bold text-purple-900 group-hover:text-purple-950 transition-colors duration-300">{stats.today}</p>
+              <p className="text-xl font-bold text-purple-900 group-hover:text-purple-950 transition-colors duration-300">{stats.today?.total ?? stats.today}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[8px] text-purple-600">Scheduled: {stats.today?.scheduled ?? 0}</span>
+                <span className="text-[8px] text-purple-400">•</span>
+                <span className="text-[8px] text-purple-600">Rescheduled: {stats.today?.rescheduled ?? 0}</span>
+              </div>
             </div>
           </button>
           <button
@@ -350,7 +531,12 @@ const DoctorAppointments = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-blue-500/0 group-hover:from-blue-500/10 group-hover:to-blue-500/20 transition-all duration-300"></div>
             <div className="relative">
               <p className="text-[10px] font-semibold uppercase text-blue-700 mb-1 group-hover:text-blue-900 transition-colors">This Month</p>
-              <p className="text-xl font-bold text-blue-900 group-hover:text-blue-950 transition-colors duration-300">{stats.monthly}</p>
+              <p className="text-xl font-bold text-blue-900 group-hover:text-blue-950 transition-colors duration-300">{stats.monthly?.total ?? stats.monthly}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[8px] text-blue-600">Scheduled: {stats.monthly?.scheduled ?? 0}</span>
+                <span className="text-[8px] text-blue-400">•</span>
+                <span className="text-[8px] text-blue-600">Rescheduled: {stats.monthly?.rescheduled ?? 0}</span>
+              </div>
             </div>
           </button>
           <button
@@ -366,7 +552,12 @@ const DoctorAppointments = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-emerald-500/0 group-hover:from-emerald-500/10 group-hover:to-emerald-500/20 transition-all duration-300"></div>
             <div className="relative">
               <p className="text-[10px] font-semibold uppercase text-emerald-700 mb-1 group-hover:text-emerald-900 transition-colors">This Year</p>
-              <p className="text-xl font-bold text-emerald-900 group-hover:text-emerald-950 transition-colors duration-300">{stats.yearly}</p>
+              <p className="text-xl font-bold text-emerald-900 group-hover:text-emerald-950 transition-colors duration-300">{stats.yearly?.total ?? stats.yearly}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[8px] text-emerald-600">Scheduled: {stats.yearly?.scheduled ?? 0}</span>
+                <span className="text-[8px] text-emerald-400">•</span>
+                <span className="text-[8px] text-emerald-600">Rescheduled: {stats.yearly?.rescheduled ?? 0}</span>
+              </div>
             </div>
           </button>
           <button
@@ -382,7 +573,12 @@ const DoctorAppointments = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-slate-500/0 to-slate-500/0 group-hover:from-slate-500/10 group-hover:to-slate-500/20 transition-all duration-300"></div>
             <div className="relative">
               <p className="text-[10px] font-semibold uppercase text-slate-600 mb-1 group-hover:text-slate-900 transition-colors">Total</p>
-              <p className="text-xl font-bold text-slate-900 group-hover:text-slate-950 transition-colors duration-300">{stats.total}</p>
+              <p className="text-xl font-bold text-slate-900 group-hover:text-slate-950 transition-colors duration-300">{stats.total?.total ?? stats.total}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[8px] text-slate-600">Scheduled: {stats.total?.scheduled ?? 0}</span>
+                <span className="text-[8px] text-slate-400">•</span>
+                <span className="text-[8px] text-slate-600">Rescheduled: {stats.total?.rescheduled ?? 0}</span>
+              </div>
             </div>
           </button>
         </div>
@@ -441,6 +637,17 @@ const DoctorAppointments = () => {
                               <IoCheckmarkCircleOutline className="h-1.5 w-1.5 text-white" />
                             </div>
                           )}
+                          {(() => {
+                            const displayStatus = mapBackendStatusToDisplay(appointment.status)
+                            if (displayStatus === 'pending' && !appointment.isRescheduled) {
+                              return (
+                                <div className="absolute -top-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-yellow-500 ring-2 ring-white group-hover:scale-110 group-hover:ring-yellow-400 transition-all duration-300" title="Pending">
+                                  <IoTimeOutline className="h-1.5 w-1.5 text-white" />
+                                </div>
+                              )
+                            }
+                            return null
+                          })()}
                         </div>
                         {/* Name */}
                         <div className="flex-1 min-w-0">
@@ -448,10 +655,13 @@ const DoctorAppointments = () => {
                           <p className="text-[9px] lg:text-[9px] text-slate-600 truncate group-hover:text-slate-700 transition-colors">{appointment.reason}</p>
                         </div>
                       </div>
-                      {/* Status Badge */}
-                      <div className="flex flex-col items-end gap-0.5 shrink-0">
+                      {/* Status Badge and Cancel Button */}
+                      <div className="flex items-center gap-1 shrink-0">
                         {(() => {
                           const displayStatus = mapBackendStatusToDisplay(appointment.status)
+                          if (displayStatus === 'pending' && !appointment.isRescheduled) {
+                            return null // Pending icon is shown on avatar corner
+                          }
                           return (
                             <span
                               className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[8px] lg:text-[8px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)} group-hover:scale-105 transition-transform duration-300`}
@@ -462,9 +672,7 @@ const DoctorAppointments = () => {
                                 <IoCheckmarkCircleOutline className="h-2 w-2" />
                               ) : displayStatus === 'cancelled' ? (
                                 <IoCloseCircleOutline className="h-2 w-2" />
-                              ) : (
-                                <IoTimeOutline className="h-2 w-2" />
-                              )}
+                              ) : null}
                               <span className="hidden lg:inline">{displayStatus}</span>
                             </span>
                           )
@@ -482,6 +690,19 @@ const DoctorAppointments = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Rescheduled Notice */}
+                    {appointment.isRescheduled && appointment.rescheduleReason && (
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-1.5 mb-1">
+                        <div className="flex items-start gap-1">
+                          <IoInformationCircleOutline className="h-2.5 w-2.5 text-blue-600 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[8px] lg:text-[8px] font-semibold text-blue-800 mb-0.5">Rescheduled</p>
+                            <p className="text-[7px] lg:text-[7px] text-blue-700 line-clamp-2">{appointment.rescheduleReason}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Details Row */}
                     <div className="grid grid-cols-2 gap-x-1.5 gap-y-0.5 text-[8px] lg:text-[8px] text-slate-600 group-hover:text-slate-700 transition-colors">

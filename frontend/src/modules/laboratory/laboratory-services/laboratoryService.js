@@ -482,6 +482,20 @@ export const getSupportTickets = async (filters = {}) => {
 }
 
 /**
+ * Get support history
+ * @param {object} filters - Optional filters (page, limit)
+ * @returns {Promise<object>} Support history data
+ */
+export const getSupportHistory = async (filters = {}) => {
+  try {
+    return await apiClient.get('/laboratory/support/history', filters)
+  } catch (error) {
+    console.error('Error fetching support history:', error)
+    throw error
+  }
+}
+
+/**
  * Create support ticket
  * @param {object} ticketData - Support ticket data
  * @returns {Promise<object>} Created ticket data

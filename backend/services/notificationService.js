@@ -685,6 +685,186 @@ const sendPaymentConfirmationEmail = async ({ patient, amount, orderId, appointm
   });
 };
 
+/**
+ * Send support ticket notification email to user
+ */
+const sendSupportTicketNotification = async ({ user, ticket, userType, isResponse = false }) => {
+  if (!(await isEmailNotificationsEnabled())) return null;
+  
+  let userEmail = '';
+  let userName = '';
+  
+  // Extract email and name based on user type
+  if (userType === 'patient') {
+    userEmail = user?.email || '';
+    userName = user?.firstName && user?.lastName 
+      ? `${user.firstName} ${user.lastName}`.trim()
+      : user?.email || 'Patient';
+  } else if (userType === 'doctor') {
+    userEmail = user?.email || '';
+    userName = user?.firstName && user?.lastName
+      ? `Dr. ${user.firstName} ${user.lastName}`.trim()
+      : user?.email || 'Doctor';
+  } else if (userType === 'pharmacy') {
+    userEmail = user?.email || '';
+    userName = user?.pharmacyName || user?.ownerName || user?.email || 'Pharmacy';
+  } else if (userType === 'laboratory') {
+    userEmail = user?.email || '';
+    userName = user?.labName || user?.ownerName || user?.email || 'Laboratory';
+  }
+  
+  if (!userEmail) return null;
+  
+  const ticketSubject = ticket.subject || 'Support Request';
+  const ticketMessage = ticket.message || '';
+  const adminNote = ticket.adminNote || '';
+  const latestResponse = ticket.responses && ticket.responses.length > 0 
+    ? ticket.responses[ticket.responses.length - 1] 
+    : null;
+  
+  if (isResponse && latestResponse) {
+    // Admin responded to ticket
+    const responseText = adminNote 
+      ? `Admin Response:\n${latestResponse.message}\n\nAdmin Note:\n${adminNote}`
+      : `Admin Response:\n${latestResponse.message}`;
+    const responseHtml = adminNote
+      ? `<div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;"><p><strong>Admin Response:</strong></p><p>${latestResponse.message}</p></div><div style="background: #dbeafe; padding: 15px; border-radius: 8px; margin: 15px 0;"><p><strong>Admin Note:</strong></p><p>${adminNote}</p></div>`
+      : `<div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;"><p><strong>Admin Response:</strong></p><p>${latestResponse.message}</p></div>`;
+    
+    return sendEmail({
+      to: userEmail,
+      subject: `Response to Your Support Ticket - ${ticketSubject} | Healiinn`,
+      text: `Hello ${userName},\n\nAdmin has responded to your support ticket:\n\nSubject: ${ticketSubject}\n\n${responseText}\n\nYou can view the full conversation in the app.\n\nThank you,\nTeam Healiinn`,
+      html: `<p>Hello ${userName},</p><p>Admin has responded to your support ticket:</p><p><strong>Subject:</strong> ${ticketSubject}</p>${responseHtml}<p>You can view the full conversation in the app.</p><p>Thank you,<br/>Team Healiinn</p>`,
+    });
+  } else {
+    // Status update or ticket created confirmation
+    const statusLabel = ticket.status === 'resolved' ? 'Resolved' 
+      : ticket.status === 'closed' ? 'Closed'
+      : ticket.status === 'in_progress' ? 'In Progress'
+      : 'Open';
+    
+    const noteText = adminNote ? `\n\nAdmin Note:\n${adminNote}` : '';
+    const noteHtml = adminNote 
+      ? `<div style="background: #dbeafe; padding: 15px; border-radius: 8px; margin: 15px 0;"><p><strong>Admin Note:</strong></p><p>${adminNote}</p></div>`
+      : '';
+    
+    if (adminNote) {
+      // Status update with admin note
+      return sendEmail({
+        to: userEmail,
+        subject: `Support Ticket ${statusLabel} - ${ticketSubject} | Healiinn`,
+        text: `Hello ${userName},\n\nYour support ticket status has been updated:\n\nSubject: ${ticketSubject}\nStatus: ${statusLabel}${noteText}\n\nTicket ID: ${ticket._id || ticket.id}\n\nThank you,\nTeam Healiinn`,
+        html: `<p>Hello ${userName},</p><p>Your support ticket status has been updated:</p><ul><li><strong>Subject:</strong> ${ticketSubject}</li><li><strong>Status:</strong> ${statusLabel}</li><li><strong>Ticket ID:</strong> ${ticket._id || ticket.id}</li></ul>${noteHtml}<p>Thank you,<br/>Team Healiinn</p>`,
+      });
+    } else {
+      // Ticket created confirmation
+      return sendEmail({
+        to: userEmail,
+        subject: `Support Ticket Created - ${ticketSubject} | Healiinn`,
+        text: `Hello ${userName},\n\nYour support ticket has been created successfully:\n\nSubject: ${ticketSubject}\nMessage: ${ticketMessage}\n\nTicket ID: ${ticket._id || ticket.id}\nStatus: ${ticket.status || 'Open'}\n\nWe'll get back to you soon.\n\nThank you,\nTeam Healiinn`,
+        html: `<p>Hello ${userName},</p><p>Your support ticket has been created successfully:</p><ul><li><strong>Subject:</strong> ${ticketSubject}</li><li><strong>Message:</strong> ${ticketMessage}</li><li><strong>Ticket ID:</strong> ${ticket._id || ticket.id}</li><li><strong>Status:</strong> ${ticket.status || 'Open'}</li></ul><p>We'll get back to you soon.</p><p>Thank you,<br/>Team Healiinn</p>`,
+      });
+    }
+  }
+};
+
+/**
+ * Send support ticket notification email to admin
+ */
+const sendAdminSupportTicketNotification = async ({ admin, ticket, user, userType }) => {
+  if (!(await isEmailNotificationsEnabled())) return null;
+  if (!admin?.email) return null;
+  
+  let userName = '';
+  if (userType === 'patient') {
+    userName = user?.firstName && user?.lastName
+      ? `${user.firstName} ${user.lastName}`.trim()
+      : user?.email || 'Patient';
+  } else if (userType === 'doctor') {
+    userName = user?.firstName && user?.lastName
+      ? `Dr. ${user.firstName} ${user.lastName}`.trim()
+      : user?.email || 'Doctor';
+  } else if (userType === 'pharmacy') {
+    userName = user?.pharmacyName || user?.ownerName || user?.email || 'Pharmacy';
+  } else if (userType === 'laboratory') {
+    userName = user?.labName || user?.ownerName || user?.email || 'Laboratory';
+  }
+  
+  const ticketSubject = ticket.subject || 'Support Request';
+  const ticketMessage = ticket.message || '';
+  
+  return sendEmail({
+    to: admin.email,
+    subject: `New Support Ticket from ${userName} | Healiinn`,
+    text: `Hello ${admin.name || 'Admin'},\n\nA new support ticket has been created:\n\nUser: ${userName} (${userType})\nSubject: ${ticketSubject}\nMessage: ${ticketMessage}\n\nTicket ID: ${ticket._id || ticket.id}\nPriority: ${ticket.priority || 'Medium'}\n\nPlease review and respond in the admin panel.\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello ${admin.name || 'Admin'},</p><p>A new support ticket has been created:</p><ul><li><strong>User:</strong> ${userName} (${userType})</li><li><strong>Subject:</strong> ${ticketSubject}</li><li><strong>Message:</strong> ${ticketMessage}</li><li><strong>Ticket ID:</strong> ${ticket._id || ticket.id}</li><li><strong>Priority:</strong> ${ticket.priority || 'Medium'}</li></ul><p>Please review and respond in the admin panel.</p><p>Thank you,<br/>Team Healiinn</p>`,
+  });
+};
+
+/**
+ * Create support ticket notification (in-app)
+ */
+const createSupportTicketNotification = async ({ userId, userType, ticket, eventType }) => {
+  let title, message, actionUrl;
+  
+  const ticketSubject = ticket.subject || 'Support Request';
+  const modulePath = userType === 'patient' ? 'patient' 
+    : userType === 'doctor' ? 'doctor'
+    : userType === 'pharmacy' ? 'pharmacy'
+    : userType === 'laboratory' ? 'laboratory' : '';
+  
+  const adminNote = ticket.adminNote || '';
+  
+  switch (eventType) {
+    case 'created':
+      title = 'Support Ticket Created';
+      message = `Your support ticket "${ticketSubject}" has been created successfully.`;
+      actionUrl = `/${modulePath}/support`;
+      break;
+    case 'responded':
+      title = 'Response Received';
+      message = adminNote 
+        ? `Admin has responded to your support ticket "${ticketSubject}". Note: ${adminNote}`
+        : `Admin has responded to your support ticket "${ticketSubject}".`;
+      actionUrl = `/${modulePath}/support`;
+      break;
+    case 'status_updated':
+      const statusLabel = ticket.status === 'resolved' ? 'Resolved' 
+        : ticket.status === 'closed' ? 'Closed'
+        : ticket.status === 'in_progress' ? 'In Progress'
+        : 'Updated';
+      title = `Ticket ${statusLabel}`;
+      message = adminNote
+        ? `Your support ticket "${ticketSubject}" has been ${statusLabel.toLowerCase()}. Admin Note: ${adminNote}`
+        : `Your support ticket "${ticketSubject}" has been ${statusLabel.toLowerCase()}.`;
+      actionUrl = `/${modulePath}/support`;
+      break;
+    default:
+      title = 'Support Ticket Update';
+      message = adminNote
+        ? `Your support ticket "${ticketSubject}" has been updated. Admin Note: ${adminNote}`
+        : `Your support ticket "${ticketSubject}" has been updated.`;
+      actionUrl = `/${modulePath}/support`;
+  }
+  
+  return createNotification({
+    userId,
+    userType,
+    type: 'support_ticket',
+    title,
+    message,
+    data: {
+      ticketId: ticket._id || ticket.id,
+      ticketSubject,
+      eventType,
+    },
+    priority: ticket.priority === 'urgent' ? 'urgent' : ticket.priority === 'high' ? 'high' : 'medium',
+    actionUrl,
+    icon: 'support',
+  });
+};
+
 module.exports = {
   createNotification,
   createAppointmentNotification,
@@ -709,4 +889,8 @@ module.exports = {
   sendPasswordResetOtpEmail,
   sendAppointmentReminderEmail,
   sendPrescriptionEmail,
+  // Support ticket notifications
+  sendSupportTicketNotification,
+  sendAdminSupportTicketNotification,
+  createSupportTicketNotification,
 };

@@ -81,6 +81,10 @@ const supportTicketSchema = new mongoose.Schema(
     closedAt: {
       type: Date,
     },
+    adminNote: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,

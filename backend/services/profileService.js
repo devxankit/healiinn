@@ -107,6 +107,14 @@ const applyDoctorUpdates = async (doc, updates, Model) => {
       doc.markModified(field);
     }
   });
+  
+  // If availability is updated, log it for debugging
+  if (updates.availability !== undefined) {
+    console.log(`📅 Doctor ${doc._id} updated availability:`, {
+      availabilityCount: updates.availability?.length || 0,
+      availability: updates.availability?.map(a => ({ day: a.day, startTime: a.startTime, endTime: a.endTime })) || [],
+    });
+  }
 };
 
 const applyLaboratoryUpdates = async (doc, updates, Model) => {
@@ -248,6 +256,16 @@ const updateProfileByRoleAndId = async (role, id, updates, options = {}) => {
   await handler(document, updates, Model, options);
 
   await document.save();
+  
+  // If doctor availability was updated, log it
+  if (role === ROLES.DOCTOR && updates.availability !== undefined) {
+    const savedDoc = await Model.findById(id);
+    console.log(`✅ Doctor ${id} profile updated with new availability:`, {
+      availabilityCount: savedDoc.availability?.length || 0,
+      availability: savedDoc.availability?.map(a => ({ day: a.day, startTime: a.startTime, endTime: a.endTime })) || [],
+    });
+    console.log(`ℹ️ Note: Sessions will be created automatically when appointments are booked for specific dates.`);
+  }
 
   return Model.findById(id).select('-password');
 };

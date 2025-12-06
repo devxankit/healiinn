@@ -62,6 +62,24 @@ const AdminDoctors = () => {
       // First, load ALL doctors for stats (no filters)
       const allDoctorsResponse = await getDoctors({ page: 1, limit: 1000 })
       if (allDoctorsResponse.success && allDoctorsResponse.data) {
+        // Helper function to format full address
+        const formatFullAddress = (clinicDetails) => {
+          if (!clinicDetails) return ''
+          
+          const parts = []
+          if (clinicDetails.address) {
+            const addr = clinicDetails.address
+            if (addr.line1) parts.push(addr.line1)
+            if (addr.line2) parts.push(addr.line2)
+            if (addr.city) parts.push(addr.city)
+            if (addr.state) parts.push(addr.state)
+            if (addr.postalCode) parts.push(addr.postalCode)
+            if (addr.country) parts.push(addr.country)
+          }
+          
+          return parts.length > 0 ? parts.join(', ') : ''
+        }
+        
         const allTransformed = (allDoctorsResponse.data.items || []).map(doctor => ({
           id: doctor._id || doctor.id,
           name: `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim() || 'N/A',
@@ -69,7 +87,7 @@ const AdminDoctors = () => {
           phone: doctor.phone || '',
           specialty: doctor.specialization || '',
           clinic: doctor.clinicDetails?.name || '',
-          location: doctor.clinicDetails?.address ? `${doctor.clinicDetails.address.city || ''}, ${doctor.clinicDetails.address.state || ''}`.trim() : '',
+          location: formatFullAddress(doctor.clinicDetails),
           rating: doctor.rating || 0,
           totalConsultations: 0, // TODO: Add when appointments API is ready
           status: doctor.status === 'approved' ? 'verified' : doctor.status || 'pending',
@@ -99,6 +117,25 @@ const AdminDoctors = () => {
         const doctorsData = response.data.items || response.data || []
         console.log('📋 Raw doctors data from API:', doctorsData) // Debug log
         console.log('📋 Transformed doctors count:', doctorsData.length) // Debug log
+        
+        // Helper function to format full address
+        const formatFullAddress = (clinicDetails) => {
+          if (!clinicDetails) return ''
+          
+          const parts = []
+          if (clinicDetails.address) {
+            const addr = clinicDetails.address
+            if (addr.line1) parts.push(addr.line1)
+            if (addr.line2) parts.push(addr.line2)
+            if (addr.city) parts.push(addr.city)
+            if (addr.state) parts.push(addr.state)
+            if (addr.postalCode) parts.push(addr.postalCode)
+            if (addr.country) parts.push(addr.country)
+          }
+          
+          return parts.length > 0 ? parts.join(', ') : ''
+        }
+        
         const transformedDoctors = doctorsData.map(doctor => ({
           id: doctor._id || doctor.id,
           name: `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim() || 'N/A',
@@ -106,7 +143,7 @@ const AdminDoctors = () => {
           phone: doctor.phone || '',
           specialty: doctor.specialization || '',
           clinic: doctor.clinicDetails?.name || '',
-          location: doctor.clinicDetails?.address ? `${doctor.clinicDetails.address.city || ''}, ${doctor.clinicDetails.address.state || ''}`.trim() : '',
+          location: formatFullAddress(doctor.clinicDetails),
           rating: doctor.rating || 0,
           totalConsultations: 0, // TODO: Add when appointments API is ready
           status: doctor.status === 'approved' ? 'verified' : doctor.status || 'pending',
@@ -424,9 +461,19 @@ const AdminDoctors = () => {
                       <h3 className="text-base font-semibold text-slate-900">{doctor.name}</h3>
                       <p className="mt-0.5 text-sm font-medium text-[#11496c]">{doctor.specialty}</p>
                       <div className="mt-1.5 space-y-1 text-sm text-slate-600">
-                        <div className="flex items-center gap-2">
-                          <IoLocationOutline className="h-4 w-4 shrink-0" />
-                          <span>{doctor.clinic}, {doctor.location}</span>
+                        <div className="flex items-start gap-2">
+                          <IoLocationOutline className="h-4 w-4 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            {doctor.clinic && (
+                              <p className="font-semibold text-slate-900">{doctor.clinic}</p>
+                            )}
+                            {doctor.location && (
+                              <p className="text-slate-600 text-sm">{doctor.location}</p>
+                            )}
+                            {!doctor.clinic && !doctor.location && (
+                              <span className="text-slate-400 text-sm">No address available</span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <IoMailOutline className="h-4 w-4 shrink-0" />

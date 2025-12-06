@@ -5,36 +5,108 @@ const { getModelForRole } = require('../utils/getModelForRole');
 let io;
 
 const initializeSocket = (server) => {
+  // Determine allowed origins
+  const allowedOrigins = process.env.SOCKET_IO_CORS_ORIGIN 
+    ? process.env.SOCKET_IO_CORS_ORIGIN.split(',').map(origin => origin.trim())
+    : process.env.FRONTEND_URL 
+      ? [process.env.FRONTEND_URL]
+      : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+
+  // In development, allow all localhost origins
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+  
   io = new Server(server, {
     cors: {
-      origin: process.env.SOCKET_IO_CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000',
-      methods: ['GET', 'POST'],
+      origin: isDevelopment 
+        ? (origin, callback) => {
+            // Allow all localhost origins in development
+            if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || allowedOrigins.includes(origin)) {
+              callback(null, true);
+            } else {
+              callback(new Error('Not allowed by CORS'));
+            }
+          }
+        : allowedOrigins,
+      methods: ['GET', 'POST', 'OPTIONS'],
       credentials: true,
+      allowedHeaders: ['Authorization', 'Content-Type'],
     },
+    allowEIO3: true, // Allow Engine.IO v3 clients
+    pingTimeout: 60000, // 60 seconds
+    pingInterval: 25000, // 25 seconds
   });
+
+  console.log('🔌 Socket.IO initialized with CORS origins:', isDevelopment ? 'All localhost origins (development)' : allowedOrigins);
 
   // Authentication middleware for Socket.IO
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
+      const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(' ')[1];
       
       if (!token) {
+        console.warn('Socket.IO connection rejected: No token provided');
         return next(new Error('Authentication error: Token missing'));
       }
 
+      // Verify token format first
+      if (typeof token !== 'string' || token.trim().length === 0) {
+        console.warn('Socket.IO connection rejected: Invalid token format');
+        return next(new Error('Authentication error: Invalid token format'));
+      }
+
       const decoded = await verifyAccessToken(token);
+      
+      if (!decoded || !decoded.id || !decoded.role) {
+        console.warn('Socket.IO connection rejected: Invalid token payload');
+        return next(new Error('Authentication error: Invalid token payload'));
+      }
+
       const Model = getModelForRole(decoded.role);
+      
+      if (!Model) {
+        console.warn(`Socket.IO connection rejected: Invalid role (${decoded.role})`);
+        return next(new Error('Authentication error: Invalid role'));
+      }
+
       const user = await Model.findById(decoded.id).select('-password');
 
       if (!user) {
+        console.warn(`Socket.IO connection rejected: User not found (${decoded.role}:${decoded.id})`);
         return next(new Error('Authentication error: User not found'));
       }
 
       socket.user = { id: decoded.id, role: decoded.role, user };
+      console.log(`✅ Socket.IO authentication successful: ${decoded.role}:${decoded.id}`);
       next();
     } catch (error) {
-      console.error('Socket.IO authentication error:', error.message);
-      next(new Error('Authentication error'));
+      // More specific error handling
+      if (error.name === 'JsonWebTokenError') {
+        console.warn('Socket.IO connection rejected: Invalid token format', {
+          name: error.name,
+          message: error.message,
+        });
+        return next(new Error('Authentication error: Invalid token'));
+      }
+      
+      if (error.name === 'TokenExpiredError') {
+        console.warn('Socket.IO connection rejected: Token expired', {
+          name: error.name,
+          message: error.message,
+        });
+        return next(new Error('Authentication error: Token expired'));
+      }
+      
+      if (error.message?.includes('Token missing') || error.message?.includes('Token invalid')) {
+        console.warn('Socket.IO connection rejected:', error.message);
+        return next(error);
+      }
+      
+      console.error('Socket.IO authentication error:', {
+        message: error.message,
+        name: error.name,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      });
+      next(new Error('Authentication error: ' + error.message));
     }
   });
 

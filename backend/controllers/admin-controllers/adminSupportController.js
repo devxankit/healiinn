@@ -4,7 +4,11 @@ const Patient = require('../../models/Patient');
 const Doctor = require('../../models/Doctor');
 const Pharmacy = require('../../models/Pharmacy');
 const Laboratory = require('../../models/Laboratory');
-const { sendSupportTicketNotification } = require('../../services/notificationService');
+const { 
+  sendSupportTicketNotification, 
+  sendAdminSupportTicketNotification,
+  createSupportTicketNotification 
+} = require('../../services/notificationService');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -24,20 +28,54 @@ exports.getSupportTickets = asyncHandler(async (req, res) => {
   if (priority) filter.priority = priority;
   if (userType) filter.userType = userType;
 
-  const [tickets, total] = await Promise.all([
-    SupportTicket.find(filter)
-      .populate('userId', 'firstName lastName pharmacyName labName email phone')
-      .populate('assignedTo', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
-    SupportTicket.countDocuments(filter),
-  ]);
+  // Fetch tickets without populate (since userId has no ref)
+  const tickets = await SupportTicket.find(filter)
+    .populate('assignedTo', 'name email')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  // Manually populate user data based on userType
+  const enrichedTickets = await Promise.all(
+    tickets.map(async (ticket) => {
+      let userData = null;
+      
+      try {
+        if (ticket.userType === 'patient') {
+          userData = await Patient.findById(ticket.userId)
+            .select('firstName lastName email phone profileImage')
+            .lean();
+        } else if (ticket.userType === 'doctor') {
+          userData = await Doctor.findById(ticket.userId)
+            .select('firstName lastName email phone specialization clinicName profileImage')
+            .lean();
+        } else if (ticket.userType === 'pharmacy') {
+          userData = await Pharmacy.findById(ticket.userId)
+            .select('pharmacyName ownerName contactPerson email phone profileImage')
+            .lean();
+        } else if (ticket.userType === 'laboratory') {
+          userData = await Laboratory.findById(ticket.userId)
+            .select('labName ownerName contactPerson email phone profileImage')
+            .lean();
+        }
+      } catch (error) {
+        console.error(`Error fetching user data for ticket ${ticket._id}:`, error);
+      }
+
+      return {
+        ...ticket,
+        userId: userData || ticket.userId, // Return user data or original userId if not found
+      };
+    })
+  );
+
+  const total = await SupportTicket.countDocuments(filter);
 
   return res.status(200).json({
     success: true,
     data: {
-      items: tickets,
+      items: enrichedTickets,
       pagination: {
         page,
         limit,
@@ -129,17 +167,26 @@ exports.respondToTicket = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
-  // Send email notification to user
+  // Send email and in-app notification to user
   if (user) {
     try {
+      // Send email notification
       await sendSupportTicketNotification({
         user,
         ticket,
         userType: ticket.userType,
         isResponse: true,
       }).catch((error) => console.error('Error sending support ticket response email:', error));
+      
+      // Create in-app notification
+      await createSupportTicketNotification({
+        userId: ticket.userId,
+        userType: ticket.userType,
+        ticket,
+        eventType: 'responded',
+      }).catch((error) => console.error('Error creating support ticket notification:', error));
     } catch (error) {
-      console.error('Error sending email notifications:', error);
+      console.error('Error sending notifications:', error);
     }
   }
 
@@ -153,7 +200,7 @@ exports.respondToTicket = asyncHandler(async (req, res) => {
 // PATCH /api/admin/support/:id/status
 exports.updateTicketStatus = asyncHandler(async (req, res) => {
   const { id: ticketId } = req.params;
-  const { status } = req.body;
+  const { status, adminNote } = req.body;
 
   if (!status || !['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
     return res.status(400).json({
@@ -171,6 +218,9 @@ exports.updateTicketStatus = asyncHandler(async (req, res) => {
   }
 
   ticket.status = status;
+  if (adminNote && adminNote.trim()) {
+    ticket.adminNote = adminNote.trim();
+  }
   if (status === 'resolved') {
     ticket.resolvedAt = new Date();
   }
@@ -180,17 +230,62 @@ exports.updateTicketStatus = asyncHandler(async (req, res) => {
 
   await ticket.save();
 
+  // Reload ticket to ensure all fields are fresh
+  const updatedTicket = await SupportTicket.findById(ticket._id);
+
+  // Get user data for notifications
+  let user = null;
+  if (updatedTicket.userType === 'patient') {
+    user = await Patient.findById(updatedTicket.userId);
+  } else if (updatedTicket.userType === 'doctor') {
+    user = await Doctor.findById(updatedTicket.userId);
+  } else if (updatedTicket.userType === 'pharmacy') {
+    user = await Pharmacy.findById(updatedTicket.userId);
+  } else if (updatedTicket.userType === 'laboratory') {
+    user = await Laboratory.findById(updatedTicket.userId);
+  }
+
   // Emit real-time event
   try {
     const { getIO } = require('../../config/socket');
     const io = getIO();
-    io.to(`${ticket.userType}-${ticket.userId}`).emit('support:ticket:status:updated', {
-      ticketId: ticket._id,
+    io.to(`${updatedTicket.userType}-${updatedTicket.userId}`).emit('support:ticket:status:updated', {
+      ticketId: updatedTicket._id,
       status,
+      ticket: updatedTicket.toObject(),
     });
   } catch (error) {
     console.error('Socket.IO error:', error);
   }
+
+  // Send email and in-app notification to user
+  if (user) {
+    try {
+      // Send email notification for status update
+      await sendSupportTicketNotification({
+        user,
+        ticket: updatedTicket,
+        userType: updatedTicket.userType,
+        isResponse: false,
+      }).catch((error) => console.error('Error sending support ticket status email:', error));
+      
+      // Create in-app notification
+      await createSupportTicketNotification({
+        userId: updatedTicket.userId,
+        userType: updatedTicket.userType,
+        ticket: updatedTicket,
+        eventType: 'status_updated',
+      }).catch((error) => console.error('Error creating support ticket status notification:', error));
+    } catch (error) {
+      console.error('Error sending notifications:', error);
+    }
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Ticket status updated',
+    data: updatedTicket,
+  });
 
   return res.status(200).json({
     success: true,

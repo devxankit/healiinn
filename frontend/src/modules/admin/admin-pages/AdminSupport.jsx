@@ -41,45 +41,102 @@ const AdminSupport = () => {
       setLoading(true)
       setError(null)
       const filters = {}
-      if (statusFilter !== 'all') filters.status = statusFilter
+      if (statusFilter !== 'all') {
+        // Map frontend status to backend status
+        filters.status = statusFilter === 'pending' ? 'open' : statusFilter
+      }
       if (roleFilter !== 'all') filters.userType = roleFilter
 
       const response = await getSupportTickets(filters)
       if (response.success && response.data) {
         // Transform API data to match component structure
         const tickets = response.data.items || response.data || []
+        console.log('📋 Raw support tickets from API:', tickets) // Debug log
+        
         const transformedTickets = tickets.map((ticket) => {
-          const user = ticket.userId || {}
+          // userId is now a populated object, not just an ID
+          const user = ticket.userId && typeof ticket.userId === 'object' ? ticket.userId : {}
           let name = ''
           let role = ticket.userType || 'patient'
 
+          console.log(`🔍 Processing ticket ${ticket._id}, userType: ${role}, user data:`, user) // Debug log
+
+          // Helper to safely extract string values
+          const getStringValue = (value) => {
+            if (!value) return ''
+            if (typeof value === 'string') return value
+            if (typeof value === 'object') {
+              // If it's an object, try to get a meaningful string representation
+              if (value.name) return String(value.name)
+              if (value.email) return String(value.email)
+              if (value.phone) return String(value.phone)
+              return ''
+            }
+            return String(value)
+          }
+
+          // Helper to safely extract email
+          const getEmail = () => {
+            if (user.email && typeof user.email === 'string') return user.email
+            if (user.contactPerson && typeof user.contactPerson === 'object' && user.contactPerson.email) {
+              return String(user.contactPerson.email)
+            }
+            if (ticket.email && typeof ticket.email === 'string') return ticket.email
+            return ''
+          }
+
+          // Helper to safely extract phone
+          const getPhone = () => {
+            if (user.phone && typeof user.phone === 'string') return user.phone
+            if (user.contactPerson && typeof user.contactPerson === 'object' && user.contactPerson.phone) {
+              return String(user.contactPerson.phone)
+            }
+            if (ticket.contactNumber && typeof ticket.contactNumber === 'string') return ticket.contactNumber
+            if (ticket.phone && typeof ticket.phone === 'string') return ticket.phone
+            return ''
+          }
+
           if (role === 'patient') {
-            name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown'
+            name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || getEmail() || 'Unknown'
           } else if (role === 'doctor') {
-            name = `Dr. ${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'Unknown'
+            name = `Dr. ${user.firstName || ''} ${user.lastName || ''}`.trim() || getEmail() || 'Unknown'
           } else if (role === 'pharmacy') {
-            name = user.contactPerson || user.pharmacyName || user.email || 'Unknown'
+            const contactPersonName = user.contactPerson && typeof user.contactPerson === 'object' 
+              ? getStringValue(user.contactPerson.name || user.contactPerson)
+              : getStringValue(user.contactPerson)
+            name = contactPersonName || getStringValue(user.ownerName) || getStringValue(user.pharmacyName) || getEmail() || 'Unknown'
           } else if (role === 'laboratory') {
-            name = user.contactPerson || user.labName || user.email || 'Unknown'
+            const contactPersonName = user.contactPerson && typeof user.contactPerson === 'object'
+              ? getStringValue(user.contactPerson.name || user.contactPerson)
+              : getStringValue(user.contactPerson)
+            name = contactPersonName || getStringValue(user.ownerName) || getStringValue(user.labName) || getEmail() || 'Unknown'
+          }
+
+          // Map status: 'open' -> 'pending' for UI consistency
+          let status = ticket.status || 'open'
+          if (status === 'open') {
+            status = 'pending'
           }
 
           return {
             id: ticket._id || ticket.id,
             role,
             name,
-            clinicName: user.clinicName || null,
-            pharmacyName: user.pharmacyName || null,
-            labName: user.labName || null,
-            email: user.email || ticket.email || '',
-            contactNumber: user.phone || ticket.contactNumber || '',
-            note: ticket.message || ticket.note || ticket.subject || '',
-            status: ticket.status || 'open',
+            clinicName: getStringValue(user.clinicName || user.specialization) || null,
+            pharmacyName: getStringValue(user.pharmacyName) || null,
+            labName: getStringValue(user.labName) || null,
+            email: getEmail(),
+            contactNumber: getPhone(),
+            note: getStringValue(ticket.message || ticket.note || ticket.subject),
+            status: status,
             createdAt: ticket.createdAt || new Date().toISOString(),
             updatedAt: ticket.updatedAt || ticket.createdAt || new Date().toISOString(),
-            adminNote: ticket.adminNote || null,
+            adminNote: ticket.adminNote ? getStringValue(ticket.adminNote) : null,
             responses: ticket.responses || [],
           }
         })
+        
+        console.log('✅ Transformed support tickets:', transformedTickets) // Debug log
         setSupportRequests(transformedTickets)
       }
     } catch (err) {
@@ -155,7 +212,7 @@ const AdminSupport = () => {
     }
     const config = statusConfig[status] || statusConfig.pending
     return (
-      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${config.color}`}>
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${config.color}`}>
         {config.label}
       </span>
     )
@@ -174,13 +231,25 @@ const AdminSupport = () => {
     setIsUpdating(true)
 
     try {
-      await updateSupportTicketStatus(selectedRequest.id, newStatus)
+      // Map frontend status to backend status
+      let backendStatus = newStatus
+      if (newStatus === 'pending') {
+        backendStatus = 'open'
+      }
+      
+      await updateSupportTicketStatus(selectedRequest.id, backendStatus, adminNote)
+
+      // Map backend status back to frontend status for display
+      let displayStatus = backendStatus
+      if (backendStatus === 'open') {
+        displayStatus = 'pending'
+      }
 
       // Update local state
       setSupportRequests((prev) =>
         prev.map((req) =>
           req.id === selectedRequest.id
-            ? { ...req, status: newStatus, adminNote, updatedAt: new Date().toISOString() }
+            ? { ...req, status: displayStatus, adminNote, updatedAt: new Date().toISOString() }
             : req
         )
       )
@@ -236,7 +305,7 @@ const AdminSupport = () => {
       </div>
 
       {/* Support Requests List */}
-      <div className="space-y-4">
+      <div className="space-y-2">
         {loading ? (
           <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             <p className="text-sm font-medium text-slate-600">Loading support requests...</p>
@@ -260,65 +329,79 @@ const AdminSupport = () => {
           filteredRequests.map((request) => (
             <div
               key={request.id}
-              className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+              className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md"
             >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex-1 space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex-1 space-y-2">
                   {/* Header */}
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#11496c]/10 text-[#11496c]">
+                  <div className="flex items-start gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#11496c]/10 text-[#11496c] shrink-0">
                       {getRoleIcon(request.role)}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-bold text-slate-900">{request.name}</h3>
-                        <span className="text-xs font-medium text-slate-500">({getRoleLabel(request.role)})</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3 className="text-sm font-bold text-slate-900">
+                          {typeof request.name === 'string' ? request.name : (request.name ? String(request.name) : 'Unknown')}
+                        </h3>
+                        <span className="text-[10px] font-medium text-slate-500">({getRoleLabel(request.role)})</span>
                         {getStatusBadge(request.status)}
                       </div>
                       {request.clinicName && (
-                        <p className="mt-1 text-sm text-slate-600">{request.clinicName}</p>
+                        <p className="mt-0.5 text-xs text-slate-600">
+                          {typeof request.clinicName === 'string' ? request.clinicName : String(request.clinicName || '')}
+                        </p>
                       )}
                       {request.pharmacyName && (
-                        <p className="mt-1 text-sm text-slate-600">{request.pharmacyName}</p>
+                        <p className="mt-0.5 text-xs text-slate-600">
+                          {typeof request.pharmacyName === 'string' ? request.pharmacyName : String(request.pharmacyName || '')}
+                        </p>
                       )}
-                      {request.labName && <p className="mt-1 text-sm text-slate-600">{request.labName}</p>}
+                      {request.labName && (
+                        <p className="mt-0.5 text-xs text-slate-600">
+                          {typeof request.labName === 'string' ? request.labName : String(request.labName || '')}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   {/* Contact Info */}
-                  <div className="flex flex-wrap gap-4 text-sm text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      <IoMailOutline className="h-4 w-4" />
-                      <span>{request.email}</span>
+                  <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                    <div className="flex items-center gap-1">
+                      <IoMailOutline className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{typeof request.email === 'string' ? request.email : (request.email ? String(request.email) : 'N/A')}</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <IoCallOutline className="h-4 w-4" />
-                      <span>{request.contactNumber}</span>
+                    <div className="flex items-center gap-1">
+                      <IoCallOutline className="h-3.5 w-3.5 shrink-0" />
+                      <span>{typeof request.contactNumber === 'string' ? request.contactNumber : (request.contactNumber ? String(request.contactNumber) : 'N/A')}</span>
                     </div>
                   </div>
 
                   {/* Message */}
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-sm text-slate-700">{request.note}</p>
+                  <div className="rounded-lg bg-slate-50 p-2">
+                    <p className="text-xs text-slate-700 line-clamp-2">
+                      {typeof request.note === 'string' ? request.note : (request.note ? String(request.note) : 'No message')}
+                    </p>
                   </div>
 
                   {/* Admin Note (if exists) */}
                   {request.adminNote && (
-                    <div className="rounded-lg bg-blue-50 p-3">
-                      <p className="text-xs font-semibold text-blue-900">Admin Note:</p>
-                      <p className="mt-1 text-sm text-blue-800">{request.adminNote}</p>
+                    <div className="rounded-lg bg-blue-50 p-2">
+                      <p className="text-[10px] font-semibold text-blue-900">Admin Note:</p>
+                      <p className="mt-0.5 text-xs text-blue-800 line-clamp-2">
+                        {typeof request.adminNote === 'string' ? request.adminNote : String(request.adminNote || '')}
+                      </p>
                     </div>
                   )}
 
                   {/* Timestamps */}
-                  <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+                  <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
                     <div className="flex items-center gap-1">
-                      <IoTimeOutline className="h-3.5 w-3.5" />
+                      <IoTimeOutline className="h-3 w-3" />
                       <span>Created: {formatDate(request.createdAt)}</span>
                     </div>
                     {request.updatedAt !== request.createdAt && (
                       <div className="flex items-center gap-1">
-                        <IoTimeOutline className="h-3.5 w-3.5" />
+                        <IoTimeOutline className="h-3 w-3" />
                         <span>Updated: {formatDate(request.updatedAt)}</span>
                       </div>
                     )}
@@ -326,11 +409,11 @@ const AdminSupport = () => {
                 </div>
 
                 {/* Action Button */}
-                <div className="flex sm:flex-col sm:items-end">
+                <div className="flex sm:flex-col sm:items-end shrink-0">
                   <button
                     type="button"
                     onClick={() => handleStatusChange(request)}
-                    className="rounded-lg bg-[#11496c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0d3a52]"
+                    className="rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0d3a52] whitespace-nowrap"
                   >
                     Update Status
                   </button>

@@ -53,9 +53,7 @@ const DoctorSupport = () => {
         if (activeTab === 'tickets') {
           const ticketsResponse = await getSupportTickets()
           if (ticketsResponse.success && ticketsResponse.data) {
-            const ticketsData = Array.isArray(ticketsResponse.data)
-              ? ticketsResponse.data
-              : ticketsResponse.data.tickets || []
+            const ticketsData = ticketsResponse.data.items || ticketsResponse.data || []
             setTickets(ticketsData)
           }
         }
@@ -73,15 +71,21 @@ const DoctorSupport = () => {
     const fetchTickets = async () => {
       try {
         setLoadingTickets(true)
+        console.log('📋 Fetching doctor support tickets...')
         const response = await getSupportTickets()
+        console.log('📋 Doctor support tickets response:', response)
+        
         if (response.success && response.data) {
-          const ticketsData = Array.isArray(response.data)
-            ? response.data
-            : response.data.tickets || []
+          // Backend returns { items: [...], pagination: {...} }
+          const ticketsData = response.data.items || response.data || []
+          console.log('✅ Processed doctor tickets:', ticketsData)
           setTickets(ticketsData)
+        } else {
+          console.warn('⚠️ Invalid response format:', response)
+          setTickets([])
         }
       } catch (error) {
-        console.error('Error fetching support tickets:', error)
+        console.error('❌ Error fetching doctor support tickets:', error)
         setTickets([])
       } finally {
         setLoadingTickets(false)
@@ -98,15 +102,21 @@ const DoctorSupport = () => {
     const fetchHistory = async () => {
       try {
         setLoadingHistory(true)
+        console.log('📜 Fetching doctor support history...')
         const response = await getSupportHistory()
+        console.log('📜 Doctor support history response:', response)
+        
         if (response.success && response.data) {
-          const historyData = Array.isArray(response.data)
-            ? response.data
-            : response.data.history || []
+          // Backend returns array directly in data
+          const historyData = Array.isArray(response.data) ? response.data : []
+          console.log('✅ Processed doctor history:', historyData)
           setHistory(historyData)
+        } else {
+          console.warn('⚠️ Invalid response format:', response)
+          setHistory([])
         }
       } catch (error) {
-        console.error('Error fetching support history:', error)
+        console.error('❌ Error fetching doctor support history:', error)
         setHistory([])
       } finally {
         setLoadingHistory(false)
@@ -184,13 +194,18 @@ const DoctorSupport = () => {
         </button>
         <button
           onClick={() => setActiveTab('tickets')}
-          className={`px-4 py-2 text-sm font-semibold transition ${
+          className={`relative px-4 py-2 text-sm font-semibold transition ${
             activeTab === 'tickets'
               ? 'border-b-2 border-[#11496c] text-[#11496c]'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          My Tickets ({tickets.length})
+          My Tickets
+          {tickets.length > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#11496c] px-1.5 text-[10px] font-bold text-white">
+              {tickets.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('history')}
@@ -351,7 +366,23 @@ const DoctorSupport = () => {
                         {ticket.updatedAt && ticket.updatedAt !== ticket.createdAt && (
                           <span>Updated: {formatDate(ticket.updatedAt)}</span>
                         )}
+                        {ticket.priority && (
+                          <span className="capitalize">Priority: {ticket.priority}</span>
+                        )}
                       </div>
+                      {ticket.responses && ticket.responses.length > 0 && (
+                        <div className="mt-4 rounded-lg bg-blue-50 p-3">
+                          <p className="mb-2 text-xs font-semibold text-blue-900">Admin Response:</p>
+                          {ticket.responses.map((response, idx) => (
+                            <div key={idx} className="mb-2 text-sm text-blue-800">
+                              <p>{response.message}</p>
+                              <p className="mt-1 text-xs text-blue-600">
+                                {formatDate(response.createdAt)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -397,8 +428,27 @@ const DoctorSupport = () => {
                       </div>
                       <p className="text-sm text-slate-600 mb-2">{item.message}</p>
                       <div className="flex items-center gap-4 text-xs text-slate-500">
-                        <span>Resolved: {formatDate(item.resolvedAt || item.updatedAt)}</span>
+                        <span>Created: {formatDate(item.createdAt)}</span>
+                        {item.resolvedAt && (
+                          <span>Resolved: {formatDate(item.resolvedAt)}</span>
+                        )}
+                        {item.closedAt && (
+                          <span>Closed: {formatDate(item.closedAt)}</span>
+                        )}
                       </div>
+                      {item.responses && item.responses.length > 0 && (
+                        <div className="mt-4 rounded-lg bg-green-50 p-3">
+                          <p className="mb-2 text-xs font-semibold text-green-900">Admin Response:</p>
+                          {item.responses.map((response, idx) => (
+                            <div key={idx} className="mb-2 text-sm text-green-800">
+                              <p>{response.message}</p>
+                              <p className="mt-1 text-xs text-green-600">
+                                {formatDate(response.createdAt)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

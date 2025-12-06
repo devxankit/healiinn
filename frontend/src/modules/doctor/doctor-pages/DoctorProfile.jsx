@@ -51,6 +51,11 @@ const normalizeImageUrl = (url) => {
 const formatTimeTo12Hour = (time24) => {
   if (!time24) return '';
   
+  // If already in 12-hour format (contains AM/PM), return as is
+  if (time24.toString().includes('AM') || time24.toString().includes('PM')) {
+    return time24;
+  }
+  
   // Handle time format like "17:00" or "17:00:00"
   const timeStr = time24.toString().trim();
   const [hours, minutes] = timeStr.split(':').map(Number);
@@ -62,6 +67,33 @@ const formatTimeTo12Hour = (time24) => {
   const minutesStr = minutes.toString().padStart(2, '0');
   
   return `${hours12}:${minutesStr} ${period}`;
+};
+
+// Utility function to convert 12-hour format to 24-hour format for time inputs
+const convert12HourTo24Hour = (time12) => {
+  if (!time12) return '';
+  
+  // If already in 24-hour format (no AM/PM), return as is
+  if (!time12.toString().includes('AM') && !time12.toString().includes('PM')) {
+    return time12;
+  }
+  
+  const timeStr = time12.toString().trim();
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  
+  if (!match) return time12;
+  
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2];
+  const period = match[3].toUpperCase();
+  
+  if (period === 'PM' && hours !== 12) {
+    hours += 12;
+  } else if (period === 'AM' && hours === 12) {
+    hours = 0;
+  }
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes}`;
 };
 
 const DoctorProfile = () => {
@@ -212,7 +244,14 @@ const DoctorProfile = () => {
               },
             },
             availableTimings: Array.isArray(doctor.availableTimings) ? doctor.availableTimings : [],
-            availability: Array.isArray(doctor.availability) ? doctor.availability : [],
+            availability: Array.isArray(doctor.availability) 
+              ? doctor.availability.map(avail => ({
+                  ...avail,
+                  // Convert 12-hour format from database to 24-hour format for time inputs
+                  startTime: convert12HourTo24Hour(avail.startTime),
+                  endTime: convert12HourTo24Hour(avail.endTime),
+                }))
+              : [],
             averageConsultationMinutes: doctor.averageConsultationMinutes || 20,
             documents: doctor.documents || {},
             digitalSignature: doctor.digitalSignature ? {
@@ -418,6 +457,21 @@ const DoctorProfile = () => {
     }))
   }
 
+  // Helper function to convert 24-hour format to 12-hour format for storage
+  const convertTo12HourForStorage = (time24) => {
+    if (!time24) return ''
+    
+    // Handle both "HH:MM" and "HH:MM:SS" formats
+    const [hours, minutes] = time24.split(':').map(Number)
+    if (isNaN(hours) || isNaN(minutes)) return time24
+    
+    const period = hours >= 12 ? 'PM' : 'AM'
+    const hours12 = hours % 12 || 12 // Convert 0 to 12 for 12 AM
+    const minutesStr = minutes.toString().padStart(2, '0')
+    
+    return `${hours12}:${minutesStr} ${period}`
+  }
+
   const handleSave = async () => {
     const token = getAuthToken('doctor')
     if (!token) {
@@ -427,6 +481,13 @@ const DoctorProfile = () => {
 
     try {
       setIsSaving(true)
+      
+      // Convert availability times from 24-hour to 12-hour format before saving
+      const availability12Hour = formData.availability.map(avail => ({
+        ...avail,
+        startTime: convertTo12HourForStorage(avail.startTime),
+        endTime: convertTo12HourForStorage(avail.endTime),
+      }))
       
       // Prepare data for backend (match backend expected format)
       const updateData = {
@@ -447,7 +508,7 @@ const DoctorProfile = () => {
         consultationModes: formData.consultationModes,
         clinicDetails: formData.clinicDetails,
         availableTimings: formData.availableTimings,
-        availability: formData.availability,
+        availability: availability12Hour, // Use converted 12-hour format
         averageConsultationMinutes: formData.averageConsultationMinutes,
         documents: formData.documents,
         digitalSignature: formData.digitalSignature,

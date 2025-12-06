@@ -33,6 +33,11 @@ const appointmentSchema = new mongoose.Schema(
       enum: ['New', 'Follow-up'],
       default: 'New',
     },
+    consultationMode: {
+      type: String,
+      enum: ['in_person', 'video_call', 'call'],
+      default: 'in_person',
+    },
     status: {
       type: String,
       enum: ['scheduled', 'confirmed', 'completed', 'cancelled', 'rescheduled'],
@@ -84,6 +89,17 @@ const appointmentSchema = new mongoose.Schema(
       type: Date,
     },
     cancellationReason: {
+      type: String,
+      trim: true,
+    },
+    rescheduledAt: {
+      type: Date,
+    },
+    rescheduledBy: {
+      type: String,
+      enum: ['patient', 'doctor', 'admin'],
+    },
+    rescheduleReason: {
       type: String,
       trim: true,
     },

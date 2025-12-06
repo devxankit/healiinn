@@ -28,8 +28,45 @@ exports.getAppointments = asyncHandler(async (req, res) => {
   const { status, date, doctor } = req.query;
   const { page, limit, skip } = buildPagination(req);
 
+  // Auto-cancel pending appointments older than 30 minutes
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  await Appointment.updateMany(
+    {
+      patientId: id,
+      paymentStatus: 'pending',
+      status: { $in: ['scheduled', 'confirmed'] },
+      createdAt: { $lt: thirtyMinutesAgo },
+    },
+    {
+      status: 'cancelled',
+      cancelledAt: new Date(),
+      cancellationReason: 'Payment not completed within 30 minutes',
+    }
+  );
+
   const filter = { patientId: id };
-  if (status) filter.status = status;
+  
+  // For status filter, exclude cancelled appointments unless explicitly requested
+  if (status) {
+    if (status === 'scheduled') {
+      // Include both 'scheduled' and rescheduled appointments (they are scheduled for new date)
+      filter.status = { $in: ['scheduled', 'confirmed'] };
+      filter.rescheduledAt = { $exists: false }; // Don't show old rescheduled appointments
+      filter.paymentStatus = { $ne: 'pending' }; // Exclude pending payment appointments
+    } else if (status === 'rescheduled') {
+      // Show only rescheduled appointments
+      filter.rescheduledAt = { $exists: true };
+      filter.status = { $in: ['scheduled', 'confirmed'] };
+      filter.paymentStatus = { $ne: 'pending' }; // Exclude pending payment appointments
+    } else {
+      filter.status = status;
+    }
+  } else {
+    // By default, exclude cancelled and pending payment appointments
+    filter.status = { $ne: 'cancelled' };
+    filter.paymentStatus = { $ne: 'pending' };
+  }
+  
   if (date) {
     const dateObj = new Date(date);
     filter.appointmentDate = {
@@ -41,7 +78,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
 
   const [appointments, total] = await Promise.all([
     Appointment.find(filter)
-      .populate('doctorId', 'firstName lastName specialization profileImage consultationFee')
+      .populate('doctorId', 'firstName lastName specialization profileImage consultationFee clinicDetails')
       .populate('sessionId', 'date sessionStartTime sessionEndTime')
       .sort({ appointmentDate: -1, createdAt: -1 })
       .skip(skip)
@@ -72,7 +109,7 @@ exports.getUpcomingAppointments = asyncHandler(async (req, res) => {
     appointmentDate: { $gte: new Date() },
     status: { $in: ['scheduled', 'confirmed'] },
   })
-    .populate('doctorId', 'firstName lastName specialization profileImage consultationFee')
+    .populate('doctorId', 'firstName lastName specialization profileImage consultationFee clinicDetails')
     .populate('sessionId', 'date sessionStartTime sessionEndTime')
     .sort({ appointmentDate: 1, time: 1 })
     .limit(10);
@@ -86,7 +123,7 @@ exports.getUpcomingAppointments = asyncHandler(async (req, res) => {
 // POST /api/patients/appointments
 exports.createAppointment = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { doctorId, appointmentDate, time, reason, appointmentType } = req.body;
+  const { doctorId, appointmentDate, time, reason, appointmentType, consultationMode } = req.body;
 
   if (!doctorId || !appointmentDate || !time) {
     return res.status(400).json({
@@ -103,6 +140,22 @@ exports.createAppointment = asyncHandler(async (req, res) => {
       message: 'Doctor not found or not available',
     });
   }
+
+  // Parse appointment date properly (YYYY-MM-DD format)
+  let parsedAppointmentDate;
+  if (typeof appointmentDate === 'string' && appointmentDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    // YYYY-MM-DD format - parse as UTC then convert to local
+    const [year, month, day] = appointmentDate.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    // Convert to local timezone
+    const localYear = utcDate.getFullYear();
+    const localMonth = utcDate.getMonth();
+    const localDay = utcDate.getDate();
+    parsedAppointmentDate = new Date(localYear, localMonth, localDay, 0, 0, 0, 0);
+  } else {
+    parsedAppointmentDate = new Date(appointmentDate);
+  }
+  parsedAppointmentDate.setHours(0, 0, 0, 0);
 
   // Check slot availability before booking
   const slotCheck = await checkSlotAvailability(doctorId, appointmentDate);
@@ -121,16 +174,74 @@ exports.createAppointment = asyncHandler(async (req, res) => {
   // Get or create session automatically based on doctor's availability
   let session;
   try {
+    console.log(`📅 Attempting to get/create session for doctor ${doctorId} on date ${appointmentDate}`);
     session = await getOrCreateSession(doctorId, appointmentDate);
+    console.log(`✅ Session retrieved/created:`, {
+      sessionId: session?._id,
+      doctorId: session?.doctorId,
+      date: session?.date,
+      sessionStartTime: session?.sessionStartTime,
+      sessionEndTime: session?.sessionEndTime,
+      maxTokens: session?.maxTokens,
+      currentToken: session?.currentToken,
+    });
   } catch (error) {
+    console.error(`❌ Error getting/creating session:`, {
+      error: error.message,
+      stack: error.stack,
+      doctorId,
+      appointmentDate,
+    });
     return res.status(400).json({
       success: false,
       message: error.message || 'Unable to create session for this date',
     });
   }
 
+  // Calculate token number based on current time for same-day bookings
+  let tokenNumber;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const isSameDay = parsedAppointmentDate.getTime() === today.getTime();
+  
+  if (isSameDay && slotCheck.pastSlotsCount > 0) {
+    // For same-day bookings with past slots, calculate token from current time
+    // We need to find the minimum token that is >= pastSlotsCount + 1
+    // and also account for already booked tokens
+    const minTokenFromCurrentTime = slotCheck.pastSlotsCount + 1;
+    const nextAvailableToken = Math.max(minTokenFromCurrentTime, (session.currentToken || 0) + 1);
+    tokenNumber = nextAvailableToken;
+    
+    console.log(`⏰ Same-day booking token calculation:`, {
+      pastSlotsCount: slotCheck.pastSlotsCount,
+      minTokenFromCurrentTime,
+      currentToken: session.currentToken || 0,
+      calculatedToken: tokenNumber,
+      sessionMaxTokens: session.maxTokens,
+    });
+  } else {
+    // For future bookings or same-day without past slots, use normal increment
+    // Token should be next available token (currentToken + 1)
+    // But ensure we don't skip tokens if there are existing appointments
+    const existingAppointments = await Appointment.countDocuments({
+      sessionId: session._id,
+      status: { $in: ['scheduled', 'confirmed'] },
+    });
+    
+    // Token number should be max of (currentToken + 1) or (existing appointments + 1)
+    // This ensures tokens are sequential and don't skip numbers
+    tokenNumber = Math.max((session.currentToken || 0) + 1, existingAppointments + 1);
+    
+    console.log(`📊 Token calculation for future booking:`, {
+      currentToken: session.currentToken || 0,
+      existingAppointments,
+      calculatedToken: tokenNumber,
+    });
+  }
+
   // Double check slot availability after session creation
-  if (session.currentToken >= session.maxTokens) {
+  // For same-day bookings, max token is still session.maxTokens (not reduced)
+  if (tokenNumber > session.maxTokens) {
     return res.status(400).json({
       success: false,
       message: 'No available slots for this session. All slots are booked.',
@@ -141,26 +252,75 @@ exports.createAppointment = asyncHandler(async (req, res) => {
       },
     });
   }
+  // Always calculate appointment time based on token number for consistency
+  // This ensures time is always calculated correctly regardless of booking type
+  const { timeToMinutes } = require('../../services/etaService');
+  const sessionStartMinutes = timeToMinutes(session.sessionStartTime);
+  const avgConsultation = doctor.averageConsultationMinutes || 20;
+  
+  // Calculate time for this token (token - 1 because token 1 starts at session start)
+  const tokenTimeMinutes = sessionStartMinutes + (tokenNumber - 1) * avgConsultation;
+  const tokenHour = Math.floor(tokenTimeMinutes / 60);
+  const tokenMin = tokenTimeMinutes % 60;
+  
+  // Convert to 12-hour format
+  let displayHour = tokenHour;
+  let period = 'AM';
+  if (tokenHour >= 12) {
+    period = 'PM';
+    if (tokenHour > 12) {
+      displayHour = tokenHour - 12;
+    }
+  } else if (tokenHour === 0) {
+    displayHour = 12;
+  }
+  
+  const appointmentTime = `${displayHour}:${tokenMin.toString().padStart(2, '0')} ${period}`;
+  
+  console.log(`⏰ Calculated appointment time for token ${tokenNumber}:`, {
+    sessionStartTime: session.sessionStartTime,
+    sessionStartMinutes,
+    tokenNumber,
+    avgConsultationMinutes: avgConsultation,
+    tokenTimeMinutes,
+    calculatedTime: appointmentTime,
+  });
 
-  // Create appointment
-  const tokenNumber = session.currentToken + 1;
   const appointment = await Appointment.create({
     patientId: id,
     doctorId,
     sessionId: session._id,
-    appointmentDate: new Date(appointmentDate),
-    time,
-    reason,
+    appointmentDate: parsedAppointmentDate,
+    time: appointmentTime,
+    reason: reason || 'Consultation',
     appointmentType: appointmentType || 'New',
+    consultationMode: consultationMode || 'in_person',
+    duration: doctor.averageConsultationMinutes || 30, // Use doctor's average consultation time instead of default 30
     tokenNumber,
     fee: doctor.consultationFee || 0,
     status: 'scheduled',
+    queueStatus: 'waiting',
   });
 
-  // Update session
-  session.currentToken = tokenNumber;
+  // Update session - ensure currentToken reflects the highest token number
+  // This ensures consistency even if appointments were cancelled
+  const maxTokenInSession = await Appointment.findOne({
+    sessionId: session._id,
+    status: { $in: ['scheduled', 'confirmed'] },
+  }).sort({ tokenNumber: -1 }).select('tokenNumber');
+  
+  const highestToken = maxTokenInSession?.tokenNumber || tokenNumber;
+  session.currentToken = Math.max(session.currentToken || 0, highestToken);
   session.appointments.push(appointment._id);
   await session.save();
+  
+  console.log(`✅ Session updated:`, {
+    sessionId: session._id,
+    newTokenNumber: tokenNumber,
+    highestTokenInSession: highestToken,
+    currentToken: session.currentToken,
+    maxTokens: session.maxTokens,
+  });
 
   // Calculate ETA for the appointment
   const eta = await calculateAppointmentETA(appointment._id);
@@ -234,10 +394,11 @@ exports.createAppointment = asyncHandler(async (req, res) => {
   }
 
 
-  // Get appointment with ETA
+  // Get appointment with ETA - only necessary fields
   const populatedAppointment = await Appointment.findById(appointment._id)
     .populate('doctorId', 'firstName lastName specialization profileImage')
-    .populate('sessionId', 'date sessionStartTime sessionEndTime');
+    .populate('sessionId', 'date sessionStartTime sessionEndTime status')
+    .select('-__v'); // Exclude version key
 
   return res.status(201).json({
     success: true,
@@ -294,7 +455,7 @@ exports.updateAppointment = asyncHandler(async (req, res) => {
 // DELETE /api/patients/appointments/:id
 exports.cancelAppointment = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { appointmentId } = req.params;
+  const appointmentId = req.params.id; // Route parameter is :id, not :appointmentId
 
   const appointment = await Appointment.findOne({ _id: appointmentId, patientId: id });
   if (!appointment) {
@@ -313,13 +474,24 @@ exports.cancelAppointment = asyncHandler(async (req, res) => {
 
   appointment.status = 'cancelled';
   appointment.cancelledAt = new Date();
+  appointment.cancellationReason = req.body.reason || 'Cancelled by patient';
   await appointment.save();
 
   // Update session if exists
   if (appointment.sessionId) {
     const session = await Session.findById(appointment.sessionId);
     if (session) {
-      session.currentToken = Math.max(0, session.currentToken - 1);
+      // Remove appointment from session's appointments array
+      session.appointments = session.appointments.filter(
+        apptId => apptId.toString() !== appointment._id.toString()
+      );
+      
+      // Recalculate currentToken based on actual booked appointments
+      const actualBookedCount = await Appointment.countDocuments({
+        sessionId: session._id,
+        status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
+      });
+      session.currentToken = Math.max(0, actualBookedCount);
       await session.save();
     }
   }
@@ -385,7 +557,7 @@ exports.cancelAppointment = asyncHandler(async (req, res) => {
 // PATCH /api/patients/appointments/:id/reschedule - Reschedule appointment
 exports.rescheduleAppointment = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { appointmentId } = req.params;
+  const appointmentId = req.params.id; // Fix: route parameter is :id, not :appointmentId
   const { appointmentDate, time } = req.body;
 
   if (!appointmentDate || !time) {
@@ -443,12 +615,38 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
     });
   }
 
+  // Store old appointment data for cancellation
+  const oldAppointmentDate = appointment.appointmentDate;
+  const oldSessionId = appointment.sessionId;
+  const oldTokenNumber = appointment.tokenNumber;
+  
   // Update old session token count if it exists
-  if (appointment.sessionId) {
-    const oldSession = await Session.findById(appointment.sessionId);
+  if (oldSessionId) {
+    const oldSession = await Session.findById(oldSessionId);
     if (oldSession) {
-      oldSession.currentToken = Math.max(0, oldSession.currentToken - 1);
+      // Remove appointment from old session's appointments array
+      oldSession.appointments = oldSession.appointments.filter(
+        apptId => apptId.toString() !== appointment._id.toString()
+      );
+      
+      // Recalculate currentToken based on actual booked appointments
+      const Appointment = require('../../models/Appointment');
+      const actualBookedCount = await Appointment.countDocuments({
+        sessionId: oldSessionId,
+        status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
+        _id: { $ne: appointment._id }, // Exclude the rescheduled appointment
+      });
+      
+      oldSession.currentToken = Math.max(0, actualBookedCount);
       await oldSession.save();
+
+      console.log(`🔄 Updated old session ${oldSession._id}:`, {
+        oldSessionDate: oldSession.date,
+        oldTokenNumber,
+        newCurrentToken: oldSession.currentToken,
+        actualBookedCount,
+        appointmentsCount: oldSession.appointments.length,
+      });
 
       // Recalculate ETAs for old session
       const etas = await recalculateSessionETAs(oldSession._id);
@@ -468,19 +666,77 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
   // Assign new token number
   const newTokenNumber = newSession.currentToken + 1;
 
-  // Update appointment
-  appointment.appointmentDate = new Date(appointmentDate);
+  // Update appointment with new date and session
+  // Normalize appointment date to match session date format (start of day in local timezone)
+  const oldDate = appointment.appointmentDate;
+  let normalizedAppointmentDate;
+  if (typeof appointmentDate === 'string' && appointmentDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    // YYYY-MM-DD format - parse and normalize to start of day in local timezone
+    const [year, month, day] = appointmentDate.split('-').map(Number);
+    normalizedAppointmentDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+  } else {
+    normalizedAppointmentDate = new Date(appointmentDate);
+    normalizedAppointmentDate.setHours(0, 0, 0, 0);
+  }
+  
+  // Ensure appointment date matches session date exactly
+  const sessionDateNormalized = new Date(newSession.date);
+  sessionDateNormalized.setHours(0, 0, 0, 0);
+  
+  appointment.appointmentDate = normalizedAppointmentDate;
   appointment.time = time;
   appointment.sessionId = newSession._id;
   appointment.tokenNumber = newTokenNumber;
-  appointment.status = 'scheduled';
+  appointment.status = 'scheduled'; // Keep as scheduled for new date
   appointment.queueStatus = null;
+  appointment.rescheduledAt = new Date();
+  appointment.rescheduledBy = 'patient';
+  appointment.rescheduleReason = `Rescheduled from ${oldDate.toLocaleDateString('en-US')} to ${normalizedAppointmentDate.toLocaleDateString('en-US')}`;
+  // Keep existing payment - no new payment required for reschedule
   await appointment.save();
+  
+  console.log(`✅ Appointment rescheduled and saved:`, {
+    appointmentId: appointment._id,
+    oldDate: oldDate.toISOString().split('T')[0],
+    newDate: appointmentDate,
+    newAppointmentDate: appointment.appointmentDate.toISOString().split('T')[0],
+    oldSessionId: oldSessionId?.toString(),
+    newSessionId: newSession._id.toString(),
+    newSessionDate: newSession.date.toISOString().split('T')[0],
+    oldToken: oldTokenNumber,
+    newToken: newTokenNumber,
+    status: appointment.status,
+  });
+  
+  // Verify appointment is properly linked to new session
+  const verifyAppointment = await Appointment.findById(appointment._id)
+    .populate('sessionId', 'date sessionStartTime sessionEndTime');
+  console.log(`🔍 Verification - Appointment in new session:`, {
+    appointmentId: verifyAppointment._id,
+    appointmentDate: verifyAppointment.appointmentDate.toISOString().split('T')[0],
+    sessionId: verifyAppointment.sessionId?._id?.toString(),
+    sessionDate: verifyAppointment.sessionId?.date?.toISOString().split('T')[0],
+    status: verifyAppointment.status,
+    tokenNumber: verifyAppointment.tokenNumber,
+    rescheduledAt: verifyAppointment.rescheduledAt,
+    match: verifyAppointment.appointmentDate.toISOString().split('T')[0] === verifyAppointment.sessionId?.date?.toISOString().split('T')[0],
+  });
 
   // Update new session
   newSession.currentToken = newTokenNumber;
-  newSession.appointments.push(appointment._id);
+  // Add appointment to new session's appointments array if not already present
+  if (!newSession.appointments.includes(appointment._id)) {
+    newSession.appointments.push(appointment._id);
+  }
   await newSession.save();
+
+  console.log(`✅ Rescheduled appointment ${appointment._id}:`, {
+    oldSessionId: appointment.sessionId?.toString(),
+    newSessionId: newSession._id.toString(),
+    newDate: appointmentDate,
+    newTime: time,
+    newTokenNumber: newTokenNumber,
+  });
 
   // Recalculate ETAs for new session
   const etas = await recalculateSessionETAs(newSession._id);
@@ -548,7 +804,7 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
     success: true,
     message: 'Appointment rescheduled successfully',
     data: await Appointment.findById(appointment._id)
-      .populate('doctorId', 'firstName lastName specialization profileImage')
+      .populate('doctorId', 'firstName lastName specialization profileImage consultationFee clinicDetails')
       .populate('sessionId', 'date sessionStartTime sessionEndTime'),
   });
 });

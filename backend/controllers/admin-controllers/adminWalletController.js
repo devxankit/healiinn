@@ -36,26 +36,70 @@ exports.getWalletOverview = asyncHandler(async (req, res) => {
 
   const totalEarnings = doctorEarnings + pharmacyEarnings + labEarnings;
 
-  // Get pending withdrawals
+  // Get pending withdrawals (only pending status)
   const pendingWithdrawals = await WithdrawalRequest.aggregate([
-    { $match: { status: { $in: ['pending', 'approved'] } } },
+    { $match: { status: 'pending' } },
     { $group: { _id: null, total: { $sum: '$amount' } } },
   ]);
 
   const pendingAmount = pendingWithdrawals[0]?.total || 0;
 
-  // Get total payments from patients (appointments + orders)
-  // Patient payments are stored with userType: 'patient'
-  const patientPayments = await Transaction.aggregate([
-    { $match: { userType: 'patient', type: 'payment', status: 'completed' } },
+  // Get approved withdrawals (approved but not yet paid)
+  const approvedWithdrawals = await WithdrawalRequest.aggregate([
+    { $match: { status: 'approved' } },
     { $group: { _id: null, total: { $sum: '$amount' } } },
   ]);
 
-  const totalPatientPayments = patientPayments[0]?.total || 0;
+  const approvedAmount = approvedWithdrawals[0]?.total || 0;
 
-  // Calculate admin wallet balance (patient payments - provider earnings)
-  // Note: In reality, admin keeps patient payments and pays providers from it
-  const adminWalletBalance = totalPatientPayments;
+  // Get total paid out withdrawals (paid withdrawals)
+  const paidOutWithdrawals = await WithdrawalRequest.aggregate([
+    { $match: { status: 'paid' } },
+    { $group: { _id: null, total: { $sum: '$amount' } } },
+  ]);
+
+  const totalPaidOut = paidOutWithdrawals[0]?.total || 0;
+
+  // Calculate total commission from appointments and orders directly
+  // This is more accurate than using Transaction model
+  const Appointment = require('../../models/Appointment');
+  const Order = require('../../models/Order');
+  const { calculateProviderEarning } = require('../../utils/commissionConfig');
+  
+  // Get all paid appointments and calculate commission
+  const allAppointments = await Appointment.find({ paymentStatus: 'paid' }).lean();
+  let totalCommissionFromAppointments = 0;
+  let totalGBVFromAppointments = 0;
+  for (const apt of allAppointments) {
+    if (apt.fee) {
+      const { commission } = calculateProviderEarning(apt.fee, 'doctor');
+      totalCommissionFromAppointments += commission;
+      totalGBVFromAppointments += apt.fee;
+    }
+  }
+  
+  // Get all paid orders and calculate commission
+  const allOrders = await Order.find({ paymentStatus: 'paid' }).lean();
+  let totalCommissionFromOrders = 0;
+  let totalGBVFromOrders = 0;
+  for (const order of allOrders) {
+    if (order.totalAmount) {
+      const providerType = order.providerType === 'laboratory' ? 'laboratory' : 'pharmacy';
+      const { commission } = calculateProviderEarning(order.totalAmount, providerType);
+      totalCommissionFromOrders += commission;
+      totalGBVFromOrders += order.totalAmount;
+    }
+  }
+  
+  // Total commission = commission from appointments + commission from orders
+  const totalCommission = totalCommissionFromAppointments + totalCommissionFromOrders;
+  const totalPatientPayments = totalGBVFromAppointments + totalGBVFromOrders;
+
+  // Calculate available balance
+  // Available = Total Commission - (Paid Out + Approved withdrawals)
+  // Both 'paid' and 'approved' withdrawals reduce available balance because they are committed
+  const committedWithdrawals = totalPaidOut + approvedAmount;
+  const availableBalance = Math.max(0, totalCommission - committedWithdrawals);
 
   // Calculate this month and last month earnings
   const currentMonthStart = new Date();
@@ -67,63 +111,133 @@ exports.getWalletOverview = asyncHandler(async (req, res) => {
   lastMonthEnd.setDate(0);
   lastMonthEnd.setHours(23, 59, 59, 999);
 
-  const [thisMonthPayments, lastMonthPayments, totalTransactions, activeDoctorsCount, activePharmaciesCount, activeLabsCount] = await Promise.all([
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'patient',
-          type: 'payment',
-          status: 'completed',
-          createdAt: { $gte: currentMonthStart },
-        },
-      },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then(result => result[0]?.total || 0),
-    Transaction.aggregate([
-      {
-        $match: {
-          userType: 'patient',
-          type: 'payment',
-          status: 'completed',
-          createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd },
-        },
-      },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]).then(result => result[0]?.total || 0),
+  const [totalTransactions, activeDoctorsCount, activePharmaciesCount, activeLabsCount] = await Promise.all([
     Transaction.countDocuments({ userType: 'patient', type: 'payment', status: 'completed' }),
     Doctor.countDocuments({ status: 'approved', isActive: true }),
     Pharmacy.countDocuments({ status: 'approved', isActive: true }),
     Laboratory.countDocuments({ status: 'approved', isActive: true }),
   ]);
 
-  // Calculate total commission (total payments - total provider earnings)
-  const totalCommission = totalPatientPayments - totalEarnings;
+  // Calculate this month and last month commission from appointments and orders
+  const thisMonthAppointments = await Appointment.find({
+    paymentStatus: 'paid',
+    $or: [
+      { paidAt: { $gte: currentMonthStart } },
+      { $and: [{ paidAt: { $exists: false } }, { createdAt: { $gte: currentMonthStart } }] }
+    ]
+  }).lean();
+  
+  const thisMonthOrders = await Order.find({
+    paymentStatus: 'paid',
+    $or: [
+      { paidAt: { $gte: currentMonthStart } },
+      { $and: [{ paidAt: { $exists: false } }, { createdAt: { $gte: currentMonthStart } }] }
+    ]
+  }).lean();
+  
+  let thisMonthCommission = 0;
+  for (const apt of thisMonthAppointments) {
+    if (apt.fee) {
+      const { commission } = calculateProviderEarning(apt.fee, 'doctor');
+      thisMonthCommission += commission;
+    }
+  }
+  for (const order of thisMonthOrders) {
+    if (order.totalAmount) {
+      const providerType = order.providerType === 'laboratory' ? 'laboratory' : 'pharmacy';
+      const { commission } = calculateProviderEarning(order.totalAmount, providerType);
+      thisMonthCommission += commission;
+    }
+  }
+  
+  const lastMonthAppointments = await Appointment.find({
+    paymentStatus: 'paid',
+    $or: [
+      { paidAt: { $gte: lastMonthStart, $lte: lastMonthEnd } },
+      { $and: [{ paidAt: { $exists: false } }, { createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } }] }
+    ]
+  }).lean();
+  
+  const lastMonthOrders = await Order.find({
+    paymentStatus: 'paid',
+    $or: [
+      { paidAt: { $gte: lastMonthStart, $lte: lastMonthEnd } },
+      { $and: [{ paidAt: { $exists: false } }, { createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } }] }
+    ]
+  }).lean();
+  
+  let lastMonthCommission = 0;
+  for (const apt of lastMonthAppointments) {
+    if (apt.fee) {
+      const { commission } = calculateProviderEarning(apt.fee, 'doctor');
+      lastMonthCommission += commission;
+    }
+  }
+  for (const order of lastMonthOrders) {
+    if (order.totalAmount) {
+      const providerType = order.providerType === 'laboratory' ? 'laboratory' : 'pharmacy';
+      const { commission } = calculateProviderEarning(order.totalAmount, providerType);
+      lastMonthCommission += commission;
+    }
+  }
 
-  console.log('📊 Admin Wallet Overview:', {
-    doctorEarnings,
-    pharmacyEarnings,
-    labEarnings,
-    totalEarnings,
-    totalPatientPayments,
-    totalCommission,
-    activeDoctorsCount,
-    activePharmaciesCount,
-    activeLabsCount,
+  console.log('📊 Admin Wallet Overview Calculation:', {
+    totalGBV: {
+      appointments: totalGBVFromAppointments,
+      orders: totalGBVFromOrders,
+      total: totalPatientPayments,
+    },
+    commission: {
+      fromAppointments: totalCommissionFromAppointments,
+      fromOrders: totalCommissionFromOrders,
+      total: totalCommission,
+    },
+    providerEarnings: {
+      doctor: doctorEarnings,
+      pharmacy: pharmacyEarnings,
+      lab: labEarnings,
+      total: totalEarnings,
+    },
+    withdrawals: {
+      paid: totalPaidOut,
+      approved: approvedAmount,
+      pending: pendingAmount,
+      committed: totalPaidOut + approvedAmount,
+    },
+    availableBalance: {
+      calculation: `${totalCommission} - ${totalPaidOut + approvedAmount} = ${availableBalance}`,
+      result: availableBalance,
+    },
+    thisMonthCommission,
+    lastMonthCommission,
+    activeProviders: {
+      doctors: activeDoctorsCount,
+      pharmacies: activePharmaciesCount,
+      labs: activeLabsCount,
+    },
   });
 
   return res.status(200).json({
     success: true,
     data: {
-      adminWalletBalance,
+      // Total Platform Earnings = Admin's Commission
+      totalCommission,
+      // Available Balance = Commission - Money already paid out - Money approved (committed)
+      availableBalance,
+      // Pending = Pending withdrawal requests (not yet approved)
+      pendingWithdrawals: pendingAmount,
+      // Approved = Approved withdrawal requests (committed but not yet paid)
+      approvedWithdrawals: approvedAmount,
+      // Total paid out to providers
+      totalPaidOut,
+      // Additional data for reference
       totalPatientPayments,
       totalEarnings,
-      totalCommission,
       doctorEarnings,
       pharmacyEarnings,
       labEarnings,
-      pendingWithdrawals: pendingAmount,
-      thisMonthEarnings: thisMonthPayments,
-      lastMonthEarnings: lastMonthPayments,
+      thisMonthEarnings: thisMonthCommission,
+      lastMonthEarnings: lastMonthCommission,
       totalTransactions,
       activeDoctorsCount,
       activePharmaciesCount,
@@ -147,44 +261,53 @@ exports.getProviderSummaries = asyncHandler(async (req, res) => {
       .select(`${nameField} ${r === 'doctor' ? 'lastName' : ''} email phone`);
 
     for (const provider of providers) {
-      const latestTransaction = await WalletTransaction.findOne({
-        userId: provider._id,
-        userType: r,
-      }).sort({ createdAt: -1 });
-
-      const balance = latestTransaction?.balance || 0;
-
-      // Get total earnings
+      // Get total earnings (all completed earning transactions)
       const totalEarningsResult = await WalletTransaction.aggregate([
         { $match: { userId: provider._id, userType: r, type: 'earning', status: 'completed' } },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]);
       const totalEarnings = totalEarningsResult[0]?.total || 0;
 
-      // Get total withdrawals
+      // Get total withdrawals (all completed withdrawal transactions)
       const totalWithdrawalsResult = await WalletTransaction.aggregate([
         { $match: { userId: provider._id, userType: r, type: 'withdrawal', status: 'completed' } },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]);
       const totalWithdrawals = totalWithdrawalsResult[0]?.total || 0;
 
-      // Get pending withdrawal amount
+      // Calculate balance: Total Earnings - Total Withdrawals
+      const balance = totalEarnings - totalWithdrawals;
+
+      // Get pending withdrawal amount (only 'pending' status, not 'approved')
       const pendingWithdrawalsResult = await WithdrawalRequest.aggregate([
         { 
           $match: { 
             userId: provider._id, 
             userType: r, 
-            status: { $in: ['pending', 'approved'] } 
+            status: 'pending' // Only count pending, not approved
           } 
         },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]);
       const pendingBalance = pendingWithdrawalsResult[0]?.total || 0;
 
+      // Calculate available balance: Balance - Pending Withdrawals
+      const availableBalance = Math.max(0, balance - pendingBalance);
+
       // Get total wallet transactions count
       const totalTransactions = await WalletTransaction.countDocuments({
         userId: provider._id,
         userType: r,
+      });
+
+      console.log(`📊 Provider ${r} ${provider._id}:`, {
+        name: r === 'doctor' ? `${provider.firstName} ${provider.lastName}` : provider[nameField],
+        totalEarnings,
+        totalWithdrawals,
+        balance,
+        pendingBalance,
+        availableBalance,
+        totalTransactions,
       });
 
       summaries.push({
@@ -195,11 +318,11 @@ exports.getProviderSummaries = asyncHandler(async (req, res) => {
         name: r === 'doctor' ? `${provider.firstName} ${provider.lastName}` : provider[nameField],
         email: provider.email,
         phone: provider.phone,
-        balance,
-        availableBalance: Math.max(0, balance - pendingBalance), // Available balance after pending withdrawals
+        balance, // Total balance = earnings - withdrawals
+        availableBalance, // Available = balance - pending
         totalEarnings,
         totalWithdrawals,
-        pendingBalance,
+        pendingBalance, // Pending withdrawal requests
         totalTransactions,
         status: 'active',
       });
@@ -228,14 +351,71 @@ exports.getWithdrawals = asyncHandler(async (req, res) => {
   if (status) filter.status = status;
   if (role) filter.userType = role;
 
-  const [withdrawals, total] = await Promise.all([
-    WithdrawalRequest.find(filter)
-      .populate('userId', 'firstName lastName pharmacyName labName')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
-    WithdrawalRequest.countDocuments(filter),
-  ]);
+  // Fetch withdrawals and populate userId based on userType
+  const withdrawals = await WithdrawalRequest.find(filter)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean(); // Use lean() for better performance
+  
+  const total = await WithdrawalRequest.countDocuments(filter);
+  
+  // Manually populate userId based on userType
+  const Doctor = require('../../models/Doctor');
+  const Pharmacy = require('../../models/Pharmacy');
+  const Laboratory = require('../../models/Laboratory');
+  
+  for (const withdrawal of withdrawals) {
+    if (withdrawal.userId) {
+      try {
+        if (withdrawal.userType === 'doctor') {
+          const doctor = await Doctor.findById(withdrawal.userId)
+            .select('firstName lastName email phone')
+            .lean();
+          if (doctor) {
+            withdrawal.userId = doctor;
+          }
+        } else if (withdrawal.userType === 'pharmacy') {
+          const pharmacy = await Pharmacy.findById(withdrawal.userId)
+            .select('pharmacyName ownerName email phone')
+            .lean();
+          if (pharmacy) {
+            withdrawal.userId = pharmacy;
+          }
+        } else if (withdrawal.userType === 'laboratory') {
+          const lab = await Laboratory.findById(withdrawal.userId)
+            .select('labName ownerName email phone')
+            .lean();
+          if (lab) {
+            withdrawal.userId = lab;
+          }
+        }
+      } catch (error) {
+        console.error(`Error populating userId for withdrawal ${withdrawal._id}:`, error.message);
+      }
+    }
+  }
+  
+  console.log('📋 Backend: Withdrawals fetched:', {
+    count: withdrawals.length,
+    total,
+    sample: withdrawals[0] ? {
+      _id: withdrawals[0]._id,
+      userType: withdrawals[0].userType,
+      userId: withdrawals[0].userId?._id,
+      userIdPopulated: !!withdrawals[0].userId?.firstName || !!withdrawals[0].userId?.email || !!withdrawals[0].userId?.pharmacyName || !!withdrawals[0].userId?.labName,
+      hasEmail: !!withdrawals[0].userId?.email,
+      hasPhone: !!withdrawals[0].userId?.phone,
+      userIdData: withdrawals[0].userId ? {
+        firstName: withdrawals[0].userId.firstName,
+        lastName: withdrawals[0].userId.lastName,
+        email: withdrawals[0].userId.email,
+        phone: withdrawals[0].userId.phone,
+        pharmacyName: withdrawals[0].userId.pharmacyName,
+        labName: withdrawals[0].userId.labName,
+      } : null,
+    } : null,
+  });
 
   return res.status(200).json({
     success: true,

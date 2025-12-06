@@ -151,26 +151,142 @@ exports.getAppointments = asyncHandler(async (req, res) => {
     };
   }
 
-  const [appointments, total] = await Promise.all([
+  // Calculate date ranges for statistics
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const currentMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  currentMonthEnd.setHours(23, 59, 59, 999);
+  const currentYearStart = new Date(today.getFullYear(), 0, 1);
+  const currentYearEnd = new Date(today.getFullYear(), 11, 31);
+  currentYearEnd.setHours(23, 59, 59, 999);
+
+  const [appointments, total, stats] = await Promise.all([
     Appointment.find(filter)
-      .populate('patientId', 'firstName lastName phone profileImage')
+      .populate('patientId', 'firstName lastName phone email profileImage dateOfBirth gender')
       .populate('sessionId', 'date sessionStartTime sessionEndTime')
       .sort({ appointmentDate: 1, time: 1 })
       .skip(skip)
       .limit(limit),
     Appointment.countDocuments(filter),
+    // Calculate statistics for scheduled and rescheduled appointments
+    Promise.all([
+      // Today - Scheduled (not rescheduled)
+      Appointment.countDocuments({
+        doctorId: id,
+        appointmentDate: { $gte: today, $lt: tomorrow },
+        status: { $in: ['scheduled', 'confirmed'] },
+        rescheduledAt: { $exists: false },
+      }),
+      // Today - Rescheduled
+      Appointment.countDocuments({
+        doctorId: id,
+        appointmentDate: { $gte: today, $lt: tomorrow },
+        status: { $in: ['scheduled', 'confirmed'] },
+        rescheduledAt: { $exists: true },
+      }),
+      // This Month - Scheduled
+      Appointment.countDocuments({
+        doctorId: id,
+        appointmentDate: { $gte: currentMonthStart, $lte: currentMonthEnd },
+        status: { $in: ['scheduled', 'confirmed'] },
+        rescheduledAt: { $exists: false },
+      }),
+      // This Month - Rescheduled
+      Appointment.countDocuments({
+        doctorId: id,
+        appointmentDate: { $gte: currentMonthStart, $lte: currentMonthEnd },
+        status: { $in: ['scheduled', 'confirmed'] },
+        rescheduledAt: { $exists: true },
+      }),
+      // This Year - Scheduled
+      Appointment.countDocuments({
+        doctorId: id,
+        appointmentDate: { $gte: currentYearStart, $lte: currentYearEnd },
+        status: { $in: ['scheduled', 'confirmed'] },
+        rescheduledAt: { $exists: false },
+      }),
+      // This Year - Rescheduled
+      Appointment.countDocuments({
+        doctorId: id,
+        appointmentDate: { $gte: currentYearStart, $lte: currentYearEnd },
+        status: { $in: ['scheduled', 'confirmed'] },
+        rescheduledAt: { $exists: true },
+      }),
+      // Total - Scheduled
+      Appointment.countDocuments({
+        doctorId: id,
+        status: { $in: ['scheduled', 'confirmed'] },
+        rescheduledAt: { $exists: false },
+      }),
+      // Total - Rescheduled
+      Appointment.countDocuments({
+        doctorId: id,
+        status: { $in: ['scheduled', 'confirmed'] },
+        rescheduledAt: { $exists: true },
+      }),
+    ]).then(([
+      todayScheduled,
+      todayRescheduled,
+      monthlyScheduled,
+      monthlyRescheduled,
+      yearlyScheduled,
+      yearlyRescheduled,
+      totalScheduled,
+      totalRescheduled,
+    ]) => ({
+      today: {
+        scheduled: todayScheduled,
+        rescheduled: todayRescheduled,
+        total: todayScheduled + todayRescheduled,
+      },
+      monthly: {
+        scheduled: monthlyScheduled,
+        rescheduled: monthlyRescheduled,
+        total: monthlyScheduled + monthlyRescheduled,
+      },
+      yearly: {
+        scheduled: yearlyScheduled,
+        rescheduled: yearlyRescheduled,
+        total: yearlyScheduled + yearlyRescheduled,
+      },
+      total: {
+        scheduled: totalScheduled,
+        rescheduled: totalRescheduled,
+        total: totalScheduled + totalRescheduled,
+      },
+    })),
   ]);
+
+  // Fetch patient addresses separately for each appointment
+  const Patient = require('../../models/Patient');
+  const appointmentsWithAddress = await Promise.all(
+    appointments.map(async (appt) => {
+      const apptObj = appt.toObject();
+      if (apptObj.patientId) {
+        const patientId = apptObj.patientId._id || apptObj.patientId.id;
+        const fullPatient = await Patient.findById(patientId).select('address');
+        if (fullPatient) {
+          apptObj.patientId.address = fullPatient.address || {};
+        }
+      }
+      return apptObj;
+    })
+  );
 
   return res.status(200).json({
     success: true,
     data: {
-      items: appointments,
+      items: appointmentsWithAddress,
       pagination: {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit) || 1,
       },
+      statistics: stats,
     },
   });
 });
