@@ -109,11 +109,14 @@ const AdminAppointments = () => {
               ? `Dr. ${apt.doctorId.firstName} ${apt.doctorId.lastName}`
               : apt.doctorId?.name || apt.doctorName || 'Unknown Doctor',
             specialty: apt.doctorId?.specialization || apt.specialty || '',
-            date: apt.appointmentDate ? new Date(apt.appointmentDate).toISOString().split('T')[0] : apt.date || '',
+            date: apt.appointmentDate ? (typeof apt.appointmentDate === 'string' 
+              ? apt.appointmentDate.split('T')[0] 
+              : new Date(apt.appointmentDate).toISOString().split('T')[0]) 
+              : (apt.date ? (typeof apt.date === 'string' ? apt.date.split('T')[0] : new Date(apt.date).toISOString().split('T')[0]) : ''),
             time: apt.appointmentTime || apt.time || apt.sessionId?.sessionStartTime || '',
             status: apt.status || 'scheduled',
             type: apt.appointmentType || apt.type || 'consultation',
-            appointmentDate: apt.appointmentDate || apt.date,
+            appointmentDate: apt.appointmentDate || apt.date, // Keep original format for filtering
             appointmentTime: apt.appointmentTime || apt.time || apt.sessionId?.sessionStartTime || '',
             rescheduledAt: apt.rescheduledAt,
             rescheduledBy: apt.rescheduledBy,
@@ -125,6 +128,13 @@ const AdminAppointments = () => {
           console.log('💰 Setting appointments:', {
             count: transformed.length,
             statuses: transformed.map(a => a.status),
+            sampleAppointment: transformed[0] ? {
+              id: transformed[0].id,
+              appointmentDate: transformed[0].appointmentDate,
+              date: transformed[0].date,
+              status: transformed[0].status,
+              type: typeof transformed[0].appointmentDate,
+            } : null,
           }) // Debug log
           
           setAppointments(transformed)
@@ -164,19 +174,88 @@ const AdminAppointments = () => {
     // Filter by period
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    today.setHours(0, 0, 0, 0)
+    
+    console.log('🔍 Filtering appointments:', {
+      totalAppointments: appointments.length,
+      periodFilter,
+      today: today.toISOString(),
+    })
     
     filtered = filtered.filter((apt) => {
-      const aptDate = new Date(apt.appointmentDate || apt.date)
+      // Use appointmentDate from apt or originalData
+      const rawAppointmentDate = apt.appointmentDate || apt.originalData?.appointmentDate || apt.date || apt.originalData?.date
+      
+      if (!rawAppointmentDate) {
+        console.warn('⚠️ Appointment missing date:', apt.id, apt)
+        return false
+      }
+      
+      let aptDate
+      
+      // Handle appointmentDate - can be Date object, ISO string, or YYYY-MM-DD string
+      if (rawAppointmentDate instanceof Date) {
+        aptDate = new Date(rawAppointmentDate)
+      } else if (typeof rawAppointmentDate === 'string') {
+        // Handle ISO string or YYYY-MM-DD format
+        const dateStr = rawAppointmentDate.split('T')[0] // Remove time if present
+        // Parse as local date to avoid timezone issues
+        const [year, month, day] = dateStr.split('-').map(Number)
+        if (year && month && day) {
+          aptDate = new Date(year, month - 1, day) // month is 0-indexed
+        } else {
+          aptDate = new Date(dateStr + 'T00:00:00')
+        }
+      } else {
+        aptDate = new Date(rawAppointmentDate)
+      }
+      
+      // Normalize to start of day in local timezone
       aptDate.setHours(0, 0, 0, 0)
 
-      if (periodFilter === 'daily') {
-        return aptDate.getTime() === today.getTime()
-      } else if (periodFilter === 'monthly') {
-        return aptDate.getMonth() === today.getMonth() && aptDate.getFullYear() === today.getFullYear()
-      } else if (periodFilter === 'yearly') {
-        return aptDate.getFullYear() === today.getFullYear()
+      // Validate date
+      if (isNaN(aptDate.getTime())) {
+        console.warn('❌ Invalid appointment date:', rawAppointmentDate, apt)
+        return false
       }
-      return true
+
+      let matches = false
+      if (periodFilter === 'daily') {
+        // Compare dates (year, month, day only) - use local date comparison
+        const aptDateStr = `${aptDate.getFullYear()}-${String(aptDate.getMonth() + 1).padStart(2, '0')}-${String(aptDate.getDate()).padStart(2, '0')}`
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+        matches = aptDateStr === todayStr
+        
+        if (!matches && appointments.length <= 5) {
+          console.log('📅 Daily filter - Appointment date mismatch:', {
+            id: apt.id,
+            rawDate: rawAppointmentDate,
+            parsedDate: aptDateStr,
+            today: todayStr,
+            matches,
+          })
+        }
+      } else if (periodFilter === 'monthly') {
+        matches = aptDate.getMonth() === today.getMonth() && aptDate.getFullYear() === today.getFullYear()
+      } else if (periodFilter === 'yearly') {
+        matches = aptDate.getFullYear() === today.getFullYear()
+      } else {
+        matches = true
+      }
+      
+      return matches
+    })
+    
+    console.log('✅ Filtered appointments:', {
+      before: appointments.length,
+      after: filtered.length,
+      periodFilter,
+      sampleFiltered: filtered.length > 0 ? {
+        id: filtered[0].id,
+        appointmentDate: filtered[0].appointmentDate,
+        status: filtered[0].status,
+        rescheduledAt: filtered[0].rescheduledAt,
+      } : null,
     })
 
     // Filter by search
@@ -240,15 +319,21 @@ const AdminAppointments = () => {
         patientEmail: apt.patientEmail || apt.patient?.email,
       })
       
-      // Check if rescheduled first (has rescheduledAt field)
+      // Check status first - cancelled appointments should only be in cancelled count
+      if (apt.status === 'cancelled') {
+        doctor.cancelled++
+        // Don't count cancelled appointments in scheduled/rescheduled
+        // Continue to next appointment
+        return
+      }
+      
+      // Check if rescheduled first (has rescheduledAt field) - but only if NOT cancelled
       if (apt.rescheduledAt || apt.originalData?.rescheduledAt) {
         doctor.rescheduled++
       } else if (apt.status === 'confirmed') {
         doctor.confirmed++
       } else if (apt.status === 'completed') {
         doctor.completed++
-      } else if (apt.status === 'cancelled') {
-        doctor.cancelled++
       } else if (apt.status === 'scheduled' || apt.status === 'waiting') {
         doctor.scheduled++
       }
@@ -298,18 +383,39 @@ const AdminAppointments = () => {
 
   const stats = useMemo(() => {
     const total = filteredAppointments.length
-    // Separate scheduled and rescheduled - rescheduled has rescheduledAt field
-    const rescheduled = filteredAppointments.filter((apt) => apt.rescheduledAt || apt.originalData?.rescheduledAt).length
-    const scheduled = filteredAppointments.filter((apt) => 
-      (apt.status === 'scheduled' || apt.status === 'waiting') && !apt.rescheduledAt && !apt.originalData?.rescheduledAt
-    ).length
-    const confirmed = filteredAppointments.filter((apt) => 
-      apt.status === 'confirmed' && !apt.rescheduledAt && !apt.originalData?.rescheduledAt
-    ).length
-    const completed = filteredAppointments.filter((apt) => apt.status === 'completed').length
-    const cancelled = filteredAppointments.filter((apt) => apt.status === 'cancelled').length
     
-    // Doctor stats from aggregation
+    // Calculate stats consistently - same logic as doctor aggregation
+    let scheduled = 0
+    let confirmed = 0
+    let rescheduled = 0
+    let completed = 0
+    let cancelled = 0
+    
+    filteredAppointments.forEach((apt) => {
+      // Check if cancelled first
+      if (apt.status === 'cancelled') {
+        cancelled++
+        return // Don't count in other categories
+      }
+      
+      // Check if rescheduled (has rescheduledAt field) - but only if NOT cancelled
+      const isRescheduled = apt.rescheduledAt || apt.originalData?.rescheduledAt
+      if (isRescheduled) {
+        rescheduled++
+        return // Don't count in scheduled/confirmed
+      }
+      
+      // Count by status (only if not rescheduled and not cancelled)
+      if (apt.status === 'completed') {
+        completed++
+      } else if (apt.status === 'confirmed') {
+        confirmed++
+      } else if (apt.status === 'scheduled' || apt.status === 'waiting') {
+        scheduled++
+      }
+    })
+    
+    // Doctor stats from aggregation (should match overall stats)
     const doctorStats = {
       totalDoctors: doctorAggregation.length,
       totalScheduled: doctorAggregation.reduce((sum, d) => sum + d.scheduled, 0),
@@ -317,6 +423,16 @@ const AdminAppointments = () => {
       totalCompleted: doctorAggregation.reduce((sum, d) => sum + d.completed, 0),
       totalRescheduled: doctorAggregation.reduce((sum, d) => sum + d.rescheduled, 0),
       totalCancelled: doctorAggregation.reduce((sum, d) => sum + d.cancelled, 0),
+    }
+    
+    // Debug: Log if there's a mismatch
+    if (Math.abs(scheduled - doctorStats.totalScheduled) > 0 || 
+        Math.abs(rescheduled - doctorStats.totalRescheduled) > 0 ||
+        Math.abs(cancelled - doctorStats.totalCancelled) > 0) {
+      console.warn('⚠️ Stats mismatch:', {
+        overall: { scheduled, confirmed, rescheduled, completed, cancelled },
+        doctorStats,
+      })
     }
 
     return { total, scheduled, confirmed, completed, rescheduled, cancelled, doctorStats }

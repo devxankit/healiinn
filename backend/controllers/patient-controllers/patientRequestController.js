@@ -386,23 +386,10 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
         },
       });
 
-      // Create commission deduction record (for admin tracking)
-      await WalletTransaction.create({
-        userId: pharmacyId,
-        userType: 'pharmacy',
-        type: 'commission_deduction',
-        amount: commission,
-        balance: currentBalance,
-        status: 'completed',
-        description: `Platform commission (${(commissionRate * 100).toFixed(1)}%) for request ${request._id}`,
-        referenceId: request._id.toString(),
-        requestId: request._id,
-        metadata: {
-          totalAmount: pharmacyTotal,
-          commission,
-          commissionRate,
-        },
-      });
+      // Note: Commission deduction transaction is NOT created in pharmacy's wallet
+      // because pharmacy already receives commission-deducted amount (earning)
+      // Admin commission is tracked separately through request/order records
+      // No need to create a deduction transaction that would incorrectly reduce pharmacy's balance
 
       // Emit real-time event to pharmacy
       try {
@@ -474,23 +461,10 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
         },
       });
 
-      // Create commission deduction record (for admin tracking)
-      await WalletTransaction.create({
-        userId: labId,
-        userType: 'laboratory',
-        type: 'commission_deduction',
-        amount: commission,
-        balance: currentBalance,
-        status: 'completed',
-        description: `Platform commission (${(commissionRate * 100).toFixed(1)}%) for request ${request._id}`,
-        referenceId: request._id.toString(),
-        requestId: request._id,
-        metadata: {
-          totalAmount: labTotal,
-          commission,
-          commissionRate,
-        },
-      });
+      // Note: Commission deduction transaction is NOT created in laboratory's wallet
+      // because laboratory already receives commission-deducted amount (earning)
+      // Admin commission is tracked separately through request/order records
+      // No need to create a deduction transaction that would incorrectly reduce laboratory's balance
 
       // Emit real-time event to lab
       try {

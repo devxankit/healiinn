@@ -10,11 +10,12 @@ import {
   skipPatient,
   recallPatient,
   updateQueueStatus,
-  pauseSession,
-  resumeSession,
-  updateSession
+  updateSession,
+  cancelSession,
+  markNoShow
 } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
+import { getSocket } from '../../../utils/socketClient'
 import {
   IoPeopleOutline,
   IoSearchOutline,
@@ -30,7 +31,6 @@ import {
   IoPersonOutline,
   IoCheckmarkCircleOutline,
   IoRefreshOutline,
-  IoStopOutline,
   IoAddOutline,
   IoCloseCircleOutline,
   IoVideocamOutline,
@@ -47,15 +47,69 @@ const getTodayDateString = () => {
 
 // Mock data removed - now using getPatientHistory API
 
+// Helper function to convert 12-hour time to 24-hour format
+const convertTo24Hour = (time12) => {
+  if (!time12) return '00:00'
+  // If already in 24-hour format (no AM/PM), return as is
+  if (!time12.toString().includes('AM') && !time12.toString().includes('PM')) {
+    return time12
+  }
+  // Handle 12-hour format
+  const timeStr = time12.toString().trim()
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+  if (!match) return '00:00'
+  
+  let hours = parseInt(match[1], 10)
+  const minutes = match[2]
+  const period = match[3].toUpperCase()
+  
+  if (period === 'PM' && hours !== 12) {
+    hours += 12
+  } else if (period === 'AM' && hours === 12) {
+    hours = 0
+  }
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes}`
+}
+
+// Helper function to format appointment time from date and time
+const formatAppointmentTime = (appointmentDate, time) => {
+  if (!appointmentDate || !time) return null
+  
+  // Convert time to 24-hour format if needed
+  const time24 = convertTo24Hour(time)
+  
+  // Format date string
+  let dateStr
+  if (appointmentDate instanceof Date) {
+    dateStr = appointmentDate.toISOString().split('T')[0]
+  } else if (typeof appointmentDate === 'string') {
+    dateStr = appointmentDate.split('T')[0]
+  } else {
+    return null
+  }
+  
+  return `${dateStr}T${time24}:00`
+}
+
 const formatTime = (dateString) => {
   if (!dateString) return 'N/A'
   try {
+    // If it's already a formatted time string (contains AM/PM), return as is
+    if (typeof dateString === 'string' && (dateString.includes('AM') || dateString.includes('PM'))) {
+      // Check if it's a malformed string like "2025-12-08T18:30:00.000ZT12:30 PM"
+      if (dateString.includes('T') && (dateString.includes('AM') || dateString.includes('PM'))) {
+        // Extract just the time part
+        const timeMatch = dateString.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i)
+        if (timeMatch) {
+          return timeMatch[1]
+        }
+      }
+      return dateString
+    }
+    
     const date = new Date(dateString)
     if (isNaN(date.getTime())) {
-      // If invalid date, try to parse as time string directly
-      if (typeof dateString === 'string' && (dateString.includes('AM') || dateString.includes('PM'))) {
-        return dateString
-      }
       return 'Invalid Date'
     }
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
@@ -89,6 +143,114 @@ const calculateMaxTokens = (startTime, endTime, averageMinutes) => {
   const diffMs = end - start
   const diffMinutes = diffMs / (1000 * 60)
   return Math.floor(diffMinutes / averageMinutes)
+}
+
+// Helper function to convert time string to minutes (for comparison)
+const timeStringToMinutes = (timeStr) => {
+  if (!timeStr) return null
+  
+  // Handle 12-hour format (e.g., "2:30 PM")
+  if (timeStr.includes('AM') || timeStr.includes('PM')) {
+    const [timePart, period] = timeStr.split(/\s*(AM|PM)/i)
+    const [hours, minutes] = timePart.split(':').map(Number)
+    let totalMinutes = hours * 60 + (minutes || 0)
+    
+    if (period.toUpperCase() === 'PM' && hours !== 12) {
+      totalMinutes += 12 * 60 // Add 12 hours for PM
+    } else if (period.toUpperCase() === 'AM' && hours === 12) {
+      totalMinutes -= 12 * 60 // Subtract 12 hours for 12 AM
+    }
+    
+    return totalMinutes
+  }
+  
+  // Handle 24-hour format (e.g., "14:30")
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  return hours * 60 + (minutes || 0)
+}
+
+// Helper function to check if current time is within session time
+const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
+  if (!sessionStartTime || !sessionEndTime || !sessionDate) {
+    console.log('⚠️ Missing session time data:', { sessionStartTime, sessionEndTime, sessionDate })
+    return false
+  }
+  
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  
+  // Parse session date - handle various formats
+  let sessionDay
+  try {
+    if (sessionDate instanceof Date) {
+      sessionDay = new Date(sessionDate)
+    } else if (typeof sessionDate === 'string') {
+      // Handle YYYY-MM-DD format
+      if (sessionDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = sessionDate.split('-').map(Number)
+        sessionDay = new Date(year, month - 1, day)
+      } else {
+        sessionDay = new Date(sessionDate)
+      }
+    } else {
+      console.log('⚠️ Invalid session date format:', sessionDate, typeof sessionDate)
+      return false
+    }
+    
+    if (isNaN(sessionDay.getTime())) {
+      console.log('⚠️ Invalid session date - NaN:', sessionDate)
+      return false
+    }
+    
+    sessionDay.setHours(0, 0, 0, 0)
+  } catch (error) {
+    console.log('⚠️ Error parsing session date:', error, sessionDate)
+    return false
+  }
+  
+  // Check if it's the same day
+  if (today.getTime() !== sessionDay.getTime()) {
+    console.log('⚠️ Session date mismatch:', {
+      today: today.toISOString().split('T')[0],
+      sessionDay: sessionDay.toISOString().split('T')[0],
+      todayTime: today.getTime(),
+      sessionDayTime: sessionDay.getTime(),
+    })
+    return false
+  }
+  
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  const startMinutes = timeStringToMinutes(sessionStartTime)
+  const endMinutes = timeStringToMinutes(sessionEndTime)
+  
+  if (startMinutes === null || endMinutes === null) {
+    console.log('⚠️ Failed to parse session times:', { 
+      sessionStartTime, 
+      sessionEndTime, 
+      startMinutes, 
+      endMinutes,
+      startType: typeof sessionStartTime,
+      endType: typeof sessionEndTime,
+    })
+    return false
+  }
+  
+  // Check if current time is within session time range (inclusive)
+  const isWithin = currentMinutes >= startMinutes && currentMinutes <= endMinutes
+  
+  console.log('🕐 Session time check:', {
+    currentTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    currentMinutes,
+    sessionStartTime,
+    sessionEndTime,
+    startMinutes,
+    endMinutes,
+    isWithin,
+    isBefore: currentMinutes < startMinutes,
+    isAfter: currentMinutes > endMinutes,
+  })
+  
+  return isWithin
 }
 
 const DoctorPatients = () => {
@@ -206,8 +368,11 @@ const DoctorPatients = () => {
             appointmentType: appt.appointmentType || appt.type || 'New',
             consultationMode: appt.consultationMode || 'in_person', // Add consultation mode
             status: appt.status || 'waiting',
+            queueStatus: appt.queueStatus || appt.status || 'waiting',
             queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            recallCount: appt.recallCount || 0,
             reason: appt.reason || appt.chiefComplaint || 'Consultation',
+            time: appt.time, // Store the time field directly
             patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
             originalData: appt,
           })) : []
@@ -215,6 +380,14 @@ const DoctorPatients = () => {
           console.log('💰 Setting appointments:', {
             count: transformedAppointments.length,
             statuses: transformedAppointments.map(a => a.status),
+            tokenNumbers: transformedAppointments.map(a => ({ id: a.id, tokenNumber: a.queueNumber, time: a.time })),
+            firstAppointment: transformedAppointments[0] ? {
+              id: transformedAppointments[0].id,
+              tokenNumber: transformedAppointments[0].queueNumber,
+              time: transformedAppointments[0].time,
+              originalTokenNumber: transformedAppointments[0].originalData?.tokenNumber,
+              originalTime: transformedAppointments[0].originalData?.time,
+            } : null,
           }) // Debug log
           
           setAppointments(transformedAppointments)
@@ -263,6 +436,50 @@ const DoctorPatients = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState(null)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
+
+  // Socket listener for real-time queue updates (especially for recall count updates)
+  useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+
+    const handleQueueUpdated = (data) => {
+      if (data?.appointmentId) {
+        // Update appointment state when queue is updated (e.g., after recall)
+        setAppointments((prev) =>
+          prev.map((appt) => {
+            if (appt.id === data.appointmentId || appt._id === data.appointmentId) {
+              // Update recallCount if provided - this ensures button visibility updates immediately
+              if (data.recallCount !== undefined) {
+                return {
+                  ...appt,
+                  recallCount: data.recallCount,
+                  status: data.status || appt.status,
+                  queueStatus: data.queueStatus || data.status || appt.queueStatus,
+                }
+              }
+              // Update status if provided
+              if (data.status) {
+                return {
+                  ...appt,
+                  status: data.status,
+                  queueStatus: data.queueStatus || data.status,
+                  // Preserve recallCount when only status updates
+                  recallCount: appt.recallCount || 0,
+                }
+              }
+            }
+            return appt
+          })
+        )
+      }
+    }
+
+    socket.on('queue:updated', handleQueueUpdated)
+
+    return () => {
+      socket.off('queue:updated', handleQueueUpdated)
+    }
+  }, [])
 
   // Check session date on mount and clear if not today
   useEffect(() => {
@@ -355,6 +572,8 @@ const DoctorPatients = () => {
       return
     }
     
+    // Remove frontend time check - let backend validate time
+    // Button is always clickable, backend will return error if time is outside session time
     try {
       const sessionId = currentSession._id || currentSession.id
       if (!sessionId) {
@@ -364,6 +583,11 @@ const DoctorPatients = () => {
 
       // Call backend API to update session status to 'live'
       const response = await updateSession(sessionId, { status: 'live' })
+      
+      if (!response.success) {
+        toast.error(response.message || 'Failed to start session')
+        return
+      }
       
       if (response.success && response.data) {
         // Update local state with backend response
@@ -439,9 +663,13 @@ const DoctorPatients = () => {
             })(),
             appointmentDate: appt.appointmentDate || appt.date,
             appointmentType: appt.appointmentType || appt.type || 'New',
+            consultationMode: appt.consultationMode || 'in_person',
             status: appt.status || 'waiting',
+            queueStatus: appt.queueStatus || appt.status || 'waiting',
             queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            recallCount: appt.recallCount || 0,
             reason: appt.reason || appt.chiefComplaint || 'Consultation',
+            time: appt.time, // Store the time field directly
             patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
             originalData: appt,
           })) : []
@@ -457,51 +685,26 @@ const DoctorPatients = () => {
     }
   }
 
-  const handleEndSession = () => {
-    if (!currentSession) return
-    
-    if (window.confirm('Are you sure you want to end this session? This will mark all remaining appointments.')) {
-      // Clear the session from state and localStorage (don't show completed sessions)
-      setCurrentSession(null)
-      localStorage.removeItem('doctorCurrentSession')
-      
-      // Also clear consultation room data when session ends
-      localStorage.removeItem('doctorSelectedConsultation')
-      localStorage.removeItem('doctorConsultations')
-      
-      alert('Session ended successfully.')
-    }
-  }
-
-  const handleCancelSession = () => {
+  const handleCancelSession = async () => {
     if (!cancelReason.trim()) {
-      alert('Please provide a reason for cancelling the session')
+      toast.warning('Please provide a reason for cancelling the session')
       return
     }
 
-    if (window.confirm('Are you sure? This will cancel all appointments for this session. Patients will be notified and can reschedule.')) {
-      // Store cancelled session info for patient notifications
-      try {
-        const cancelledSessions = JSON.parse(localStorage.getItem('cancelledSessions') || '[]')
-        cancelledSessions.push({
-          date: currentSession.date,
-          reason: cancelReason.trim(),
-          cancelledAt: new Date().toISOString(),
-        })
-        localStorage.setItem('cancelledSessions', JSON.stringify(cancelledSessions))
-      } catch (error) {
-        console.error('Error saving cancelled session:', error)
-      }
+    if (!currentSession?._id) {
+      toast.error('Session ID not found')
+      return
+    }
+
+    try {
+      setLoadingSession(true)
       
-      // Cancel all appointments
-      setAppointments((prev) =>
-        prev.map((apt) => ({
-          ...apt,
-          status: 'cancelled',
-          cancelledBy: 'doctor',
-          cancelReason: 'Session cancelled by doctor',
-        }))
-      )
+      // Call backend API to cancel session and all appointments
+      const response = await cancelSession(currentSession._id, cancelReason.trim())
+      
+      if (response.success) {
+        // Update local state - remove cancelled appointments from view
+        setAppointments((prev) => prev.filter(apt => apt.status !== 'cancelled'))
       
       // Clear the session from state and localStorage (don't show cancelled sessions)
       setCurrentSession(null)
@@ -509,7 +712,16 @@ const DoctorPatients = () => {
       
       setShowCancelSessionModal(false)
       setCancelReason('')
-      alert('Session cancelled. All appointments have been cancelled and patients will be notified.')
+        
+        toast.success(`Session cancelled successfully. ${response.data?.cancelledAppointments || 0} appointments have been cancelled and patients have been notified.`)
+      } else {
+        toast.error(response.message || 'Failed to cancel session')
+      }
+    } catch (error) {
+      console.error('Error cancelling session:', error)
+      toast.error(error.message || 'Failed to cancel session. Please try again.')
+    } finally {
+      setLoadingSession(false)
     }
   }
 
@@ -549,6 +761,28 @@ const DoctorPatients = () => {
     }
   }
 
+  // Handler for video call button (placeholder - no backend yet)
+  const handleVideoCall = async (appointmentId) => {
+    const appointment = appointments.find((appt) => appt.id === appointmentId)
+    if (!appointment) {
+      toast.error('Appointment not found')
+      return
+    }
+    // TODO: Implement video call functionality
+    toast.info('Video call feature coming soon')
+  }
+
+  // Handler for call button (for video call appointments - placeholder)
+  const handleCallPatient = async (appointmentId) => {
+    const appointment = appointments.find((appt) => appt.id === appointmentId)
+    if (!appointment) {
+      toast.error('Appointment not found')
+      return
+    }
+    // TODO: Implement call functionality for video call appointments
+    toast.info('Call feature coming soon')
+  }
+
   const handleCallNext = async (appointmentId) => {
     const appointment = appointments.find((appt) => appt.id === appointmentId)
     if (!appointment) {
@@ -569,8 +803,8 @@ const DoctorPatients = () => {
         return
       }
 
-      // Call API to call next patient
-      const response = await callNextPatient(sessionId)
+      // Call API to call next patient (pass specific appointmentId if available)
+      const response = await callNextPatient(sessionId, appointmentId)
       
       if (response.success) {
         toast.success('Patient called successfully')
@@ -578,9 +812,30 @@ const DoctorPatients = () => {
         // Update local state with API response
         if (response.data?.appointment) {
           const calledAppointment = response.data.appointment
+          const calledAppointmentId = calledAppointment._id || calledAppointment.id
+          
+          // Update the called appointment status
+          setAppointments((prev) =>
+            prev.map((appt) => {
+              // Match by appointment ID from response or by appointmentId parameter
+              if (appt.id === appointmentId || appt._id === appointmentId || 
+                  appt.id === calledAppointmentId || appt._id === calledAppointmentId) {
+                return { 
+                  ...appt, 
+                  status: 'called', 
+                  queueStatus: 'called',
+                  _id: calledAppointmentId || appt._id,
+                  id: calledAppointmentId || appt.id
+                }
+              }
+              return appt
+            })
+          )
+        } else {
+          // Fallback: update by appointmentId if response doesn't have appointment data
           setAppointments((prev) =>
             prev.map((appt) =>
-              appt.id === appointmentId || appt._id === calledAppointment._id
+              appt.id === appointmentId || appt._id === appointmentId
                 ? { ...appt, status: 'called', queueStatus: 'called' }
                 : appt
             )
@@ -590,22 +845,76 @@ const DoctorPatients = () => {
         // Load shared prescriptions from appointment
         const sharedPrescriptions = appointment.sharedPrescriptions || []
         
+        // Fetch complete patient data including email and address
+        let fullPatientData = null
+        try {
+          const patientId = appointment.patientId?._id || appointment.patientId
+          if (patientId) {
+            const patientResponse = await getPatientById(patientId)
+            if (patientResponse.success && patientResponse.data) {
+              fullPatientData = patientResponse.data
+              console.log('✅ Fetched full patient data:', fullPatientData)
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching patient data:', error)
+          // Continue with appointment data if fetch fails
+        }
+        
+        // Format patient address
+        let formattedAddress = 'Not provided'
+        if (fullPatientData?.address) {
+          const address = fullPatientData.address
+          if (typeof address === 'object') {
+            const addressParts = []
+            if (address.line1) addressParts.push(address.line1)
+            if (address.line2) addressParts.push(address.line2)
+            if (address.city) addressParts.push(address.city)
+            if (address.state) addressParts.push(address.state)
+            if (address.pincode || address.postalCode) addressParts.push(address.pincode || address.postalCode)
+            formattedAddress = addressParts.length > 0 ? addressParts.join(', ') : 'Not provided'
+          } else if (typeof address === 'string' && address.trim() !== '') {
+            formattedAddress = address
+          }
+        } else if (appointment.patientAddress && appointment.patientAddress !== 'Not provided' && appointment.patientAddress !== 'Address not provided') {
+          formattedAddress = appointment.patientAddress
+        }
+        
+        // Calculate age from date of birth if available
+        let patientAge = appointment.age || 0
+        if (fullPatientData?.dateOfBirth) {
+          try {
+            const dob = new Date(fullPatientData.dateOfBirth)
+            const today = new Date()
+            let age = today.getFullYear() - dob.getFullYear()
+            const monthDiff = today.getMonth() - dob.getMonth()
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+              age--
+            }
+            if (age > 0) patientAge = age
+          } catch (e) {
+            console.error('Error calculating age:', e)
+          }
+        }
+        
         // Navigate to consultations page with patient data
-        // Convert appointment to consultation format
+        // Convert appointment to consultation format with real patient data
         const consultationData = {
           id: `cons-${appointment.id}-${Date.now()}`, // Unique ID with timestamp
-          patientId: appointment.patientId,
-          patientName: appointment.patientName,
-          age: appointment.age,
-          gender: appointment.gender,
+          patientId: appointment.patientId?._id || appointment.patientId,
+          patientName: fullPatientData?.firstName && fullPatientData?.lastName
+            ? `${fullPatientData.firstName} ${fullPatientData.lastName}`
+            : appointment.patientName || 'Patient',
+          age: patientAge,
+          gender: fullPatientData?.gender || appointment.gender || 'M',
           appointmentTime: appointment.appointmentTime || new Date().toISOString(),
           appointmentType: appointment.appointmentType || 'Follow-up',
           status: 'in-progress',
           reason: appointment.reason || 'Consultation',
-          patientImage: appointment.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=11496c&color=fff&size=160`,
-          patientPhone: appointment.patientPhone || '+1-555-987-6543',
-          patientEmail: appointment.patientEmail || `${appointment.patientName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-          patientAddress: appointment.patientAddress || '123 Patient Street, New York, NY 10001',
+          patientImage: fullPatientData?.profileImage || appointment.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=11496c&color=fff&size=160`,
+          patientPhone: fullPatientData?.phone || appointment.patientPhone || '',
+          patientEmail: fullPatientData?.email || appointment.patientEmail || '',
+          patientAddress: formattedAddress,
           diagnosis: '',
           symptoms: '',
           vitals: {},
@@ -620,6 +929,14 @@ const DoctorPatients = () => {
           calledAt: new Date().toISOString(),
         }
 
+        // Save consultation state to localStorage for persistence
+        try {
+          localStorage.setItem('doctorSelectedConsultation', JSON.stringify(consultationData))
+          console.log('✅ Saved consultation state to localStorage:', consultationData)
+        } catch (error) {
+          console.error('Error saving consultation state:', error)
+        }
+        
         // Navigate to consultations page with patient data in state
         navigate('/doctor/consultations', {
           state: { selectedConsultation: consultationData },
@@ -638,14 +955,14 @@ const DoctorPatients = () => {
       const response = await updateQueueStatus(appointmentId, 'completed')
       
       if (response.success) {
-        toast.success('Consultation completed successfully')
-        // Update local state
+        toast.success('Consultation completed successfully. Patient has been notified.')
+        
+        // Remove appointment from queue (since it's completed)
         setAppointments((prev) =>
-          prev.map((appt) =>
-            appt.id === appointmentId ? { ...appt, status: 'completed', queueStatus: 'completed' } : appt
-          )
+          prev.filter((appt) => appt.id !== appointmentId && appt._id !== appointmentId)
         )
-        // Refresh appointments
+        
+        // Refresh appointments to get updated queue
         const queueResponse = await getPatientQueue(getTodayDateString())
         if (queueResponse.success && queueResponse.data) {
           const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
@@ -658,13 +975,34 @@ const DoctorPatients = () => {
               : appt.patientId?.name || appt.patientName || 'Patient',
             age: appt.patientId?.age || appt.age || 0,
             gender: appt.patientId?.gender || appt.gender || 'unknown',
-            appointmentTime: appt.appointmentDate 
-              ? `${appt.appointmentDate}T${appt.time || '00:00'}`
-              : appt.appointmentTime || new Date().toISOString(),
+            appointmentTime: (() => {
+              // Properly format appointment time
+              if (appt.appointmentTime) {
+                // If it's already a valid ISO string, return as is
+                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && !appt.appointmentTime.includes('AM') && !appt.appointmentTime.includes('PM')) {
+                  return appt.appointmentTime
+                }
+                // If it's a malformed string, try to fix it
+                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && (appt.appointmentTime.includes('AM') || appt.appointmentTime.includes('PM'))) {
+                  // Extract date and time parts
+                  const dateMatch = appt.appointmentTime.match(/(\d{4}-\d{2}-\d{2})/)
+                  const timeMatch = appt.appointmentTime.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i)
+                  if (dateMatch && timeMatch) {
+                    return formatAppointmentTime(dateMatch[1], timeMatch[1])
+                  }
+                }
+              }
+              if (appt.appointmentDate && appt.time) {
+                return formatAppointmentTime(appt.appointmentDate, appt.time) || new Date().toISOString()
+              }
+              return new Date().toISOString()
+            })(),
             appointmentType: appt.appointmentType || appt.type || 'New',
+            consultationMode: appt.consultationMode || 'in_person',
             status: appt.status || 'waiting',
             queueStatus: appt.queueStatus || appt.status || 'waiting',
             queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            recallCount: appt.recallCount || 0,
             reason: appt.reason || appt.chiefComplaint || 'Consultation',
             patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
             originalData: appt,
@@ -685,14 +1023,30 @@ const DoctorPatients = () => {
       const response = await recallPatient(appointmentId)
       
       if (response.success) {
-        toast.success('Patient recalled to waiting queue')
-        // Update local state
+        const updatedRecallCount = response.data?.recallCount || response.data?.appointment?.recallCount || 0
+        const isSecondRecall = updatedRecallCount >= 2
+        
+        if (isSecondRecall) {
+          toast.success('Patient recalled to waiting queue. Maximum recalls reached (2).')
+        } else {
+          toast.success('Patient recalled to waiting queue')
+        }
+        
+        // Update local state with recallCount immediately
         setAppointments((prev) =>
           prev.map((appt) =>
-            appt.id === appointmentId ? { ...appt, status: 'waiting', queueStatus: 'waiting' } : appt
+            appt.id === appointmentId || appt._id === appointmentId
+              ? { 
+                  ...appt, 
+                  status: 'waiting', 
+                  queueStatus: 'waiting',
+                  recallCount: updatedRecallCount
+                } 
+              : appt
           )
         )
-        // Refresh appointments
+        
+        // Refresh appointments to get updated data
         const queueResponse = await getPatientQueue(getTodayDateString())
         if (queueResponse.success && queueResponse.data) {
           const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
@@ -703,10 +1057,39 @@ const DoctorPatients = () => {
             patientName: appt.patientId?.firstName && appt.patientId?.lastName
               ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
               : appt.patientId?.name || appt.patientName || 'Patient',
+            age: appt.patientId?.age || appt.age || 0,
+            gender: appt.patientId?.gender || appt.gender || 'M',
+            appointmentTime: (() => {
+              // Properly format appointment time
+              if (appt.appointmentTime) {
+                // If it's already a valid ISO string, return as is
+                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && !appt.appointmentTime.includes('AM') && !appt.appointmentTime.includes('PM')) {
+                  return appt.appointmentTime
+                }
+                // If it's a malformed string, try to fix it
+                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && (appt.appointmentTime.includes('AM') || appt.appointmentTime.includes('PM'))) {
+                  // Extract date and time parts
+                  const dateMatch = appt.appointmentTime.match(/(\d{4}-\d{2}-\d{2})/)
+                  const timeMatch = appt.appointmentTime.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i)
+                  if (dateMatch && timeMatch) {
+                    return formatAppointmentTime(dateMatch[1], timeMatch[1])
+                  }
+                }
+              }
+              if (appt.appointmentDate && appt.time) {
+                return formatAppointmentTime(appt.appointmentDate, appt.time) || new Date().toISOString()
+              }
+              return new Date().toISOString()
+            })(),
+            appointmentType: appt.appointmentType || appt.type || 'New',
+            consultationMode: appt.consultationMode || 'in_person',
             status: appt.status || 'waiting',
             queueStatus: appt.queueStatus || appt.status || 'waiting',
             queueNumber: appt.tokenNumber || appt.queueNumber || 0,
-            // ... other fields
+            recallCount: appt.recallCount || 0,
+            time: appt.time, // Store the time field directly
+            reason: appt.reason || appt.chiefComplaint || 'Consultation',
+            patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
             originalData: appt,
           }))
           setAppointments(transformedAppointments)
@@ -745,14 +1128,36 @@ const DoctorPatients = () => {
               : appt.patientId?.name || appt.patientName || 'Patient',
             age: appt.patientId?.age || appt.age || 0,
             gender: appt.patientId?.gender || appt.gender || 'unknown',
-            appointmentTime: appt.appointmentDate 
-              ? `${appt.appointmentDate}T${appt.time || '00:00'}`
-              : appt.appointmentTime || new Date().toISOString(),
+            appointmentTime: (() => {
+              // Properly format appointment time
+              if (appt.appointmentTime) {
+                // If it's already a valid ISO string, return as is
+                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && !appt.appointmentTime.includes('AM') && !appt.appointmentTime.includes('PM')) {
+                  return appt.appointmentTime
+                }
+                // If it's a malformed string, try to fix it
+                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && (appt.appointmentTime.includes('AM') || appt.appointmentTime.includes('PM'))) {
+                  // Extract date and time parts
+                  const dateMatch = appt.appointmentTime.match(/(\d{4}-\d{2}-\d{2})/)
+                  const timeMatch = appt.appointmentTime.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i)
+                  if (dateMatch && timeMatch) {
+                    return formatAppointmentTime(dateMatch[1], timeMatch[1])
+                  }
+                }
+              }
+              if (appt.appointmentDate && appt.time) {
+                return formatAppointmentTime(appt.appointmentDate, appt.time) || new Date().toISOString()
+              }
+              return new Date().toISOString()
+            })(),
             appointmentType: appt.appointmentType || appt.type || 'New',
+            consultationMode: appt.consultationMode || 'in_person',
             status: appt.status || 'waiting',
             queueStatus: appt.queueStatus || appt.status || 'waiting',
             queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            recallCount: appt.recallCount || 0,
             reason: appt.reason || appt.chiefComplaint || 'Consultation',
+            time: appt.time, // Store the time field directly
             patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
             originalData: appt,
           }))
@@ -767,16 +1172,86 @@ const DoctorPatients = () => {
     }
   }
 
-  const handleNoShow = (appointmentId) => {
-    const appointment = appointments.find((appt) => appt.id === appointmentId)
-    
-    setAppointments((prev) =>
-      prev.map((appt) =>
-        appt.id === appointmentId ? { ...appt, status: 'no-show' } : appt
-      )
-    )
-    
-    alert(`${appointment.patientName} marked as No Show`)
+  const handleNoShow = async (appointmentId) => {
+    try {
+      const response = await markNoShow(appointmentId)
+      
+      if (response.success) {
+        toast.success('Patient marked as no-show. Appointment cancelled. Patient can reschedule.')
+        
+        // Update appointment status to no-show/cancelled (DON'T remove from list)
+        setAppointments((prev) =>
+          prev.map((appt) =>
+            appt.id === appointmentId || appt._id === appointmentId
+              ? { 
+                  ...appt, 
+                  status: 'cancelled',
+                  queueStatus: 'no-show',
+                  cancelledAt: new Date().toISOString(),
+                  cancelledBy: 'doctor',
+                  cancellationReason: 'Patient did not show up for appointment'
+                }
+              : appt
+          )
+        )
+        
+        // Refresh appointments to get updated queue (including no-show appointments)
+        const queueResponse = await getPatientQueue(getTodayDateString())
+        if (queueResponse.success && queueResponse.data) {
+          const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
+          const transformedAppointments = queueData.map((appt) => ({
+            id: appt._id || appt.id,
+            _id: appt._id || appt.id,
+            patientId: appt.patientId?._id || appt.patientId || appt.patientId,
+            patientName: appt.patientId?.firstName && appt.patientId?.lastName
+              ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
+              : appt.patientId?.name || appt.patientName || 'Patient',
+            age: appt.patientId?.age || appt.age || 0,
+            gender: appt.patientId?.gender || appt.gender || 'M',
+            appointmentTime: (() => {
+              // Properly format appointment time
+              if (appt.appointmentTime) {
+                // If it's already a valid ISO string, return as is
+                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && !appt.appointmentTime.includes('AM') && !appt.appointmentTime.includes('PM')) {
+                  return appt.appointmentTime
+                }
+                // If it's a malformed string, try to fix it
+                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && (appt.appointmentTime.includes('AM') || appt.appointmentTime.includes('PM'))) {
+                  // Extract date and time parts
+                  const dateMatch = appt.appointmentTime.match(/(\d{4}-\d{2}-\d{2})/)
+                  const timeMatch = appt.appointmentTime.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i)
+                  if (dateMatch && timeMatch) {
+                    return formatAppointmentTime(dateMatch[1], timeMatch[1])
+                  }
+                }
+              }
+              if (appt.appointmentDate && appt.time) {
+                return formatAppointmentTime(appt.appointmentDate, appt.time) || new Date().toISOString()
+              }
+              return new Date().toISOString()
+            })(),
+            appointmentType: appt.appointmentType || appt.type || 'New',
+            consultationMode: appt.consultationMode || 'in_person',
+            status: appt.status || 'waiting',
+            queueStatus: appt.queueStatus || appt.status || 'waiting',
+            queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+            recallCount: appt.recallCount || 0,
+            reason: appt.reason || appt.chiefComplaint || 'Consultation',
+            patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+            cancelledAt: appt.cancelledAt,
+            cancelledBy: appt.cancelledBy,
+            cancellationReason: appt.cancellationReason || appt.cancelReason,
+            originalData: appt,
+          }))
+          setAppointments(transformedAppointments)
+        }
+      } else {
+        toast.error(response.message || 'Failed to mark patient as no-show')
+      }
+    } catch (error) {
+      console.error('Error marking no-show:', error)
+      toast.error(error.message || 'Failed to mark patient as no-show')
+    }
   }
 
   const handleMoveUp = (appointmentId) => {
@@ -935,27 +1410,62 @@ const DoctorPatients = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 {currentSession && (
                   <>
-                    {(currentSession.status === 'scheduled' || currentSession.status === 'paused') && (
+                    {/* Show Start Session button when status is scheduled - ALWAYS visible during session time */}
+                    {(() => {
+                      // Normalize status to lowercase for comparison
+                      const normalizedStatus = String(currentSession.status || 'scheduled').toLowerCase().trim()
+                      
+                      // Show start button ONLY if status is scheduled (not active/live/completed/cancelled)
+                      const isScheduled = normalizedStatus === 'scheduled'
+                      const isActiveOrLive = normalizedStatus === 'active' || normalizedStatus === 'live'
+                      
+                      console.log('🔵 Start Session Button Check:', {
+                        originalStatus: currentSession.status,
+                        normalizedStatus,
+                        isScheduled,
+                        isActiveOrLive,
+                        willShow: isScheduled,
+                      })
+                      
+                      // Don't show start button if session is already active/live (will show end button instead)
+                      if (isActiveOrLive) {
+                        console.log('ℹ️ Session is active/live - session will auto-end at scheduled end time')
+                        return null
+                      }
+                      
+                      // Only show start button for scheduled status
+                      if (!isScheduled) {
+                        console.log('⚠️ Not showing Start button - status is:', currentSession.status, 'normalized:', normalizedStatus)
+                        return null
+                      }
+                      
+                      const sessionStartTime = currentSession.startTime || currentSession.sessionStartTime
+                      const sessionEndTime = currentSession.endTime || currentSession.sessionEndTime
+                      
+                      console.log('🟢 Start Session Button - Always Enabled:', {
+                        status: currentSession.status,
+                        normalizedStatus,
+                        sessionTime: `${sessionStartTime} - ${sessionEndTime}`,
+                        willShow: true,
+                        willBeEnabled: true, // Always enabled - backend will validate time on click
+                      })
+                      
+                      // Button is ALWAYS enabled when status is scheduled
+                      // Backend will validate time when clicked and show error if outside session time
+                      // Once clicked and session starts successfully, status changes to 'live' and session will auto-end at scheduled end time
+                      return (
                       <button
                         type="button"
                         onClick={handleStartSession}
-                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 cursor-pointer"
+                          title={`Start session (${sessionStartTime} - ${sessionEndTime})`}
                       >
                         <IoPlayOutline className="h-4 w-4" />
-                        {currentSession.status === 'paused' ? 'Resume Session' : 'Start Session'}
+                          Start Session
                       </button>
-                    )}
-                    {(currentSession.status === 'active' || currentSession.status === 'live') && (
-                      <button
-                        type="button"
-                        onClick={handleEndSession}
-                        className="flex items-center gap-1.5 rounded-lg bg-slate-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-700 active:scale-95"
-                      >
-                        <IoStopOutline className="h-4 w-4" />
-                        End Session
-                      </button>
-                    )}
-                    {(currentSession.status === 'scheduled' || currentSession.status === 'active' || currentSession.status === 'live' || currentSession.status === 'paused') && (
+                      )
+                    })()}
+                    {(currentSession.status === 'scheduled' || currentSession.status === 'active' || currentSession.status === 'live') && (
                       <button
                         type="button"
                         onClick={() => setShowCancelSessionModal(true)}
@@ -1059,19 +1569,19 @@ const DoctorPatients = () => {
                           {appointment.patientName}
                         </h3>
                         <p className="mt-0.5 text-xs text-slate-600">
-                          {appointment.age} years • {appointment.gender.charAt(0).toUpperCase()}
+                          {appointment.age || 0} years • {(appointment.gender && typeof appointment.gender === 'string' && appointment.gender.length > 0) ? appointment.gender.charAt(0).toUpperCase() : 'N/A'}
                         </p>
                       </div>
 
                       {/* Time - Right Side */}
                       <div className="flex shrink-0 items-center">
                         <div className="text-xs font-medium text-slate-700">
-                          {formatTime(appointment.appointmentTime)}
+                          {appointment.time || appointment.originalData?.time || formatTime(appointment.appointmentTime)}
                         </div>
                       </div>
                     </div>
 
-                    {/* Appointment Type Badge and Consultation Mode */}
+                    {/* Appointment Type Badge, Consultation Mode, and Status Badge */}
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -1113,46 +1623,230 @@ const DoctorPatients = () => {
                           <span>In-Person</span>
                         )}
                       </span>
+                      {/* Status Badge - Show Cancelled for no-show, Completed for completed */}
+                      {appointment.status === 'no-show' || appointment.queueStatus === 'no-show' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                          <IoCloseCircleOutline className="h-2.5 w-2.5" />
+                          Cancelled
+                        </span>
+                      ) : appointment.status === 'completed' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          <IoCheckmarkCircleOutline className="h-2.5 w-2.5" />
+                          Completed
+                        </span>
+                      ) : null}
                     </div>
 
-                      {/* Action Buttons - Below patient info */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {appointment.status === 'waiting' && (currentSession?.status === 'active' || currentSession?.status === 'live') && (
+                    {/* Action Buttons - Show when session is live/active */}
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                      {/* Show action buttons when session is live/active */}
+                      {(currentSession?.status === 'active' || currentSession?.status === 'live') && 
+                       appointment.status !== 'completed' && 
+                       appointment.status !== 'cancelled' && 
+                       appointment.status !== 'no-show' && 
+                       appointment.queueStatus !== 'skipped' && 
+                       appointment.queueStatus !== 'no-show' && (
                         <>
+                          {/* Call / Video Call buttons - Show for waiting/scheduled appointments (NOT skipped/no-show) */}
+                          {(appointment.status === 'waiting' || appointment.status === 'scheduled' || appointment.status === 'confirmed') && 
+                           appointment.queueStatus !== 'skipped' && 
+                           appointment.queueStatus !== 'no-show' && (
+                        <>
+                              {appointment.consultationMode === 'video_call' ? (
+                        <>
+                          {/* For video call appointments: Show both Call and Video Call buttons */}
                           <button
                             type="button"
                             onClick={() => handleCallNext(appointment.id)}
-                            className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
                           >
-                            <IoCallOutline className="h-3.5 w-3.5" />
-                            Call to Consultation Room
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleSkip(appointment.id)}
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                            onClick={() => handleVideoCall(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
                           >
-                            Skip
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleNoShow(appointment.id)}
-                            className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
-                          >
-                            No Show
+                                  <IoVideocamOutline className="h-3.5 w-3.5" />
+                                  Video Call
                           </button>
                         </>
-                      )}
-                      {(appointment.status === 'called' || appointment.status === 'in-consultation') && (
+                              ) : appointment.consultationMode === 'call' ? (
                         <>
+                          {/* For call type appointments: Show both Call buttons */}
                           <button
                             type="button"
-                            onClick={() => handleComplete(appointment.id)}
-                            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                                  onClick={() => handleCallNext(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
                           >
-                            <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                            Complete
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCallPatient(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                        </>
+                              ) : (
+                          <button
+                            type="button"
+                                  onClick={() => handleCallNext(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                              )}
+                        </>
+                      )}
+                        </>
+                      )}
+                      
+                      {/* Buttons for skipped appointments - Show only Call, Skip, No Show */}
+                      {/* This section is OUTSIDE the main condition to handle skipped appointments separately */}
+                      {(currentSession?.status === 'active' || currentSession?.status === 'live') && 
+                       appointment.queueStatus === 'skipped' && (
+                        <>
+                              {/* Call button - Show for skipped appointments */}
+                              {appointment.consultationMode === 'video_call' ? (
+                        <>
+                          {/* For video call appointments: Show both Call and Video Call buttons */}
+                          <button
+                            type="button"
+                            onClick={() => handleCallNext(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleVideoCall(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
+                          >
+                                  <IoVideocamOutline className="h-3.5 w-3.5" />
+                                  Video Call
+                          </button>
+                        </>
+                              ) : appointment.consultationMode === 'call' ? (
+                        <>
+                          {/* For call type appointments: Show both Call buttons */}
+                          <button
+                            type="button"
+                                  onClick={() => handleCallNext(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCallPatient(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                        </>
+                              ) : (
+                          <button
+                            type="button"
+                                  onClick={() => handleCallNext(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleSkip(appointment.id)}
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                              >
+                                Skip
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleNoShow(appointment.id)}
+                                className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
+                              >
+                                No Show
+                              </button>
+                            </>
+                          )}
+
+                      {/* No buttons for no-show appointments - Patient is cancelled, no actions allowed */}
+                      {/* No buttons for completed appointments - Patient is completed, no actions allowed */}
+
+                      {/* Buttons for called/in-consultation/in_progress appointments */}
+                      {/* This section is OUTSIDE the main condition to handle called appointments separately */}
+                      {(currentSession?.status === 'active' || currentSession?.status === 'live') && 
+                       (appointment.status === 'called' || appointment.status === 'in-consultation' || appointment.status === 'in_progress') && 
+                       appointment.queueStatus !== 'skipped' && 
+                       appointment.queueStatus !== 'no-show' && (
+                        <>
+                              {/* Call/Video Call button - Show based on consultation mode */}
+                              {appointment.consultationMode === 'video_call' ? (
+                        <>
+                          {/* For video call appointments: Show both Call and Video Call buttons */}
+                          <button
+                            type="button"
+                            onClick={() => handleCallNext(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleVideoCall(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
+                          >
+                                  <IoVideocamOutline className="h-3.5 w-3.5" />
+                                  Video Call
+                          </button>
+                        </>
+                              ) : appointment.consultationMode === 'call' ? (
+                        <>
+                          {/* For call type appointments: Show both Call buttons */}
+                          <button
+                            type="button"
+                                  onClick={() => handleCallNext(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCallPatient(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                        </>
+                              ) : (
+                          <button
+                            type="button"
+                                  onClick={() => handleCallNext(appointment.id)}
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                          >
+                                  <IoCallOutline className="h-3.5 w-3.5" />
+                                  Call
+                          </button>
+                              )}
+                              
+                          {/* Recall button - Show only when patient is called/in-consultation AND recallCount < 2 */}
+                          {(appointment.status === 'called' || 
+                            appointment.status === 'in-consultation' || 
+                            appointment.status === 'in_progress') && 
+                           (appointment.recallCount || 0) < 2 && (
                           <button
                             type="button"
                             onClick={() => handleRecall(appointment.id)}
@@ -1161,6 +1855,43 @@ const DoctorPatients = () => {
                             <IoRefreshOutline className="h-3.5 w-3.5" />
                             Recall
                           </button>
+                          )}
+                              <button
+                                type="button"
+                                onClick={() => handleComplete(appointment.id)}
+                                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                              >
+                                <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                                Completed
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSkip(appointment.id)}
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                              >
+                                Skip
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleNoShow(appointment.id)}
+                                className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
+                              >
+                                No Show
+                              </button>
+                            </>
+                      )}
+                      
+                      {/* Skip and No Show buttons for waiting/scheduled appointments (not called, not skipped) */}
+                      {/* These are OUTSIDE all other sections to avoid duplicates */}
+                      {(currentSession?.status === 'active' || currentSession?.status === 'live') && 
+                       (appointment.status === 'waiting' || appointment.status === 'scheduled' || appointment.status === 'confirmed') && 
+                       appointment.status !== 'called' && 
+                       appointment.status !== 'in-consultation' && 
+                       appointment.status !== 'in_progress' &&
+                       appointment.queueStatus !== 'skipped' && 
+                       appointment.queueStatus !== 'no-show' && (
+                        <>
+                          {/* Skip button - Show for waiting/scheduled appointments */}
                           <button
                             type="button"
                             onClick={() => handleSkip(appointment.id)}
@@ -1177,6 +1908,8 @@ const DoctorPatients = () => {
                           </button>
                         </>
                       )}
+                      
+                      {/* History button for completed appointments */}
                       {appointment.status === 'completed' && (
                         <button
                           type="button"
@@ -1187,6 +1920,8 @@ const DoctorPatients = () => {
                           History
                         </button>
                       )}
+                      
+                      {/* History button for no-show appointments */}
                       {appointment.status === 'no-show' && (
                         <button
                           type="button"

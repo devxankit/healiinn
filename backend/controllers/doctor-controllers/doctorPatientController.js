@@ -44,8 +44,11 @@ exports.getPatientQueue = asyncHandler(async (req, res) => {
   });
 
   const Session = require('../../models/Session');
-  const { getOrCreateSession } = require('../../services/sessionService');
+  const { getOrCreateSession, autoEndExpiredSessions } = require('../../services/sessionService');
   const Doctor = require('../../models/Doctor');
+
+  // Auto-end expired sessions before fetching queue
+  await autoEndExpiredSessions();
 
   // Try to get existing session first (include all statuses except cancelled and completed)
   // Don't filter by status initially - we'll check status later
@@ -69,6 +72,7 @@ exports.getPatientQueue = asyncHandler(async (req, res) => {
       doctorId: id,
       appointmentDate: { $gte: sessionDate, $lt: sessionEndDate },
       status: { $in: ['scheduled', 'confirmed'] },
+      paymentStatus: { $ne: 'pending' },
       rescheduledAt: { $exists: true },
     }).countDocuments();
     
@@ -87,11 +91,15 @@ exports.getPatientQueue = asyncHandler(async (req, res) => {
     });
   }
 
-  // Get appointments for this session - include all scheduled/confirmed appointments
-  // This includes both regular appointments and rescheduled appointments
+  // Get appointments for this session - include all statuses so doctor can see and perform actions
+  // Include: scheduled, confirmed, called, in-consultation, in_progress, waiting
+  // This ensures doctor can continue with existing patients even after session end time
+  const appointmentStatusFilter = { $in: ['scheduled', 'confirmed', 'called', 'in-consultation', 'in_progress', 'waiting'] };
+  
   const appointments = await Appointment.find({
     sessionId: session._id,
-    status: { $in: ['scheduled', 'confirmed'] },
+    status: appointmentStatusFilter,
+    paymentStatus: { $ne: 'pending' },
   })
     .populate('patientId', 'firstName lastName phone profileImage dateOfBirth gender')
     .select('-__v -updatedAt') // Exclude unnecessary fields
@@ -103,6 +111,7 @@ exports.getPatientQueue = asyncHandler(async (req, res) => {
     doctorId: id,
     appointmentDate: { $gte: sessionDate, $lt: sessionEndDate },
     status: { $in: ['scheduled', 'confirmed'] },
+    paymentStatus: { $ne: 'pending' },
     sessionId: { $ne: session._id }, // Different session
   }).countDocuments();
   
@@ -220,7 +229,11 @@ exports.getPatientHistory = asyncHandler(async (req, res) => {
   const LabReport = require('../../models/LabReport');
 
   const [appointments, consultations, prescriptions, sharedReports] = await Promise.all([
-    Appointment.find({ doctorId: id, patientId })
+    Appointment.find({ 
+      doctorId: id, 
+      patientId,
+      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
+    })
       .sort({ appointmentDate: -1 })
       .limit(10),
     Consultation.find({ doctorId: id, patientId })

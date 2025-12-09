@@ -18,7 +18,9 @@ exports.getAppointments = asyncHandler(async (req, res) => {
   const Doctor = require('../../models/Doctor');
   const Patient = require('../../models/Patient');
 
-  const filter = {};
+  const filter = {
+    paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
+  };
   
   // Handle doctor filter - can be doctorId or doctor name
   if (doctor) {

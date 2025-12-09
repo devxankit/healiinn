@@ -32,11 +32,12 @@ exports.getDashboard = asyncHandler(async (req, res) => {
   ] = await Promise.all([
     // Total appointments
     Appointment.countDocuments({ patientId: id }),
-    // Upcoming appointments (next 7 days)
+    // Upcoming appointments (next 7 days) - exclude pending payment appointments
     Appointment.find({
       patientId: id,
       appointmentDate: { $gte: today },
       status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
+      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
     })
       .populate('doctorId', 'firstName lastName specialization profileImage consultationFee rating clinicDetails')
       .populate('sessionId', 'date sessionStartTime sessionEndTime')

@@ -168,9 +168,12 @@ export const getDoctorQueue = async (date) => {
  * @param {string} sessionId - Session ID
  * @returns {Promise<object>} Next patient data
  */
-export const callNextPatient = async (sessionId) => {
+export const callNextPatient = async (sessionId, appointmentId = null) => {
   try {
-    return await apiClient.post('/doctors/queue/call-next', { sessionId })
+    return await apiClient.post('/doctors/queue/call-next', { 
+      sessionId,
+      ...(appointmentId && { appointmentId }) // Only include appointmentId if provided
+    })
   } catch (error) {
     console.error('Error calling next patient:', error)
     throw error
@@ -221,6 +224,20 @@ export const updateQueueStatus = async (appointmentId, status) => {
 }
 
 /**
+ * Mark patient as no-show (cancels appointment)
+ * @param {string} appointmentId - Appointment ID
+ * @returns {Promise<object>} Cancelled appointment data
+ */
+export const markNoShow = async (appointmentId) => {
+  try {
+    return await apiClient.patch(`/doctors/queue/${appointmentId}/no-show`)
+  } catch (error) {
+    console.error('Error marking no-show:', error)
+    throw error
+  }
+}
+
+/**
  * Pause session
  * @param {string} sessionId - Session ID
  * @returns {Promise<object>} Session data
@@ -259,6 +276,21 @@ export const updateSession = async (sessionId, updateData) => {
     return await apiClient.patch(`/doctors/sessions/${sessionId}`, updateData)
   } catch (error) {
     console.error('Error updating session:', error)
+    throw error
+  }
+}
+
+/**
+ * Cancel session and all appointments
+ * @param {string} sessionId - Session ID
+ * @param {string} reason - Reason for cancellation
+ * @returns {Promise<object>} Cancelled session data
+ */
+export const cancelSession = async (sessionId, reason) => {
+  try {
+    return await apiClient.delete(`/doctors/sessions/${sessionId}`, { reason })
+  } catch (error) {
+    console.error('Error cancelling session:', error)
     throw error
   }
 }

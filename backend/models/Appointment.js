@@ -40,7 +40,7 @@ const appointmentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['scheduled', 'confirmed', 'completed', 'cancelled', 'rescheduled'],
+      enum: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress', 'completed', 'cancelled', 'rescheduled'],
       default: 'scheduled',
       index: true,
     },
@@ -78,8 +78,14 @@ const appointmentSchema = new mongoose.Schema(
     },
     queueStatus: {
       type: String,
-      enum: ['waiting', 'in-consultation', 'no-show', 'completed', 'cancelled'],
+      enum: ['waiting', 'called', 'in-consultation', 'in_progress', 'skipped', 'no-show', 'completed', 'cancelled'],
       default: 'waiting',
+    },
+    recallCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 2,
     },
     consultationId: {
       type: mongoose.Schema.Types.ObjectId,

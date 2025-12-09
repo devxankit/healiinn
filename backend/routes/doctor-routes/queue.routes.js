@@ -11,6 +11,7 @@ const {
   resumeSession,
   getAppointmentETA,
   recallPatient,
+  markNoShow,
 } = require('../../controllers/doctor-controllers/doctorQueueController');
 
 router.get('/', protect('doctor'), getQueue);
@@ -21,6 +22,7 @@ router.get('/:appointmentId/eta', protect('doctor'), getAppointmentETA);
 router.patch('/:appointmentId/move', protect('doctor'), moveInQueue);
 router.patch('/:appointmentId/skip', protect('doctor'), skipPatient);
 router.patch('/:appointmentId/recall', protect('doctor'), recallPatient);
+router.patch('/:appointmentId/no-show', protect('doctor'), markNoShow);
 router.patch('/:appointmentId/status', protect('doctor'), updateQueueStatus);
 
 module.exports = router;

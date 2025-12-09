@@ -3,7 +3,8 @@ import { useLocation, useSearchParams, useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
-import { getDoctorConsultations, getAllDoctorConsultations, getConsultationById, createConsultation, updateConsultation, getPatientById, getPatientHistory, createPrescription, getPrescriptions } from '../doctor-services/doctorService'
+import { getDoctorConsultations, getAllDoctorConsultations, getConsultationById, createConsultation, updateConsultation, getPatientById, getPatientHistory, createPrescription, getPrescriptions, getPatientQueue } from '../doctor-services/doctorService'
+import { getSocket } from '../../../utils/socketClient'
 import {
   IoDocumentTextOutline,
   IoSearchOutline,
@@ -294,9 +295,32 @@ const DoctorConsultations = () => {
       const tomorrow = new Date(today)
       tomorrow.setDate(tomorrow.getDate() + 1)
       
+      // Get today's date string in YYYY-MM-DD format for comparison
+      const todayDateStr = today.toISOString().split('T')[0]
+      
       filtered = consultations.filter((consultation) => {
+        // Priority 1: Use appointmentDate (YYYY-MM-DD format) - this is updated after reschedule
+        if (consultation.appointmentDate) {
+          const aptDateStr = consultation.appointmentDate.split('T')[0]
+          return aptDateStr === todayDateStr
+        }
+        
+        // Priority 2: Extract date from appointmentTime
+        if (consultation.appointmentTime) {
+          try {
         const appointmentDate = new Date(consultation.appointmentTime)
+            if (isNaN(appointmentDate.getTime())) return false
+            
+            // Normalize to start of day for comparison
+            appointmentDate.setHours(0, 0, 0, 0)
         return appointmentDate >= today && appointmentDate < tomorrow
+          } catch (error) {
+            console.error('Error parsing appointmentTime:', error, consultation.appointmentTime)
+            return false
+          }
+        }
+        
+        return false
       })
     } else if (filterParam === 'pending') {
       filtered = consultations.filter((consultation) => 
@@ -404,6 +428,9 @@ const DoctorConsultations = () => {
   }, [selectedConsultation])
 
   // Add passed consultation to consultations list and set as selected
+  // Track if vitals have been manually edited to prevent auto-reset
+  const [vitalsEdited, setVitalsEdited] = useState(false)
+  
   useEffect(() => {
     if (passedConsultation) {
       // Create a mutable copy of passedConsultation
@@ -422,6 +449,7 @@ const DoctorConsultations = () => {
             const transformedConsultation = transformConsultationData(consultation)
             
             // Load prescription data from consultation
+            // Only load if user hasn't manually edited vitals
             if (consultation.medications && consultation.medications.length > 0) {
               // Load prescription data into form
                 setDiagnosis(consultation.diagnosis || '')
@@ -430,16 +458,24 @@ const DoctorConsultations = () => {
                 setInvestigations(consultation.investigations || [])
                 setAdvice(consultation.advice || '')
                 setFollowUpDate(consultation.followUpDate || '')
-                setVitals(consultation.vitals || {
-              bloodPressure: { systolic: '', diastolic: '' },
-              temperature: '',
-              pulse: '',
-              respiratoryRate: '',
-              oxygenSaturation: '',
-              weight: '',
-              height: '',
-              bmi: '',
-            })
+                // Only set vitals if they haven't been manually edited
+                // This prevents overwriting user input while they're typing
+                if (!vitalsEdited) {
+                  if (consultation.vitals && Object.keys(consultation.vitals).length > 0) {
+                    setVitals(consultation.vitals)
+                  } else {
+                    setVitals({
+                      bloodPressure: { systolic: '', diastolic: '' },
+                      temperature: '',
+                      pulse: '',
+                      respiratoryRate: '',
+                      oxygenSaturation: '',
+                      weight: '',
+                      height: '',
+                      bmi: '',
+                    })
+                  }
+                }
             }
             
             // Update consultation with fresh patient data and prescription data
@@ -534,6 +570,303 @@ const DoctorConsultations = () => {
       }
     }
   }, [filteredConsultations, filterParam, passedConsultation])
+  
+  // Reset vitalsEdited flag and load vitals when consultation changes (only if not manually edited)
+  useEffect(() => {
+    if (selectedConsultation?.id) {
+      // Reset edit flag when switching consultations (new consultation selected)
+      setVitalsEdited(false)
+      
+      // Load vitals from selected consultation if available
+      if (selectedConsultation.vitals && Object.keys(selectedConsultation.vitals).length > 0) {
+        setVitals(selectedConsultation.vitals)
+      } else {
+        // Reset to empty if no vitals in consultation
+        setVitals({
+          bloodPressure: { systolic: '', diastolic: '' },
+          temperature: '',
+          pulse: '',
+          respiratoryRate: '',
+          oxygenSaturation: '',
+          weight: '',
+          height: '',
+          bmi: '',
+        })
+      }
+    }
+  }, [selectedConsultation?.id]) // Only run when consultation ID changes, not on every render
+  
+  // Setup socket listener for patient call events and restore consultation state from appointment status
+  useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+    
+    const restoreConsultationFromAppointmentStatus = async () => {
+      try {
+        // Check if there's an active session
+        const sessionStr = localStorage.getItem('doctorCurrentSession')
+        if (!sessionStr) return
+        
+        const session = JSON.parse(sessionStr)
+        
+        // Get today's appointments to check for called patients
+        const today = new Date().toISOString().split('T')[0]
+        const queueResponse = await getPatientQueue(today)
+        
+        if (queueResponse.success && queueResponse.data?.appointments) {
+          const appointments = queueResponse.data.appointments
+          
+          // Find appointment with status 'called', 'in-consultation', or 'in_progress'
+          const calledAppointment = appointments.find(apt => 
+            apt.status === 'called' || 
+            apt.status === 'in-consultation' || 
+            apt.status === 'in_progress'
+          )
+          
+          if (calledAppointment && !selectedConsultation) {
+            // Fetch complete patient data including email and address
+            let fullPatientData = null
+            try {
+              const patientId = calledAppointment.patientId?._id || calledAppointment.patientId
+              if (patientId) {
+                const patientResponse = await getPatientById(patientId)
+                if (patientResponse.success && patientResponse.data) {
+                  fullPatientData = patientResponse.data
+                  console.log('✅ Fetched full patient data for consultation restore:', fullPatientData)
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching patient data:', error)
+            }
+            
+            // Format patient address
+            let formattedAddress = 'Not provided'
+            if (fullPatientData?.address) {
+              const address = fullPatientData.address
+              if (typeof address === 'object') {
+                const addressParts = []
+                if (address.line1) addressParts.push(address.line1)
+                if (address.line2) addressParts.push(address.line2)
+                if (address.city) addressParts.push(address.city)
+                if (address.state) addressParts.push(address.state)
+                if (address.pincode || address.postalCode) addressParts.push(address.pincode || address.postalCode)
+                formattedAddress = addressParts.length > 0 ? addressParts.join(', ') : 'Not provided'
+              } else if (typeof address === 'string' && address.trim() !== '') {
+                formattedAddress = address
+              }
+            }
+            
+            // Calculate age from date of birth if available
+            let patientAge = calledAppointment.age || calledAppointment.patientId?.age || 0
+            if (fullPatientData?.dateOfBirth) {
+              try {
+                const dob = new Date(fullPatientData.dateOfBirth)
+                const today = new Date()
+                let age = today.getFullYear() - dob.getFullYear()
+                const monthDiff = today.getMonth() - dob.getMonth()
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                  age--
+                }
+                if (age > 0) patientAge = age
+              } catch (e) {
+                console.error('Error calculating age:', e)
+              }
+            }
+            
+            // Create consultation data from appointment with real patient data
+            const consultationData = {
+              id: `cons-${calledAppointment._id || calledAppointment.id}-${Date.now()}`,
+              patientId: calledAppointment.patientId?._id || calledAppointment.patientId,
+              patientName: fullPatientData?.firstName && fullPatientData?.lastName
+                ? `${fullPatientData.firstName} ${fullPatientData.lastName}`
+                : (calledAppointment.patientId?.firstName && calledAppointment.patientId?.lastName
+                  ? `${calledAppointment.patientId.firstName} ${calledAppointment.patientId.lastName}`
+                  : calledAppointment.patientName || 'Patient'),
+              age: patientAge,
+              gender: fullPatientData?.gender || calledAppointment.patientId?.gender || calledAppointment.gender || 'M',
+              appointmentTime: calledAppointment.appointmentDate || new Date().toISOString(),
+              appointmentType: calledAppointment.appointmentType || 'Follow-up',
+              status: 'in-progress',
+              reason: calledAppointment.reason || 'Consultation',
+              patientImage: fullPatientData?.profileImage || calledAppointment.patientId?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(calledAppointment.patientName || 'Patient')}&background=11496c&color=fff&size=160`,
+              patientPhone: fullPatientData?.phone || calledAppointment.patientId?.phone || '',
+              patientEmail: fullPatientData?.email || calledAppointment.patientId?.email || '',
+              patientAddress: formattedAddress,
+              diagnosis: '',
+              symptoms: '',
+              vitals: {},
+              medications: [],
+              investigations: [],
+              advice: '',
+              followUpDate: '',
+              attachments: [],
+              sessionId: session._id || session.id,
+              sessionDate: session.date,
+              calledAt: new Date().toISOString(),
+            }
+            
+            setConsultations((prev) => {
+              const exists = prev.find((c) => c.patientId === consultationData.patientId)
+              if (!exists) {
+                return [consultationData, ...prev]
+              }
+              return prev.map((c) => 
+                c.patientId === consultationData.patientId 
+                  ? (c.status === 'completed' ? c : consultationData)
+                  : c
+              )
+            })
+            setSelectedConsultation(consultationData)
+            console.log('✅ Restored consultation from appointment status:', consultationData)
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring consultation from appointment status:', error)
+      }
+    }
+    
+    // Restore on mount
+    restoreConsultationFromAppointmentStatus()
+    
+    // Listen for queue:next:called event (when patient is called via callNextPatient)
+    const handleQueueNextCalled = async (data) => {
+      if (data?.appointment) {
+        console.log('📞 Patient called via queue:next:called:', data)
+        
+        // Create consultation data from appointment
+        const appointment = data.appointment
+        const session = data.session
+        
+        try {
+          const sessionStr = localStorage.getItem('doctorCurrentSession')
+          const currentSession = sessionStr ? JSON.parse(sessionStr) : session
+          
+          // Fetch complete patient data including email and address
+          let fullPatientData = null
+          try {
+            const patientId = appointment.patientId?._id || appointment.patientId
+            if (patientId) {
+              const patientResponse = await getPatientById(patientId)
+              if (patientResponse.success && patientResponse.data) {
+                fullPatientData = patientResponse.data
+                console.log('✅ Fetched full patient data from socket event:', fullPatientData)
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching patient data:', error)
+          }
+          
+          // Format patient address
+          let formattedAddress = 'Not provided'
+          if (fullPatientData?.address) {
+            const address = fullPatientData.address
+            if (typeof address === 'object') {
+              const addressParts = []
+              if (address.line1) addressParts.push(address.line1)
+              if (address.line2) addressParts.push(address.line2)
+              if (address.city) addressParts.push(address.city)
+              if (address.state) addressParts.push(address.state)
+              if (address.pincode || address.postalCode) addressParts.push(address.pincode || address.postalCode)
+              formattedAddress = addressParts.length > 0 ? addressParts.join(', ') : 'Not provided'
+            } else if (typeof address === 'string' && address.trim() !== '') {
+              formattedAddress = address
+            }
+          }
+          
+          // Calculate age from date of birth if available
+          let patientAge = appointment.age || appointment.patientId?.age || 0
+          if (fullPatientData?.dateOfBirth) {
+            try {
+              const dob = new Date(fullPatientData.dateOfBirth)
+              const today = new Date()
+              let age = today.getFullYear() - dob.getFullYear()
+              const monthDiff = today.getMonth() - dob.getMonth()
+              if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                age--
+              }
+              if (age > 0) patientAge = age
+            } catch (e) {
+              console.error('Error calculating age:', e)
+            }
+          }
+          
+          const consultationData = {
+            id: `cons-${appointment._id || appointment.id}-${Date.now()}`,
+            patientId: appointment.patientId?._id || appointment.patientId,
+            patientName: fullPatientData?.firstName && fullPatientData?.lastName
+              ? `${fullPatientData.firstName} ${fullPatientData.lastName}`
+              : (appointment.patientId?.firstName && appointment.patientId?.lastName
+                ? `${appointment.patientId.firstName} ${appointment.patientId.lastName}`
+                : appointment.patientName || 'Patient'),
+            age: patientAge,
+            gender: fullPatientData?.gender || appointment.patientId?.gender || appointment.gender || 'M',
+            appointmentTime: appointment.appointmentDate || new Date().toISOString(),
+            appointmentType: appointment.appointmentType || 'Follow-up',
+            status: 'in-progress',
+            reason: appointment.reason || 'Consultation',
+            patientImage: fullPatientData?.profileImage || appointment.patientId?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName || 'Patient')}&background=11496c&color=fff&size=160`,
+            patientPhone: fullPatientData?.phone || appointment.patientId?.phone || '',
+            patientEmail: fullPatientData?.email || appointment.patientId?.email || '',
+            patientAddress: formattedAddress,
+            diagnosis: '',
+            symptoms: '',
+            vitals: {},
+            medications: [],
+            investigations: [],
+            advice: '',
+            followUpDate: '',
+            attachments: [],
+            sessionId: currentSession._id || currentSession.id,
+            sessionDate: currentSession.date || currentSession.sessionDate,
+            calledAt: new Date().toISOString(),
+          }
+          
+          setConsultations((prev) => {
+            const exists = prev.find((c) => 
+              (c.patientId === consultationData.patientId || c.id === consultationData.id) &&
+              c.status !== 'completed'
+            )
+            if (!exists) {
+              return [consultationData, ...prev]
+            }
+            return prev.map((c) => 
+              (c.patientId === consultationData.patientId || c.id === consultationData.id) && c.status !== 'completed'
+                ? consultationData
+                : c
+            )
+          })
+          setSelectedConsultation(consultationData)
+          
+          // Save to localStorage
+          localStorage.setItem('doctorSelectedConsultation', JSON.stringify(consultationData))
+          console.log('✅ Consultation state set from queue:next:called:', consultationData)
+        } catch (error) {
+          console.error('Error handling queue:next:called:', error)
+          // Fallback: restore from appointment status
+          await restoreConsultationFromAppointmentStatus()
+        }
+      }
+    }
+    
+    // Listen for queue:updated event
+    const handleQueueUpdated = async (data) => {
+      if (data?.appointmentId || data?.appointment) {
+        console.log('📞 Queue updated - patient called:', data)
+        
+        // Restore consultation state from appointment status
+        await restoreConsultationFromAppointmentStatus()
+      }
+    }
+    
+    socket.on('queue:updated', handleQueueUpdated)
+    socket.on('queue:next:called', handleQueueNextCalled)
+    
+    return () => {
+      socket.off('queue:updated', handleQueueUpdated)
+      socket.off('queue:next:called', handleQueueNextCalled)
+    }
+  }, [selectedConsultation])
+  
   const [activeTab, setActiveTab] = useState('vitals') // vitals, prescription, history, saved
   const [showAddMedication, setShowAddMedication] = useState(false)
   const [showAddInvestigation, setShowAddInvestigation] = useState(false)
@@ -2036,26 +2369,28 @@ const DoctorConsultations = () => {
                         <div className="flex items-center gap-1 sm:gap-2">
                           <input
                             type="number"
-                            value={vitals.bloodPressure.systolic}
-                            onChange={(e) =>
+                            value={vitals.bloodPressure.systolic || ''}
+                            onChange={(e) => {
+                              setVitalsEdited(true)
                               setVitals({
                                 ...vitals,
                                 bloodPressure: { ...vitals.bloodPressure, systolic: e.target.value },
                               })
-                            }
+                            }}
                             placeholder="Systolic"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
                           <span className="text-xs sm:text-sm lg:text-xs text-slate-500">/</span>
                           <input
                             type="number"
-                            value={vitals.bloodPressure.diastolic}
-                            onChange={(e) =>
+                            value={vitals.bloodPressure.diastolic || ''}
+                            onChange={(e) => {
+                              setVitalsEdited(true)
                               setVitals({
                                 ...vitals,
                                 bloodPressure: { ...vitals.bloodPressure, diastolic: e.target.value },
                               })
-                            }
+                            }}
                             placeholder="Diastolic"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
@@ -2072,8 +2407,11 @@ const DoctorConsultations = () => {
                         <div className="flex items-center gap-1 sm:gap-2">
                           <input
                             type="number"
-                            value={vitals.temperature}
-                            onChange={(e) => setVitals({ ...vitals, temperature: e.target.value })}
+                            value={vitals.temperature || ''}
+                            onChange={(e) => {
+                              setVitalsEdited(true)
+                              setVitals({ ...vitals, temperature: e.target.value })
+                            }}
                             placeholder="98.6"
                             step="0.1"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
@@ -2091,8 +2429,11 @@ const DoctorConsultations = () => {
                         <div className="flex items-center gap-1 sm:gap-2">
                           <input
                             type="number"
-                            value={vitals.pulse}
-                            onChange={(e) => setVitals({ ...vitals, pulse: e.target.value })}
+                            value={vitals.pulse || ''}
+                            onChange={(e) => {
+                              setVitalsEdited(true)
+                              setVitals({ ...vitals, pulse: e.target.value })
+                            }}
                             placeholder="72"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
@@ -2109,8 +2450,11 @@ const DoctorConsultations = () => {
                         <div className="flex items-center gap-1 sm:gap-2">
                           <input
                             type="number"
-                            value={vitals.respiratoryRate}
-                            onChange={(e) => setVitals({ ...vitals, respiratoryRate: e.target.value })}
+                            value={vitals.respiratoryRate || ''}
+                            onChange={(e) => {
+                              setVitalsEdited(true)
+                              setVitals({ ...vitals, respiratoryRate: e.target.value })
+                            }}
                             placeholder="16"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
                           />
@@ -2127,8 +2471,11 @@ const DoctorConsultations = () => {
                         <div className="flex items-center gap-1 sm:gap-2">
                           <input
                             type="number"
-                            value={vitals.oxygenSaturation}
-                            onChange={(e) => setVitals({ ...vitals, oxygenSaturation: e.target.value })}
+                            value={vitals.oxygenSaturation || ''}
+                            onChange={(e) => {
+                              setVitalsEdited(true)
+                              setVitals({ ...vitals, oxygenSaturation: e.target.value })
+                            }}
                             placeholder="98"
                             max="100"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
@@ -2148,6 +2495,7 @@ const DoctorConsultations = () => {
                             type="number"
                             value={vitals.weight || ''}
                             onChange={(e) => {
+                              setVitalsEdited(true)
                               const weightValue = e.target.value
                               setVitals((prev) => {
                                 const updated = { ...prev, weight: weightValue }
@@ -2184,6 +2532,7 @@ const DoctorConsultations = () => {
                             type="number"
                             value={vitals.height || ''}
                             onChange={(e) => {
+                              setVitalsEdited(true)
                               const heightValue = e.target.value
                               setVitals((prev) => {
                                 const updated = { ...prev, height: heightValue }

@@ -645,18 +645,22 @@ const AdminDashboard = () => {
         })
         
         // Calculate counts
-        // Rescheduled appointments: have rescheduledAt field AND are not completed/cancelled
+        // Cancelled appointments: status is cancelled (regardless of rescheduledAt)
+        const todayCancelled = todayApts.filter(apt => apt.status === 'cancelled').length
+        
+        // Rescheduled appointments: have rescheduledAt field AND are NOT cancelled/completed
         const todayRescheduled = todayApts.filter(apt => {
           const isRescheduled = !!apt.rescheduledAt
           const isActive = apt.status !== 'completed' && apt.status !== 'cancelled'
           return isRescheduled && isActive
         }).length
         
-        // Scheduled appointments: NOT rescheduled AND have active status (scheduled, confirmed, waiting)
+        // Scheduled appointments: NOT rescheduled AND have active status (scheduled, confirmed, waiting) AND NOT cancelled
         const todayScheduled = todayApts.filter(apt => {
           const isRescheduled = !!apt.rescheduledAt
           const isActiveStatus = apt.status === 'scheduled' || apt.status === 'confirmed' || apt.status === 'waiting'
-          return !isRescheduled && isActiveStatus
+          const isNotCancelled = apt.status !== 'cancelled'
+          return !isRescheduled && isActiveStatus && isNotCancelled
         }).length
         
         // Total count: all appointments for today (regardless of status)
@@ -699,16 +703,24 @@ const AdminDashboard = () => {
           const doctorData = doctorMap.get(key)
           doctorData.total++
           
+          // Check status first - cancelled appointments should only be in cancelled count
+          if (apt.status === 'cancelled') {
+            doctorData.cancelled++
+            // Don't count cancelled appointments in scheduled/rescheduled
+            // Continue to next appointment
+            return
+          }
+          
           // Check if rescheduled first (has rescheduledAt field)
           const isRescheduled = !!apt.rescheduledAt
           
-          // If rescheduled, count it in rescheduled (and don't count in scheduled/confirmed)
+          // If rescheduled AND not cancelled, count it in rescheduled
           if (isRescheduled) {
             doctorData.rescheduled++
             // Rescheduled appointments can still have status, but we don't double count
             // They're already counted in rescheduled
           } else {
-            // Only count in scheduled/confirmed if NOT rescheduled
+            // Only count in scheduled/confirmed if NOT rescheduled AND NOT cancelled
           if (apt.status === 'scheduled' || apt.status === 'waiting') {
             doctorData.scheduled++
           } else if (apt.status === 'confirmed') {
@@ -716,11 +728,9 @@ const AdminDashboard = () => {
             }
           }
           
-          // Completed and cancelled are counted regardless of rescheduled status
+          // Completed is counted regardless of rescheduled status (but not if cancelled)
           if (apt.status === 'completed') {
             doctorData.completed++
-          } else if (apt.status === 'cancelled') {
-            doctorData.cancelled++
           }
         })
         
@@ -888,11 +898,27 @@ const AdminDashboard = () => {
                 ? `Dr. ${doctor.firstName} ${doctor.lastName}`
                 : doctor.name || 'Doctor'
               
-              if (data.status === 'completed') {
+              // Check if appointment is cancelled first
+              const isCancelled = data.status === 'cancelled'
+              // Check if appointment is rescheduled
+              const isRescheduled = data.rescheduledAt || data.isRescheduled || false
+              
+              if (isCancelled) {
+                action = 'Appointment cancelled'
+                name = `${patientName} with ${doctorName}`
+                type = 'consultation'
+                status = 'pending' // Show as pending/warning for cancelled
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=ef4444&color=fff&size=128&bold=true`
+              } else if (data.status === 'completed') {
                 action = 'Consultation completed'
                 name = doctorName
                 type = 'consultation'
                 image = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=6366f1&color=fff&size=128&bold=true`
+              } else if (isRescheduled) {
+                action = 'Appointment rescheduled'
+                name = `${patientName} with ${doctorName}`
+                type = 'consultation'
+                image = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=10b981&color=fff&size=128&bold=true`
               } else if (data.status === 'scheduled' || data.status === 'confirmed') {
                 action = 'Appointment scheduled'
                 name = `${patientName} with ${doctorName}`

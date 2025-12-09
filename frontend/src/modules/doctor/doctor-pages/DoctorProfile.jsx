@@ -106,6 +106,8 @@ const DoctorProfile = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const languageInputRef = useRef(null)
+  // Store stable averageConsultationMinutes value to prevent it from changing unexpectedly
+  const [stableAverageConsultationMinutes, setStableAverageConsultationMinutes] = useState(20)
   
   // Initialize with empty/default data
   const [formData, setFormData] = useState({
@@ -208,6 +210,8 @@ const DoctorProfile = () => {
             isActive: cachedProfile.isActive !== undefined ? cachedProfile.isActive : true,
           }
           setFormData(cachedData)
+          // Store stable value
+          setStableAverageConsultationMinutes(cachedProfile.averageConsultationMinutes || 20)
         }
 
         // Then fetch fresh data from backend
@@ -267,6 +271,8 @@ const DoctorProfile = () => {
           }
           
           setFormData(transformedData)
+          // Store stable value from backend
+          setStableAverageConsultationMinutes(doctor.averageConsultationMinutes || 20)
           
           // Update cache
           const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
@@ -520,8 +526,16 @@ const DoctorProfile = () => {
       if (response.success) {
         // Update cache
         const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
-        storage.setItem('doctorProfile', JSON.stringify(response.data?.doctor || response.data))
+        const savedDoctor = response.data?.doctor || response.data
+        storage.setItem('doctorProfile', JSON.stringify(savedDoctor))
         storage.setItem('doctorProfileActive', JSON.stringify(formData.isActive))
+        
+        // Update stable value with saved value
+        if (savedDoctor?.averageConsultationMinutes !== undefined) {
+          setStableAverageConsultationMinutes(savedDoctor.averageConsultationMinutes)
+        } else if (formData.averageConsultationMinutes !== undefined) {
+          setStableAverageConsultationMinutes(formData.averageConsultationMinutes)
+        }
         
         toast.success('Profile updated successfully!')
         setIsEditing(false)
@@ -616,6 +630,8 @@ const DoctorProfile = () => {
           isActive: doctor.isActive !== undefined ? doctor.isActive : true,
         }
         setFormData(transformedData)
+        // Update stable value when profile is reloaded
+        setStableAverageConsultationMinutes(doctor.averageConsultationMinutes || 20)
       }
     } catch (error) {
       console.error('Error reloading profile:', error)
@@ -1740,7 +1756,7 @@ const DoctorProfile = () => {
                       <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 sm:p-3">
                         <IoTimeOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] shrink-0" />
                         <span className="text-sm sm:text-base font-semibold text-slate-900">
-                          {formData.averageConsultationMinutes || 20} minutes per patient
+                          {stableAverageConsultationMinutes} minutes per patient
                         </span>
                       </div>
                     )}

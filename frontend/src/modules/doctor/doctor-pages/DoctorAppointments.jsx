@@ -462,12 +462,10 @@ const DoctorAppointments = () => {
     try {
       await cancelDoctorAppointment(appointmentToCancel._id || appointmentToCancel.id, cancelReason.trim())
       
-      // Update appointment status to cancelled in state
+      // Remove cancelled appointment from list (don't show cancelled appointments to doctor)
       setAppointments((prev) =>
-        prev.map((apt) =>
-          apt.id === appointmentToCancel.id || apt._id === appointmentToCancel._id
-            ? { ...apt, status: 'cancelled', cancelReason: cancelReason.trim(), cancelledBy: 'doctor' }
-            : apt
+        prev.filter((apt) =>
+          apt.id !== appointmentToCancel.id && apt._id !== appointmentToCancel._id
         )
       )
 

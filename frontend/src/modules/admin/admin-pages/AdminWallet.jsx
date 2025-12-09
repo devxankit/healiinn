@@ -24,17 +24,17 @@ import {
 import { getAdminWalletOverview, getProviderSummaries, getWithdrawals, updateWithdrawalStatus, getAdminWalletBalance, getAdminWalletTransactions } from '../admin-services/adminService'
 import { useToast } from '../../../contexts/ToastContext'
 
-// Default wallet overview (will be replaced by API data)
+// Default wallet overview - initialize with zeros to avoid showing mock data
 const defaultWalletOverview = {
-  totalEarnings: 1250000,
-  totalCommission: 125000,
-  availableBalance: 980000,
-  pendingWithdrawals: 270000,
-  thisMonthEarnings: 125000,
-  lastMonthEarnings: 108000,
-  totalWithdrawals: 1125000,
-  pendingWithdrawalRequests: 12,
-  totalTransactions: 3420,
+  totalEarnings: 0,
+  totalCommission: 0,
+  availableBalance: 0,
+  pendingWithdrawals: 0,
+  thisMonthEarnings: 0,
+  lastMonthEarnings: 0,
+  totalWithdrawals: 0,
+  pendingWithdrawalRequests: 0,
+  totalTransactions: 0,
 }
 
 // Removed mock data - now using backend API
@@ -122,7 +122,18 @@ const AdminWallet = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [viewingWithdrawal, setViewingWithdrawal] = useState(null)
   const [withdrawals, setWithdrawals] = useState(defaultWithdrawals)
-  const [walletOverview, setWalletOverview] = useState(defaultWalletOverview)
+  // Initialize with zeros to avoid showing mock data before API loads
+  const [walletOverview, setWalletOverview] = useState({
+    totalEarnings: 0,
+    totalCommission: 0,
+    availableBalance: 0,
+    pendingWithdrawals: 0,
+    thisMonthEarnings: 0,
+    lastMonthEarnings: 0,
+    totalWithdrawals: 0,
+    pendingWithdrawalRequests: 0,
+    totalTransactions: 0,
+  })
   const [providers, setProviders] = useState(defaultProviders)
   const [notification, setNotification] = useState(null)
   const [showRejectModal, setShowRejectModal] = useState(false)
@@ -439,9 +450,9 @@ const AdminWallet = () => {
   })
 
   const earningsByRole = {
-    doctors: (providers.doctors || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
-    pharmacies: (providers.pharmacies || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
-    laboratories: (providers.laboratories || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
+    doctors: loading ? 0 : (providers.doctors || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
+    pharmacies: loading ? 0 : (providers.pharmacies || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
+    laboratories: loading ? 0 : (providers.laboratories || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
   }
 
   const handleApprove = async (withdrawalId) => {
@@ -783,15 +794,17 @@ const AdminWallet = () => {
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1">
               <p className="text-sm font-medium text-white/80 mb-1">Total Platform Earnings</p>
-              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{formatCurrency(walletOverview.totalEarnings)}</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">
+                {loading ? '...' : formatCurrency(walletOverview.totalEarnings || walletOverview.totalCommission || 0)}
+              </p>
               <div className="mt-4 flex flex-wrap items-center gap-3 text-xs sm:text-sm">
                 <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
                   <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-medium">Available: {formatCurrency(walletOverview.availableBalance)}</span>
+                  <span className="font-medium">Available: {loading ? '...' : formatCurrency(walletOverview.availableBalance || 0)}</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
                   <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="font-medium">Pending: {formatCurrency(walletOverview.pendingWithdrawals)}</span>
+                  <span className="font-medium">Pending: {loading ? '...' : formatCurrency(walletOverview.pendingWithdrawals || 0)}</span>
                 </div>
               </div>
             </div>
@@ -850,7 +863,7 @@ const AdminWallet = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-slate-600 uppercase">Doctors</p>
-                <p className="text-lg font-bold text-slate-900">{formatCurrency(earningsByRole.doctors)}</p>
+                <p className="text-lg font-bold text-slate-900">{loading ? '...' : formatCurrency(earningsByRole.doctors)}</p>
               </div>
             </div>
             <p className="text-xs text-slate-500">{loading ? '...' : (providers.doctors || []).length} active doctors</p>
@@ -864,7 +877,7 @@ const AdminWallet = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-slate-600 uppercase">Pharmacies</p>
-                <p className="text-lg font-bold text-slate-900">{formatCurrency(earningsByRole.pharmacies)}</p>
+                <p className="text-lg font-bold text-slate-900">{loading ? '...' : formatCurrency(earningsByRole.pharmacies)}</p>
               </div>
             </div>
             <p className="text-xs text-slate-500">{loading ? '...' : (providers.pharmacies || []).length} active pharmacies</p>
@@ -878,7 +891,7 @@ const AdminWallet = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-slate-600 uppercase">Laboratories</p>
-                <p className="text-lg font-bold text-slate-900">{formatCurrency(earningsByRole.laboratories)}</p>
+                <p className="text-lg font-bold text-slate-900">{loading ? '...' : formatCurrency(earningsByRole.laboratories)}</p>
               </div>
             </div>
             <p className="text-xs text-slate-500">{loading ? '...' : (providers.laboratories || []).length} active laboratories</p>

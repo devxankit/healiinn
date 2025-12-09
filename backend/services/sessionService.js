@@ -170,6 +170,11 @@ const getOrCreateSession = async (doctorId, date) => {
     date: { $gte: sessionDate, $lt: sessionEndDate },
   });
 
+  // If session exists and is cancelled, throw error (don't allow booking on cancelled session)
+  if (session && session.status === SESSION_STATUS.CANCELLED) {
+    throw new Error('Session was cancelled for this date. Please select a different date.');
+  }
+
   if (session) {
     // If session exists, verify it matches current doctor availability
     // If doctor's availability or consultation time changed, update the session
@@ -345,13 +350,7 @@ const checkSlotAvailability = async (doctorId, date) => {
       };
     }
 
-    const session = await getOrCreateSession(doctorId, date);
-    const avgConsultation = doctor.averageConsultationMinutes || 20;
-    
-    // Check if booking is for today (same day)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
+    // First, check if there's a cancelled session for this date
     let parsedDate;
     if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
       const [year, month, day] = date.split('-').map(Number);
@@ -365,22 +364,79 @@ const checkSlotAvailability = async (doctorId, date) => {
       parsedDate.setHours(0, 0, 0, 0);
     }
     
+    const sessionDateStart = new Date(parsedDate);
+    sessionDateStart.setHours(0, 0, 0, 0);
+    const sessionDateEnd = new Date(parsedDate);
+    sessionDateEnd.setHours(23, 59, 59, 999);
+    
+    // Check if there's a cancelled session for this date
+    const cancelledSession = await Session.findOne({
+      doctorId,
+      date: { $gte: sessionDateStart, $lt: sessionDateEnd },
+      status: SESSION_STATUS.CANCELLED,
+    });
+    
+    if (cancelledSession) {
+      return {
+        available: false,
+        message: 'Session was cancelled for this date. Please select a different date.',
+        totalSlots: cancelledSession.maxTokens || 0,
+        bookedSlots: 0,
+        availableSlots: 0,
+        isCancelled: true,
+      };
+    }
+
+    const session = await getOrCreateSession(doctorId, date);
+    const avgConsultation = doctor.averageConsultationMinutes || 20;
+    
+    // Check if booking is for today (same day)
+    // Reuse parsedDate from above (already declared and set)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     const isSameDay = parsedDate.getTime() === today.getTime();
     
     let effectiveMaxTokens = session.maxTokens;
     let pastSlotsCount = 0;
     let effectiveStartTime = session.sessionStartTime;
     
-    // If same day booking, calculate available slots from current time
+    // Check if session end time has passed - if yes, no new bookings allowed
+    // But existing appointments with tokens can continue
     if (isSameDay) {
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
       const currentTimeMinutes = currentHour * 60 + currentMinute;
       
+      const sessionEndMinutes = timeToMinutes(session.sessionEndTime);
+      
+      // If session end time has passed, no new bookings allowed
+      if (sessionEndMinutes !== null && currentTimeMinutes >= sessionEndMinutes) {
+        // Check if there are any pending appointments (waiting/in-consultation)
+        const Appointment = require('../models/Appointment');
+        const pendingAppointments = await Appointment.countDocuments({
+          sessionId: session._id,
+          status: { $in: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress'] },
+        });
+        
+        return {
+          available: false,
+          message: 'Session time has ended. No new appointments can be booked for this session.',
+          totalSlots: session.maxTokens,
+          bookedSlots: pendingAppointments,
+          availableSlots: 0,
+          isSessionEnded: true,
+          hasPendingAppointments: pendingAppointments > 0,
+        };
+      }
+      
+      // If same day booking, calculate available slots from current time
+      // Reuse now, currentTimeMinutes, and sessionEndMinutes variables from above
+      
       // Convert session start time to minutes
       const sessionStartMinutes = timeToMinutes(session.sessionStartTime);
-      const sessionEndMinutes = timeToMinutes(session.sessionEndTime);
+      // sessionEndMinutes already declared above, reuse it
       
       // If current time is past session start time, exclude past slots
       if (currentTimeMinutes > sessionStartMinutes && currentTimeMinutes < sessionEndMinutes) {
@@ -546,8 +602,10 @@ const resumeSession = async (sessionId) => {
 
 /**
  * Call next patient (increment current token)
+ * @param {String} sessionId - Session ID
+ * @param {String} appointmentId - Optional: Specific appointment ID to call (if provided, calls that appointment instead of next in queue)
  */
-const callNextPatient = async (sessionId) => {
+const callNextPatient = async (sessionId, appointmentId = null) => {
   const session = await Session.findById(sessionId);
   if (!session) {
     throw new Error('Session not found');
@@ -557,18 +615,33 @@ const callNextPatient = async (sessionId) => {
     throw new Error('Cannot call next patient while session is paused');
   }
 
-  // Get next appointment
-  const nextAppointment = await Appointment.findOne({
-    sessionId,
-    tokenNumber: session.currentToken + 1,
-    status: { $in: ['scheduled', 'confirmed'] },
-  }).sort({ tokenNumber: 1 });
+  let nextAppointment;
 
-  if (!nextAppointment) {
-    throw new Error('No more patients in queue');
+  // If specific appointmentId is provided, call that appointment
+  if (appointmentId) {
+    nextAppointment = await Appointment.findOne({
+      _id: appointmentId,
+      sessionId,
+      status: { $in: ['scheduled', 'confirmed', 'waiting'] },
+    });
+
+    if (!nextAppointment) {
+      throw new Error('Appointment not found or already called');
+    }
+  } else {
+    // Otherwise, get next appointment in queue (tokenNumber > currentToken)
+    nextAppointment = await Appointment.findOne({
+      sessionId,
+      tokenNumber: { $gt: session.currentToken || 0 },
+      status: { $in: ['scheduled', 'confirmed', 'waiting'] },
+    }).sort({ tokenNumber: 1 });
+
+    if (!nextAppointment) {
+      throw new Error('No more patients in queue');
+    }
   }
 
-  // Update session current token
+  // Update session current token to this appointment's token number
   session.currentToken = nextAppointment.tokenNumber;
   
   // If session is scheduled, make it live
@@ -581,10 +654,166 @@ const callNextPatient = async (sessionId) => {
 
   await session.save();
 
+  // Update appointment status to 'called'
+  nextAppointment.status = 'called';
+  nextAppointment.queueStatus = 'called';
+  
+  // Reset recallCount to 0 when patient is called again
+  // This allows doctor to recall again after calling the patient (fresh call cycle)
+  nextAppointment.recallCount = 0;
+  
+  await nextAppointment.save();
+
   return {
     session,
     appointment: nextAppointment,
   };
+};
+
+/**
+ * Automatically end sessions that have passed their end time
+ * This function checks all live sessions and ends them if current time >= session end time
+ */
+const autoEndExpiredSessions = async () => {
+  try {
+    const Session = require('../models/Session');
+    const { SESSION_STATUS } = require('../utils/constants');
+    const { recalculateSessionETAs } = require('./etaService');
+    const { getIO } = require('../config/socket');
+    const { createNotification } = require('./notificationService');
+    const Appointment = require('../models/Appointment');
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Find all live sessions for today
+    const liveSessions = await Session.find({
+      status: SESSION_STATUS.LIVE,
+      date: { $gte: today, $lt: tomorrow },
+    }).populate('doctorId', 'firstName lastName');
+    
+    let endedCount = 0;
+    
+    for (const session of liveSessions) {
+      // Convert session end time to minutes for comparison
+      const timeStringToMinutes = (timeStr) => {
+        if (!timeStr) return null;
+        
+        // Handle 12-hour format (e.g., "2:30 PM")
+        if (timeStr.includes('AM') || timeStr.includes('PM')) {
+          const [timePart, period] = timeStr.split(/\s*(AM|PM)/i);
+          const [hours, minutes] = timePart.split(':').map(Number);
+          let totalMinutes = hours * 60 + (minutes || 0);
+          
+          if (period.toUpperCase() === 'PM' && hours !== 12) {
+            totalMinutes += 12 * 60;
+          } else if (period.toUpperCase() === 'AM' && hours === 12) {
+            totalMinutes -= 12 * 60;
+          }
+          
+          return totalMinutes;
+        }
+        
+        // Handle 24-hour format (e.g., "14:30")
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + (minutes || 0);
+      };
+      
+      const sessionEndMinutes = timeStringToMinutes(session.sessionEndTime);
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      
+      // Check if session end time has passed
+      if (sessionEndMinutes !== null && currentMinutes >= sessionEndMinutes) {
+        // Check if there are any pending appointments (waiting, called, in-consultation, etc.)
+        // Only end session if all appointments are completed/cancelled/no-show
+        const pendingAppointments = await Appointment.find({
+          sessionId: session._id,
+          status: { $in: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress'] },
+        });
+        
+        // If there are pending appointments, don't auto-end session
+        // Let doctor continue with existing patients
+        if (pendingAppointments.length > 0) {
+          console.log(`⏳ Session ${session._id} end time passed but ${pendingAppointments.length} appointments still pending. Session will continue until all patients are seen.`);
+          
+          // Recalculate ETAs for waiting patients (they can still be seen after session end time)
+          try {
+            const etas = await recalculateSessionETAs(session._id);
+            const io = getIO();
+            
+            // Send ETA updates to all waiting patients
+            for (const eta of etas) {
+              if (eta.patientId) {
+                io.to(`patient-${eta.patientId}`).emit('token:eta:update', {
+                  appointmentId: eta.appointmentId,
+                  estimatedWaitMinutes: eta.estimatedWaitMinutes,
+                  estimatedCallTime: eta.estimatedCallTime,
+                  patientsAhead: eta.patientsAhead,
+                  tokenNumber: eta.tokenNumber,
+                });
+              }
+            }
+          } catch (error) {
+            console.error(`Error recalculating ETAs for session ${session._id}:`, error);
+          }
+          
+          // Don't end session - continue to next iteration
+          continue;
+        }
+        
+        // No pending appointments - safe to end session
+        session.status = SESSION_STATUS.COMPLETED;
+        session.endedAt = new Date();
+        await session.save();
+        
+        endedCount++;
+        
+        // Notify doctor that session has ended
+        try {
+          const io = getIO();
+          
+          // Notify doctor
+          if (session.doctorId) {
+            await createNotification({
+              userId: session.doctorId._id || session.doctorId,
+              userType: 'doctor',
+              type: 'session',
+              title: 'Session Ended',
+              message: 'Your session has automatically ended as all patients have been seen.',
+              data: {
+                sessionId: session._id.toString(),
+                eventType: 'completed',
+                status: SESSION_STATUS.COMPLETED,
+              },
+              priority: 'medium',
+              actionUrl: '/doctor/patients',
+              icon: 'session',
+            }).catch((error) => console.error('Error creating doctor notification:', error));
+            
+            // Emit to doctor
+            io.to(`doctor-${session.doctorId._id || session.doctorId}`).emit('session:updated', {
+              session: await Session.findById(session._id),
+            });
+          }
+          
+          console.log(`✅ Auto-ended session ${session._id} for doctor ${session.doctorId._id || session.doctorId} - all patients completed`);
+        } catch (error) {
+          console.error(`Error processing auto-end for session ${session._id}:`, error);
+        }
+      }
+    }
+    
+    if (endedCount > 0) {
+      console.log(`✅ Auto-ended ${endedCount} session(s) that passed their end time`);
+    }
+    
+    return endedCount;
+  } catch (error) {
+    console.error('Error in autoEndExpiredSessions:', error);
+    return 0;
+  }
 };
 
 module.exports = {
@@ -595,5 +824,6 @@ module.exports = {
   callNextPatient,
   getAvailabilityForDate,
   isDateBlocked,
+  autoEndExpiredSessions,
 };
 

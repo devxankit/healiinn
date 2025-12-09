@@ -50,7 +50,9 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
       Pharmacy.countDocuments({ status: APPROVAL_STATUS.PENDING }),
       Laboratory.countDocuments({ status: APPROVAL_STATUS.PENDING }),
     ]).then(counts => counts.reduce((sum, count) => sum + count, 0)),
-    Appointment.countDocuments(),
+    Appointment.countDocuments({
+      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
+    }),
     Order.countDocuments(),
     Request.countDocuments(),
     Appointment.countDocuments({
@@ -58,6 +60,7 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
         $gte: new Date(new Date().setHours(0, 0, 0, 0)),
         $lt: new Date(new Date().setHours(23, 59, 59, 999)),
       },
+      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
     }),
     Order.countDocuments({
       createdAt: {
@@ -203,10 +206,14 @@ exports.getRecentActivities = asyncHandler(async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
 
   // Get recent activities from various models
+  // Exclude pending payment appointments - only show paid appointments
   const [recentAppointments, recentOrders, recentRequests, recentVerifications] = await Promise.all([
-    Appointment.find()
+    Appointment.find({
+      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
+    })
       .populate('patientId', 'firstName lastName')
       .populate('doctorId', 'firstName lastName')
+      .select('+rescheduledAt +rescheduledBy +rescheduleReason') // Include rescheduled fields
       .sort({ createdAt: -1 })
       .limit(limit),
     Order.find()
@@ -234,8 +241,13 @@ exports.getRecentActivities = asyncHandler(async (req, res) => {
   ]);
 
   // Combine and sort by date
+  // For appointments, use cancelledAt if cancelled, otherwise use createdAt
   const activities = [
-    ...recentAppointments.map(a => ({ type: 'appointment', data: a, date: a.createdAt })),
+    ...recentAppointments.map(a => ({ 
+      type: 'appointment', 
+      data: a, 
+      date: a.cancelledAt || a.rescheduledAt || a.createdAt // Use cancelledAt/rescheduledAt for proper ordering
+    })),
     ...recentOrders.map(o => ({ type: 'order', data: o, date: o.createdAt })),
     ...recentRequests.map(r => ({ type: 'request', data: r, date: r.createdAt })),
     ...recentVerifications.map(v => ({ type: 'verification', data: v, date: v.createdAt })),

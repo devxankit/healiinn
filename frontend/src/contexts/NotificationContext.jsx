@@ -74,11 +74,14 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
         setUnreadCount(response.data.unreadCount || 0)
       }
     } catch (error) {
-      // Only log non-403 errors (403 means user not authorized, which is expected if not logged in)
-      if (error.response?.status !== 403 && error.response?.status !== 401) {
+      // Only log non-403/401/429 errors (403/401 means user not authorized, 429 is rate limit)
+      if (error.response?.status !== 403 && 
+          error.response?.status !== 401 && 
+          error.response?.status !== 429) {
         console.error('Error fetching notifications:', error)
       }
-      // Don't set error state for auth errors
+      // Don't set error state for auth errors or rate limit errors
+      // Rate limit errors will be handled by retry logic
     } finally {
       setIsLoading(false)
     }
@@ -254,9 +257,62 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
       fetchUnreadCount()
     })
 
-    socket.on('token:called', () => {
+    socket.on('token:called', (data) => {
       fetchUnreadCount()
+      
+      // If patient is called, save consultation room state for persistence
+      if (currentModule === 'patient' && data?.appointmentId) {
+        try {
+          const consultationState = {
+            appointmentId: data.appointmentId,
+            tokenNumber: data.tokenNumber || null,
+            calledAt: new Date().toISOString(),
+            isInConsultation: true,
+          }
+          localStorage.setItem('patientConsultationRoom', JSON.stringify(consultationState))
+          console.log('✅ Patient consultation room state saved:', consultationState)
+        } catch (error) {
+          console.error('Error saving consultation room state:', error)
+        }
+      }
     })
+    
+    // Listen for token recalled - patient should enter consultation room again
+    socket.on('token:recalled', (data) => {
+      fetchUnreadCount()
+      
+      // If patient is recalled, save consultation room state for persistence
+      if (currentModule === 'patient' && data?.appointmentId) {
+        try {
+          const consultationState = {
+            appointmentId: data.appointmentId,
+            tokenNumber: data.tokenNumber || null,
+            calledAt: new Date().toISOString(),
+            isInConsultation: true,
+            recalled: true,
+          }
+          localStorage.setItem('patientConsultationRoom', JSON.stringify(consultationState))
+          console.log('✅ Patient consultation room state saved from recall:', consultationState)
+        } catch (error) {
+          console.error('Error saving consultation room state from recall:', error)
+        }
+      }
+    })
+    
+    // Listen for consultation completion to clear state
+    socket.on('consultation:completed', () => {
+      if (currentModule === 'patient') {
+        try {
+          localStorage.removeItem('patientConsultationRoom')
+          console.log('✅ Patient consultation room state cleared (consultation completed)')
+        } catch (error) {
+          console.error('Error clearing consultation room state:', error)
+        }
+      }
+    })
+    
+    // Note: We DON'T clear consultation room state on 'appointment:skipped'
+    // Patient might be recalled, so state should persist
 
     socket.on('prescription:created', () => {
       fetchUnreadCount()
@@ -307,6 +363,7 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
           socket.off('appointment:created')
           socket.off('appointment:payment:confirmed')
           socket.off('token:called')
+          socket.off('token:recalled')
           socket.off('prescription:created')
           socket.off('wallet:credited')
           socket.off('order:completed')
@@ -324,12 +381,17 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
     }
   }, [currentModule, location.pathname, handleNewNotification, fetchNotifications, fetchUnreadCount])
 
-  // Refresh notifications when module changes
+  // Refresh notifications when module changes (with debounce to prevent infinite loops)
   useEffect(() => {
     if (currentModule && !location.pathname.includes('/login')) {
-      fetchNotifications()
+      // Add a small delay to prevent rapid re-fetching
+      const timeoutId = setTimeout(() => {
+        fetchNotifications()
+      }, 500) // 500ms debounce
+      
+      return () => clearTimeout(timeoutId)
     }
-  }, [currentModule, fetchNotifications, location.pathname])
+  }, [currentModule, location.pathname]) // Remove fetchNotifications from deps to prevent infinite loop
 
   const value = {
     notifications,

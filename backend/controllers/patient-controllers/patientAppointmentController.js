@@ -46,7 +46,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
 
   const filter = { patientId: id };
   
-  // For status filter, exclude cancelled appointments unless explicitly requested
+  // For status filter, handle different cases
   if (status) {
     if (status === 'scheduled') {
       // Include both 'scheduled' and rescheduled appointments (they are scheduled for new date)
@@ -58,13 +58,28 @@ exports.getAppointments = asyncHandler(async (req, res) => {
       filter.rescheduledAt = { $exists: true };
       filter.status = { $in: ['scheduled', 'confirmed'] };
       filter.paymentStatus = { $ne: 'pending' }; // Exclude pending payment appointments
+    } else if (status === 'cancelled') {
+      // Show cancelled appointments (include both paid and pending payment cancelled appointments)
+      filter.status = 'cancelled';
+      // Don't filter by paymentStatus for cancelled - show all cancelled appointments
     } else {
       filter.status = status;
+      // For other statuses, exclude pending payment appointments
+      if (status !== 'cancelled') {
+        filter.paymentStatus = { $ne: 'pending' };
+      }
     }
   } else {
-    // By default, exclude cancelled and pending payment appointments
-    filter.status = { $ne: 'cancelled' };
-    filter.paymentStatus = { $ne: 'pending' };
+    // By default, include all appointments (including cancelled) but exclude pending payment appointments
+    // Only exclude pending payment appointments that are not cancelled
+    // This allows cancelled appointments to show even if payment was pending
+    filter.$or = [
+      { 
+        paymentStatus: { $ne: 'pending' },
+        status: { $ne: 'cancelled' } // Non-cancelled appointments must have paid status
+      },
+      { status: 'cancelled' } // Include cancelled appointments regardless of payment status
+    ];
   }
   
   if (date) {
@@ -79,7 +94,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
   const [appointments, total] = await Promise.all([
     Appointment.find(filter)
       .populate('doctorId', 'firstName lastName specialization profileImage consultationFee clinicDetails')
-      .populate('sessionId', 'date sessionStartTime sessionEndTime')
+      .populate('sessionId', 'date sessionStartTime sessionEndTime status') // Include session status to check if cancelled
       .sort({ appointmentDate: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -108,6 +123,7 @@ exports.getUpcomingAppointments = asyncHandler(async (req, res) => {
     patientId: id,
     appointmentDate: { $gte: new Date() },
     status: { $in: ['scheduled', 'confirmed'] },
+    paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
   })
     .populate('doctorId', 'firstName lastName specialization profileImage consultationFee clinicDetails')
     .populate('sessionId', 'date sessionStartTime sessionEndTime')
@@ -171,6 +187,29 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     });
   }
 
+  // Check if there's a cancelled session for this date before creating appointment
+  const sessionDateStart = new Date(parsedAppointmentDate);
+  sessionDateStart.setHours(0, 0, 0, 0);
+  const sessionDateEnd = new Date(parsedAppointmentDate);
+  sessionDateEnd.setHours(23, 59, 59, 999);
+  
+  const cancelledSession = await Session.findOne({
+    doctorId,
+    date: { $gte: sessionDateStart, $lt: sessionDateEnd },
+    status: 'cancelled',
+  });
+  
+  if (cancelledSession) {
+    return res.status(400).json({
+      success: false,
+      message: 'Session was cancelled for this date. Please select a different date.',
+      data: {
+        cancelledSessionDate: cancelledSession.date.toISOString().split('T')[0],
+        selectedDate: appointmentDate,
+      },
+    });
+  }
+
   // Get or create session automatically based on doctor's availability
   let session;
   try {
@@ -198,11 +237,34 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Calculate token number based on current time for same-day bookings
-  let tokenNumber;
+  // Check if session end time has passed - if yes, reject new bookings
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const isSameDay = parsedAppointmentDate.getTime() === today.getTime();
+  
+  if (isSameDay) {
+    const { timeToMinutes } = require('../../services/etaService');
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentTimeMinutes = currentHour * 60 + currentMinute;
+    const sessionEndMinutes = timeToMinutes(session.sessionEndTime);
+    
+    // If session end time has passed, reject new booking
+    if (sessionEndMinutes !== null && currentTimeMinutes >= sessionEndMinutes) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session time has ended. No new appointments can be booked for this session. Existing appointments will continue.',
+        data: {
+          sessionEndTime: session.sessionEndTime,
+          currentTime: `${currentHour}:${currentMinute.toString().padStart(2, '0')}`,
+        },
+      });
+    }
+  }
+
+  // Calculate token number based on current time for same-day bookings
+  let tokenNumber;
   
   if (isSameDay && slotCheck.pastSlotsCount > 0) {
     // For same-day bookings with past slots, calculate token from current time
@@ -353,46 +415,8 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
-  // Send email notifications
-  try {
-    const populatedAppointment = await Appointment.findById(appointment._id)
-      .populate('doctorId', 'firstName lastName specialization profileImage')
-      .populate('sessionId', 'date sessionStartTime sessionEndTime');
-
-    // Send confirmation to patient
-    await sendAppointmentConfirmationEmail({
-      patient,
-      doctor,
-      appointment: populatedAppointment,
-    }).catch((error) => console.error('Error sending appointment confirmation email:', error));
-
-    // Send notification to doctor
-    await sendDoctorAppointmentNotification({
-      doctor,
-      patient,
-      appointment: populatedAppointment,
-    }).catch((error) => console.error('Error sending doctor appointment notification:', error));
-
-    // Create in-app notifications
-    await createAppointmentNotification({
-      userId: id,
-      userType: 'patient',
-      appointment: populatedAppointment,
-      eventType: 'created',
-      doctor,
-    }).catch((error) => console.error('Error creating patient notification:', error));
-
-    await createAppointmentNotification({
-      userId: appointment.doctorId,
-      userType: 'doctor',
-      appointment: populatedAppointment,
-      eventType: 'created',
-      patient,
-    }).catch((error) => console.error('Error creating doctor notification:', error));
-  } catch (error) {
-    console.error('Error sending email notifications:', error);
-  }
-
+  // NOTE: Email and notification will be sent only after payment is verified
+  // See verifyAppointmentPayment() function
 
   // Get appointment with ETA - only necessary fields
   const populatedAppointment = await Appointment.findById(appointment._id)
@@ -558,12 +582,12 @@ exports.cancelAppointment = asyncHandler(async (req, res) => {
 exports.rescheduleAppointment = asyncHandler(async (req, res) => {
   const { id } = req.auth;
   const appointmentId = req.params.id; // Fix: route parameter is :id, not :appointmentId
-  const { appointmentDate, time } = req.body;
+  const { appointmentDate, time } = req.body; // time is optional - will be calculated automatically
 
-  if (!appointmentDate || !time) {
+  if (!appointmentDate) {
     return res.status(400).json({
       success: false,
-      message: 'Appointment date and time are required',
+      message: 'Appointment date is required',
     });
   }
 
@@ -575,14 +599,53 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
     });
   }
 
-  if (appointment.status === 'completed' || appointment.status === 'cancelled') {
+  // Prevent rescheduling completed appointments
+  if (appointment.status === 'completed') {
     return res.status(400).json({
       success: false,
-      message: 'Cannot reschedule completed or cancelled appointment',
+      message: 'Cannot reschedule a completed appointment',
     });
   }
 
-  // Check if new date has available slots
+  // Allow rescheduling cancelled appointments (patient can book new appointment after cancellation)
+  // If appointment is cancelled, we'll update it to rescheduled status
+  const isCancelled = appointment.status === 'cancelled';
+
+  // If rescheduling a cancelled appointment, check if the new date is the same as the cancelled session date
+  if (isCancelled && appointment.sessionId) {
+    const Session = require('../../models/Session');
+    const cancelledSession = await Session.findById(appointment.sessionId);
+    
+    if (cancelledSession && cancelledSession.status === 'cancelled') {
+      // Get the cancelled session date
+      const cancelledSessionDate = new Date(cancelledSession.date);
+      cancelledSessionDate.setHours(0, 0, 0, 0);
+      
+      // Parse the new appointment date
+      let parsedNewDate;
+      if (typeof appointmentDate === 'string' && appointmentDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = appointmentDate.split('-').map(Number);
+        parsedNewDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+      } else {
+        parsedNewDate = new Date(appointmentDate);
+      }
+      parsedNewDate.setHours(0, 0, 0, 0);
+      
+      // Check if new date matches cancelled session date
+      if (cancelledSessionDate.getTime() === parsedNewDate.getTime()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot reschedule to the same date when the session was cancelled. Please select a different date.',
+          data: {
+            cancelledSessionDate: cancelledSessionDate.toISOString().split('T')[0],
+            selectedDate: appointmentDate,
+          },
+        });
+      }
+    }
+  }
+
+  // Check if new date has available slots (this also checks for cancelled sessions)
   const slotCheck = await checkSlotAvailability(appointment.doctorId, appointmentDate);
   if (!slotCheck.available) {
     return res.status(400).json({
@@ -592,11 +655,45 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
         totalSlots: slotCheck.totalSlots || 0,
         bookedSlots: slotCheck.bookedSlots || 0,
         availableSlots: 0,
+        isCancelled: slotCheck.isCancelled || false,
       },
     });
   }
 
-  // Get or create session for new date
+  // Additional check: Ensure no cancelled session exists for the new date
+  // (checkSlotAvailability already does this, but double-check for safety)
+  let parsedNewDate;
+  if (typeof appointmentDate === 'string' && appointmentDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = appointmentDate.split('-').map(Number);
+    parsedNewDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+  } else {
+    parsedNewDate = new Date(appointmentDate);
+  }
+  parsedNewDate.setHours(0, 0, 0, 0);
+  
+  const sessionDateStart = new Date(parsedNewDate);
+  sessionDateStart.setHours(0, 0, 0, 0);
+  const sessionDateEnd = new Date(parsedNewDate);
+  sessionDateEnd.setHours(23, 59, 59, 999);
+  
+  // Check if there's a cancelled session for the new date
+  const cancelledSessionForNewDate = await Session.findOne({
+    doctorId: appointment.doctorId,
+    date: { $gte: sessionDateStart, $lt: sessionDateEnd },
+    status: 'cancelled',
+  });
+  
+  if (cancelledSessionForNewDate) {
+    return res.status(400).json({
+      success: false,
+      message: 'Session was cancelled for this date. Please select a different date.',
+      data: {
+        cancelledSessionDate: cancelledSessionForNewDate.date.toISOString().split('T')[0],
+        selectedDate: appointmentDate,
+      },
+    });
+  }
+
   let newSession;
   try {
     newSession = await getOrCreateSession(appointment.doctorId, appointmentDate);
@@ -666,6 +763,39 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
   // Assign new token number
   const newTokenNumber = newSession.currentToken + 1;
 
+  // Get doctor to calculate time based on average consultation minutes
+  const doctor = await Doctor.findById(appointment.doctorId);
+  if (!doctor) {
+    return res.status(404).json({
+      success: false,
+      message: 'Doctor not found',
+    });
+  }
+
+  // Calculate appointment time based on token number and session time (same logic as createAppointment)
+  const { timeToMinutes } = require('../../services/etaService');
+  const sessionStartMinutes = timeToMinutes(newSession.sessionStartTime);
+  const avgConsultation = doctor.averageConsultationMinutes || 20;
+  
+  // Calculate time for this token (token - 1 because token 1 starts at session start)
+  const tokenTimeMinutes = sessionStartMinutes + (newTokenNumber - 1) * avgConsultation;
+  const tokenHour = Math.floor(tokenTimeMinutes / 60);
+  const tokenMin = tokenTimeMinutes % 60;
+  
+  // Convert to 12-hour format
+  let displayHour = tokenHour;
+  let period = 'AM';
+  if (tokenHour >= 12) {
+    period = 'PM';
+    if (tokenHour > 12) {
+      displayHour = tokenHour - 12;
+    }
+  } else if (tokenHour === 0) {
+    displayHour = 12;
+  }
+  
+  const calculatedTime = `${displayHour}:${tokenMin.toString().padStart(2, '0')} ${period}`;
+
   // Update appointment with new date and session
   // Normalize appointment date to match session date format (start of day in local timezone)
   const oldDate = appointment.appointmentDate;
@@ -684,14 +814,23 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
   sessionDateNormalized.setHours(0, 0, 0, 0);
   
   appointment.appointmentDate = normalizedAppointmentDate;
-  appointment.time = time;
+  appointment.time = calculatedTime; // Use calculated time based on token number, not user-provided time
   appointment.sessionId = newSession._id;
   appointment.tokenNumber = newTokenNumber;
-  appointment.status = 'scheduled'; // Keep as scheduled for new date
+  // If appointment was cancelled, reactivate it; otherwise keep as scheduled
+  appointment.status = isCancelled ? 'scheduled' : 'scheduled';
   appointment.queueStatus = null;
   appointment.rescheduledAt = new Date();
   appointment.rescheduledBy = 'patient';
-  appointment.rescheduleReason = `Rescheduled from ${oldDate.toLocaleDateString('en-US')} to ${normalizedAppointmentDate.toLocaleDateString('en-US')}`;
+  appointment.rescheduleReason = isCancelled 
+    ? `Appointment rebooked after cancellation. New date: ${normalizedAppointmentDate.toLocaleDateString('en-US')}`
+    : `Rescheduled from ${oldDate.toLocaleDateString('en-US')} to ${normalizedAppointmentDate.toLocaleDateString('en-US')}`;
+  // Clear cancellation fields if it was cancelled
+  if (isCancelled) {
+    appointment.cancelledAt = undefined;
+    appointment.cancellationReason = undefined;
+    appointment.cancelledBy = undefined;
+  }
   // Keep existing payment - no new payment required for reschedule
   await appointment.save();
   
@@ -1117,23 +1256,10 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
       // Don't throw - payment is already successful, just log the error
     }
     
-    // Create commission deduction record (for admin tracking)
-    await WalletTransaction.create({
-      userId: appointment.doctorId,
-      userType: 'doctor',
-      type: 'commission_deduction',
-      amount: commission,
-      balance: currentBalance, // Balance before earning
-      status: 'completed',
-      description: `Platform commission (${(commissionRate * 100).toFixed(1)}%) for appointment ${appointment._id}`,
-      referenceId: appointment._id.toString(),
-      appointmentId: appointment._id,
-      metadata: {
-        totalAmount: appointment.fee,
-        commission,
-        commissionRate,
-      },
-    });
+    // Note: Commission deduction transaction is NOT created in doctor's wallet
+    // because doctor already receives commission-deducted amount (earning)
+    // Admin commission is tracked separately through appointment/order records
+    // No need to create a deduction transaction that would incorrectly reduce doctor's balance
     
     // Emit real-time event to doctor
     try {
@@ -1149,21 +1275,87 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
     }
   }
 
-  // Get patient data for email
+  // Get patient data for notifications and emails
   const patient = await Patient.findById(id);
 
-  // Send payment confirmation email
+  // Doctor is already fetched above (line 975), reuse it
+  // Get populated appointment for notifications and emails
+  const populatedAppointment = await Appointment.findById(appointment._id)
+    .populate('doctorId', 'firstName lastName specialization profileImage')
+    .populate('sessionId', 'date sessionStartTime sessionEndTime');
+
+  // Send email notifications (only after payment is verified)
   try {
+    // Send appointment confirmation email to patient
+    if (patient) {
+      await sendAppointmentConfirmationEmail({
+        patient,
+        doctor,
+        appointment: populatedAppointment,
+      }).catch((error) => console.error('Error sending appointment confirmation email:', error));
+    }
+
+    // Send notification email to doctor (only if doctor exists)
+    // DISABLED: Doctor appointment booking notification email removed as per requirements
+    // if (doctor) {
+    //   await sendDoctorAppointmentNotification({
+    //     doctor,
+    //     patient,
+    //     appointment: populatedAppointment,
+    //   }).catch((error) => console.error('Error sending doctor appointment notification:', error));
+    // }
+
+    // Send payment confirmation email to patient
+    if (patient) {
     const { sendPaymentConfirmationEmail } = require('../../services/notificationService');
     await sendPaymentConfirmationEmail({
       patient,
-      amount: appointment.fee, // Pass amount directly
-      appointmentId: appointment._id, // Pass appointmentId for reference
-      transaction, // Also pass transaction for additional data
+        amount: appointment.fee,
+        appointmentId: appointment._id,
+        transaction,
       order: null,
     }).catch((error) => console.error('Error sending payment confirmation email:', error));
+    }
   } catch (error) {
     console.error('Error sending email notifications:', error);
+  }
+
+  // Create in-app notifications (only after payment is verified)
+  try {
+    // Notify patient about appointment creation
+    if (patient) {
+      await createAppointmentNotification({
+        userId: id,
+        userType: 'patient',
+        appointment: populatedAppointment,
+        eventType: 'created',
+        doctor,
+      }).catch((error) => console.error('Error creating patient notification:', error));
+    }
+
+    // Notify doctor about new appointment (only if doctor exists)
+    if (doctor) {
+      await createAppointmentNotification({
+        userId: appointment.doctorId,
+        userType: 'doctor',
+        appointment: populatedAppointment,
+        eventType: 'created',
+        patient,
+      }).catch((error) => console.error('Error creating doctor notification:', error));
+    }
+
+    // Notify patient about payment confirmation
+    if (patient) {
+      await createAppointmentNotification({
+        userId: id,
+        userType: 'patient',
+        appointment: populatedAppointment,
+        eventType: 'payment_confirmed',
+        doctor,
+      }).catch((error) => console.error('Error creating payment confirmation notification:', error));
+    }
+  } catch (error) {
+    console.error('Error creating notifications:', error);
   }
 
   // Emit real-time event
@@ -1181,10 +1373,6 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error('Socket.IO error:', error);
   }
-
-  // Get populated appointment for response
-  const populatedAppointment = await Appointment.findById(appointment._id)
-    .populate('doctorId', 'firstName lastName specialization');
   
   console.log(`✅ Payment verification completed for appointment: ${appointment._id}`);
 

@@ -458,6 +458,12 @@ const DoctorDashboard = () => {
   const todayAppointments = useMemo(() => {
     const today = getTodayDateString()
     return appointments.filter((apt) => {
+      // Exclude pending payment appointments - only show paid appointments
+      const paymentStatus = apt.paymentStatus || apt.originalData?.paymentStatus
+      if (paymentStatus === 'pending') {
+        return false
+      }
+      
       // Try both date and appointmentDate fields
       const dateStr = normalizeDate(apt.date || apt.appointmentDate)
       if (!dateStr) return false

@@ -76,28 +76,44 @@ const calculateAppointmentETA = async (appointmentId) => {
   const doctor = appointment.doctorId;
   const avgConsultation = doctor.averageConsultationMinutes || 20;
 
-  // If session is paused, add paused duration to calculation
-  let pausedAdjustment = 0;
-  if (session.isPaused && session.pausedAt) {
-    const pausedMinutes = Math.floor((new Date() - new Date(session.pausedAt)) / (1000 * 60));
-    pausedAdjustment = pausedMinutes;
-  }
-  // Add total paused duration from history
-  if (session.pausedDuration) {
-    pausedAdjustment += session.pausedDuration;
-  }
-
   // Calculate patients ahead in queue
   const patientsAhead = Math.max(0, appointment.tokenNumber - session.currentToken - 1);
 
-  // Calculate estimated wait time in minutes
-  // Base time: patients ahead × average consultation time
-  // Plus: paused time adjustment
-  const estimatedWaitMinutes = patientsAhead * avgConsultation + pausedAdjustment;
-
-  // Calculate estimated call time
-  const estimatedCallTime = new Date();
-  estimatedCallTime.setMinutes(estimatedCallTime.getMinutes() + estimatedWaitMinutes);
+  // Calculate estimated wait time and call time based on CURRENT TIME
+  // This ensures accurate ETA when doctor starts session late or calls patients
+  const now = new Date();
+  
+  // Determine base time for calculation
+  // If session is live and patients are being called, use current time
+  // Example: Session 2-5 PM, doctor starts at 3 PM, calls first at 3 PM
+  // Next patient ETA = current time (3 PM) + consultation time
+  let baseTime = now;
+  
+  if (session.status === 'live' && session.currentToken > 0) {
+    // Session is live and patients are being called - use current time
+    baseTime = now;
+  } else if (session.startedAt && session.currentToken === 0) {
+    // Session just started but no patients called yet
+    baseTime = new Date(session.startedAt);
+  } else if (session.startedAt) {
+    // Fallback: use current time for accuracy
+    baseTime = now;
+  }
+  
+  // Calculate estimated call time: base time + consultation time
+  // Include current patient being consulted: (tokenNumber - currentToken) × avgConsultation
+  const consultationTimeForAhead = (appointment.tokenNumber - session.currentToken) * avgConsultation;
+  let estimatedCallTime = new Date(baseTime);
+  estimatedCallTime.setMinutes(estimatedCallTime.getMinutes() + consultationTimeForAhead);
+  
+  // Calculate wait time from now
+  let estimatedWaitMinutes;
+  if (estimatedCallTime <= now) {
+    estimatedWaitMinutes = 0;
+    estimatedCallTime = now;
+  } else {
+    estimatedWaitMinutes = Math.max(0, Math.floor((estimatedCallTime - now) / (1000 * 60)));
+  }
 
   return {
     estimatedWaitMinutes,
@@ -105,8 +121,7 @@ const calculateAppointmentETA = async (appointmentId) => {
     patientsAhead,
     currentToken: session.currentToken,
     tokenNumber: appointment.tokenNumber,
-    isPaused: session.isPaused || false,
-    pausedAdjustment,
+    pausedAdjustment: 0,
   };
 };
 
@@ -121,10 +136,13 @@ const calculateQueueETAs = async (sessionId) => {
 
   if (!session) return [];
 
+  // Get all waiting appointments - include those with tokens so ETA continues to work
+  // Include: scheduled, confirmed, waiting, and skipped (but exclude called/in-consultation/completed)
+  // Skipped patients are still in queue but at last position
   const appointments = await Appointment.find({
     sessionId,
-    status: { $in: ['scheduled', 'confirmed'] },
-    queueStatus: { $in: ['waiting', null] },
+    status: { $in: ['scheduled', 'confirmed', 'waiting'] },
+    queueStatus: { $in: ['waiting', 'skipped', null] },
   })
     .populate('patientId', 'firstName lastName')
     .sort({ tokenNumber: 1 });
@@ -132,21 +150,100 @@ const calculateQueueETAs = async (sessionId) => {
   const doctor = session.doctorId;
   const avgConsultation = doctor.averageConsultationMinutes || 20;
 
-  // Calculate paused adjustment
-  let pausedAdjustment = 0;
-  if (session.isPaused && session.pausedAt) {
-    const pausedMinutes = Math.floor((new Date() - new Date(session.pausedAt)) / (1000 * 60));
-    pausedAdjustment = pausedMinutes;
-  }
-  if (session.pausedDuration) {
-    pausedAdjustment += session.pausedDuration;
+  // No pause adjustment needed - time continues normally
+  const pausedAdjustment = 0;
+
+  const now = new Date();
+  
+  // Determine base time for ETA calculation
+  // If session is LIVE and patients have been called, use CURRENT TIME as base
+  // This ensures ETA is calculated from when doctor actually starts calling patients
+  // Example: Session 2-5 PM, doctor starts at 3 PM, calls first patient at 3 PM
+  // Next patient ETA should be from 3 PM (current time), not 2 PM (session start)
+  let baseTime = now;
+  
+  // Only use session.startedAt if no patients have been called yet
+  // Once patients start being called, use current time for accurate ETA
+  if (session.status === 'live' && session.currentToken > 0) {
+    // Session is live and patients are being called - use current time
+    baseTime = now;
+  } else if (session.startedAt && session.currentToken === 0) {
+    // Session just started but no patients called yet - use session start time
+    baseTime = new Date(session.startedAt);
+  } else if (session.startedAt) {
+    // Fallback: use session start time but adjust based on current time
+    baseTime = now;
   }
 
   return appointments.map(appointment => {
+    // For skipped patients, calculate time based on session start time and token position
+    // This ensures skipped patients get the correct time for their token, not based on queue position
+    if (appointment.queueStatus === 'skipped') {
+      // Calculate time based on session start time and token number
+      const sessionStartMinutes = timeToMinutes(session.sessionStartTime);
+      const tokenTimeMinutes = sessionStartMinutes + (appointment.tokenNumber - 1) * avgConsultation;
+      
+      // Convert to Date object for estimatedCallTime
+      // Get session date
+      const sessionDate = new Date(session.date);
+      const tokenHour = Math.floor(tokenTimeMinutes / 60);
+      const tokenMin = tokenTimeMinutes % 60;
+      
+      const estimatedCallTime = new Date(sessionDate);
+      estimatedCallTime.setHours(tokenHour, tokenMin, 0, 0);
+      
+      // Calculate wait time from now
+      let estimatedWaitMinutes;
+      if (estimatedCallTime <= now) {
+        estimatedWaitMinutes = 0;
+      } else {
+        estimatedWaitMinutes = Math.max(0, Math.floor((estimatedCallTime - now) / (1000 * 60)));
+      }
+      
+      // Calculate patients ahead (all active patients before this token)
+      const patientsAhead = Math.max(0, appointment.tokenNumber - session.currentToken - 1);
+      
+      return {
+        appointmentId: appointment._id,
+        patientId: appointment.patientId?._id,
+        tokenNumber: appointment.tokenNumber,
+        estimatedWaitMinutes,
+        estimatedCallTime,
+        patientsAhead,
+      };
+    }
+    
+    // For non-skipped patients, use the regular ETA calculation
+    // Calculate patients ahead in queue
+    // currentToken represents the token number of patient currently being called/consulted
+    // patientsAhead = difference in token numbers - 1
     const patientsAhead = Math.max(0, appointment.tokenNumber - session.currentToken - 1);
-    const estimatedWaitMinutes = patientsAhead * avgConsultation + pausedAdjustment;
-    const estimatedCallTime = new Date();
-    estimatedCallTime.setMinutes(estimatedCallTime.getMinutes() + estimatedWaitMinutes);
+    
+    // Calculate ETA based on current time
+    // Formula: current time + (patients ahead × average consultation time)
+    // Important: patientsAhead already excludes the current patient being consulted
+    // So we need to add consultation time for:
+    // 1. Current patient being consulted (always 1 × avgConsultation)
+    // 2. Patients ahead in queue (patientsAhead × avgConsultation)
+    // Total = (1 + patientsAhead) × avgConsultation
+    // But since patientsAhead = tokenNumber - currentToken - 1, we can simplify:
+    // Total = (tokenNumber - currentToken) × avgConsultation
+    
+    const consultationTimeForAhead = (appointment.tokenNumber - session.currentToken) * avgConsultation;
+    
+    let estimatedCallTime = new Date(baseTime);
+    estimatedCallTime.setMinutes(estimatedCallTime.getMinutes() + consultationTimeForAhead);
+    
+    // Calculate wait time in minutes from now
+    let estimatedWaitMinutes;
+    if (estimatedCallTime <= now) {
+      // Patient should be called now (no wait)
+      estimatedWaitMinutes = 0;
+      estimatedCallTime = now;
+    } else {
+      // Calculate minutes from now until estimated call time
+      estimatedWaitMinutes = Math.max(0, Math.floor((estimatedCallTime - now) / (1000 * 60)));
+    }
 
     return {
       appointmentId: appointment._id,
@@ -155,7 +252,6 @@ const calculateQueueETAs = async (sessionId) => {
       estimatedWaitMinutes,
       estimatedCallTime,
       patientsAhead,
-      isPaused: session.isPaused || false,
     };
   });
 };

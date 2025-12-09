@@ -11,6 +11,7 @@ import {
 } from 'react-icons/io5'
 import { getPatientAppointments, rescheduleAppointment } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
+import { getSocket } from '../../../utils/socketClient'
 
 // Default appointments (will be replaced by API data)
 const defaultAppointments = []
@@ -95,6 +96,8 @@ const PatientAppointments = () => {
   const [appointments, setAppointments] = useState(defaultAppointments)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [inConsultationRoom, setInConsultationRoom] = useState(false)
+  const [consultationAppointmentId, setConsultationAppointmentId] = useState(null)
 
   // Fetch appointments from API - Always fetch all appointments, filter on frontend
   useEffect(() => {
@@ -102,14 +105,35 @@ const PatientAppointments = () => {
       try {
         setLoading(true)
         setError(null)
-        // Always fetch all appointments, we'll filter on frontend
+        // Always fetch all appointments including cancelled, we'll filter on frontend
+        // Pass empty object to get all appointments (backend will include cancelled)
         const response = await getPatientAppointments({})
+        
+        console.log('📋 Patient appointments fetched:', {
+          success: response.success,
+          dataType: typeof response.data,
+          isArray: Array.isArray(response.data),
+          hasItems: !!response.data?.items,
+          hasAppointments: !!response.data?.appointments,
+          count: Array.isArray(response.data) 
+            ? response.data.length 
+            : (response.data?.items?.length || response.data?.appointments?.length || 0),
+        })
         
         if (response.success && response.data) {
           // Handle both array and object with items/appointments property
-          const appointmentsData = Array.isArray(response.data) 
-            ? response.data 
-            : response.data.items || response.data.appointments || []
+          let appointmentsData = []
+          
+          if (Array.isArray(response.data)) {
+            appointmentsData = response.data
+          } else if (response.data.items && Array.isArray(response.data.items)) {
+            appointmentsData = response.data.items
+          } else if (response.data.appointments && Array.isArray(response.data.appointments)) {
+            appointmentsData = response.data.appointments
+          } else {
+            console.warn('⚠️ Unexpected response data structure:', response.data)
+            appointmentsData = []
+          }
           
           // Transform API data to match component structure
           const transformedAppointments = appointmentsData.map(apt => ({
@@ -154,36 +178,239 @@ const PatientAppointments = () => {
             token: apt.tokenNumber ? `Token #${apt.tokenNumber}` : apt.token || null,
             fee: apt.fee || apt.consultationFee || 0,
             cancelledBy: apt.cancelledBy,
-            cancelReason: apt.cancelReason,
+            cancelledAt: apt.cancelledAt,
+            cancelReason: apt.cancellationReason || apt.cancelReason,
             rescheduledAt: apt.rescheduledAt,
             rescheduledBy: apt.rescheduledBy,
             rescheduleReason: apt.rescheduleReason,
             isRescheduled: !!apt.rescheduledAt, // Flag to identify rescheduled appointments
+            sessionId: apt.sessionId, // Include sessionId for cancelled session date check
+            originalData: apt, // Keep original data for reference
           }))
           
           setAppointments(transformedAppointments)
+          
+          // Check if any appointment is in 'called' or 'in-consultation' status
+          // Also check queueStatus to handle skipped appointments that might be recalled
+          const activeConsultation = transformedAppointments.find(apt => {
+            const status = apt.status || apt.originalData?.status
+            const queueStatus = apt.queueStatus || apt.originalData?.queueStatus
+            // Active if status is called/in-consultation OR if patient is waiting after being recalled
+            return status === 'called' || 
+                   status === 'in-consultation' || 
+                   status === 'in_progress' ||
+                   (status === 'waiting' && apt.originalData?.recallCount > 0) // Recalled patient
+          })
+          
+          if (activeConsultation) {
+            const appointmentId = activeConsultation.id || activeConsultation._id
+            // Update consultation room state based on appointment status from backend
+            // Always set based on current appointment status (handles refresh)
+            setInConsultationRoom(true)
+            setConsultationAppointmentId(appointmentId)
+            try {
+              const consultationState = {
+                appointmentId: appointmentId,
+                tokenNumber: activeConsultation.originalData?.tokenNumber || null,
+                calledAt: new Date().toISOString(),
+                isInConsultation: true,
+              }
+              localStorage.setItem('patientConsultationRoom', JSON.stringify(consultationState))
+              console.log('✅ Consultation room state set from appointment status:', consultationState)
+            } catch (error) {
+              console.error('Error saving consultation room state:', error)
+            }
+          } else {
+            // No active consultation found - check if we should clear state
+            // Only clear if consultation was completed (not if skipped)
+            try {
+              const savedState = localStorage.getItem('patientConsultationRoom')
+              if (savedState) {
+                const consultationState = JSON.parse(savedState)
+                // Check if the saved appointment still exists and is completed/cancelled
+                const savedAppointment = transformedAppointments.find(apt => 
+                  (apt.id || apt._id)?.toString() === consultationState.appointmentId?.toString()
+                )
+                if (savedAppointment && 
+                    (savedAppointment.status === 'completed' || savedAppointment.status === 'cancelled')) {
+                  // Only clear if appointment is completed or cancelled
+                  setInConsultationRoom(false)
+                  setConsultationAppointmentId(null)
+                  localStorage.removeItem('patientConsultationRoom')
+                  console.log('✅ Cleared consultation room state - appointment completed/cancelled')
+                }
+                // If appointment is skipped, keep consultation room state (patient might be recalled)
+              }
+            } catch (error) {
+              console.error('Error checking consultation room state:', error)
+            }
+          }
         }
       } catch (err) {
         console.error('Error fetching appointments:', err)
+        
+        // Don't show error toast for rate limiting - just set error state
+        if (err.message?.includes('Too many requests') || err.response?.status === 429) {
+          setError('Too many requests. Please wait a moment and refresh the page.')
+          // Don't retry immediately - wait for user action
+        } else {
         setError(err.message || 'Failed to load appointments')
         toast.error('Failed to load appointments')
+        }
       } finally {
         setLoading(false)
       }
     }
 
+    // Add a small delay to prevent rapid requests on mount
+    const timeoutId = setTimeout(() => {
     fetchAppointments()
+    }, 100)
     
     // Listen for appointment booking event to refresh
     const handleAppointmentBooked = () => {
+      // Debounce the refresh to prevent rapid requests
+      setTimeout(() => {
       fetchAppointments()
+      }, 500)
     }
     window.addEventListener('appointmentBooked', handleAppointmentBooked)
     
     return () => {
+      clearTimeout(timeoutId)
       window.removeEventListener('appointmentBooked', handleAppointmentBooked)
     }
   }, [toast]) // Remove filter dependency - fetch all appointments once
+
+  // Check for consultation room state on mount and restore it
+  // Also check appointment status from backend to validate
+  useEffect(() => {
+    const restoreConsultationState = async () => {
+      try {
+        const savedState = localStorage.getItem('patientConsultationRoom')
+        if (savedState) {
+          const consultationState = JSON.parse(savedState)
+          if (consultationState?.isInConsultation && consultationState?.appointmentId) {
+            // Verify appointment status from backend
+            const response = await getPatientAppointments({})
+            if (response.success && response.data) {
+              let appointmentsData = []
+              if (Array.isArray(response.data)) {
+                appointmentsData = response.data
+              } else if (response.data.items && Array.isArray(response.data.items)) {
+                appointmentsData = response.data.items
+              } else if (response.data.appointments && Array.isArray(response.data.appointments)) {
+                appointmentsData = response.data.appointments
+              }
+              
+              const appointment = appointmentsData.find(apt => 
+                (apt._id || apt.id)?.toString() === consultationState.appointmentId?.toString()
+              )
+              
+              // Only restore if appointment is still in called/in-consultation status
+              // Don't restore if completed or cancelled
+              if (appointment && 
+                  (appointment.status === 'called' || 
+                   appointment.status === 'in-consultation' || 
+                   appointment.status === 'in_progress')) {
+                setInConsultationRoom(true)
+                setConsultationAppointmentId(consultationState.appointmentId)
+                console.log('✅ Restored consultation room state:', consultationState)
+              } else {
+                // Appointment is no longer in consultation, clear state
+                localStorage.removeItem('patientConsultationRoom')
+                console.log('✅ Cleared consultation room state - appointment no longer in consultation')
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading consultation room state:', error)
+      }
+    }
+    
+    restoreConsultationState()
+  }, [])
+
+  // Setup socket listener for token:called event
+  useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+
+    const handleTokenCalled = (data) => {
+      if (data?.appointmentId) {
+        setInConsultationRoom(true)
+        setConsultationAppointmentId(data.appointmentId)
+        try {
+          const consultationState = {
+            appointmentId: data.appointmentId,
+            tokenNumber: data.tokenNumber || null,
+            calledAt: new Date().toISOString(),
+            isInConsultation: true,
+          }
+          localStorage.setItem('patientConsultationRoom', JSON.stringify(consultationState))
+          console.log('✅ Consultation room state saved from socket:', consultationState)
+        } catch (error) {
+          console.error('Error saving consultation room state:', error)
+        }
+        toast.info('Doctor has called you! Please enter the consultation room.', {
+          duration: 5000,
+        })
+      }
+    }
+
+    const handleConsultationCompleted = () => {
+      setInConsultationRoom(false)
+      setConsultationAppointmentId(null)
+      localStorage.removeItem('patientConsultationRoom')
+      console.log('✅ Consultation completed, cleared room state')
+    }
+
+    const handleTokenRecalled = (data) => {
+      // When patient is recalled, they should enter consultation room again
+      if (data?.appointmentId) {
+        setInConsultationRoom(true)
+        setConsultationAppointmentId(data.appointmentId)
+        try {
+          const consultationState = {
+            appointmentId: data.appointmentId,
+            tokenNumber: data.tokenNumber || null,
+            calledAt: new Date().toISOString(),
+            isInConsultation: true,
+          }
+          localStorage.setItem('patientConsultationRoom', JSON.stringify(consultationState))
+          console.log('✅ Consultation room state saved from recall:', consultationState)
+        } catch (error) {
+          console.error('Error saving consultation room state from recall:', error)
+        }
+        toast.info('You have been recalled! Please enter the consultation room.', {
+          duration: 5000,
+        })
+      }
+    }
+
+    const handleAppointmentSkipped = (data) => {
+      // When appointment is skipped, DON'T clear consultation room state
+      // Patient might still be in consultation or will be recalled
+      // Only update if this is the current consultation appointment
+      if (data?.appointmentId && consultationAppointmentId === data.appointmentId) {
+        console.log('⚠️ Appointment skipped but keeping consultation room state (patient may be recalled)')
+        // Don't clear - patient might be recalled
+      }
+    }
+
+    socket.on('token:called', handleTokenCalled)
+    socket.on('token:recalled', handleTokenRecalled)
+    socket.on('appointment:skipped', handleAppointmentSkipped)
+    socket.on('consultation:completed', handleConsultationCompleted)
+
+    return () => {
+      socket.off('token:called', handleTokenCalled)
+      socket.off('token:recalled', handleTokenRecalled)
+      socket.off('appointment:skipped', handleAppointmentSkipped)
+      socket.off('consultation:completed', handleConsultationCompleted)
+    }
+  }, [toast, consultationAppointmentId])
 
   const handleRescheduleAppointment = (appointmentId, doctorId) => {
     navigate(`/patient/doctors/${doctorId}?reschedule=${appointmentId}`)
@@ -249,12 +476,43 @@ const PatientAppointments = () => {
         ))}
       </div>
 
+      {/* Consultation Room Notice - Show when patient is in consultation */}
+      {inConsultationRoom && consultationAppointmentId && (
+        <div className="rounded-xl border-2 border-green-500 bg-green-50 p-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500">
+              <IoCallOutline className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-green-900">You are in Consultation Room</h3>
+              <p className="text-xs text-green-700 mt-0.5">Doctor has called you. Your consultation is in progress.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Appointments List */}
       <div className="space-y-3">
-        {filteredAppointments.map((appointment) => (
+        {filteredAppointments.map((appointment) => {
+          const isInConsultation = inConsultationRoom && (
+            consultationAppointmentId === appointment.id || 
+            consultationAppointmentId === appointment._id
+          )
+          const isCalled = appointment.status === 'called' || 
+                          appointment.status === 'in-consultation' || 
+                          appointment.status === 'in_progress' ||
+                          isInConsultation
+          
+          return (
           <article
             key={appointment.id}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+            className={`rounded-2xl border p-4 shadow-sm transition-all hover:shadow-md ${
+              isInConsultation 
+                ? 'border-green-500 bg-green-50 ring-2 ring-green-200' 
+                : isCalled
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-slate-200 bg-white'
+            }`}
           >
             <div className="flex items-start gap-4">
               <div className="relative shrink-0">
@@ -269,12 +527,36 @@ const PatientAppointments = () => {
                 />
                 {(() => {
                   const displayStatus = mapBackendStatusToDisplay(appointment.status)
-                  return (displayStatus === 'confirmed' || displayStatus === 'scheduled' || appointment.status === 'upcoming')
-                })() && (
-                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 ring-2 ring-white">
-                    <IoCalendarOutline className="h-3 w-3 text-white" />
-                  </span>
-                )}
+                  const isInConsultation = inConsultationRoom && (
+                    consultationAppointmentId === appointment.id || 
+                    consultationAppointmentId === appointment._id
+                  )
+                  const isCalled = appointment.status === 'called' || 
+                                  appointment.status === 'in-consultation' || 
+                                  appointment.status === 'in_progress'
+                  
+                  if (isInConsultation) {
+                    return (
+                      <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 ring-2 ring-white animate-pulse">
+                        <IoCallOutline className="h-3 w-3 text-white" />
+                      </span>
+                    )
+                  }
+                  
+                  if (isCalled) {
+                    return (
+                      <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 ring-2 ring-white">
+                        <IoCallOutline className="h-3 w-3 text-white" />
+                      </span>
+                    )
+                  }
+                  
+                  return (displayStatus === 'confirmed' || displayStatus === 'scheduled' || appointment.status === 'upcoming') && (
+                    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 ring-2 ring-white">
+                      <IoCalendarOutline className="h-3 w-3 text-white" />
+                    </span>
+                  )
+                })()}
               </div>
 
               <div className="flex-1 min-w-0">
@@ -285,15 +567,41 @@ const PatientAppointments = () => {
                   </div>
                   {(() => {
                     const displayStatus = mapBackendStatusToDisplay(appointment.status)
-                    // Show "Rescheduled" badge for rescheduled appointments
-                    const statusText = appointment.isRescheduled 
+                    // Priority: If cancelled, show "Cancelled" regardless of rescheduled status
+                    // Otherwise, show "Rescheduled" if rescheduled, or the actual status
+                    const isInConsultation = inConsultationRoom && (
+                      consultationAppointmentId === appointment.id || 
+                      consultationAppointmentId === appointment._id
+                    )
+                    const isCalled = appointment.status === 'called' || 
+                                    appointment.status === 'in-consultation' || 
+                                    appointment.status === 'in_progress'
+                    
+                    let statusText = displayStatus === 'cancelled'
+                      ? 'Cancelled'
+                      : appointment.isRescheduled 
                       ? 'Rescheduled' 
+                      : isInConsultation
+                      ? 'In Consultation'
+                      : isCalled
+                      ? 'Called'
                       : displayStatus === 'scheduled' 
                         ? 'Scheduled' 
                         : displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)
+                    
                     return (
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold shrink-0 ${appointment.isRescheduled ? 'bg-blue-100 text-blue-700' : getStatusColor(appointment.status)}`}>
-                        {getStatusIcon(appointment.status)}
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold shrink-0 ${
+                        isInConsultation
+                          ? 'bg-green-100 text-green-700'
+                          : displayStatus === 'cancelled' 
+                          ? getStatusColor(appointment.status) 
+                          : appointment.isRescheduled 
+                            ? 'bg-blue-100 text-blue-700' 
+                            : isCalled
+                            ? 'bg-blue-100 text-blue-700'
+                            : getStatusColor(appointment.status)
+                      }`}>
+                        {isInConsultation ? <IoCallOutline className="h-3 w-3" /> : getStatusIcon(appointment.status)}
                         {statusText}
                       </span>
                     )
@@ -369,7 +677,7 @@ const PatientAppointments = () => {
                     )}
                   </div>
                 )}
-                {appointment.isRescheduled && (
+                {appointment.isRescheduled && appointment.status !== 'cancelled' && (
                   <div className="mt-3 space-y-2">
                     <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5">
                       <p className="text-xs font-semibold text-blue-800 mb-1">
@@ -394,7 +702,8 @@ const PatientAppointments = () => {
               </div>
             </div>
           </article>
-        ))}
+          )
+        })}
       </div>
 
       {!loading && filteredAppointments.length === 0 && (

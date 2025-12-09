@@ -11,6 +11,75 @@ const {
 const AdminSettings = require('../models/AdminSettings');
 
 /**
+ * Send email notification for any notification
+ * @param {Object} params - Email notification parameters
+ * @param {String} params.userId - User ID
+ * @param {String} params.userType - User type (patient, doctor, pharmacy, laboratory, admin)
+ * @param {String} params.title - Notification title
+ * @param {String} params.message - Notification message
+ * @param {Object} params.user - User object with email (optional, will fetch if not provided)
+ */
+const sendNotificationEmail = async ({ userId, userType, title, message, user = null }) => {
+  if (!(await isEmailNotificationsEnabled())) return null;
+  
+  try {
+    let userEmail = null;
+    let userName = 'User';
+    
+    // If user object is provided, use it
+    if (user && user.email) {
+      userEmail = user.email;
+      userName = user.firstName 
+        ? `${user.firstName} ${user.lastName || ''}`.trim()
+        : 'User';
+    } else {
+      // Otherwise, fetch user based on userType
+      let UserModel;
+      switch (userType) {
+        case 'patient':
+          UserModel = require('../models/Patient');
+          break;
+        case 'doctor':
+          UserModel = require('../models/Doctor');
+          break;
+        case 'pharmacy':
+          UserModel = require('../models/Pharmacy');
+          break;
+        case 'laboratory':
+          UserModel = require('../models/Laboratory');
+          break;
+        case 'admin':
+          UserModel = require('../models/Admin');
+          break;
+        default:
+          return null;
+      }
+      
+      const userData = await UserModel.findById(userId).select('email firstName lastName');
+      if (!userData || !userData.email) return null;
+      
+      userEmail = userData.email;
+      userName = userData.firstName 
+        ? `${userData.firstName} ${userData.lastName || ''}`.trim()
+        : 'User';
+    }
+    
+    if (!userEmail) return null;
+    
+    // Send email with notification content
+    return sendEmail({
+      to: userEmail,
+      subject: `${title} | Healiinn`,
+      text: `Hello ${userName},\n\n${message}\n\nThank you,\nTeam Healiinn`,
+      html: `<p>Hello ${userName},</p><p>${message}</p><p>Thank you,<br/>Team Healiinn</p>`,
+    });
+  } catch (error) {
+    console.error('Error sending notification email:', error);
+    return null;
+  }
+};
+
+/**
  * Create and send notification
  * @param {Object} params - Notification parameters
  * @param {String} params.userId - User ID
@@ -23,6 +92,8 @@ const AdminSettings = require('../models/AdminSettings');
  * @param {String} params.actionUrl - URL to navigate on click
  * @param {String} params.icon - Icon name
  * @param {Boolean} params.emitSocket - Whether to emit Socket.IO event (default: true)
+ * @param {Boolean} params.sendEmail - Whether to send email notification (default: true)
+ * @param {Object} params.user - User object with email (optional, will fetch if not provided)
  */
 const createNotification = async ({
   userId,
@@ -35,6 +106,8 @@ const createNotification = async ({
   actionUrl = null,
   icon = null,
   emitSocket = true,
+  sendEmail = true,
+  user = null,
 }) => {
   try {
     // Create notification in database
@@ -49,6 +122,12 @@ const createNotification = async ({
       actionUrl,
       icon,
     });
+
+    // Send email notification if enabled
+    if (sendEmail) {
+      sendNotificationEmail({ userId, userType, title, message, user })
+        .catch((error) => console.error('Error sending notification email:', error));
+    }
 
     // Emit Socket.IO event if enabled
     if (emitSocket) {
@@ -72,7 +151,7 @@ const createNotification = async ({
 /**
  * Create notification for appointment events
  */
-const createAppointmentNotification = async ({ userId, userType, appointment, eventType, doctor, patient }) => {
+const createAppointmentNotification = async ({ userId, userType, appointment, eventType, doctor, patient, sendEmail = true }) => {
   let title, message, actionUrl;
 
   switch (eventType) {
@@ -112,10 +191,30 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
       message = `Your token ${appointment.tokenNumber} has been recalled. Please wait for your turn.`;
       actionUrl = '/patient/appointments';
       break;
+    case 'completed':
+      title = 'Consultation Completed';
+      message = doctor
+        ? `Your consultation with Dr. ${doctor.firstName} ${doctor.lastName || ''} has been completed`
+        : 'Consultation has been completed';
+      actionUrl = '/patient/appointments';
+      break;
     default:
       title = 'Appointment Update';
       message = 'Your appointment has been updated';
       actionUrl = '/patient/appointments';
+  }
+
+  // Get user data for email if userType is patient
+  let user = null;
+  if (sendEmail && userType === 'patient' && !patient) {
+    try {
+      const Patient = require('../models/Patient');
+      user = await Patient.findById(userId).select('email firstName lastName');
+    } catch (error) {
+      console.error('Error fetching patient for email:', error);
+    }
+  } else if (sendEmail && userType === 'patient' && patient) {
+    user = patient;
   }
 
   return createNotification({
@@ -132,6 +231,8 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
     priority: eventType === 'token_called' ? 'urgent' : 'medium',
     actionUrl,
     icon: 'appointment',
+    sendEmail,
+    user,
   });
 };
 
@@ -542,11 +643,16 @@ const sendAppointmentCancellationEmail = async ({ patient, doctor, appointment }
     ? `Dr. ${doctor.firstName} ${doctor.lastName || ''}`.trim()
     : 'Doctor';
 
+  const reason = appointment.cancellationReason || 'Session cancelled by doctor';
+  const rescheduleMessage = reason.includes('Session cancelled') 
+    ? 'The session for this date has been cancelled. You can reschedule your appointment for a different date from the app.'
+    : 'You can reschedule your appointment from the app.';
+
   return sendEmail({
     to: patient.email,
     subject: `Appointment Cancelled - ${doctorName} | Healiinn`,
-    text: `Hello ${patientName},\n\nYour appointment with ${doctorName} has been cancelled. You can reschedule your appointment from the app.\n\nThank you,\nTeam Healiinn`,
-    html: `<p>Hello ${patientName},</p><p>Your appointment with <strong>${doctorName}</strong> has been cancelled. You can reschedule your appointment from the app.</p><p>Thank you,<br/>Team Healiinn</p>`,
+    text: `Hello ${patientName},\n\nYour appointment with ${doctorName} has been cancelled.\n\nReason: ${reason}\n\n${rescheduleMessage}\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello ${patientName},</p><p>Your appointment with <strong>${doctorName}</strong> has been cancelled.</p><p><strong>Reason:</strong> ${reason}</p><p>${rescheduleMessage}</p><p>Thank you,<br/>Team Healiinn</p>`,
   });
 };
 
@@ -876,6 +982,7 @@ module.exports = {
   createAdminNotification,
   createSessionNotification,
   // Email notification functions
+  sendNotificationEmail,
   sendAppointmentConfirmationEmail,
   sendDoctorAppointmentNotification,
   sendAppointmentCancellationEmail,

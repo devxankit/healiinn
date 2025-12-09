@@ -43,11 +43,15 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
     thisMonthConsultations,
     lastMonthConsultations,
   ] = await Promise.all([
-    Appointment.countDocuments({ doctorId: doctorObjectId }),
+    Appointment.countDocuments({ 
+      doctorId: doctorObjectId,
+      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
+    }),
     Appointment.countDocuments({
       doctorId: doctorObjectId,
       appointmentDate: { $gte: today, $lt: tomorrow },
       status: { $ne: 'cancelled' }, // Exclude cancelled appointments
+      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
     }),
     Consultation.countDocuments({ doctorId: doctorObjectId, status: 'completed' }),
     Appointment.distinct('patientId', { doctorId: doctorObjectId }).then(ids => ids.length),
@@ -142,7 +146,13 @@ exports.getAppointments = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const filter = { doctorId: id };
-  if (status) filter.status = status;
+  // Exclude appointments with pending payment - only show confirmed paid appointments
+  filter.paymentStatus = { $ne: 'pending' };
+  // Exclude cancelled appointments from doctor's list (they should not see cancelled appointments)
+  filter.status = { $ne: 'cancelled' };
+  if (status && status !== 'cancelled') {
+    filter.status = status;
+  }
   if (date) {
     const dateObj = new Date(date);
     filter.appointmentDate = {
@@ -178,6 +188,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
         doctorId: id,
         appointmentDate: { $gte: today, $lt: tomorrow },
         status: { $in: ['scheduled', 'confirmed'] },
+        paymentStatus: { $ne: 'pending' },
         rescheduledAt: { $exists: false },
       }),
       // Today - Rescheduled
@@ -185,6 +196,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
         doctorId: id,
         appointmentDate: { $gte: today, $lt: tomorrow },
         status: { $in: ['scheduled', 'confirmed'] },
+        paymentStatus: { $ne: 'pending' },
         rescheduledAt: { $exists: true },
       }),
       // This Month - Scheduled
@@ -192,6 +204,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
         doctorId: id,
         appointmentDate: { $gte: currentMonthStart, $lte: currentMonthEnd },
         status: { $in: ['scheduled', 'confirmed'] },
+        paymentStatus: { $ne: 'pending' },
         rescheduledAt: { $exists: false },
       }),
       // This Month - Rescheduled
@@ -199,6 +212,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
         doctorId: id,
         appointmentDate: { $gte: currentMonthStart, $lte: currentMonthEnd },
         status: { $in: ['scheduled', 'confirmed'] },
+        paymentStatus: { $ne: 'pending' },
         rescheduledAt: { $exists: true },
       }),
       // This Year - Scheduled
@@ -206,6 +220,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
         doctorId: id,
         appointmentDate: { $gte: currentYearStart, $lte: currentYearEnd },
         status: { $in: ['scheduled', 'confirmed'] },
+        paymentStatus: { $ne: 'pending' },
         rescheduledAt: { $exists: false },
       }),
       // This Year - Rescheduled
@@ -213,18 +228,21 @@ exports.getAppointments = asyncHandler(async (req, res) => {
         doctorId: id,
         appointmentDate: { $gte: currentYearStart, $lte: currentYearEnd },
         status: { $in: ['scheduled', 'confirmed'] },
+        paymentStatus: { $ne: 'pending' },
         rescheduledAt: { $exists: true },
       }),
       // Total - Scheduled
       Appointment.countDocuments({
         doctorId: id,
         status: { $in: ['scheduled', 'confirmed'] },
+        paymentStatus: { $ne: 'pending' },
         rescheduledAt: { $exists: false },
       }),
       // Total - Rescheduled
       Appointment.countDocuments({
         doctorId: id,
         status: { $in: ['scheduled', 'confirmed'] },
+        paymentStatus: { $ne: 'pending' },
         rescheduledAt: { $exists: true },
       }),
     ]).then(([
@@ -303,6 +321,7 @@ exports.getTodayAppointments = asyncHandler(async (req, res) => {
     doctorId: id,
     appointmentDate: { $gte: today, $lt: tomorrow },
     status: { $in: ['scheduled', 'confirmed'] },
+    paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
   })
     .populate('patientId', 'firstName lastName phone profileImage')
     .populate('sessionId', 'date sessionStartTime sessionEndTime')

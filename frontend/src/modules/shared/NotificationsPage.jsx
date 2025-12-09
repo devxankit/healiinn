@@ -286,7 +286,7 @@ const NotificationsPage = () => {
                       <span className="flex-shrink-0 h-2 w-2 rounded-full bg-[#11496c] mt-1.5" />
                     )}
                   </div>
-                  <p className="text-xs text-slate-600 mb-2 line-clamp-3">
+                  <p className="text-xs text-slate-600 mb-2">
                     {notification.message}
                   </p>
                   <div className="flex items-center gap-3 flex-wrap">

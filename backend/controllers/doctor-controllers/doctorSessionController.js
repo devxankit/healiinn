@@ -77,6 +77,10 @@ exports.getSessions = asyncHandler(async (req, res) => {
   const { date, status } = req.query;
   const { page, limit, skip } = buildPagination(req);
 
+  // Auto-end expired sessions before fetching
+  const { autoEndExpiredSessions } = require('../../services/sessionService');
+  await autoEndExpiredSessions();
+
   const filter = { doctorId: id };
   if (status) filter.status = status;
   if (date) {
@@ -110,6 +114,107 @@ exports.getSessions = asyncHandler(async (req, res) => {
   });
 });
 
+// Helper function to convert time string to minutes (for comparison)
+const timeStringToMinutes = (timeStr) => {
+  if (!timeStr) return null;
+  
+  // Handle 12-hour format (e.g., "2:30 PM")
+  if (timeStr.includes('AM') || timeStr.includes('PM')) {
+    const [timePart, period] = timeStr.split(/\s*(AM|PM)/i);
+    const [hours, minutes] = timePart.split(':').map(Number);
+    let totalMinutes = hours * 60 + (minutes || 0);
+    
+    if (period.toUpperCase() === 'PM' && hours !== 12) {
+      totalMinutes += 12 * 60; // Add 12 hours for PM
+    } else if (period.toUpperCase() === 'AM' && hours === 12) {
+      totalMinutes -= 12 * 60; // Subtract 12 hours for 12 AM
+    }
+    
+    return totalMinutes;
+  }
+  
+  // Handle 24-hour format (e.g., "14:30")
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + (minutes || 0);
+};
+
+// Helper function to check if current time is within session time
+const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
+  if (!sessionStartTime || !sessionEndTime || !sessionDate) {
+    console.log('⚠️ [Backend] Missing session time data:', { sessionStartTime, sessionEndTime, sessionDate });
+    return false;
+  }
+  
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // Parse session date - handle various formats
+  let sessionDay;
+  try {
+    if (sessionDate instanceof Date) {
+      sessionDay = new Date(sessionDate);
+    } else if (typeof sessionDate === 'string') {
+      // Handle YYYY-MM-DD format
+      if (sessionDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = sessionDate.split('-').map(Number);
+        sessionDay = new Date(year, month - 1, day);
+      } else {
+        sessionDay = new Date(sessionDate);
+      }
+    } else {
+      console.log('⚠️ [Backend] Invalid session date format:', sessionDate, typeof sessionDate);
+      return false;
+    }
+    
+    if (isNaN(sessionDay.getTime())) {
+      console.log('⚠️ [Backend] Invalid session date - NaN:', sessionDate);
+      return false;
+    }
+    
+    sessionDay.setHours(0, 0, 0, 0);
+  } catch (error) {
+    console.log('⚠️ [Backend] Error parsing session date:', error, sessionDate);
+    return false;
+  }
+  
+  // Check if it's the same day
+  if (today.getTime() !== sessionDay.getTime()) {
+    console.log('⚠️ [Backend] Session date mismatch:', {
+      today: today.toISOString().split('T')[0],
+      sessionDay: sessionDay.toISOString().split('T')[0],
+    });
+    return false;
+  }
+  
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const startMinutes = timeStringToMinutes(sessionStartTime);
+  const endMinutes = timeStringToMinutes(sessionEndTime);
+  
+  if (startMinutes === null || endMinutes === null) {
+    console.log('⚠️ [Backend] Failed to parse session times:', { 
+      sessionStartTime, 
+      sessionEndTime, 
+      startMinutes, 
+      endMinutes 
+    });
+    return false;
+  }
+  
+  const isWithin = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  
+  console.log('🕐 [Backend] Session time check:', {
+    currentTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    currentMinutes,
+    sessionStartTime,
+    sessionEndTime,
+    startMinutes,
+    endMinutes,
+    isWithin,
+  });
+  
+  return isWithin;
+};
+
 // PATCH /api/doctors/sessions/:id
 exports.updateSession = asyncHandler(async (req, res) => {
   const { id } = req.auth;
@@ -123,6 +228,10 @@ exports.updateSession = asyncHandler(async (req, res) => {
     });
   }
 
+  // Auto-end expired sessions before processing update
+  const { autoEndExpiredSessions } = require('../../services/sessionService');
+  await autoEndExpiredSessions();
+
   const session = await Session.findOne({
     _id: sessionId,
     doctorId: id,
@@ -135,13 +244,48 @@ exports.updateSession = asyncHandler(async (req, res) => {
     });
   }
 
-      if (status === SESSION_STATUS.LIVE && !session.startedAt) {
-        session.startedAt = new Date();
-      }
+  // If session was auto-ended, return appropriate response
+  if (session.status === SESSION_STATUS.COMPLETED) {
+    return res.status(200).json({
+      success: true,
+      message: 'Session has already ended automatically at the scheduled end time.',
+      data: session,
+    });
+  }
+
+  // Validate time before starting session
+  if (status === SESSION_STATUS.LIVE) {
+    // Check if current time is within session time
+    const sessionStart = sessionStartTime || session.sessionStartTime;
+    const sessionEnd = sessionEndTime || session.sessionEndTime;
+    
+    if (!isWithinSessionTime(sessionStart, sessionEnd, session.date)) {
+      const now = new Date();
+      const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      
+      return res.status(400).json({
+        success: false,
+        message: `Session can only be started during scheduled time (${sessionStart} - ${sessionEnd}). Current time: ${currentTime}`,
+        data: {
+          sessionStartTime: sessionStart,
+          sessionEndTime: sessionEnd,
+          currentTime: currentTime,
+          isWithinTime: false,
+        },
+      });
+    }
+    
+    if (!session.startedAt) {
+      session.startedAt = new Date();
+    }
+  }
 
   if (status === SESSION_STATUS.COMPLETED && !session.endedAt) {
     session.endedAt = new Date();
   }
+
+  // Store old status before updating
+  const oldStatus = session.status;
 
   if (sessionStartTime) session.sessionStartTime = sessionStartTime;
   if (sessionEndTime) session.sessionEndTime = sessionEndTime;
@@ -150,8 +294,8 @@ exports.updateSession = asyncHandler(async (req, res) => {
 
   await session.save();
 
-  // If session status changed to LIVE, recalculate ETAs for all waiting appointments
-  if (status === SESSION_STATUS.LIVE) {
+  // Recalculate ETAs when session status changes to LIVE or COMPLETED
+  if (status === SESSION_STATUS.LIVE || status === SESSION_STATUS.COMPLETED) {
     try {
       const { recalculateSessionETAs } = require('../../services/etaService');
       const { getIO } = require('../../config/socket');
@@ -168,13 +312,17 @@ exports.updateSession = asyncHandler(async (req, res) => {
             estimatedCallTime: eta.estimatedCallTime,
             patientsAhead: eta.patientsAhead,
             tokenNumber: eta.tokenNumber,
+            sessionStatus: status,
           });
         }
       }
       
-      console.log(`✅ Session started: Recalculated and sent ETAs for ${etas.length} appointments`);
+      const statusMessage = status === SESSION_STATUS.LIVE 
+        ? 'Session started' 
+        : 'Session ended';
+      console.log(`✅ ${statusMessage}: Recalculated and sent ETAs for ${etas.length} appointments`);
     } catch (error) {
-      console.error('Error recalculating ETAs on session start:', error);
+      console.error(`Error recalculating ETAs on session ${status}:`, error);
     }
   }
 
@@ -189,27 +337,74 @@ exports.updateSession = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
-  // Create notification for doctor based on status
+  // Create notification for doctor and all patients based on status
   if (status) {
     try {
-      const { createSessionNotification } = require('../../services/notificationService');
+      const { createSessionNotification, createNotification } = require('../../services/notificationService');
+      const { getIO } = require('../../config/socket');
+      const io = getIO();
+      
       let eventType = null;
+      let patientMessage = '';
       
       if (status === SESSION_STATUS.LIVE) {
         eventType = 'started';
-      } else if (status === SESSION_STATUS.PAUSED) {
-        eventType = 'paused';
+        patientMessage = 'Doctor has started the session. Your appointment will begin soon.';
       } else if (status === SESSION_STATUS.COMPLETED) {
         eventType = 'completed';
+        patientMessage = 'Doctor has ended the session. Please contact the clinic for any queries.';
       }
 
+      // Notify doctor
       if (eventType) {
         await createSessionNotification({
           userId: id,
           userType: 'doctor',
           session,
           eventType,
-        }).catch((error) => console.error('Error creating session notification:', error));
+        }).catch((error) => console.error('Error creating doctor session notification:', error));
+      }
+
+      // Notify all patients in the session
+      if (eventType && (status === SESSION_STATUS.LIVE || status === SESSION_STATUS.COMPLETED)) {
+        const Appointment = require('../../models/Appointment');
+        const appointments = await Appointment.find({
+          sessionId: session._id,
+          status: { $in: ['scheduled', 'confirmed', 'waiting', 'in_progress', 'called', 'in-consultation'] },
+        }).populate('patientId', '_id firstName lastName');
+
+        for (const appointment of appointments) {
+          if (appointment.patientId && appointment.patientId._id) {
+            // Create in-app notification for patient
+            await createNotification({
+              userId: appointment.patientId._id,
+              userType: 'patient',
+              type: 'session',
+              title: eventType === 'started' ? 'Session Started' : 'Session Ended',
+              message: patientMessage,
+              data: {
+                sessionId: session._id.toString(),
+                appointmentId: appointment._id.toString(),
+                eventType,
+                status,
+              },
+              priority: 'high',
+              actionUrl: '/patient/appointments',
+              icon: 'session',
+            }).catch((error) => console.error(`Error creating notification for patient ${appointment.patientId._id}:`, error));
+
+            // Emit real-time event to patient
+            io.to(`patient-${appointment.patientId._id}`).emit('session:status:changed', {
+              sessionId: session._id.toString(),
+              appointmentId: appointment._id.toString(),
+              status,
+              eventType,
+              message: patientMessage,
+            });
+          }
+        }
+
+        console.log(`✅ Sent ${eventType} notifications to ${appointments.length} patients`);
       }
     } catch (error) {
       console.error('Error creating notifications:', error);
@@ -223,10 +418,11 @@ exports.updateSession = asyncHandler(async (req, res) => {
   });
 });
 
-// DELETE /api/doctors/sessions/:id
+// DELETE /api/doctors/sessions/:id - Cancel session and all appointments
 exports.deleteSession = asyncHandler(async (req, res) => {
   const { id } = req.auth;
   const sessionId = req.params.id || req.params.sessionId; // Support both :id and :sessionId
+  const { reason } = req.body; // Get cancellation reason from request body
   
   if (!sessionId) {
     return res.status(400).json({
@@ -247,72 +443,119 @@ exports.deleteSession = asyncHandler(async (req, res) => {
     });
   }
 
-  if (session.status === SESSION_STATUS.LIVE || session.status === SESSION_STATUS.PAUSED) {
+  // Allow cancelling live sessions - user requirement
+  // if (session.status === SESSION_STATUS.LIVE) {
+  //   return res.status(400).json({
+  //     success: false,
+  //     message: 'Cannot cancel active session. Please end the session first.',
+  //   });
+  // }
+
+  if (session.status === SESSION_STATUS.CANCELLED) {
     return res.status(400).json({
       success: false,
-      message: 'Cannot delete active or paused session',
+      message: 'Session is already cancelled',
     });
   }
 
-  // Cancel all appointments in this session
+  const cancellationReason = reason || 'Session cancelled by doctor';
+
+  // Find all appointments in this session that should be cancelled
+  // EXCLUDE completed appointments - they should remain completed
+  // Only cancel: scheduled, confirmed, waiting, called, in-consultation, in_progress
   const cancelledAppointments = await Appointment.find({
     sessionId: session._id,
-    status: { $in: ['scheduled', 'confirmed'] },
-  }).populate('patientId', 'firstName lastName email').populate('doctorId', 'firstName lastName');
+    status: { $in: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress'] }, // Only cancel pending appointments
+  }).populate('patientId', 'firstName lastName email').populate('doctorId', 'firstName lastName specialization profileImage');
 
+  // Update all pending appointments with cancellation details
+  // Keep completed appointments as completed
   await Appointment.updateMany(
-    { sessionId: session._id, status: { $in: ['scheduled', 'confirmed'] } },
-    { status: 'cancelled', cancelledAt: new Date() }
+    { 
+      sessionId: session._id, 
+      status: { $in: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress'] } // Only cancel pending appointments
+    },
+    { 
+      status: 'cancelled',
+      queueStatus: 'cancelled',
+      cancelledAt: new Date(),
+      cancelledBy: 'doctor',
+      cancellationReason: cancellationReason,
+      // Clear reschedule info if it was rescheduled and now cancelled
+      rescheduledAt: null,
+      rescheduledBy: null,
+      rescheduleReason: null,
+    }
   );
+
+  // Update session status to cancelled instead of deleting
+  session.status = SESSION_STATUS.CANCELLED;
+  session.endedAt = new Date();
+  await session.save();
 
   // Send notifications to all affected patients
   try {
-    const { sendAppointmentCancellationEmail } = require('../../services/notificationService');
-    const io = require('../../config/socket').getIO();
+    const { sendAppointmentCancellationEmail, createAppointmentNotification } = require('../../services/notificationService');
+    const { getIO } = require('../../config/socket');
+    const io = getIO();
 
     for (const appointment of cancelledAppointments) {
+      // Get populated appointment for notifications
+      const populatedAppointment = await Appointment.findById(appointment._id)
+        .populate('doctorId', 'firstName lastName specialization profileImage')
+        .populate('sessionId', 'date sessionStartTime sessionEndTime');
+
       // Send email notification
       if (appointment.patientId && appointment.doctorId) {
         await sendAppointmentCancellationEmail({
           patient: appointment.patientId,
           doctor: appointment.doctorId,
-          appointment,
+          appointment: populatedAppointment,
           cancelledBy: 'doctor',
-          reason: 'Session cancelled by doctor',
+          reason: cancellationReason,
         }).catch((error) => console.error('Error sending cancellation email:', error));
       }
 
-      // Emit real-time event
-      io.to(`patient-${appointment.patientId._id}`).emit('appointment:cancelled', {
-        appointmentId: appointment._id,
-        reason: 'Session cancelled by doctor',
-      });
+      // Get patient data for email notification
+      const Patient = require('../../models/Patient');
+      const patient = await Patient.findById(appointment.patientId._id).select('email firstName lastName');
 
-      // Create in-app notification for patient
-      try {
-        const { createAppointmentNotification } = require('../../services/notificationService');
+      // Create in-app notification for patient (with email)
+      if (appointment.patientId) {
         await createAppointmentNotification({
           userId: appointment.patientId._id,
           userType: 'patient',
-          appointment,
+          appointment: populatedAppointment,
           eventType: 'cancelled',
           doctor: appointment.doctorId,
+          patient,
+          sendEmail: true,
         }).catch((error) => console.error('Error creating cancellation notification:', error));
-      } catch (error) {
-        console.error('Error creating notifications:', error);
+      }
+
+      // Emit real-time event to patient
+      if (appointment.patientId) {
+        io.to(`patient-${appointment.patientId._id}`).emit('appointment:cancelled', {
+          appointmentId: appointment._id,
+          reason: cancellationReason,
+          cancelledBy: 'doctor',
+          canReschedule: true,
+        });
       }
     }
+
+    console.log(`✅ Session ${sessionId} cancelled: ${cancelledAppointments.length} appointments cancelled, notifications sent`);
   } catch (error) {
     console.error('Error sending notifications:', error);
   }
 
-  await Session.findByIdAndDelete(sessionId);
-
   return res.status(200).json({
     success: true,
-    message: 'Session cancelled successfully. All appointments have been cancelled.',
+    message: 'Session cancelled successfully. All appointments have been cancelled and patients have been notified.',
     data: {
+      sessionId: session._id,
       cancelledAppointments: cancelledAppointments.length,
+      sessionStatus: session.status,
     },
   });
 });

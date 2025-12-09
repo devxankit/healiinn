@@ -34,13 +34,55 @@ exports.getTransactions = asyncHandler(async (req, res) => {
 
   const [transactions, total] = await Promise.all([
     Transaction.find(filter)
-      .populate('orderId', 'totalAmount status')
-      .populate('appointmentId', 'fee status')
+      .populate({
+        path: 'appointmentId',
+        select: 'fee status doctorId',
+        populate: {
+          path: 'doctorId',
+          select: 'firstName lastName specialization',
+        },
+      })
+      .populate({
+        path: 'orderId',
+        select: 'totalAmount status providerId providerType',
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
     Transaction.countDocuments(filter),
   ]);
+
+  // Manually populate providerId for orders based on providerType
+  const Pharmacy = require('../../models/Pharmacy');
+  const Laboratory = require('../../models/Laboratory');
+  
+  for (const transaction of transactions) {
+    if (transaction.orderId && transaction.orderId.providerId && transaction.orderId.providerType) {
+      try {
+        if (transaction.orderId.providerType === 'pharmacy') {
+          const pharmacy = await Pharmacy.findById(transaction.orderId.providerId).select('pharmacyName name');
+          if (pharmacy) {
+            transaction.orderId.providerId = {
+              _id: pharmacy._id,
+              name: pharmacy.pharmacyName || pharmacy.name,
+              labName: null,
+            };
+          }
+        } else if (transaction.orderId.providerType === 'laboratory') {
+          const laboratory = await Laboratory.findById(transaction.orderId.providerId).select('labName name');
+          if (laboratory) {
+            transaction.orderId.providerId = {
+              _id: laboratory._id,
+              name: laboratory.name || null,
+              labName: laboratory.labName,
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Error populating provider:', error);
+      }
+    }
+  }
 
   return res.status(200).json({
     success: true,

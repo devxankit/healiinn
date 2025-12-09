@@ -217,31 +217,47 @@ exports.getWalletOverview = asyncHandler(async (req, res) => {
     },
   });
 
+  // Ensure all values are numbers (not NaN or undefined)
+  const finalTotalCommission = Number(totalCommission) || 0;
+  const finalAvailableBalance = Number(availableBalance) || 0;
+  const finalPendingWithdrawals = Number(pendingAmount) || 0;
+  const finalApprovedWithdrawals = Number(approvedAmount) || 0;
+  const finalTotalPaidOut = Number(totalPaidOut) || 0;
+
+  console.log('✅ Final Admin Wallet Overview Response:', {
+    totalCommission: finalTotalCommission,
+    availableBalance: finalAvailableBalance,
+    calculation: `${finalTotalCommission} - ${finalTotalPaidOut + finalApprovedWithdrawals} = ${finalAvailableBalance}`,
+    pendingWithdrawals: finalPendingWithdrawals,
+    approvedWithdrawals: finalApprovedWithdrawals,
+    totalPaidOut: finalTotalPaidOut,
+  });
+
   return res.status(200).json({
     success: true,
     data: {
       // Total Platform Earnings = Admin's Commission
-      totalCommission,
+      totalCommission: finalTotalCommission,
       // Available Balance = Commission - Money already paid out - Money approved (committed)
-      availableBalance,
+      availableBalance: finalAvailableBalance,
       // Pending = Pending withdrawal requests (not yet approved)
-      pendingWithdrawals: pendingAmount,
+      pendingWithdrawals: finalPendingWithdrawals,
       // Approved = Approved withdrawal requests (committed but not yet paid)
-      approvedWithdrawals: approvedAmount,
+      approvedWithdrawals: finalApprovedWithdrawals,
       // Total paid out to providers
-      totalPaidOut,
+      totalPaidOut: finalTotalPaidOut,
       // Additional data for reference
-      totalPatientPayments,
-      totalEarnings,
-      doctorEarnings,
-      pharmacyEarnings,
-      labEarnings,
-      thisMonthEarnings: thisMonthCommission,
-      lastMonthEarnings: lastMonthCommission,
-      totalTransactions,
-      activeDoctorsCount,
-      activePharmaciesCount,
-      activeLabsCount,
+      totalPatientPayments: Number(totalPatientPayments) || 0,
+      totalEarnings: Number(totalEarnings) || 0,
+      doctorEarnings: Number(doctorEarnings) || 0,
+      pharmacyEarnings: Number(pharmacyEarnings) || 0,
+      labEarnings: Number(labEarnings) || 0,
+      thisMonthEarnings: Number(thisMonthCommission) || 0,
+      lastMonthEarnings: Number(lastMonthCommission) || 0,
+      totalTransactions: Number(totalTransactions) || 0,
+      activeDoctorsCount: Number(activeDoctorsCount) || 0,
+      activePharmaciesCount: Number(activePharmaciesCount) || 0,
+      activeLabsCount: Number(activeLabsCount) || 0,
     },
   });
 });

@@ -1,8 +1,8 @@
 const rateLimit = require('express-rate-limit');
 
-// General rate limiter
-const windowMs = Number(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 1000;
-const max = Number(process.env.RATE_LIMIT_MAX) || 120;
+// General rate limiter - Increased limits for development
+const windowMs = Number(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 1000; // 1 minute
+const max = Number(process.env.RATE_LIMIT_MAX) || (process.env.NODE_ENV === 'production' ? 120 : 300); // Higher limit in development
 
 const limiter = rateLimit({
   windowMs,
@@ -12,6 +12,11 @@ const limiter = rateLimit({
   message: {
     success: false,
     message: 'Too many requests, please try again later.',
+  },
+  // Skip rate limiting for successful requests in development to prevent issues during testing
+  skip: (req, res) => {
+    // In development, be more lenient
+    return process.env.NODE_ENV === 'development' && false; // Keep rate limiting but with higher limits
   },
 });
 

@@ -37,27 +37,68 @@ const PatientTransactions = () => {
             : response.data.items || response.data.transactions || []
           
           // Transform API data to match component structure
-          const transformed = transactionsData.map(txn => ({
-            id: txn._id || txn.id,
-            _id: txn._id || txn.id,
-            type: txn.type || txn.transactionType || 'Appointment',
-            category: txn.category || txn.providerType || 'doctor',
-            providerName: txn.providerId?.name 
-              || txn.providerName 
-              || txn.doctorId?.name 
-              || txn.pharmacyId?.name 
-              || txn.laboratoryId?.name 
-              || 'Provider',
-            serviceName: txn.serviceName || txn.description || '',
-            amount: txn.amount || 0,
-            status: txn.status || 'completed',
-            date: txn.createdAt ? new Date(txn.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            time: txn.createdAt ? new Date(txn.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
-            transactionId: txn.transactionId || txn._id || txn.id,
-            paymentMethod: txn.paymentMethod || 'UPI',
-            queueNumber: txn.queueNumber || null,
-            originalData: txn,
-          }))
+          const transformed = transactionsData.map(txn => {
+            // Extract provider name based on category
+            let providerName = 'Provider'
+            let category = txn.category || 'appointment'
+            
+            if (txn.category === 'appointment' && txn.appointmentId) {
+              // For appointments, get doctor name
+              const doctor = txn.appointmentId.doctorId
+              if (doctor) {
+                if (doctor.firstName && doctor.lastName) {
+                  providerName = `Dr. ${doctor.firstName} ${doctor.lastName}`
+                } else if (doctor.name) {
+                  providerName = doctor.name
+                } else {
+                  providerName = 'Doctor'
+                }
+                category = 'appointment'
+              }
+            } else if ((txn.category === 'medicine' || txn.category === 'order') && txn.orderId) {
+              // For orders (pharmacy/lab), get provider name
+              const order = txn.orderId
+              if (order.providerId) {
+                if (order.providerType === 'laboratory') {
+                  providerName = order.providerId.labName || order.providerId.name || 'Laboratory'
+                  category = 'laboratory'
+                } else if (order.providerType === 'pharmacy') {
+                  providerName = order.providerId.name || 'Pharmacy'
+                  category = 'pharmacy'
+                }
+              }
+            }
+            
+            // Extract service/description
+            let serviceName = txn.description || ''
+            if (txn.category === 'appointment' && txn.appointmentId) {
+              const doctor = txn.appointmentId.doctorId
+              if (doctor && doctor.specialization) {
+                serviceName = `Appointment with ${providerName} - ${doctor.specialization}`
+              } else {
+                serviceName = `Appointment payment for appointment`
+              }
+            } else if ((txn.category === 'medicine' || txn.category === 'order') && txn.orderId) {
+              serviceName = txn.description || `Payment for ${category === 'laboratory' ? 'lab test' : 'medicine'} order`
+            }
+            
+            return {
+              id: txn._id || txn.id,
+              _id: txn._id || txn.id,
+              type: txn.type || txn.transactionType || 'payment',
+              category: category,
+              providerName: providerName,
+              serviceName: serviceName,
+              amount: txn.amount || 0,
+              status: txn.status || 'completed',
+              date: txn.createdAt ? new Date(txn.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+              time: txn.createdAt ? new Date(txn.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+              transactionId: txn.transactionId || txn._id || txn.id,
+              paymentMethod: txn.paymentMethod || 'razorpay',
+              queueNumber: txn.queueNumber || null,
+              originalData: txn,
+            }
+          })
           
           setTransactions(transformed)
         }
@@ -261,9 +302,11 @@ const PatientTransactions = () => {
                   <div>
                     <p className="text-xs text-slate-600">
                       {transaction.category === 'laboratory' 
-                        ? `Payment for lab test order to ${transaction.providerName}`
+                        ? `Payment for lab test order`
                         : transaction.category === 'pharmacy'
-                        ? `Payment for medicine order to ${transaction.providerName}`
+                        ? `Payment for medicine order`
+                        : transaction.category === 'appointment'
+                        ? `Appointment payment`
                         : `Payment for ${transaction.type.toLowerCase()}`
                       }
                     </p>

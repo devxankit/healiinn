@@ -227,6 +227,7 @@ const PatientDoctorDetails = () => {
   
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [selectedDate, setSelectedDate] = useState('')
+  // Removed selectedTime - time will be automatically assigned by backend based on token number
   const [appointmentType, setAppointmentType] = useState('in_person')
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
@@ -235,6 +236,7 @@ const PatientDoctorDetails = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRescheduling, setIsRescheduling] = useState(false) // Track if rescheduling
   const [rescheduleAppointmentId, setRescheduleAppointmentId] = useState(null) // Appointment ID to reschedule
+  const [cancelledSessionDate, setCancelledSessionDate] = useState(null) // Original cancelled session date to block
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewComment, setReviewComment] = useState('')
@@ -345,19 +347,102 @@ const PatientDoctorDetails = () => {
     return Math.floor(durationMinutes / averageMinutes)
   }
 
+  // Function to convert time string to minutes (handles both 12-hour and 24-hour formats)
+  const timeToMinutes = (timeStr) => {
+    if (!timeStr) return null
+    
+    // Handle 12-hour format (e.g., "9:00 AM", "2:30 PM")
+    const pmMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(PM|pm)/i)
+    const amMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|am)/i)
+    
+    if (pmMatch) {
+      let hour = parseInt(pmMatch[1], 10)
+      const minute = parseInt(pmMatch[2], 10)
+      if (hour !== 12) hour += 12
+      return hour * 60 + minute
+    }
+    
+    if (amMatch) {
+      let hour = parseInt(amMatch[1], 10)
+      const minute = parseInt(amMatch[2], 10)
+      if (hour === 12) hour = 0
+      return hour * 60 + minute
+    }
+    
+    // Handle 24-hour format (e.g., "09:00", "14:30")
+    const time24Match = timeStr.match(/(\d{1,2}):(\d{2})/)
+    if (time24Match) {
+      const hour = parseInt(time24Match[1], 10)
+      const minute = parseInt(time24Match[2], 10)
+      return hour * 60 + minute
+    }
+    
+    return null
+  }
+
+  // Function to convert minutes to 12-hour format string
+  const minutesTo12Hour = (minutes) => {
+    if (minutes === null || minutes === undefined) return ''
+    const hour = Math.floor(minutes / 60)
+    const minute = minutes % 60
+    const period = hour >= 12 ? 'PM' : 'AM'
+    let displayHour = hour % 12
+    if (displayHour === 0) displayHour = 12
+    return `${displayHour}:${minute.toString().padStart(2, '0')} ${period}`
+  }
+
+  // Function to generate time slots based on session times
+  const generateTimeSlots = (sessionStartTime, sessionEndTime, avgConsultationMinutes, bookedSlots = 0, maxTokens = 0) => {
+    if (!sessionStartTime || !sessionEndTime || !avgConsultationMinutes) return []
+    
+    const startMinutes = timeToMinutes(sessionStartTime)
+    const endMinutes = timeToMinutes(sessionEndTime)
+    
+    if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) return []
+    
+    const slots = []
+    let currentMinutes = startMinutes
+    let slotNumber = 1
+    
+    while (currentMinutes < endMinutes) {
+      const slotTime = minutesTo12Hour(currentMinutes)
+      const isBooked = slotNumber <= bookedSlots
+      const isAvailable = slotNumber <= maxTokens && !isBooked
+      
+      slots.push({
+        time: slotTime,
+        minutes: currentMinutes,
+        slotNumber,
+        isBooked,
+        isAvailable,
+      })
+      
+      currentMinutes += avgConsultationMinutes
+      slotNumber++
+    }
+    
+    return slots
+  }
+
   // Function to get session info and token availability for selected date (using API cached data)
   const getSessionInfoForDate = (date) => {
     // Return cached slot availability if available
     if (slotAvailability[date]) {
       const info = slotAvailability[date]
+      // If session is cancelled, mark as unavailable
+      const isCancelled = info.isCancelled || false
       // Ensure we have valid data and calculate availability correctly
-      const available = info.available && (info.maxTokens > 0) && (info.currentBookings < info.maxTokens)
+      const available = !isCancelled && info.available && (info.maxTokens > 0) && (info.currentBookings < info.maxTokens)
       return {
         available,
         maxTokens: info.maxTokens || 0,
         currentBookings: info.currentBookings || 0,
         nextToken: info.nextToken || (available ? (info.currentBookings + 1) : null),
         sessionId: info.sessionId || null,
+        isCancelled: isCancelled,
+        sessionStartTime: info.sessionStartTime || null,
+        sessionEndTime: info.sessionEndTime || null,
+        avgConsultationMinutes: info.avgConsultationMinutes || 20,
       }
     }
     
@@ -368,6 +453,10 @@ const PatientDoctorDetails = () => {
       currentBookings: 0,
       nextToken: null,
       sessionId: null,
+      isCancelled: false,
+      sessionStartTime: null,
+      sessionEndTime: null,
+      avgConsultationMinutes: 20,
     }
   }
 
@@ -398,17 +487,82 @@ const PatientDoctorDetails = () => {
     if (doctor && id) {
       const rescheduleId = searchParams.get('reschedule')
       if (rescheduleId) {
-        // Reschedule mode
+        // Reschedule mode - fetch appointment details to get cancelled session date
+        const fetchCancelledAppointmentDate = async () => {
+          try {
+            const appointmentsResponse = await getPatientAppointments({})
+            if (appointmentsResponse.success && appointmentsResponse.data) {
+              const appointments = Array.isArray(appointmentsResponse.data) 
+                ? appointmentsResponse.data 
+                : appointmentsResponse.data.items || []
+              
+              const appointment = appointments.find(apt => 
+                (apt._id || apt.id) === rescheduleId && apt.status === 'cancelled'
+              )
+              
+              if (appointment) {
+                // Get the cancelled session date
+                // Priority 1: Use sessionId.date if session exists (this is the actual cancelled session date)
+                // Priority 2: Use appointment.appointmentDate (original appointment date)
+                let dateToBlock = null
+                
+                // Check if sessionId exists and has date
+                if (appointment.sessionId) {
+                  const session = appointment.sessionId
+                  // Session date is the actual date when session was cancelled
+                  if (session && session.date) {
+                    const sessionDate = typeof session.date === 'string' 
+                      ? session.date.split('T')[0] 
+                      : new Date(session.date).toISOString().split('T')[0]
+                    dateToBlock = sessionDate
+                    console.log('🚫 Found cancelled session date from session:', dateToBlock, { sessionStatus: session.status })
+                  }
+                }
+                
+                // Fallback to appointment's original date if session date not found
+                if (!dateToBlock) {
+                  const originalDate = appointment.appointmentDate || appointment.date
+                  if (originalDate) {
+                    dateToBlock = typeof originalDate === 'string' 
+                      ? originalDate.split('T')[0] 
+                      : new Date(originalDate).toISOString().split('T')[0]
+                    console.log('🚫 Using appointment date as cancelled date:', dateToBlock)
+                  }
+                }
+                
+                if (dateToBlock) {
+                  console.log('🚫 Blocking cancelled session date:', dateToBlock, {
+                    appointmentId: appointment._id || appointment.id,
+                    appointmentDate: appointment.appointmentDate,
+                    sessionId: appointment.sessionId?._id || appointment.sessionId,
+                    sessionDate: appointment.sessionId?.date,
+                    sessionStatus: appointment.sessionId?.status,
+                  })
+                  setCancelledSessionDate(dateToBlock)
+                } else {
+                  console.warn('⚠️ Could not determine cancelled session date for appointment:', appointment)
+                }
+              } else {
+                console.warn('⚠️ Cancelled appointment not found for rescheduleId:', rescheduleId)
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching cancelled appointment date:', error)
+          }
+        }
+        
         setIsRescheduling(true)
         setRescheduleAppointmentId(rescheduleId)
         setShowBookingModal(true)
         setBookingStep(1)
+        fetchCancelledAppointmentDate()
         // Remove the query parameter from URL
         navigate(`/patient/doctors/${id}`, { replace: true })
       } else if (searchParams.get('book') === 'true') {
         // Normal booking mode
         setIsRescheduling(false)
         setRescheduleAppointmentId(null)
+        setCancelledSessionDate(null)
         setShowBookingModal(true)
         setBookingStep(1)
         // Remove the query parameter from URL
@@ -460,7 +614,11 @@ const PatientDoctorDetails = () => {
           sessionStartTime: response.data.sessionStartTime,
           sessionEndTime: response.data.sessionEndTime,
           avgConsultationMinutes: response.data.avgConsultationMinutes,
+          isCancelled: response.data.isCancelled,
         })
+        
+        // If session is cancelled, mark date as unavailable
+        const isCancelled = response.data.isCancelled || false
         
         setSlotAvailability(prev => {
           // If forceRefresh is true, always update. Otherwise, don't overwrite if already cached
@@ -468,26 +626,39 @@ const PatientDoctorDetails = () => {
           return {
             ...prev,
             [date]: {
-              available: response.data.available,
+              available: !isCancelled && response.data.available, // Not available if cancelled
               maxTokens: response.data.totalSlots || 0,
               currentBookings: response.data.bookedSlots || 0,
-              nextToken: response.data.availableSlots > 0 ? (response.data.bookedSlots || 0) + 1 : null,
+              nextToken: !isCancelled && response.data.availableSlots > 0 ? (response.data.bookedSlots || 0) + 1 : null,
               sessionId: response.data.sessionId,
+              isCancelled: isCancelled, // Store cancelled flag
+              sessionStartTime: response.data.sessionStartTime, // Store session start time
+              sessionEndTime: response.data.sessionEndTime, // Store session end time
+              avgConsultationMinutes: response.data.avgConsultationMinutes || 20, // Store avg consultation minutes
             }
           }
         })
+        
+        // If cancelled, also set cancelledSessionDate for rescheduling
+        if (isCancelled && isRescheduling) {
+          const dateStr = typeof date === 'string' ? date.split('T')[0] : new Date(date).toISOString().split('T')[0]
+          setCancelledSessionDate(dateStr)
+        }
       } else {
         setSlotAvailability(prev => {
           if (!forceRefresh && prev[date]) return prev
           return {
             ...prev,
-            [date]: {
-              available: false,
-              maxTokens: 0,
-              currentBookings: 0,
-              nextToken: null,
-              sessionId: null,
-            }
+              [date]: {
+                available: false,
+                maxTokens: 0,
+                currentBookings: 0,
+                nextToken: null,
+                sessionId: null,
+                sessionStartTime: null,
+                sessionEndTime: null,
+                avgConsultationMinutes: 20,
+              }
           }
         })
       }
@@ -497,13 +668,16 @@ const PatientDoctorDetails = () => {
         if (!forceRefresh && prev[date]) return prev
         return {
           ...prev,
-          [date]: {
-            available: false,
-            maxTokens: 0,
-            currentBookings: 0,
-            nextToken: null,
-            sessionId: null,
-          }
+              [date]: {
+                available: false,
+                maxTokens: 0,
+                currentBookings: 0,
+                nextToken: null,
+                sessionId: null,
+                sessionStartTime: null,
+                sessionEndTime: null,
+                avgConsultationMinutes: 20,
+              }
         }
       })
     }
@@ -541,6 +715,8 @@ const PatientDoctorDetails = () => {
     }
   }, [selectedDate, doctor?._id, slotAvailability, fetchSlotAvailabilityForDate])
 
+  // Time will be automatically assigned by backend - no need to track selectedTime
+
   const handleBookingClick = () => {
     setShowBookingModal(true)
     setBookingStep(1)
@@ -556,6 +732,9 @@ const PatientDoctorDetails = () => {
     setBookingStep(1)
     setIsRescheduling(false)
     setRescheduleAppointmentId(null)
+    setCancelledSessionDate(null)
+    setSelectedDate('')
+    // Time assignment is handled by backend
   }
 
   const handleNextStep = () => {
@@ -563,9 +742,11 @@ const PatientDoctorDetails = () => {
       // Check if booking is available for selected date
       const sessionInfo = getSessionInfoForDate(selectedDate)
       if (!sessionInfo.available) {
-        alert('This date is fully booked. Please select another date.')
+        toast.error('This date is fully booked. Please select another date.')
         return
       }
+      // Check if time is selected (for rescheduling, time selection is required)
+      // Time will be automatically assigned by backend based on token number and session time
       setBookingStep(2)
     } else if (bookingStep === 2) {
       setBookingStep(3)
@@ -589,9 +770,10 @@ const PatientDoctorDetails = () => {
     try {
       // Handle reschedule (no payment required)
       if (isRescheduling && rescheduleAppointmentId) {
+        // Time will be automatically assigned by backend based on token number and session time
         const rescheduleData = {
           appointmentDate: selectedDate,
-          time: '10:00 AM', // Backend will calculate based on token number
+          // time will be automatically assigned by backend
         }
         
         const rescheduleResponse = await rescheduleAppointment(rescheduleAppointmentId, rescheduleData)
@@ -618,6 +800,7 @@ const PatientDoctorDetails = () => {
         handleCloseModal()
         // Reset form
         setSelectedDate('')
+        // Time assignment is handled by backend
         setAppointmentType('in_person')
         setReason('')
         setNotes('')
@@ -1238,38 +1421,79 @@ const PatientDoctorDetails = () => {
                         <div className="flex gap-2">
                           {availableDates.map((date) => {
                             const sessionInfo = getSessionInfoForDate(date.value)
+                            const slotInfo = slotAvailability[date.value] || {}
+                            const isSessionCancelled = slotInfo.isCancelled || sessionInfo.isCancelled || false
+                            
                             const isFull = !sessionInfo.available || (sessionInfo.maxTokens > 0 && sessionInfo.currentBookings >= sessionInfo.maxTokens)
                             const slotsRemaining = sessionInfo.maxTokens > 0 
                               ? Math.max(0, sessionInfo.maxTokens - sessionInfo.currentBookings)
                               : 0
                             const hasSlots = slotsRemaining > 0 && sessionInfo.maxTokens > 0
                             
+                            // Check if this is the cancelled session date (when rescheduling)
+                            // Normalize both dates to YYYY-MM-DD format for comparison
+                            const normalizeDate = (dateStr) => {
+                              if (!dateStr) return null
+                              if (typeof dateStr === 'string') {
+                                return dateStr.split('T')[0] // Get YYYY-MM-DD part
+                              }
+                              return new Date(dateStr).toISOString().split('T')[0]
+                            }
+                            
+                            const normalizedCurrentDate = normalizeDate(date.value)
+                            const normalizedCancelledDate = normalizeDate(cancelledSessionDate)
+                            const isCancelledSessionDate = isRescheduling && 
+                              cancelledSessionDate && 
+                              normalizedCurrentDate && 
+                              normalizedCancelledDate &&
+                              normalizedCurrentDate === normalizedCancelledDate
+                            
+                            // Disable if full, cancelled session date, or session is cancelled
+                            const isDisabled = isFull || isCancelledSessionDate || isSessionCancelled
+                            
+                            // Debug log for cancelled date check (only in development)
+                            if (isRescheduling && cancelledSessionDate && process.env.NODE_ENV === 'development') {
+                              console.log('🔍 Date comparison:', {
+                                currentDate: date.value,
+                                normalizedCurrent: normalizedCurrentDate,
+                                cancelledDate: cancelledSessionDate,
+                                normalizedCancelled: normalizedCancelledDate,
+                                matches: normalizedCurrentDate === normalizedCancelledDate,
+                                isDisabled,
+                              })
+                            }
+                            
                             return (
                               <button
                                 key={date.value}
                                 type="button"
                                 onClick={() => {
-                                  if (!isFull) {
+                                  if (!isDisabled) {
                                     setSelectedDate(date.value)
                                     // Fetch fresh data when date is selected
                                     if (doctor?._id && (!slotAvailability[date.value] || loadingSlots)) {
                                       fetchSlotAvailabilityForDate(date.value, doctor._id, true)
                                     }
+                                  } else if (isCancelledSessionDate || isSessionCancelled) {
+                                    toast.warning('This date is not available because the session was cancelled on this date. Please select a different date.')
                                   }
                                 }}
-                                disabled={isFull}
+                                disabled={isDisabled}
                                 className={`shrink-0 rounded-xl border-2 px-4 py-3 text-sm font-semibold transition ${
-                                  isFull
-                                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                  isDisabled
+                                    ? 'border-red-200 bg-red-50 text-red-400 cursor-not-allowed'
                                     : selectedDate === date.value
                                     ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)] text-[#0d3a52]'
                                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                                 }`}
+                                title={(isCancelledSessionDate || isSessionCancelled) ? 'Session was cancelled on this date. Please select a different date.' : isFull ? 'Fully booked' : ''}
                               >
                                 <div className="text-xs text-slate-500">{date.label.split(',')[0]}</div>
                                 <div className="mt-1 whitespace-nowrap">{date.label.split(',')[1]?.trim()}</div>
                                 {loadingSlots && !slotAvailability[date.value] ? (
                                   <div className="mt-1 text-[10px] text-slate-400 font-semibold">Loading...</div>
+                                ) : (isCancelledSessionDate || isSessionCancelled) ? (
+                                  <div className="mt-1 text-[10px] text-red-600 font-semibold">Cancelled</div>
                                 ) : isFull ? (
                                   <div className="mt-1 text-[10px] text-red-500 font-semibold">Full</div>
                                 ) : hasSlots && slotsRemaining > 0 ? (
@@ -1351,6 +1575,16 @@ const PatientDoctorDetails = () => {
                                   </p>
                                 </div>
                               </div>
+                            </div>
+                          )}
+
+                          {/* Time will be automatically assigned by backend based on token number and session time */}
+                          {isRescheduling && (
+                            <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/80 p-3">
+                              <p className="text-xs text-blue-700">
+                                <IoInformationCircleOutline className="inline h-4 w-4 mr-1" />
+                                Your appointment time will be automatically assigned based on your token number and session availability.
+                              </p>
                             </div>
                           )}
                         </div>
@@ -1596,7 +1830,7 @@ const PatientDoctorDetails = () => {
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-600">Time</span>
                             <span className="text-sm font-semibold text-slate-900">
-                              Will be assigned by system
+                              Will be assigned by system based on token number
                             </span>
                           </div>
                           {sessionInfo.nextToken && (
