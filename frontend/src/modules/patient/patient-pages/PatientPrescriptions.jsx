@@ -117,7 +117,7 @@ const PatientPrescriptions = () => {
         if (response.success && response.data) {
           const prescriptionsData = Array.isArray(response.data) 
             ? response.data 
-            : response.data.prescriptions || []
+            : response.data.items || response.data.prescriptions || []
           
           // Transform API data to match component structure
           const transformed = prescriptionsData.map(presc => ({
@@ -132,13 +132,14 @@ const PatientPrescriptions = () => {
             } : presc.doctor || {},
             issuedAt: presc.createdAt ? new Date(presc.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             status: presc.status || 'active',
-            diagnosis: presc.diagnosis || '',
-            symptoms: presc.symptoms || '',
+            // Get diagnosis, symptoms, investigations from consultationId if available
+            diagnosis: presc.consultationId?.diagnosis || presc.diagnosis || '',
+            symptoms: presc.consultationId?.symptoms || presc.symptoms || '',
             medications: presc.medicines || presc.medications || [],
-            investigations: presc.investigations || [],
-            advice: presc.advice || presc.notes || '',
-            followUpAt: presc.followUpDate || presc.followUpAt || null,
-            pdfUrl: presc.pdfUrl || '#',
+            investigations: presc.consultationId?.investigations || presc.investigations || [],
+            advice: presc.consultationId?.advice || presc.advice || presc.notes || '',
+            followUpAt: presc.consultationId?.followUpDate || presc.followUpDate || presc.followUpAt || null,
+            pdfUrl: presc.pdfFileUrl || presc.pdfUrl || '#',
             sharedWith: presc.sharedWith || {
               pharmacies: [],
               laboratories: [],
@@ -204,23 +205,47 @@ const PatientPrescriptions = () => {
     const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
     let yPos = margin
 
-    // Header Section - Clinic Name in Teal (Large, Bold)
-    // Since we don't have clinic info, use doctor's name and specialty
+    // Header Section - Healiinn (Above Clinic Name)
     doc.setTextColor(...tealColor)
+    doc.setFontSize(24)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
+    yPos += 8
+    
+    // Clinic Name in Teal (Below Healiinn)
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
-    doc.text('Healiinn Prescription', pageWidth / 2, yPos, { align: 'center' })
+    const clinicName = prescriptionData.doctor?.clinicName || prescriptionData.originalData?.doctorId?.clinicDetails?.clinicName || 'Super Clinic'
+    doc.text(clinicName, pageWidth / 2, yPos, { align: 'center' })
     yPos += 7
 
-    // Doctor Name and Specialty (Centered)
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(0, 0, 0)
-    doc.text(prescriptionData.doctor.name, pageWidth / 2, yPos, { align: 'center' })
-    yPos += 5
+    // Clinic Address (Centered)
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
-    doc.text(prescriptionData.doctor.specialty, pageWidth / 2, yPos, { align: 'center' })
+    doc.setTextColor(0, 0, 0)
+    const clinicAddress = prescriptionData.doctor?.clinicAddress || prescriptionData.originalData?.doctorId?.clinicDetails?.address || 'Address not provided'
+    const addressLines = doc.splitTextToSize(clinicAddress, pageWidth - 2 * margin)
+    addressLines.forEach((line) => {
+      doc.text(line, pageWidth / 2, yPos, { align: 'center' })
+      yPos += 4
+    })
+
+    // Contact Information (Left: Phone, Right: Email)
+    yPos += 1
+    doc.setFontSize(8)
+    const contactY = yPos
+    // Phone icon and number (left)
+    doc.setFillColor(200, 0, 0) // Red circle for phone
+    doc.circle(margin + 2, contactY - 1, 1.5, 'F')
+    doc.setTextColor(0, 0, 0)
+    const phone = prescriptionData.doctor?.phone || prescriptionData.originalData?.doctorId?.phone || 'N/A'
+    doc.text(phone, margin + 6, contactY)
+    
+    // Email icon and address (right)
+    doc.setFillColor(100, 100, 100) // Gray circle for email
+    doc.circle(pageWidth - margin - 2, contactY - 1, 1.5, 'F')
+    const email = prescriptionData.doctor?.email || prescriptionData.originalData?.doctorId?.email || 'N/A'
+    doc.text(email, pageWidth - margin, contactY, { align: 'right' })
     yPos += 5
 
     // Teal horizontal line separator
@@ -234,7 +259,7 @@ const PatientPrescriptions = () => {
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.text('Doctor Information', margin, infoStartY)
-    doc.text('Prescription Details', pageWidth - margin, infoStartY, { align: 'right' })
+    doc.text('Patient Information', pageWidth - margin, infoStartY, { align: 'right' })
     
     yPos = infoStartY + 6
     doc.setFontSize(8)
@@ -246,15 +271,57 @@ const PatientPrescriptions = () => {
     const issuedDate = formatDate(prescriptionData.issuedAt)
     doc.text(`Date: ${issuedDate}`, margin, yPos + 8)
 
-    // Prescription Info (Right)
-    doc.text(`Status: ${prescriptionData.status.charAt(0).toUpperCase() + prescriptionData.status.slice(1)}`, pageWidth - margin, yPos, { align: 'right' })
-    doc.text(`Issued: ${issuedDate}`, pageWidth - margin, yPos + 4, { align: 'right' })
-    if (prescriptionData.followUpAt) {
-      const followUpDate = formatDate(prescriptionData.followUpAt)
-      doc.text(`Follow-up: ${followUpDate}`, pageWidth - margin, yPos + 8, { align: 'right' })
+    // Patient Info (Right) - Get from prescriptionData or originalData
+    let patientYPos = yPos
+    const patientName = prescriptionData.patientName || prescriptionData.originalData?.patientId?.firstName && prescriptionData.originalData?.patientId?.lastName
+      ? `${prescriptionData.originalData.patientId.firstName} ${prescriptionData.originalData.patientId.lastName}`
+      : prescriptionData.originalData?.patientId?.name || 'N/A'
+    doc.text(`Name: ${patientName}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    
+    const patientAge = prescriptionData.originalData?.patientId?.age || prescriptionData.originalData?.patientId?.dateOfBirth 
+      ? (new Date().getFullYear() - new Date(prescriptionData.originalData.patientId.dateOfBirth).getFullYear())
+      : 'N/A'
+    doc.text(`Age: ${patientAge} years`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    
+    const patientGender = prescriptionData.originalData?.patientId?.gender || 'N/A'
+    doc.text(`Gender: ${patientGender}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    
+    const patientPhone = prescriptionData.originalData?.patientId?.phone || 'N/A'
+    doc.text(`Phone: ${patientPhone}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 4
+    
+    // Patient Address
+    const patientAddress = prescriptionData.originalData?.patientId?.address
+    if (patientAddress) {
+      let addressText = ''
+      if (typeof patientAddress === 'string') {
+        addressText = patientAddress
+      } else if (typeof patientAddress === 'object' && patientAddress !== null) {
+        const addressParts = []
+        if (patientAddress.line1) addressParts.push(patientAddress.line1)
+        if (patientAddress.line2) addressParts.push(patientAddress.line2)
+        if (patientAddress.city) addressParts.push(patientAddress.city)
+        if (patientAddress.state) addressParts.push(patientAddress.state)
+        if (patientAddress.pincode || patientAddress.postalCode) {
+          addressParts.push(patientAddress.pincode || patientAddress.postalCode)
+        }
+        addressText = addressParts.join(', ').trim()
+      }
+      
+      if (addressText && addressText !== '[object Object]') {
+        const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin)
+        addressLines.forEach((line, index) => {
+          doc.text(line, pageWidth - margin, patientYPos + (index * 4), { align: 'right' })
+        })
+        patientYPos += (addressLines.length - 1) * 4
+      }
     }
 
-    yPos += 15
+    // Set yPos to the maximum of doctor info end or patient info end
+    yPos = Math.max(yPos + 12, patientYPos) + 3
 
     // Diagnosis Section with Light Blue Background Box
     doc.setFontSize(10)
@@ -275,12 +342,6 @@ const PatientPrescriptions = () => {
 
     // Symptoms Section with Green Bullet Points
     if (prescriptionData.symptoms) {
-      // Check if we need a new page
-      if (yPos > pageHeight - 30) {
-        doc.addPage()
-        yPos = margin
-      }
-      
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
       doc.text('Symptoms', margin, yPos)
@@ -294,11 +355,6 @@ const PatientPrescriptions = () => {
         : [String(prescriptionData.symptoms)]
       
       symptomLines.forEach((symptom) => {
-        // Check if we need a new page for each line
-        if (yPos > pageHeight - 20) {
-          doc.addPage()
-          yPos = margin
-        }
         // Green bullet point
         doc.setFillColor(34, 197, 94) // Green color
         doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
@@ -324,21 +380,8 @@ const PatientPrescriptions = () => {
           yPos = margin
         }
         
-        // Calculate card height based on instructions
-        const hasInstructions = med.instructions && med.instructions.trim()
-        let cardHeight = 22 // Base height
-        
-        // Calculate how many lines instructions will take (using right column width)
-        if (hasInstructions) {
-          doc.setFontSize(7)
-          const rightColMaxWidth = (pageWidth - 2 * margin) / 2 - 5
-          const instructionsLines = doc.splitTextToSize(med.instructions.trim(), rightColMaxWidth)
-          // Add extra height for instructions (label + text lines)
-          // Label takes 4 units, each line takes 4 units
-          cardHeight += 4 + (instructionsLines.length * 4)
-        }
-        
         // Medication card with light gray background
+        const cardHeight = 22
         doc.setFillColor(...lightGrayColor)
         doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
         
@@ -372,23 +415,8 @@ const PatientPrescriptions = () => {
         
         // Right column
         doc.text(`Frequency: ${med.frequency || 'N/A'}`, rightColX, startY)
-        
-        // Instructions - displayed right below frequency in right column
-        if (hasInstructions) {
-          const instructionsText = med.instructions.trim()
-          // Calculate max width for right column (half of page width minus margins)
-          const rightColMaxWidth = (pageWidth - 2 * margin) / 2 - 5
-          const instructionsLines = doc.splitTextToSize(instructionsText, rightColMaxWidth)
-          
-          // Instructions label (bold)
-          doc.setFont('helvetica', 'bold')
-          doc.text('Instructions:', rightColX, startY + 4)
-          doc.setFont('helvetica', 'normal')
-          
-          // Instructions text (can wrap to multiple lines, right below label)
-          instructionsLines.forEach((line, lineIdx) => {
-            doc.text(line, rightColX, startY + 8 + (lineIdx * 4))
-          })
+        if (med.instructions) {
+          doc.text(`Instructions: ${med.instructions}`, rightColX, startY + 4)
         }
         
         yPos += cardHeight + 4
@@ -410,21 +438,29 @@ const PatientPrescriptions = () => {
           yPos = margin
         }
         
+        // Handle both frontend format (name) and backend format (testName)
+        const invName = inv.name || inv.testName || 'Investigation'
+        const invNotes = inv.notes || ''
+        
+        // Ensure invName is a valid string (not null, undefined, or object)
+        const invNameStr = typeof invName === 'string' ? invName : String(invName || 'Investigation')
+        const invNotesStr = typeof invNotes === 'string' ? invNotes : String(invNotes || '')
+        
         // Light purple box for each test
-        const testBoxHeight = inv.notes ? 14 : 9
+        const testBoxHeight = invNotesStr ? 14 : 9
         doc.setFillColor(...lightPurpleColor)
         doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
         
         doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(0, 0, 0)
-        doc.text(inv.name, margin + 4, yPos + 2)
+        doc.text(invNameStr, margin + 4, yPos + 2)
         
-        if (inv.notes) {
+        if (invNotesStr) {
           doc.setFontSize(7)
           doc.setFont('helvetica', 'normal')
           doc.setTextColor(80, 80, 80)
-          doc.text(inv.notes, margin + 4, yPos + 8)
+          doc.text(invNotesStr, margin + 4, yPos + 8)
         }
         
         yPos += testBoxHeight + 3
@@ -432,45 +468,25 @@ const PatientPrescriptions = () => {
       yPos += 2
     }
 
-    // Medical Advice Section with Green Bullet Points
+    // Medical Advice Section - Dark text like medications
     if (prescriptionData.advice) {
-      // Check if we need a new page
-      if (yPos > pageHeight - 30) {
-        doc.addPage()
-        yPos = margin
-      }
-      
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
       doc.text('Medical Advice', margin, yPos)
       yPos += 6
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0) // Dark black color like medications
       const adviceLines = prescriptionData.advice.split('\n').filter(line => line.trim())
       adviceLines.forEach((advice) => {
-        // Check if we need a new page for each line
-        if (yPos > pageHeight - 20) {
-          doc.addPage()
-          yPos = margin
-        }
-        // Green bullet point
-        doc.setFillColor(34, 197, 94) // Green color
-        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
-        doc.setTextColor(0, 0, 0)
-        doc.text(advice.trim(), margin + 5, yPos)
+        doc.text(advice.trim(), margin, yPos)
         yPos += 4
       })
       yPos += 2
     }
 
     // Follow-up Appointment (Light Yellow Box)
-    if (prescriptionData.followUpAt) {
-      // Check if we need a new page
-      if (yPos > pageHeight - 20) {
-        doc.addPage()
-        yPos = margin
-      }
-      
+    if (prescriptionData.followUpAt || prescriptionData.followUpDate) {
       const followUpHeight = 12
       doc.setFillColor(...lightYellowColor)
       doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, followUpHeight, 2, 2, 'F')
@@ -485,7 +501,8 @@ const PatientPrescriptions = () => {
       doc.text('Follow-up Appointment', margin + 7, yPos + 3)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(8)
-      const followUpDate = formatDate(prescriptionData.followUpAt)
+      const followUpDateValue = prescriptionData.followUpAt || prescriptionData.followUpDate
+      const followUpDate = new Date(followUpDateValue).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
       doc.text(followUpDate, margin + 7, yPos + 8)
       yPos += followUpHeight + 5
     }

@@ -22,7 +22,7 @@ exports.getPrescriptions = asyncHandler(async (req, res) => {
   const [prescriptions, total] = await Promise.all([
     Prescription.find(filter)
       .populate('doctorId', 'firstName lastName specialization profileImage')
-      .populate('consultationId', 'consultationDate diagnosis')
+      .populate('consultationId', 'consultationDate diagnosis symptoms investigations advice followUpDate')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),

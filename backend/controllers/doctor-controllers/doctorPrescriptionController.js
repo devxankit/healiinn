@@ -28,18 +28,30 @@ exports.createPrescription = asyncHandler(async (req, res) => {
     });
   }
 
+  // Validate consultationId is a valid MongoDB ObjectId
+  if (!consultationId.match(/^[0-9a-fA-F]{24}$/)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid consultation ID format. Consultation must be created first.',
+    });
+  }
+
   // Verify consultation belongs to doctor
-  const consultation = await Consultation.findOne({
+  // Fetch consultation as Mongoose document first (needed for save operations)
+  const consultationDoc = await Consultation.findOne({
     _id: consultationId,
     doctorId: id,
   }).populate('patientId').populate('doctorId');
 
-  if (!consultation) {
+  if (!consultationDoc) {
     return res.status(404).json({
       success: false,
-      message: 'Consultation not found',
+      message: 'Consultation not found. Please ensure consultation is created before saving prescription.',
     });
   }
+
+  // Convert to plain object for data extraction (ensures all nested fields are accessible)
+  const consultationObj = consultationDoc.toObject ? consultationDoc.toObject() : consultationDoc;
 
   // Check if prescription already exists
   const existingPrescription = await Prescription.findOne({ consultationId });
@@ -52,25 +64,64 @@ exports.createPrescription = asyncHandler(async (req, res) => {
 
   // Get doctor data for PDF
   const doctor = await Doctor.findById(id);
-  const patient = await Patient.findById(consultation.patientId);
+  const patientId = consultationObj.patientId?._id || consultationObj.patientId || consultationDoc?.patientId;
+  const patient = await Patient.findById(patientId);
+  
+  const diagnosis = consultationObj.diagnosis || '';
+  const symptoms = consultationObj.symptoms || '';
+  
+  // Transform investigations from backend format (testName) to frontend format (name) for PDF
+  let investigations = [];
+  if (consultationObj.investigations && Array.isArray(consultationObj.investigations) && consultationObj.investigations.length > 0) {
+    investigations = consultationObj.investigations.map(inv => {
+      // Handle both Mongoose document and plain object
+      const invObj = inv.toObject ? inv.toObject() : (typeof inv === 'object' ? inv : {});
+      return {
+        name: invObj.testName || invObj.name || 'Investigation',
+        testName: invObj.testName || invObj.name || 'Investigation',
+        notes: invObj.notes || ''
+      };
+    });
+  }
+  
+  // Debug logging
+  console.log('🔍 Consultation ID:', consultationId);
+  console.log('🔍 Consultation investigations (raw):', JSON.stringify(consultationObj.investigations, null, 2));
+  console.log('🔍 Transformed investigations for PDF:', JSON.stringify(investigations, null, 2));
+  console.log('🔍 Diagnosis:', diagnosis);
+  console.log('🔍 Symptoms:', symptoms);
+  
+  const advice = consultationObj.advice || notes || '';
 
   // Create prescription
   const prescriptionData = {
     consultationId,
-    patientId: consultation.patientId,
+    patientId: consultationObj.patientId?._id || consultationObj.patientId || consultationDoc?.patientId,
     doctorId: id,
     medications: medications || [],
-    notes: notes || '',
+    notes: advice,
     expiryDate: expiryDate ? new Date(expiryDate) : null,
     status: 'active',
   };
 
   const prescription = await Prescription.create(prescriptionData);
 
-  // Generate and upload PDF
+  // Generate and upload PDF with all consultation data
   try {
+    // Ensure investigations is an array
+    const investigationsArray = Array.isArray(investigations) ? investigations : (investigations ? [investigations] : []);
+    
     const pdfBuffer = await generatePrescriptionPDF(
-      { ...prescriptionData, createdAt: prescription.createdAt },
+      { 
+        ...prescriptionData, 
+        createdAt: prescription.createdAt,
+        diagnosis: diagnosis,
+        symptoms: symptoms,
+        investigations: investigationsArray, // Ensure it's an array
+        advice: advice,
+        followUpDate: consultationObj.followUpDate || expiryDate,
+        consultationId: consultationObj // Pass full consultation object for fallback
+      },
       doctor.toObject(),
       patient.toObject()
     );
@@ -83,9 +134,11 @@ exports.createPrescription = asyncHandler(async (req, res) => {
   }
 
   // Update consultation with prescription ID
-  consultation.prescriptionId = prescription._id;
-  consultation.status = 'completed';
-  await consultation.save();
+  if (consultationDoc) {
+    consultationDoc.prescriptionId = prescription._id;
+    consultationDoc.status = 'completed';
+    await consultationDoc.save();
+  }
 
   // Emit real-time event
   try {
@@ -142,8 +195,8 @@ exports.createPrescription = asyncHandler(async (req, res) => {
     success: true,
     message: 'Prescription created successfully',
     data: await Prescription.findById(prescription._id)
-      .populate('patientId', 'firstName lastName')
-      .populate('consultationId'),
+      .populate('patientId', 'firstName lastName phone email profileImage dateOfBirth gender address')
+      .populate('consultationId', 'diagnosis symptoms investigations advice followUpDate consultationDate'),
   });
 });
 
@@ -159,7 +212,7 @@ exports.getPrescriptions = asyncHandler(async (req, res) => {
   const [prescriptions, total] = await Promise.all([
     Prescription.find(filter)
       .populate('patientId', 'firstName lastName phone profileImage')
-      .populate('consultationId', 'consultationDate diagnosis')
+      .populate('consultationId', 'consultationDate diagnosis symptoms investigations advice followUpDate')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),

@@ -369,21 +369,27 @@ const checkSlotAvailability = async (doctorId, date) => {
     const sessionDateEnd = new Date(parsedDate);
     sessionDateEnd.setHours(23, 59, 59, 999);
     
-    // Check if there's a cancelled session for this date
-    const cancelledSession = await Session.findOne({
+    // Check if there's a cancelled or completed session for this date
+    const cancelledOrCompletedSession = await Session.findOne({
       doctorId,
       date: { $gte: sessionDateStart, $lt: sessionDateEnd },
-      status: SESSION_STATUS.CANCELLED,
+      status: { $in: [SESSION_STATUS.CANCELLED, SESSION_STATUS.COMPLETED] },
     });
     
-    if (cancelledSession) {
+    if (cancelledOrCompletedSession) {
+      const isCancelled = cancelledOrCompletedSession.status === SESSION_STATUS.CANCELLED;
+      const isCompleted = cancelledOrCompletedSession.status === SESSION_STATUS.COMPLETED;
+      
       return {
         available: false,
-        message: 'Session was cancelled for this date. Please select a different date.',
-        totalSlots: cancelledSession.maxTokens || 0,
+        message: isCancelled 
+          ? 'Session was cancelled for this date. Please select a different date.'
+          : 'Session has ended for this date. No new appointments can be booked.',
+        totalSlots: cancelledOrCompletedSession.maxTokens || 0,
         bookedSlots: 0,
         availableSlots: 0,
-        isCancelled: true,
+        isCancelled: isCancelled,
+        isCompleted: isCompleted,
       };
     }
 
@@ -478,10 +484,13 @@ const checkSlotAvailability = async (doctorId, date) => {
     }
     
     // Get actual booked appointments count (not just currentToken)
+    // Exclude pending payment appointments to match the display filter
+    // Only count appointments that are actually confirmed (paid)
     const Appointment = require('../models/Appointment');
     const actualBookedCount = await Appointment.countDocuments({
       sessionId: session._id,
       status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
+      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
     });
     
     // Use actual booked count instead of currentToken for accurate slot calculation
@@ -658,9 +667,10 @@ const callNextPatient = async (sessionId, appointmentId = null) => {
   nextAppointment.status = 'called';
   nextAppointment.queueStatus = 'called';
   
-  // Reset recallCount to 0 when patient is called again
-  // This allows doctor to recall again after calling the patient (fresh call cycle)
-  nextAppointment.recallCount = 0;
+  // DO NOT reset recallCount when patient is called again
+  // recallCount should persist across calls - it only increments when Recall is clicked
+  // This ensures the 2-recall limit is enforced properly
+  // The recallCount will only be reset if explicitly needed (e.g., new appointment cycle)
   
   await nextAppointment.save();
 

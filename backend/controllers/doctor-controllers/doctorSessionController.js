@@ -462,21 +462,31 @@ exports.deleteSession = asyncHandler(async (req, res) => {
 
   // Find all appointments in this session that should be cancelled
   // EXCLUDE completed appointments - they should remain completed
-  // Only cancel: scheduled, confirmed, waiting, called, in-consultation, in_progress
+  // Only cancel: scheduled, confirmed, waiting, called, in-consultation, in_progress, skipped, cancelled (no-show)
+  // Also include appointments with skipped queueStatus
   const cancelledAppointments = await Appointment.find({
     sessionId: session._id,
-    status: { $in: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress'] }, // Only cancel pending appointments
+    status: { $ne: 'completed' }, // Exclude completed appointments
+    $or: [
+      { status: { $in: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress', 'cancelled'] } },
+      { queueStatus: 'skipped' }
+    ]
   }).populate('patientId', 'firstName lastName email').populate('doctorId', 'firstName lastName specialization profileImage');
 
   // Update all pending appointments with cancellation details
   // Keep completed appointments as completed
+  // Use cancelled_by_session status to distinguish from other cancellations
   await Appointment.updateMany(
     { 
-      sessionId: session._id, 
-      status: { $in: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress'] } // Only cancel pending appointments
+      sessionId: session._id,
+      status: { $ne: 'completed' }, // Exclude completed appointments
+      $or: [
+        { status: { $in: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress', 'cancelled'] } },
+        { queueStatus: 'skipped' }
+      ]
     },
     { 
-      status: 'cancelled',
+      status: 'cancelled_by_session',
       queueStatus: 'cancelled',
       cancelledAt: new Date(),
       cancelledBy: 'doctor',

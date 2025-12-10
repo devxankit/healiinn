@@ -449,22 +449,36 @@ const DoctorPatients = () => {
           prev.map((appt) => {
             if (appt.id === data.appointmentId || appt._id === data.appointmentId) {
               // Update recallCount if provided - this ensures button visibility updates immediately
-              if (data.recallCount !== undefined) {
+              if (data.recallCount !== undefined && data.recallCount !== null) {
+                const updatedRecallCount = data.recallCount
                 return {
                   ...appt,
-                  recallCount: data.recallCount,
+                  recallCount: updatedRecallCount,
                   status: data.status || appt.status,
                   queueStatus: data.queueStatus || data.status || appt.queueStatus,
+                  originalData: {
+                    ...(appt.originalData || {}),
+                    recallCount: updatedRecallCount
+                  }
                 }
               }
-              // Update status if provided
-              if (data.status) {
+              // Update status if provided, but ALWAYS preserve recallCount
+              if (data.status || data.queueStatus) {
+                const preservedRecallCount = appt.recallCount !== undefined && appt.recallCount !== null
+                  ? appt.recallCount
+                  : (appt.originalData?.recallCount !== undefined && appt.originalData?.recallCount !== null
+                      ? appt.originalData.recallCount
+                      : 0)
                 return {
                   ...appt,
-                  status: data.status,
-                  queueStatus: data.queueStatus || data.status,
-                  // Preserve recallCount when only status updates
-                  recallCount: appt.recallCount || 0,
+                  status: data.status || appt.status,
+                  queueStatus: data.queueStatus || data.status || appt.queueStatus,
+                  // ALWAYS preserve recallCount when only status updates
+                  recallCount: preservedRecallCount,
+                  originalData: {
+                    ...(appt.originalData || {}),
+                    recallCount: preservedRecallCount
+                  }
                 }
               }
             }
@@ -564,6 +578,81 @@ const DoctorPatients = () => {
       return false
     }
   })
+
+  // Helper function to determine which buttons to show for an appointment
+  const getAppointmentButtons = (appointment, sessionStatus) => {
+    // If session is not active/live, show no buttons
+    if (sessionStatus !== 'active' && sessionStatus !== 'live') {
+      return { showButtons: false, buttons: [] }
+    }
+
+    const status = appointment.status || appointment.originalData?.status
+    const queueStatus = appointment.queueStatus || appointment.originalData?.queueStatus
+    // IMPORTANT: Read recallCount from multiple possible locations to ensure we get the correct value
+    const recallCount = appointment.recallCount !== undefined 
+      ? appointment.recallCount 
+      : (appointment.originalData?.recallCount !== undefined 
+          ? appointment.originalData.recallCount 
+          : 0)
+    const consultationMode = appointment.consultationMode || appointment.originalData?.consultationMode
+    
+    // Debug log for recall button visibility
+    if (status === 'called' || status === 'in-consultation' || status === 'in_progress') {
+      console.log('🔵 Recall Button Check:', {
+        appointmentId: appointment.id || appointment._id,
+        status,
+        recallCount,
+        recallCountFromAppointment: appointment.recallCount,
+        recallCountFromOriginal: appointment.originalData?.recallCount,
+        willShowRecall: recallCount < 2
+      })
+    }
+
+    // If appointment is completed, show no buttons (only "Completed" label)
+    if (status === 'completed') {
+      return { showButtons: false, buttons: [], showCompletedLabel: true }
+    }
+
+    // If appointment is cancelled (no-show or cancelled-by-session), show no buttons (only "Cancelled" label)
+    if (status === 'cancelled' || status === 'cancelled_by_session' || queueStatus === 'no-show') {
+      return { showButtons: false, buttons: [], showCancelledLabel: true }
+    }
+
+    // If appointment is skipped, show: Call, Skip, No Show
+    if (queueStatus === 'skipped') {
+      return {
+        showButtons: true,
+        buttons: ['call', 'skip', 'noShow'],
+        consultationMode
+      }
+    }
+
+    // If appointment is called/in-consultation/in_progress, show: Recall (if recallCount < 2), Skip, No Show, Complete
+    if (status === 'called' || status === 'in-consultation' || status === 'in_progress') {
+      const buttons = ['skip', 'noShow', 'complete']
+      if (recallCount < 2) {
+        buttons.unshift('recall') // Add recall at the beginning
+      }
+      return {
+        showButtons: true,
+        buttons,
+        consultationMode
+      }
+    }
+
+    // If appointment is waiting/scheduled/confirmed (before call), show: Call, Skip, No Show
+    // Note: Recall button only shows when patient is called/in-consultation (not when waiting)
+    if (status === 'waiting' || status === 'scheduled' || status === 'confirmed') {
+      return {
+        showButtons: true,
+        buttons: ['call', 'skip', 'noShow'],
+        consultationMode
+      }
+    }
+
+    // Default: no buttons
+    return { showButtons: false, buttons: [] }
+  }
 
   // Session management functions
   const handleStartSession = async () => {
@@ -682,6 +771,58 @@ const DoctorPatients = () => {
     } catch (error) {
       console.error('Error starting session:', error)
       toast.error(error.message || 'Failed to start session')
+    }
+  }
+
+  const handleEndSession = async () => {
+    if (!currentSession?._id) {
+      toast.error('Session ID not found')
+      return
+    }
+
+    // Confirm with user
+    const confirmed = window.confirm('Are you sure you want to end this session? This will mark the session as completed and prevent new appointments from being booked.')
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setLoadingSession(true)
+      
+      // Call backend API to end session (set status to completed)
+      const response = await updateSession(currentSession._id, { status: 'completed' })
+      
+      if (response.success) {
+        // Update local session state
+        if (response.data?.session) {
+          const updatedSession = {
+            ...currentSession,
+            ...response.data.session,
+            status: 'completed',
+            endedAt: new Date().toISOString()
+          }
+          setCurrentSession(updatedSession)
+          localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
+        } else {
+          // Fallback: update status manually
+          const updatedSession = {
+            ...currentSession,
+            status: 'completed',
+            endedAt: new Date().toISOString()
+          }
+          setCurrentSession(updatedSession)
+          localStorage.setItem('doctorCurrentSession', JSON.stringify(updatedSession))
+        }
+        
+        toast.success('Session ended successfully. No new appointments can be booked for this session.')
+      } else {
+        toast.error(response.message || 'Failed to end session')
+      }
+    } catch (error) {
+      console.error('Error ending session:', error)
+      toast.error(error.message || 'Failed to end session. Please try again.')
+    } finally {
+      setLoadingSession(false)
     }
   }
 
@@ -814,18 +955,53 @@ const DoctorPatients = () => {
           const calledAppointment = response.data.appointment
           const calledAppointmentId = calledAppointment._id || calledAppointment.id
           
+          // IMPORTANT: Read recallCount from backend response first, then fallback to existing state
+          // The backend should preserve recallCount (we fixed it to not reset), so it should be in the response
+          const backendRecallCount = calledAppointment.recallCount !== undefined && calledAppointment.recallCount !== null
+            ? calledAppointment.recallCount
+            : undefined
+          
+          console.log('📞 Call Next - RecallCount Check:', {
+            appointmentId: calledAppointmentId,
+            backendRecallCount,
+            calledAppointment: calledAppointment.recallCount,
+            appointmentFromState: appointment.recallCount,
+            originalDataRecallCount: appointment.originalData?.recallCount
+          })
+          
           // Update the called appointment status
+          // IMPORTANT: Preserve recallCount when updating status to 'called'
           setAppointments((prev) =>
             prev.map((appt) => {
               // Match by appointment ID from response or by appointmentId parameter
               if (appt.id === appointmentId || appt._id === appointmentId || 
                   appt.id === calledAppointmentId || appt._id === calledAppointmentId) {
+                // Preserve recallCount: prefer backend value, then existing state, then originalData, then 0
+                const preservedRecallCount = backendRecallCount !== undefined
+                  ? backendRecallCount
+                  : (appt.recallCount !== undefined && appt.recallCount !== null
+                      ? appt.recallCount
+                      : (appt.originalData?.recallCount !== undefined && appt.originalData?.recallCount !== null
+                          ? appt.originalData.recallCount
+                          : 0))
+                
+                console.log('✅ Preserving recallCount:', {
+                  appointmentId: appt.id || appt._id,
+                  preservedRecallCount,
+                  source: backendRecallCount !== undefined ? 'backend' : 'state'
+                })
+                
                 return { 
                   ...appt, 
                   status: 'called', 
                   queueStatus: 'called',
+                  recallCount: preservedRecallCount, // Preserve recallCount
                   _id: calledAppointmentId || appt._id,
-                  id: calledAppointmentId || appt.id
+                  id: calledAppointmentId || appt.id,
+                  originalData: {
+                    ...(appt.originalData || {}),
+                    recallCount: preservedRecallCount
+                  }
                 }
               }
               return appt
@@ -833,12 +1009,21 @@ const DoctorPatients = () => {
           )
         } else {
           // Fallback: update by appointmentId if response doesn't have appointment data
+          // IMPORTANT: Preserve recallCount in fallback too
           setAppointments((prev) =>
-            prev.map((appt) =>
-              appt.id === appointmentId || appt._id === appointmentId
-                ? { ...appt, status: 'called', queueStatus: 'called' }
-                : appt
-            )
+            prev.map((appt) => {
+              if (appt.id === appointmentId || appt._id === appointmentId) {
+                // Preserve existing recallCount
+                const preservedRecallCount = appt.recallCount || appt.originalData?.recallCount || 0
+                return { 
+                  ...appt, 
+                  status: 'called', 
+                  queueStatus: 'called',
+                  recallCount: preservedRecallCount // Preserve recallCount
+                }
+              }
+              return appt
+            })
           )
         }
 
@@ -957,12 +1142,16 @@ const DoctorPatients = () => {
       if (response.success) {
         toast.success('Consultation completed successfully. Patient has been notified.')
         
-        // Remove appointment from queue (since it's completed)
+        // Update appointment status to completed (keep in list, just update status)
         setAppointments((prev) =>
-          prev.filter((appt) => appt.id !== appointmentId && appt._id !== appointmentId)
+          prev.map((appt) =>
+            appt.id === appointmentId || appt._id === appointmentId
+              ? { ...appt, status: 'completed', queueStatus: 'completed' }
+              : appt
+          )
         )
         
-        // Refresh appointments to get updated queue
+        // Refresh appointments to get updated queue (including completed appointments)
         const queueResponse = await getPatientQueue(getTodayDateString())
         if (queueResponse.success && queueResponse.data) {
           const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
@@ -1465,6 +1654,19 @@ const DoctorPatients = () => {
                       </button>
                       )
                     })()}
+                    {/* Show End Session button when session is active/live */}
+                    {(currentSession.status === 'active' || currentSession.status === 'live') && (
+                      <button
+                        type="button"
+                        onClick={handleEndSession}
+                        disabled={loadingSession}
+                        className="flex items-center gap-1.5 rounded-lg bg-orange-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-orange-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <IoCheckmarkCircleOutline className="h-4 w-4" />
+                        {loadingSession ? 'Ending...' : 'End Session'}
+                      </button>
+                    )}
+                    {/* Show Cancel Session button for scheduled/active/live sessions */}
                     {(currentSession.status === 'scheduled' || currentSession.status === 'active' || currentSession.status === 'live') && (
                       <button
                         type="button"
@@ -1623,291 +1825,148 @@ const DoctorPatients = () => {
                           <span>In-Person</span>
                         )}
                       </span>
-                      {/* Status Badge - Show Cancelled for no-show, Completed for completed */}
-                      {appointment.status === 'no-show' || appointment.queueStatus === 'no-show' ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                          <IoCloseCircleOutline className="h-2.5 w-2.5" />
-                          Cancelled
-                        </span>
-                      ) : appointment.status === 'completed' ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                          <IoCheckmarkCircleOutline className="h-2.5 w-2.5" />
-                          Completed
-                        </span>
-                      ) : null}
+                      {/* Status Badge - Show Cancelled for no-show/cancelled-by-session, Completed for completed */}
+                      {(() => {
+                        const status = appointment.status || appointment.originalData?.status
+                        const queueStatus = appointment.queueStatus || appointment.originalData?.queueStatus
+                        
+                        if (status === 'cancelled_by_session' || status === 'cancelled' || queueStatus === 'no-show') {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                              <IoCloseCircleOutline className="h-2.5 w-2.5" />
+                              Cancelled
+                            </span>
+                          )
+                        }
+                        if (status === 'completed') {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                              <IoCheckmarkCircleOutline className="h-2.5 w-2.5" />
+                              Completed
+                            </span>
+                          )
+                        }
+                        return null
+                      })()}
                     </div>
 
-                    {/* Action Buttons - Show when session is live/active */}
+                    {/* Action Buttons - Use helper function to determine button visibility */}
                     <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                      {/* Show action buttons when session is live/active */}
-                      {(currentSession?.status === 'active' || currentSession?.status === 'live') && 
-                       appointment.status !== 'completed' && 
-                       appointment.status !== 'cancelled' && 
-                       appointment.status !== 'no-show' && 
-                       appointment.queueStatus !== 'skipped' && 
-                       appointment.queueStatus !== 'no-show' && (
-                        <>
-                          {/* Call / Video Call buttons - Show for waiting/scheduled appointments (NOT skipped/no-show) */}
-                          {(appointment.status === 'waiting' || appointment.status === 'scheduled' || appointment.status === 'confirmed') && 
-                           appointment.queueStatus !== 'skipped' && 
-                           appointment.queueStatus !== 'no-show' && (
-                        <>
-                              {appointment.consultationMode === 'video_call' ? (
-                        <>
-                          {/* For video call appointments: Show both Call and Video Call buttons */}
-                          <button
-                            type="button"
-                            onClick={() => handleCallNext(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleVideoCall(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
-                          >
-                                  <IoVideocamOutline className="h-3.5 w-3.5" />
-                                  Video Call
-                          </button>
-                        </>
-                              ) : appointment.consultationMode === 'call' ? (
-                        <>
-                          {/* For call type appointments: Show both Call buttons */}
-                          <button
-                            type="button"
-                                  onClick={() => handleCallNext(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleCallPatient(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                        </>
-                              ) : (
-                          <button
-                            type="button"
-                                  onClick={() => handleCallNext(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                              )}
-                        </>
-                      )}
-                        </>
-                      )}
-                      
-                      {/* Buttons for skipped appointments - Show only Call, Skip, No Show */}
-                      {/* This section is OUTSIDE the main condition to handle skipped appointments separately */}
-                      {(currentSession?.status === 'active' || currentSession?.status === 'live') && 
-                       appointment.queueStatus === 'skipped' && (
-                        <>
-                              {/* Call button - Show for skipped appointments */}
-                              {appointment.consultationMode === 'video_call' ? (
-                        <>
-                          {/* For video call appointments: Show both Call and Video Call buttons */}
-                          <button
-                            type="button"
-                            onClick={() => handleCallNext(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleVideoCall(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
-                          >
-                                  <IoVideocamOutline className="h-3.5 w-3.5" />
-                                  Video Call
-                          </button>
-                        </>
-                              ) : appointment.consultationMode === 'call' ? (
-                        <>
-                          {/* For call type appointments: Show both Call buttons */}
-                          <button
-                            type="button"
-                                  onClick={() => handleCallNext(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleCallPatient(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                        </>
-                              ) : (
-                          <button
-                            type="button"
-                                  onClick={() => handleCallNext(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                              )}
+                      {(() => {
+                        const buttonConfig = getAppointmentButtons(appointment, currentSession?.status)
+                        
+                        // If no buttons should be shown (completed/cancelled), return early
+                        if (!buttonConfig.showButtons) {
+                          return null
+                        }
+
+                        const { buttons, consultationMode } = buttonConfig
+                        const appointmentId = appointment.id || appointment._id
+
+                        return (
+                          <>
+                            {/* Call button - only show for waiting/scheduled/confirmed/skipped (before first call) */}
+                            {buttons.includes('call') && (
+                              <>
+                                {consultationMode === 'video_call' ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCallNext(appointmentId)}
+                                      className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                                    >
+                                      <IoCallOutline className="h-3.5 w-3.5" />
+                                      Call
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleVideoCall(appointmentId)}
+                                      className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
+                                    >
+                                      <IoVideocamOutline className="h-3.5 w-3.5" />
+                                      Video Call
+                                    </button>
+                                  </>
+                                ) : consultationMode === 'call' ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCallNext(appointmentId)}
+                                      className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                                    >
+                                      <IoCallOutline className="h-3.5 w-3.5" />
+                                      Call
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCallPatient(appointmentId)}
+                                      className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 active:scale-95"
+                                    >
+                                      <IoCallOutline className="h-3.5 w-3.5" />
+                                      Call
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCallNext(appointmentId)}
+                                    className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                                  >
+                                    <IoCallOutline className="h-3.5 w-3.5" />
+                                    Call
+                                  </button>
+                                )}
+                              </>
+                            )}
+
+                            {/* Recall button - only show when called/in-consultation and recallCount < 2 */}
+                            {buttons.includes('recall') && (
                               <button
                                 type="button"
-                                onClick={() => handleSkip(appointment.id)}
+                                onClick={() => handleRecall(appointmentId)}
+                                className="flex items-center gap-1.5 rounded-lg border border-[#11496c] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#11496c] transition hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                              >
+                                <IoRefreshOutline className="h-3.5 w-3.5" />
+                                Recall
+                              </button>
+                            )}
+
+                            {/* Skip button */}
+                            {buttons.includes('skip') && (
+                              <button
+                                type="button"
+                                onClick={() => handleSkip(appointmentId)}
                                 className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
                               >
                                 Skip
                               </button>
+                            )}
+
+                            {/* No Show button */}
+                            {buttons.includes('noShow') && (
                               <button
                                 type="button"
-                                onClick={() => handleNoShow(appointment.id)}
+                                onClick={() => handleNoShow(appointmentId)}
                                 className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
                               >
                                 No Show
                               </button>
-                            </>
-                          )}
+                            )}
 
-                      {/* No buttons for no-show appointments - Patient is cancelled, no actions allowed */}
-                      {/* No buttons for completed appointments - Patient is completed, no actions allowed */}
-
-                      {/* Buttons for called/in-consultation/in_progress appointments */}
-                      {/* This section is OUTSIDE the main condition to handle called appointments separately */}
-                      {(currentSession?.status === 'active' || currentSession?.status === 'live') && 
-                       (appointment.status === 'called' || appointment.status === 'in-consultation' || appointment.status === 'in_progress') && 
-                       appointment.queueStatus !== 'skipped' && 
-                       appointment.queueStatus !== 'no-show' && (
-                        <>
-                              {/* Call/Video Call button - Show based on consultation mode */}
-                              {appointment.consultationMode === 'video_call' ? (
-                        <>
-                          {/* For video call appointments: Show both Call and Video Call buttons */}
-                          <button
-                            type="button"
-                            onClick={() => handleCallNext(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleVideoCall(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
-                          >
-                                  <IoVideocamOutline className="h-3.5 w-3.5" />
-                                  Video Call
-                          </button>
-                        </>
-                              ) : appointment.consultationMode === 'call' ? (
-                        <>
-                          {/* For call type appointments: Show both Call buttons */}
-                          <button
-                            type="button"
-                                  onClick={() => handleCallNext(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleCallPatient(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                        </>
-                              ) : (
-                          <button
-                            type="button"
-                                  onClick={() => handleCallNext(appointment.id)}
-                                  className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                          >
-                                  <IoCallOutline className="h-3.5 w-3.5" />
-                                  Call
-                          </button>
-                              )}
-                              
-                          {/* Recall button - Show only when patient is called/in-consultation AND recallCount < 2 */}
-                          {(appointment.status === 'called' || 
-                            appointment.status === 'in-consultation' || 
-                            appointment.status === 'in_progress') && 
-                           (appointment.recallCount || 0) < 2 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRecall(appointment.id)}
-                            className="flex items-center gap-1.5 rounded-lg border border-[#11496c] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#11496c] transition hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
-                          >
-                            <IoRefreshOutline className="h-3.5 w-3.5" />
-                            Recall
-                          </button>
-                          )}
+                            {/* Complete button */}
+                            {buttons.includes('complete') && (
                               <button
                                 type="button"
-                                onClick={() => handleComplete(appointment.id)}
+                                onClick={() => handleComplete(appointmentId)}
                                 className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
                               >
                                 <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                                Completed
+                                Complete
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => handleSkip(appointment.id)}
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
-                              >
-                                Skip
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleNoShow(appointment.id)}
-                                className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
-                              >
-                                No Show
-                              </button>
-                            </>
-                      )}
-                      
-                      {/* Skip and No Show buttons for waiting/scheduled appointments (not called, not skipped) */}
-                      {/* These are OUTSIDE all other sections to avoid duplicates */}
-                      {(currentSession?.status === 'active' || currentSession?.status === 'live') && 
-                       (appointment.status === 'waiting' || appointment.status === 'scheduled' || appointment.status === 'confirmed') && 
-                       appointment.status !== 'called' && 
-                       appointment.status !== 'in-consultation' && 
-                       appointment.status !== 'in_progress' &&
-                       appointment.queueStatus !== 'skipped' && 
-                       appointment.queueStatus !== 'no-show' && (
-                        <>
-                          {/* Skip button - Show for waiting/scheduled appointments */}
-                          <button
-                            type="button"
-                            onClick={() => handleSkip(appointment.id)}
-                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
-                          >
-                            Skip
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleNoShow(appointment.id)}
-                            className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 active:scale-95"
-                          >
-                            No Show
-                          </button>
-                        </>
-                      )}
+                            )}
+                          </>
+                        )
+                      })()}
                       
                       {/* History button for completed appointments */}
                       {appointment.status === 'completed' && (

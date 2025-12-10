@@ -146,13 +146,14 @@ exports.getAppointments = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const filter = { doctorId: id };
-  // Exclude appointments with pending payment - only show confirmed paid appointments
-  filter.paymentStatus = { $ne: 'pending' };
-  // Exclude cancelled appointments from doctor's list (they should not see cancelled appointments)
-  filter.status = { $ne: 'cancelled' };
-  if (status && status !== 'cancelled') {
+  // Include all appointments including pending payment and cancelled so doctor can see all appointments
+  // This ensures count matches what's displayed in the list
+  // Include cancelled appointments so doctor can see complete history
+  // Only filter by status if explicitly requested, otherwise show all
+  if (status) {
     filter.status = status;
   }
+  // If no status filter, show all appointments (including cancelled, pending payment, etc.)
   if (date) {
     const dateObj = new Date(date);
     filter.appointmentDate = {
@@ -182,67 +183,69 @@ exports.getAppointments = asyncHandler(async (req, res) => {
       .limit(limit),
     Appointment.countDocuments(filter),
     // Calculate statistics for scheduled and rescheduled appointments
+    // Include ALL appointments (scheduled, confirmed, cancelled, pending payment) so count matches total
+    // Only exclude completed appointments from active counts
     Promise.all([
-      // Today - Scheduled (not rescheduled)
+      // Today - Scheduled (not rescheduled) - include all statuses except completed
       Appointment.countDocuments({
         doctorId: id,
         appointmentDate: { $gte: today, $lt: tomorrow },
-        status: { $in: ['scheduled', 'confirmed'] },
-        paymentStatus: { $ne: 'pending' },
+        status: { $in: ['scheduled', 'confirmed', 'cancelled', 'cancelled_by_session'] },
+        // Include pending payment appointments in count
         rescheduledAt: { $exists: false },
       }),
-      // Today - Rescheduled
+      // Today - Rescheduled - include all statuses except completed
       Appointment.countDocuments({
         doctorId: id,
         appointmentDate: { $gte: today, $lt: tomorrow },
-        status: { $in: ['scheduled', 'confirmed'] },
-        paymentStatus: { $ne: 'pending' },
+        status: { $in: ['scheduled', 'confirmed', 'cancelled', 'cancelled_by_session'] },
+        // Include pending payment appointments in count
         rescheduledAt: { $exists: true },
       }),
-      // This Month - Scheduled
+      // This Month - Scheduled - include all statuses except completed
       Appointment.countDocuments({
         doctorId: id,
         appointmentDate: { $gte: currentMonthStart, $lte: currentMonthEnd },
-        status: { $in: ['scheduled', 'confirmed'] },
-        paymentStatus: { $ne: 'pending' },
+        status: { $in: ['scheduled', 'confirmed', 'cancelled', 'cancelled_by_session'] },
+        // Include pending payment appointments in count
         rescheduledAt: { $exists: false },
       }),
-      // This Month - Rescheduled
+      // This Month - Rescheduled - include all statuses except completed
       Appointment.countDocuments({
         doctorId: id,
         appointmentDate: { $gte: currentMonthStart, $lte: currentMonthEnd },
-        status: { $in: ['scheduled', 'confirmed'] },
-        paymentStatus: { $ne: 'pending' },
+        status: { $in: ['scheduled', 'confirmed', 'cancelled', 'cancelled_by_session'] },
+        // Include pending payment appointments in count
         rescheduledAt: { $exists: true },
       }),
-      // This Year - Scheduled
+      // This Year - Scheduled - include all statuses except completed
       Appointment.countDocuments({
         doctorId: id,
         appointmentDate: { $gte: currentYearStart, $lte: currentYearEnd },
-        status: { $in: ['scheduled', 'confirmed'] },
-        paymentStatus: { $ne: 'pending' },
+        status: { $in: ['scheduled', 'confirmed', 'cancelled', 'cancelled_by_session'] },
+        // Include pending payment appointments in count
         rescheduledAt: { $exists: false },
       }),
-      // This Year - Rescheduled
+      // This Year - Rescheduled - include all statuses except completed
       Appointment.countDocuments({
         doctorId: id,
         appointmentDate: { $gte: currentYearStart, $lte: currentYearEnd },
-        status: { $in: ['scheduled', 'confirmed'] },
-        paymentStatus: { $ne: 'pending' },
+        status: { $in: ['scheduled', 'confirmed', 'cancelled', 'cancelled_by_session'] },
+        // Include pending payment appointments in count
         rescheduledAt: { $exists: true },
       }),
-      // Total - Scheduled
+      // Total - Scheduled - include all statuses except completed
       Appointment.countDocuments({
         doctorId: id,
-        status: { $in: ['scheduled', 'confirmed'] },
-        paymentStatus: { $ne: 'pending' },
+        status: { $in: ['scheduled', 'confirmed', 'cancelled', 'cancelled_by_session'] },
+        // Include pending payment appointments in count
         rescheduledAt: { $exists: false },
       }),
-      // Total - Rescheduled
+      // Total - Rescheduled - include all statuses except completed
       Appointment.countDocuments({
         doctorId: id,
-        status: { $in: ['scheduled', 'confirmed'] },
-        paymentStatus: { $ne: 'pending' },
+        status: { $in: ['scheduled', 'confirmed', 'cancelled', 'cancelled_by_session'] },
+        // Include pending payment appointments in count
         rescheduledAt: { $exists: true },
       }),
     ]).then(([

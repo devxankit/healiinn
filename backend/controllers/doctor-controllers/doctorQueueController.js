@@ -201,68 +201,115 @@ exports.skipPatient = asyncHandler(async (req, res) => {
     });
   }
 
+  // Prevent skipping cancelled/no-show appointments
+  if (appointment.status === 'cancelled' || appointment.status === 'cancelled_by_session' || 
+      appointment.queueStatus === 'no-show' || appointment.queueStatus === 'cancelled') {
+    return res.status(400).json({
+      success: false,
+      message: 'Cannot skip a cancelled or no-show appointment',
+    });
+  }
+
   const originalTokenNumber = appointment.tokenNumber;
 
-  // Get ALL active appointments (excluding skipped, no-show, completed, cancelled)
+  // Get ALL active appointments (excluding skipped, no-show, completed, cancelled, cancelled_by_session)
+  // CRITICAL: Cancelled/no-show appointments must be completely excluded from token number calculations
   // We want to reuse available tokens, not create new ones
+  // IMPORTANT: Exclude cancelled_by_session and no-show appointments completely from token calculations
   const activeAppointments = await Appointment.find({
     sessionId: session._id,
-    status: { $nin: ['completed', 'cancelled'] },
+    status: { $nin: ['completed', 'cancelled', 'cancelled_by_session'] },
     queueStatus: { $nin: ['skipped', 'no-show', 'completed', 'cancelled'] },
     _id: { $ne: appointmentId }, // Exclude the patient being skipped
   }).sort({ tokenNumber: 1 });
 
   // Get ALL skipped appointments (excluding the one being skipped)
+  // Also exclude cancelled_by_session status
   const skippedAppointments = await Appointment.find({
     sessionId: session._id,
-    status: { $nin: ['completed', 'cancelled'] },
+    status: { $nin: ['completed', 'cancelled', 'cancelled_by_session'] },
     queueStatus: 'skipped',
     _id: { $ne: appointmentId }, // Exclude the patient being skipped
   }).sort({ tokenNumber: 1 });
 
   // Find the last active token number
+  // IMPORTANT: Only consider active appointments (cancelled/no-show are already excluded in query)
   let lastActiveTokenNumber = 0;
   if (activeAppointments.length > 0) {
     lastActiveTokenNumber = Math.max(...activeAppointments.map(apt => apt.tokenNumber));
   }
 
   // Find the last skipped token number
+  // IMPORTANT: Only consider skipped appointments (cancelled/no-show are already excluded in query)
   let lastSkippedTokenNumber = 0;
   if (skippedAppointments.length > 0) {
     lastSkippedTokenNumber = Math.max(...skippedAppointments.map(apt => apt.tokenNumber));
   }
-
-  // Find the absolute last token number among ALL appointments (active + skipped)
-  // This ensures we know the true last position
-  const allAppointmentsForMaxToken = await Appointment.find({
-    sessionId: session._id,
-    status: { $nin: ['completed', 'cancelled'] },
-    _id: { $ne: appointmentId }, // Exclude the patient being skipped
-  }).select('tokenNumber').sort({ tokenNumber: -1 }).limit(1);
   
-  let absoluteLastTokenNumber = 0;
-  if (allAppointmentsForMaxToken.length > 0) {
-    absoluteLastTokenNumber = allAppointmentsForMaxToken[0].tokenNumber;
+  // Verify that we're not accidentally including cancelled appointments
+  // This is a safety check - cancelled appointments should never be in activeAppointments or skippedAppointments
+  // The queries above already exclude them, but this is an extra safeguard
+  const filteredActiveAppointments = activeAppointments.filter(apt => 
+    apt.status !== 'cancelled' && apt.status !== 'cancelled_by_session' && 
+    apt.queueStatus !== 'no-show' && apt.queueStatus !== 'cancelled'
+  );
+  const filteredSkippedAppointments = skippedAppointments.filter(apt => 
+    apt.status !== 'cancelled' && apt.status !== 'cancelled_by_session' && 
+    apt.queueStatus !== 'no-show' && apt.queueStatus !== 'cancelled'
+  );
+  
+  // Use filtered lists for calculations (should be same as original, but ensures safety)
+  const safeActiveAppointments = filteredActiveAppointments;
+  const safeSkippedAppointments = filteredSkippedAppointments;
+  
+  // Recalculate lastActiveTokenNumber using safe list
+  if (safeActiveAppointments.length > 0) {
+    lastActiveTokenNumber = Math.max(...safeActiveAppointments.map(apt => apt.tokenNumber));
   } else {
-    // If no other appointments, use the max of active, skipped, or original
-    absoluteLastTokenNumber = Math.max(lastActiveTokenNumber, lastSkippedTokenNumber, originalTokenNumber);
+    lastActiveTokenNumber = 0;
   }
+  
+  // Recalculate lastSkippedTokenNumber using safe list
+  if (safeSkippedAppointments.length > 0) {
+    lastSkippedTokenNumber = Math.max(...safeSkippedAppointments.map(apt => apt.tokenNumber));
+  } else {
+    lastSkippedTokenNumber = 0;
+  }
+  
+  // Get active appointments that need to shift down (those after original position)
+  // Use safe list to ensure cancelled appointments are never included
+  const activeAppointmentsToShift = safeActiveAppointments.filter(
+    apt => apt.tokenNumber > originalTokenNumber && apt.tokenNumber <= lastActiveTokenNumber
+  );
 
-  // The new skipped patient should go to the absolute last position
-  // This ensures they get the time for the last token based on total tokens and avg consultation time
-  const targetTokenNumber = absoluteLastTokenNumber;
+  // Calculate the target token number for the new skipped patient
+  // After shifting active appointments down, the new last active token will be: lastActiveTokenNumber - activeShiftedCount
+  // Previously skipped patients count: safeSkippedAppointments.length
+  // New skipped patient should go to: (newLastActiveToken) + (previouslySkippedCount) + 1
+  // This ensures each skip goes to the end, and multiple skips stack correctly
+  // IMPORTANT: Using safe lists ensures cancelled/no-show appointments are never included in calculations
+  
+  const activeShiftedCount = activeAppointmentsToShift.length;
+  const newLastActiveToken = lastActiveTokenNumber - activeShiftedCount;
+  const previouslySkippedCount = safeSkippedAppointments.length;
+  
+  // The new skipped patient should go to the position after all active and previously skipped patients
+  const targetTokenNumber = newLastActiveToken + previouslySkippedCount + 1;
   
   console.log(`🔢 Skip token calculation:`, {
     originalTokenNumber,
     lastActiveTokenNumber,
     lastSkippedTokenNumber,
-    absoluteLastTokenNumber,
+    activeShiftedCount,
+    newLastActiveToken,
+    previouslySkippedCount,
     targetTokenNumber,
-    activeCount: activeAppointments.length,
-    skippedCount: skippedAppointments.length,
+    activeCount: safeActiveAppointments.length,
+    skippedCount: safeSkippedAppointments.length,
   });
 
-  // If this patient is already at the last position and is already skipped, just return
+  // If this patient is already at the target position and is already skipped, just return
+  // (This handles the case where a skipped patient is being skipped again - they're already at the end)
   if (appointment.queueStatus === 'skipped' && originalTokenNumber >= targetTokenNumber) {
     // Patient is already skipped at last position, no need to move
     // Just update status if needed and ensure time is correct
@@ -303,8 +350,8 @@ exports.skipPatient = asyncHandler(async (req, res) => {
 
     // Update session current token if this was the current token
     if (session.currentToken === originalTokenNumber) {
-      // Find next active appointment
-      const nextAppointment = activeAppointments.find(apt => apt.tokenNumber > originalTokenNumber);
+      // Find next active appointment (use safe list to exclude cancelled)
+      const nextAppointment = safeActiveAppointments.find(apt => apt.tokenNumber > originalTokenNumber);
       if (nextAppointment) {
         session.currentToken = nextAppointment.tokenNumber;
       } else {
@@ -400,12 +447,8 @@ exports.skipPatient = asyncHandler(async (req, res) => {
   // 2. Reorganize all previously skipped patients to sequential positions after active appointments
   // 3. Assign the new skipped patient to the absolute last position
 
-  // Get active appointments that need to shift down (those after original position)
-  const activeAppointmentsToShift = activeAppointments.filter(
-    apt => apt.tokenNumber > originalTokenNumber && apt.tokenNumber <= lastActiveTokenNumber
-  );
-
   // Use a transaction-like approach: update all appointments
+  // (activeAppointmentsToShift is already calculated above)
   const updatePromises = [];
 
   // Get doctor data once for all time calculations
@@ -461,16 +504,13 @@ exports.skipPatient = asyncHandler(async (req, res) => {
     // Step 2: Reorganize all previously skipped patients to sequential positions after active appointments
     // After active appointments shift down, we need to place skipped patients sequentially
     // Logic: After active shift, last active token = lastActiveTokenNumber - activeShiftedCount
-    // Previously skipped count = skippedAppointments.length
-    // New skipped will be at: targetTokenNumber (absolute last)
+    // Previously skipped count = safeSkippedAppointments.length
+    // New skipped will be at: targetTokenNumber (calculated above)
     // Previously skipped should be at: (newLastActiveToken + 1), (newLastActiveToken + 2), ..., (targetTokenNumber - 1)
-    
-    const activeShiftedCount = activeAppointmentsToShift.length;
-    const newLastActiveToken = lastActiveTokenNumber - activeShiftedCount;
-    const skippedCount = skippedAppointments.length;
+    // IMPORTANT: Use safeSkippedAppointments to ensure cancelled appointments are never included
     
     // Sort skipped appointments by their current token number to maintain order
-    const sortedSkipped = [...skippedAppointments].sort((a, b) => a.tokenNumber - b.tokenNumber);
+    const sortedSkipped = [...safeSkippedAppointments].sort((a, b) => a.tokenNumber - b.tokenNumber);
     
     sortedSkipped.forEach((skippedApt, index) => {
       // Calculate new token: sequentially after active appointments
@@ -478,7 +518,7 @@ exports.skipPatient = asyncHandler(async (req, res) => {
       // Last skipped gets (targetTokenNumber - 1), so new skipped can be at targetTokenNumber
       const newTokenNumber = newLastActiveToken + 1 + index;
       
-      // Only update if token actually changed and it's within valid range
+      // Only update if token actually changed and it's within valid range (must be less than targetTokenNumber)
       if (skippedApt.tokenNumber !== newTokenNumber && newTokenNumber < targetTokenNumber) {
         let timeUpdate = {};
         if (doctor && session.sessionStartTime) {
@@ -766,15 +806,15 @@ exports.skipPatient = asyncHandler(async (req, res) => {
       }
     }
     
-    // Reload skipped appointments after updates
-    const reloadedSkippedAppointments = skippedAppointments.length > 0
+    // Reload skipped appointments after updates (use safe list)
+    const reloadedSkippedAppointments = safeSkippedAppointments.length > 0
       ? await Appointment.find({
-          _id: { $in: skippedAppointments.map(apt => apt._id) }
+          _id: { $in: safeSkippedAppointments.map(apt => apt._id) }
         }).select('_id tokenNumber time patientId')
       : [];
     
-    // Notify previously skipped patients that shifted up
-    for (const skippedApt of skippedAppointments) {
+    // Notify previously skipped patients that shifted up (use safe list)
+    for (const skippedApt of safeSkippedAppointments) {
       if (skippedApt.tokenNumber < targetTokenNumber) {
         const reloadedApt = reloadedSkippedAppointments.find(r => r._id.toString() === skippedApt._id.toString());
         const newTokenNumber = skippedApt.tokenNumber + 1; // Calculate new token number
@@ -837,7 +877,7 @@ exports.skipPatient = asyncHandler(async (req, res) => {
         oldTokenNumber: originalTokenNumber,
         newTokenNumber: finalTokenNumber,
         activePatientsShifted: activeAppointmentsToShift.length,
-        skippedPatientsShifted: skippedAppointments.filter(apt => apt.tokenNumber < targetTokenNumber).length,
+        skippedPatientsShifted: safeSkippedAppointments.filter(apt => apt.tokenNumber < targetTokenNumber).length,
       },
   });
 });
@@ -984,10 +1024,12 @@ exports.recallPatient = asyncHandler(async (req, res) => {
   // Emit real-time events
   try {
     const io = getIO();
+    // IMPORTANT: Always include recallCount in the socket event so frontend can update button visibility
     io.to(`doctor-${id}`).emit('queue:updated', {
       appointmentId: appointment._id,
       status: 'waiting',
-      recallCount: appointment.recallCount,
+      queueStatus: 'waiting',
+      recallCount: appointment.recallCount, // Include recallCount so frontend can update button visibility
     });
     // Emit recall event - patient should enter consultation room
     io.to(`patient-${appointment.patientId}`).emit('token:recalled', {

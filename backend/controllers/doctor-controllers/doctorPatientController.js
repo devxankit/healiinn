@@ -92,13 +92,17 @@ exports.getPatientQueue = asyncHandler(async (req, res) => {
   }
 
   // Get appointments for this session - include all statuses so doctor can see and perform actions
-  // Include: scheduled, confirmed, called, in-consultation, in_progress, waiting
+  // Include: scheduled, confirmed, called, in-consultation, in_progress, waiting, completed
+  // Also include cancelled appointments (no-show and cancelled-by-session) so they remain visible
   // This ensures doctor can continue with existing patients even after session end time
-  const appointmentStatusFilter = { $in: ['scheduled', 'confirmed', 'called', 'in-consultation', 'in_progress', 'waiting'] };
-  
+  // and can see all appointments including cancelled/completed ones
   const appointments = await Appointment.find({
     sessionId: session._id,
-    status: appointmentStatusFilter,
+    $or: [
+      { status: { $in: ['scheduled', 'confirmed', 'called', 'in-consultation', 'in_progress', 'waiting', 'completed', 'cancelled_by_session'] } },
+      { status: 'cancelled', queueStatus: 'no-show' }, // Include no-show appointments
+      { status: 'cancelled', queueStatus: 'cancelled' } // Include other cancelled appointments
+    ],
     paymentStatus: { $ne: 'pending' },
   })
     .populate('patientId', 'firstName lastName phone profileImage dateOfBirth gender')
@@ -237,6 +241,7 @@ exports.getPatientHistory = asyncHandler(async (req, res) => {
       .sort({ appointmentDate: -1 })
       .limit(10),
     Consultation.find({ doctorId: id, patientId })
+      .populate('doctorId', 'firstName lastName specialization')
       .sort({ consultationDate: -1 })
       .limit(10),
     Prescription.find({ doctorId: id, patientId })

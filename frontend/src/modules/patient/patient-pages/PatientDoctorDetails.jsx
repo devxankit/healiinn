@@ -617,8 +617,9 @@ const PatientDoctorDetails = () => {
           isCancelled: response.data.isCancelled,
         })
         
-        // If session is cancelled, mark date as unavailable
+        // If session is cancelled or completed, mark date as unavailable
         const isCancelled = response.data.isCancelled || false
+        const isCompleted = response.data.isCompleted || false
         
         setSlotAvailability(prev => {
           // If forceRefresh is true, always update. Otherwise, don't overwrite if already cached
@@ -626,12 +627,13 @@ const PatientDoctorDetails = () => {
           return {
             ...prev,
             [date]: {
-              available: !isCancelled && response.data.available, // Not available if cancelled
+              available: !isCancelled && !isCompleted && response.data.available, // Not available if cancelled or completed
               maxTokens: response.data.totalSlots || 0,
               currentBookings: response.data.bookedSlots || 0,
-              nextToken: !isCancelled && response.data.availableSlots > 0 ? (response.data.bookedSlots || 0) + 1 : null,
+              nextToken: !isCancelled && !isCompleted && response.data.availableSlots > 0 ? (response.data.bookedSlots || 0) + 1 : null,
               sessionId: response.data.sessionId,
               isCancelled: isCancelled, // Store cancelled flag
+              isCompleted: isCompleted, // Store completed flag
               sessionStartTime: response.data.sessionStartTime, // Store session start time
               sessionEndTime: response.data.sessionEndTime, // Store session end time
               avgConsultationMinutes: response.data.avgConsultationMinutes || 20, // Store avg consultation minutes

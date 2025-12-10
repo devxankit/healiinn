@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import jsPDF from 'jspdf'
@@ -251,8 +251,33 @@ const DoctorConsultations = () => {
           // Transform API data to match component structure
           const transformed = consultationsData.map(transformConsultationData)
           
-          // Set consultations from API data only
-          setConsultations(transformed)
+          // Remove duplicates based on consultation ID or patient ID + status
+          const uniqueConsultations = transformed.reduce((acc, current) => {
+            // Check if consultation with same ID already exists
+            const existsById = acc.find(c => (c.id || c._id) === (current.id || current._id))
+            if (existsById) {
+              return acc // Skip duplicate
+            }
+            
+            // Check if consultation with same patient ID and status already exists (for in-progress consultations)
+            if (current.status === 'in-progress' || current.status === 'called') {
+              const currentPatientId = current.patientId?._id || current.patientId
+              const existsByPatient = acc.find(c => {
+                const cPatientId = c.patientId?._id || c.patientId
+                return cPatientId?.toString() === currentPatientId?.toString() && 
+                       (c.status === 'in-progress' || c.status === 'called')
+              })
+              if (existsByPatient) {
+                return acc // Skip duplicate
+              }
+            }
+            
+            acc.push(current)
+            return acc
+          }, [])
+          
+          // Set consultations from API data only (without duplicates)
+          setConsultations(uniqueConsultations)
         }
       } catch (err) {
         console.error('Error fetching consultations:', err)
@@ -359,7 +384,32 @@ const DoctorConsultations = () => {
       return location.state.selectedConsultation
     }
     
-    // If no passed consultation, check for active session before loading from localStorage
+    // If no passed consultation, IMMEDIATELY load from localStorage (for instant display when navigating back)
+    // This ensures consultation shows immediately without delay
+    try {
+      const saved = localStorage.getItem('doctorSelectedConsultation')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Only load if it's an active consultation (not completed)
+        if (parsed.status === 'in-progress' || parsed.status === 'called' || parsed.status === 'in-progress') {
+          // Check session is active (but don't block - show consultation immediately)
+          const session = localStorage.getItem('doctorCurrentSession')
+          if (session) {
+            console.log('✅ Immediately restored consultation from localStorage:', parsed)
+            return parsed
+          } else {
+            // Session not active, but still show consultation temporarily
+            // Will be verified/cleared by async restore function
+            console.log('⚠️ Session not active, but showing consultation from localStorage (will verify)')
+            return parsed
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading selected consultation from localStorage:', error)
+    }
+    
+    // If no passed consultation and no saved consultation, check for active session
     try {
       const session = localStorage.getItem('doctorCurrentSession')
       if (!session) {
@@ -370,24 +420,6 @@ const DoctorConsultations = () => {
       }
     } catch (error) {
       console.error('Error checking session:', error)
-    }
-    
-    // If no passed consultation, try to load from localStorage (for persistence when navigating back)
-    try {
-      const saved = localStorage.getItem('doctorSelectedConsultation')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        // Only load if it's an active consultation (not completed) and session is active
-        if (parsed.status === 'in-progress' || parsed.status === 'called') {
-          // Double check session is still active
-          const session = localStorage.getItem('doctorCurrentSession')
-          if (session) {
-            return parsed
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error loading selected consultation from localStorage:', error)
     }
     
     // Don't auto-select from filteredConsultations - only show if explicitly called
@@ -426,10 +458,60 @@ const DoctorConsultations = () => {
       console.error('Error saving selected consultation to localStorage:', error)
     }
   }, [selectedConsultation])
+  
+  // IMPORTANT: Ensure selectedConsultation is in consultations list when loaded from localStorage
+  // This prevents the "empty consultation" flash when navigating back
+  useEffect(() => {
+    if (selectedConsultation && !location.state?.loadSavedData) {
+      // Check if selectedConsultation is already in consultations list
+      const exists = consultations.find((c) => {
+        // Check by ID first (most reliable)
+        if ((c.id || c._id) === (selectedConsultation.id || selectedConsultation._id)) {
+          return true
+        }
+        // Also check by patient ID and status to avoid duplicates
+        const cPatientId = c.patientId?._id || c.patientId
+        const selectedPatientId = selectedConsultation.patientId?._id || selectedConsultation.patientId
+        return cPatientId?.toString() === selectedPatientId?.toString() && 
+               c.status === selectedConsultation.status &&
+               (c.status === 'in-progress' || c.status === 'called')
+      })
+      
+      if (!exists) {
+        // Add selectedConsultation to consultations list immediately
+        // This ensures it shows up right away when navigating back
+        console.log('✅ Adding selectedConsultation to consultations list:', selectedConsultation)
+        setConsultations((prev) => {
+          // Check again to avoid duplicates (by ID and by patient+status)
+          const alreadyExists = prev.find((c) => {
+            // Check by ID
+            if ((c.id || c._id) === (selectedConsultation.id || selectedConsultation._id)) {
+              return true
+            }
+            // Check by patient ID and status
+            const cPatientId = c.patientId?._id || c.patientId
+            const selectedPatientId = selectedConsultation.patientId?._id || selectedConsultation.patientId
+            return cPatientId?.toString() === selectedPatientId?.toString() && 
+                   c.status === selectedConsultation.status &&
+                   (c.status === 'in-progress' || c.status === 'called')
+          })
+          if (alreadyExists) {
+            return prev
+          }
+          // Add at the beginning to show active consultations first
+          return [selectedConsultation, ...prev]
+        })
+      }
+    }
+  }, [selectedConsultation, consultations, location.state?.loadSavedData])
 
   // Add passed consultation to consultations list and set as selected
   // Track if vitals have been manually edited to prevent auto-reset
   const [vitalsEdited, setVitalsEdited] = useState(false)
+  const isRestoringRef = useRef(false) // Prevent multiple simultaneous restorations
+  const lastRestoredPatientIdRef = useRef(null) // Track last restored patient to prevent unnecessary restorations
+  const isConsultationActiveRef = useRef(false) // Track if doctor is actively working on consultation
+  const isManuallySelectedRef = useRef(false) // Track if consultation was manually selected by doctor (clicked on)
   
   useEffect(() => {
     if (passedConsultation) {
@@ -479,8 +561,14 @@ const DoctorConsultations = () => {
             }
             
             // Update consultation with fresh patient data and prescription data
+            // IMPORTANT: Preserve appointmentId from passedConsultation or get from consultation
             updatedConsultation = {
               ...transformedConsultation,
+              // Preserve appointmentId if it exists in passedConsultation
+              appointmentId: passedConsultation.appointmentId || consultation.appointmentId?._id || consultation.appointmentId || updatedConsultation.appointmentId,
+              appointmentIdObj: passedConsultation.appointmentIdObj || (consultation.appointmentId ? { _id: consultation.appointmentId._id || consultation.appointmentId } : undefined) || updatedConsultation.appointmentIdObj,
+              // Preserve originalData if it exists
+              originalData: passedConsultation.originalData || consultation.appointmentId || updatedConsultation.originalData,
                   diagnosis: consultation.diagnosis || updatedConsultation.diagnosis || '',
                   symptoms: consultation.symptoms || updatedConsultation.symptoms || '',
                   vitals: consultation.vitals || updatedConsultation.vitals || {},
@@ -561,21 +649,40 @@ const DoctorConsultations = () => {
       return
     }
     
-    // Only update if a consultation was explicitly passed (patient was called)
-    // Don't auto-select from filteredConsultations
-    if (filteredConsultations.length === 0 && selectedConsultation) {
-      // If no consultations match filter and we have a selected one, keep it if it was passed
-      if (!passedConsultation) {
-        setSelectedConsultation(null)
-      }
-    }
+    // IMPORTANT: Don't clear selectedConsultation when switching tabs or filters
+    // Only clear when explicitly needed (e.g., next patient is called)
+    // Keep consultation selected even if filter changes or consultations list is empty
+    // This prevents consultation page from disappearing when doctor switches tabs
   }, [filteredConsultations, filterParam, passedConsultation])
   
   // Reset vitalsEdited flag and load vitals when consultation changes (only if not manually edited)
   useEffect(() => {
     if (selectedConsultation?.id) {
+      // Only reset if this is a different consultation (check by ID)
+      const currentConsultationId = selectedConsultation.id
+      const lastConsultationId = lastRestoredPatientIdRef.current
+      
+      // CRITICAL: Don't reset vitals if doctor is actively working on consultation
+      // Check BOTH flags to ensure we don't reset while user is typing
+      if (isConsultationActiveRef.current || vitalsEdited) {
+        console.log('⚠️ Preserving vitals - doctor is actively working on consultation', {
+          isActive: isConsultationActiveRef.current,
+          vitalsEdited,
+          currentId: currentConsultationId,
+          lastId: lastConsultationId
+        })
+        return // Don't reset anything if doctor is working
+      }
+      
+      // Only reset vitals if consultation actually changed (different patient or new consultation)
+      // AND user is not actively editing vitals
+      if (currentConsultationId !== lastConsultationId) {
+        console.log('✅ Loading vitals for new consultation:', currentConsultationId)
       // Reset edit flag when switching consultations (new consultation selected)
       setVitalsEdited(false)
+        lastRestoredPatientIdRef.current = currentConsultationId
+        // Reset active consultation flag when switching to new consultation
+        isConsultationActiveRef.current = false
       
       // Load vitals from selected consultation if available
       if (selectedConsultation.vitals && Object.keys(selectedConsultation.vitals).length > 0) {
@@ -593,8 +700,12 @@ const DoctorConsultations = () => {
           bmi: '',
         })
       }
+      } else {
+        // Same consultation ID - don't reset vitals even if object reference changed
+        console.log('⚠️ Same consultation ID, preserving current vitals')
     }
-  }, [selectedConsultation?.id]) // Only run when consultation ID changes, not on every render
+    }
+  }, [selectedConsultation?.id]) // Only run when consultation ID changes, NOT when object reference changes
   
   // Setup socket listener for patient call events and restore consultation state from appointment status
   useEffect(() => {
@@ -602,10 +713,27 @@ const DoctorConsultations = () => {
     if (!socket) return
     
     const restoreConsultationFromAppointmentStatus = async () => {
+      // Prevent multiple simultaneous restorations
+      if (isRestoringRef.current) {
+        console.log('⚠️ Restoration already in progress, skipping...')
+        return
+      }
+      
+      // IMPORTANT: Don't restore if doctor is actively working on consultation
+      if (isConsultationActiveRef.current || vitalsEdited) {
+        console.log('⚠️ Skipping restoration - doctor is actively working on consultation')
+        return
+      }
+      
       try {
+        isRestoringRef.current = true
+        
         // Check if there's an active session
         const sessionStr = localStorage.getItem('doctorCurrentSession')
-        if (!sessionStr) return
+        if (!sessionStr) {
+          isRestoringRef.current = false
+          return
+        }
         
         const session = JSON.parse(sessionStr)
         
@@ -623,7 +751,17 @@ const DoctorConsultations = () => {
             apt.status === 'in_progress'
           )
           
-          if (calledAppointment && !selectedConsultation) {
+          // IMPORTANT: Always verify consultation state, even if already loaded from localStorage
+          // If there's a called appointment but no selected consultation, restore it
+          // If there's a selected consultation but appointment is no longer called, clear it
+          if (calledAppointment) {
+            // Check if current selected consultation matches the called appointment
+            const currentPatientId = selectedConsultation?.patientId?._id || selectedConsultation?.patientId
+            const calledPatientId = calledAppointment.patientId?._id || calledAppointment.patientId
+            
+            // If no selected consultation OR selected consultation doesn't match called appointment, restore
+            // BUT: Don't restore if user is actively editing vitals (preserve their work)
+            if ((!selectedConsultation || currentPatientId?.toString() !== calledPatientId?.toString()) && !vitalsEdited) {
             // Fetch complete patient data including email and address
             let fullPatientData = null
             try {
@@ -674,9 +812,17 @@ const DoctorConsultations = () => {
             }
             
             // Create consultation data from appointment with real patient data
+            // Preserve existing vitals if user was editing - use current vitals state
+            const existingVitals = vitalsEdited 
+              ? vitalsRef.current // Use current vitals state from ref to preserve what user is typing
+              : (selectedConsultation?.vitals || {})
+            
             const consultationData = {
               id: `cons-${calledAppointment._id || calledAppointment.id}-${Date.now()}`,
               patientId: calledAppointment.patientId?._id || calledAppointment.patientId,
+              // IMPORTANT: Store appointmentId so it can be used later for saving vitals
+              appointmentId: calledAppointment._id || calledAppointment.id,
+              appointmentIdObj: { _id: calledAppointment._id || calledAppointment.id },
               patientName: fullPatientData?.firstName && fullPatientData?.lastName
                 ? `${fullPatientData.firstName} ${fullPatientData.lastName}`
                 : (calledAppointment.patientId?.firstName && calledAppointment.patientId?.lastName
@@ -692,17 +838,30 @@ const DoctorConsultations = () => {
               patientPhone: fullPatientData?.phone || calledAppointment.patientId?.phone || '',
               patientEmail: fullPatientData?.email || calledAppointment.patientId?.email || '',
               patientAddress: formattedAddress,
-              diagnosis: '',
-              symptoms: '',
-              vitals: {},
-              medications: [],
-              investigations: [],
-              advice: '',
-              followUpDate: '',
-              attachments: [],
+              diagnosis: selectedConsultation?.diagnosis || '',
+              symptoms: selectedConsultation?.symptoms || '',
+              vitals: existingVitals, // Preserve existing vitals if editing
+              medications: selectedConsultation?.medications || [],
+              investigations: selectedConsultation?.investigations || [],
+              advice: selectedConsultation?.advice || '',
+              followUpDate: selectedConsultation?.followUpDate || '',
+              attachments: selectedConsultation?.attachments || [],
               sessionId: session._id || session.id,
               sessionDate: session.date,
               calledAt: new Date().toISOString(),
+              // Store original appointment data for reference
+              originalData: calledAppointment,
+            }
+            
+            // If user is editing vitals for same patient, preserve current vitals state
+            const currentPatientId = selectedConsultation?.patientId?._id || selectedConsultation?.patientId
+            const newPatientId = consultationData.patientId?._id || consultationData.patientId
+            const isSamePatient = currentPatientId?.toString() === newPatientId?.toString()
+            
+            if (vitalsEdited && isSamePatient) {
+              // User is editing - preserve current vitals state
+              consultationData.vitals = vitalsRef.current
+              console.log('✅ Preserving current vitals state for same patient during restoration')
             }
             
             setConsultations((prev) => {
@@ -716,28 +875,126 @@ const DoctorConsultations = () => {
                   : c
               )
             })
-            setSelectedConsultation(consultationData)
-            console.log('✅ Restored consultation from appointment status:', consultationData)
+              
+              // IMPORTANT: Only update selectedConsultation if user is NOT actively editing
+              // If editing, preserve current consultation state to prevent vitals reset
+              if (!isConsultationActiveRef.current && !vitalsEdited) {
+              setSelectedConsultation(consultationData)
+                // Update last restored patient ID
+                lastRestoredPatientIdRef.current = consultationData.id
+              console.log('✅ Restored consultation from appointment status:', consultationData)
+              } else {
+                console.log('⚠️ Skipping selectedConsultation update - doctor is actively working on consultation')
+              }
+            } else if (vitalsEdited) {
+              // User is editing vitals - don't restore, preserve their work
+              console.log('⚠️ Skipping restoration - user is editing vitals')
+            } else {
+              // Selected consultation matches called appointment - verify it's still valid
+              console.log('✅ Selected consultation matches called appointment - keeping it')
+            }
+          } else if (selectedConsultation) {
+            // No called appointment but we have a selected consultation
+            // IMPORTANT: Don't clear consultation if doctor is actively working on it OR manually selected it
+            if (isConsultationActiveRef.current || vitalsEdited || isManuallySelectedRef.current) {
+              console.log('⚠️ Doctor is actively working on consultation or manually selected it, preserving it', {
+                isActive: isConsultationActiveRef.current,
+                vitalsEdited,
+                manuallySelected: isManuallySelectedRef.current
+              })
+              return // Don't check or clear consultation while doctor is working or manually selected it
+            }
+            
+            // Check if the selected consultation's appointment is still active
+            const currentPatientId = selectedConsultation?.patientId?._id || selectedConsultation?.patientId
+            const appointment = appointments.find(apt => {
+              const aptPatientId = apt.patientId?._id || apt.patientId
+              return aptPatientId?.toString() === currentPatientId?.toString()
+            })
+            
+            // If appointment is completed or cancelled, clear the consultation
+            // BUT only if doctor is not actively working on it AND not manually selected
+            if (appointment && (appointment.status === 'completed' || appointment.status === 'cancelled' || appointment.status === 'cancelled_by_session')) {
+              console.log('⚠️ Appointment is completed/cancelled, clearing consultation')
+              setSelectedConsultation(null)
+              localStorage.removeItem('doctorSelectedConsultation')
+              lastRestoredPatientIdRef.current = null
+              isManuallySelectedRef.current = false
+            } else if (!appointment) {
+              // Appointment not found in queue - might be from different session or doctor clicked on consultation
+              // IMPORTANT: Keep consultation if doctor manually selected it (clicked on it)
+              // Only clear when next patient is explicitly called
+              // Don't clear just because appointment is not in current queue
+              console.log('⚠️ Appointment not found in current queue, but keeping consultation (doctor may have manually selected it)')
+            }
           }
         }
       } catch (error) {
         console.error('Error restoring consultation from appointment status:', error)
+      } finally {
+        isRestoringRef.current = false
       }
     }
     
-    // Restore on mount
-    restoreConsultationFromAppointmentStatus()
+    // Restore on mount - but don't block if consultation is already loaded from localStorage
+    // This ensures consultation shows immediately while verification happens in background
+    // Only restore if doctor is not actively working on consultation
+    if (!selectedConsultation) {
+      // Only restore if no consultation is already loaded (from localStorage or navigation state)
+      if (!isConsultationActiveRef.current && !vitalsEdited) {
+      restoreConsultationFromAppointmentStatus()
+      }
+    } else {
+      // Consultation is already loaded, but verify it's still valid in background
+      // Only verify if doctor is not actively working to prevent flickering
+      if (!isConsultationActiveRef.current && !vitalsEdited) {
+        // Delay verification to avoid blocking initial render
+        setTimeout(() => {
+      restoreConsultationFromAppointmentStatus()
+        }, 1000) // Wait 1 second after mount
+      }
+    }
     
     // Listen for queue:next:called event (when patient is called via callNextPatient)
     const handleQueueNextCalled = async (data) => {
       if (data?.appointment) {
+        // IMPORTANT: If consultation was manually selected, only clear it if a DIFFERENT patient is being called
+        const newPatientId = data.appointment.patientId?._id || data.appointment.patientId
+        const currentPatientId = selectedConsultation?.patientId?._id || selectedConsultation?.patientId
+        
+        // If same patient is being called again, don't clear manually selected consultation
+        if (isManuallySelectedRef.current && newPatientId?.toString() === currentPatientId?.toString()) {
+          console.log('⚠️ Same patient called again, keeping manually selected consultation')
+          return
+        }
+        
+        // If different patient is being called, clear the manually selected flag and proceed
+        if (isManuallySelectedRef.current && newPatientId?.toString() !== currentPatientId?.toString()) {
+          console.log('✅ Different patient called, clearing manually selected consultation')
+          isManuallySelectedRef.current = false
+        }
+        
+        // Prevent restoration if doctor is actively working on consultation
+        if (isConsultationActiveRef.current || vitalsEdited) {
+          console.log('⚠️ Skipping queue:next:called - doctor is actively working on consultation')
+          return
+        }
+        
         console.log('📞 Patient called via queue:next:called:', data)
         
+        // Prevent multiple simultaneous restorations
+        if (isRestoringRef.current) {
+          console.log('⚠️ Restoration already in progress, skipping queue:next:called')
+          return
+        }
+        
+        isRestoringRef.current = true
+        
+        try {
         // Create consultation data from appointment
         const appointment = data.appointment
         const session = data.session
         
-        try {
           const sessionStr = localStorage.getItem('doctorCurrentSession')
           const currentSession = sessionStr ? JSON.parse(sessionStr) : session
           
@@ -790,9 +1047,23 @@ const DoctorConsultations = () => {
             }
           }
           
+          // Preserve existing consultation data if same patient
+          const currentPatientId = selectedConsultation?.patientId?._id || selectedConsultation?.patientId
+          const newPatientId = appointment.patientId?._id || appointment.patientId
+          const isSamePatient = currentPatientId?.toString() === newPatientId?.toString()
+          
+          // Preserve existing form data if same patient and user was editing
+          // Use current vitals state instead of selectedConsultation.vitals to preserve what user is typing
+          const existingVitals = (isSamePatient && vitalsEdited) 
+            ? vitalsRef.current // Use current vitals state from ref
+            : (selectedConsultation?.vitals || {})
+          
           const consultationData = {
             id: `cons-${appointment._id || appointment.id}-${Date.now()}`,
             patientId: appointment.patientId?._id || appointment.patientId,
+            // IMPORTANT: Store appointmentId so it can be used later for saving vitals
+            appointmentId: appointment._id || appointment.id,
+            appointmentIdObj: { _id: appointment._id || appointment.id },
             patientName: fullPatientData?.firstName && fullPatientData?.lastName
               ? `${fullPatientData.firstName} ${fullPatientData.lastName}`
               : (appointment.patientId?.firstName && appointment.patientId?.lastName
@@ -808,17 +1079,19 @@ const DoctorConsultations = () => {
             patientPhone: fullPatientData?.phone || appointment.patientId?.phone || '',
             patientEmail: fullPatientData?.email || appointment.patientId?.email || '',
             patientAddress: formattedAddress,
-            diagnosis: '',
-            symptoms: '',
-            vitals: {},
-            medications: [],
-            investigations: [],
-            advice: '',
-            followUpDate: '',
-            attachments: [],
+            diagnosis: (isSamePatient ? selectedConsultation?.diagnosis : '') || '',
+            symptoms: (isSamePatient ? selectedConsultation?.symptoms : '') || '',
+            vitals: existingVitals, // Preserve if same patient and editing
+            medications: (isSamePatient ? selectedConsultation?.medications : []) || [],
+            investigations: (isSamePatient ? selectedConsultation?.investigations : []) || [],
+            advice: (isSamePatient ? selectedConsultation?.advice : '') || '',
+            followUpDate: (isSamePatient ? selectedConsultation?.followUpDate : '') || '',
+            attachments: (isSamePatient ? selectedConsultation?.attachments : []) || [],
             sessionId: currentSession._id || currentSession.id,
             sessionDate: currentSession.date || currentSession.sessionDate,
             calledAt: new Date().toISOString(),
+            // Store original appointment data for reference
+            originalData: appointment,
           }
           
           setConsultations((prev) => {
@@ -835,15 +1108,37 @@ const DoctorConsultations = () => {
                 : c
             )
           })
+          
+          // IMPORTANT: Only update selectedConsultation if user is NOT actively editing
+          // If editing, preserve current consultation state to prevent vitals reset
+          if (!isConsultationActiveRef.current && !vitalsEdited) {
+            // Only update selectedConsultation if user is not actively editing vitals
+            // If editing, preserve current vitals state in the consultation data
+            if (vitalsEdited && isSamePatient) {
+              // User is editing - preserve current vitals state
+              consultationData.vitals = vitalsRef.current
+              console.log('✅ Preserving current vitals state for same patient')
+            }
+            
+            // Reset manually selected flag when new patient is called
+            isManuallySelectedRef.current = false
+            
           setSelectedConsultation(consultationData)
+            // Update last restored patient ID
+            lastRestoredPatientIdRef.current = consultationData.id
           
           // Save to localStorage
           localStorage.setItem('doctorSelectedConsultation', JSON.stringify(consultationData))
           console.log('✅ Consultation state set from queue:next:called:', consultationData)
+          } else {
+            console.log('⚠️ Skipping selectedConsultation update - doctor is actively working on consultation')
+          }
         } catch (error) {
           console.error('Error handling queue:next:called:', error)
           // Fallback: restore from appointment status
           await restoreConsultationFromAppointmentStatus()
+        } finally {
+          isRestoringRef.current = false
         }
       }
     }
@@ -853,8 +1148,30 @@ const DoctorConsultations = () => {
       if (data?.appointmentId || data?.appointment) {
         console.log('📞 Queue updated - patient called:', data)
         
-        // Restore consultation state from appointment status
+        // IMPORTANT: Only restore if this is for a NEW patient being called
+        // Don't restore if doctor is already viewing a consultation (manually selected)
+        // Only restore when next patient is explicitly called via queue:next:called
+        // This prevents consultation from disappearing when doctor clicks on it
+        
+        // Check if the updated appointment is for a different patient
+        const updatedAppointmentId = data.appointmentId || data.appointment?._id || data.appointment?.id
+        const currentAppointmentId = selectedConsultation?.appointmentId?._id || selectedConsultation?.appointmentId || selectedConsultation?.originalData?._id || selectedConsultation?.originalData?.id
+        
+        // If it's the same appointment, don't restore (doctor is already viewing it)
+        if (updatedAppointmentId && currentAppointmentId && updatedAppointmentId.toString() === currentAppointmentId.toString()) {
+          console.log('⚠️ Queue update is for same appointment, skipping restoration')
+          return
+        }
+        
+        // Only restore if not currently editing consultation to prevent flickering
+        // Add a small delay to debounce rapid events
+        if (!isConsultationActiveRef.current && !vitalsEdited && !isRestoringRef.current) {
+          setTimeout(async () => {
         await restoreConsultationFromAppointmentStatus()
+          }, 500) // Debounce by 500ms
+        } else {
+          console.log('⚠️ Skipping queue update - doctor is working on consultation or restoration in progress')
+        }
       }
     }
     
@@ -865,7 +1182,7 @@ const DoctorConsultations = () => {
       socket.off('queue:updated', handleQueueUpdated)
       socket.off('queue:next:called', handleQueueNextCalled)
     }
-  }, [selectedConsultation])
+  }, [selectedConsultation, vitalsEdited]) // Use vitalsRef.current instead of vitals in dependency
   
   const [activeTab, setActiveTab] = useState('vitals') // vitals, prescription, history, saved
   const [showAddMedication, setShowAddMedication] = useState(false)
@@ -873,6 +1190,82 @@ const DoctorConsultations = () => {
   
   // Saved prescriptions - loaded from consultation data or patient history
   const [savedPrescriptions, setSavedPrescriptions] = useState([])
+  
+  // Load prescriptions when patient is selected
+  useEffect(() => {
+    const loadPrescriptions = async () => {
+      if (!selectedConsultation?.patientId) {
+        setSavedPrescriptions([])
+        return
+      }
+
+      try {
+        // Fetch prescriptions for the current doctor
+        const response = await getPrescriptions({})
+        
+        if (response.success && response.data) {
+          const prescriptionsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || response.data.prescriptions || []
+          
+          // Filter prescriptions for current patient and transform data
+          const patientId = selectedConsultation.patientId?._id || selectedConsultation.patientId
+          const filteredPrescriptions = prescriptionsData
+            .filter(presc => {
+              const prescPatientId = presc.patientId?._id || presc.patientId?.id || presc.patientId
+              return prescPatientId?.toString() === patientId?.toString()
+            })
+            .map(presc => ({
+              id: presc._id || presc.id,
+              _id: presc._id || presc.id,
+              consultationId: presc.consultationId?._id || presc.consultationId || presc.consultationId,
+              patientId: presc.patientId?._id || presc.patientId?.id || presc.patientId,
+              patientName: presc.patientId?.firstName && presc.patientId?.lastName
+                ? `${presc.patientId.firstName} ${presc.patientId.lastName}`
+                : selectedConsultation.patientName || 'Patient',
+              patientImage: presc.patientId?.profileImage || selectedConsultation.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedConsultation.patientName || 'Patient')}&background=11496c&color=fff&size=160`,
+              patientPhone: presc.patientId?.phone || selectedConsultation.patientPhone || '',
+              patientEmail: presc.patientId?.email || selectedConsultation.patientEmail || '',
+              patientAddress: presc.patientId?.address || selectedConsultation.patientAddress || '',
+              // Get diagnosis, symptoms, investigations from consultationId
+              diagnosis: presc.consultationId?.diagnosis || presc.diagnosis || '',
+              symptoms: presc.consultationId?.symptoms || presc.symptoms || '',
+              medications: presc.medications || presc.medicines || [],
+              investigations: presc.consultationId?.investigations || presc.investigations || [],
+              advice: presc.consultationId?.advice || presc.notes || presc.advice || '',
+              followUpDate: presc.consultationId?.followUpDate || presc.expiryDate || presc.followUpDate || '',
+              date: presc.createdAt ? new Date(presc.createdAt).toISOString() : new Date().toISOString(),
+              savedAt: presc.createdAt ? new Date(presc.createdAt).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }) : new Date().toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              status: presc.status || 'active',
+              pdfFileUrl: presc.pdfFileUrl || null,
+              originalData: presc,
+            }))
+          
+          setSavedPrescriptions(filteredPrescriptions)
+          console.log('✅ Loaded prescriptions for patient:', filteredPrescriptions.length)
+        } else {
+          setSavedPrescriptions([])
+        }
+      } catch (error) {
+        console.error('Error loading prescriptions:', error)
+        setSavedPrescriptions([])
+      }
+    }
+
+    loadPrescriptions()
+  }, [selectedConsultation?.patientId])
   
   const [viewingPrescription, setViewingPrescription] = useState(null)
   const [editingPrescriptionId, setEditingPrescriptionId] = useState(null)
@@ -1069,6 +1462,14 @@ const DoctorConsultations = () => {
     height: '',
     bmi: '',
   })
+  
+  // Keep ref to current vitals state for use in socket handlers (declared after vitals state)
+  const vitalsRef = useRef(vitals)
+  
+  // Keep vitalsRef updated with current vitals state for use in socket handlers
+  useEffect(() => {
+    vitalsRef.current = vitals
+  }, [vitals])
 
   const [diagnosis, setDiagnosis] = useState('')
   const [symptoms, setSymptoms] = useState('')
@@ -1076,6 +1477,40 @@ const DoctorConsultations = () => {
   const [investigations, setInvestigations] = useState([])
   const [advice, setAdvice] = useState('')
   const [followUpDate, setFollowUpDate] = useState('')
+  
+  // Track if consultation form is being actively edited (any field)
+  // IMPORTANT: This runs on every field change to mark consultation as active
+  useEffect(() => {
+    // If any form field has content, mark consultation as active IMMEDIATELY
+    const hasContent = diagnosis || symptoms || (medications && medications.length > 0) || 
+                       (investigations && investigations.length > 0) || advice || followUpDate ||
+                       vitals.temperature || vitals.pulse || vitals.respiratoryRate || 
+                       vitals.oxygenSaturation || vitals.weight || vitals.height ||
+                       vitals.bloodPressure?.systolic || vitals.bloodPressure?.diastolic
+    
+    // Set active flag IMMEDIATELY when any content is detected
+    // This prevents other useEffects from resetting values
+    isConsultationActiveRef.current = hasContent || vitalsEdited
+    
+    // Also save consultation state to localStorage when form is being edited
+    if (selectedConsultation && isConsultationActiveRef.current) {
+      const updatedConsultation = {
+        ...selectedConsultation,
+        diagnosis,
+        symptoms,
+        medications,
+        investigations,
+        advice,
+        followUpDate,
+        vitals: vitalsRef.current || vitals
+      }
+      try {
+        localStorage.setItem('doctorSelectedConsultation', JSON.stringify(updatedConsultation))
+      } catch (error) {
+        console.error('Error saving consultation state:', error)
+      }
+    }
+  }, [diagnosis, symptoms, medications, investigations, advice, followUpDate, vitals, vitalsEdited, selectedConsultation])
   const [newMedication, setNewMedication] = useState({
     name: '',
     dosage: '',
@@ -1397,12 +1832,33 @@ const DoctorConsultations = () => {
       patientYPos += 4
     }
     if (prescriptionData.patientAddress || selectedConsultation?.patientAddress) {
-      const addressText = prescriptionData.patientAddress || selectedConsultation?.patientAddress || 'N/A'
+      let addressText = '';
+      const address = prescriptionData.patientAddress || selectedConsultation?.patientAddress;
+      
+      if (typeof address === 'string') {
+        addressText = address;
+      } else if (typeof address === 'object' && address !== null) {
+        // Build address string from object
+        const addressParts = [];
+        if (address.line1) addressParts.push(address.line1);
+        if (address.line2) addressParts.push(address.line2);
+        if (address.city) addressParts.push(address.city);
+        if (address.state) addressParts.push(address.state);
+        if (address.pincode || address.postalCode) {
+          addressParts.push(address.pincode || address.postalCode);
+        }
+        addressText = addressParts.join(', ').trim();
+      } else {
+        addressText = 'N/A';
+      }
+      
+      if (addressText && addressText !== '[object Object]' && addressText !== 'N/A') {
       const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin)
       addressLines.forEach((line, index) => {
         doc.text(line, pageWidth - margin, patientYPos + (index * 4), { align: 'right' })
       })
       patientYPos += (addressLines.length - 1) * 4
+      }
     }
 
     // Set yPos to the maximum of doctor info end or patient info end
@@ -1504,28 +1960,35 @@ const DoctorConsultations = () => {
     }
 
     // Recommended Tests Section (Light Purple Boxes)
-    if (prescriptionData.investigations && prescriptionData.investigations.length > 0) {
+    // Get investigations from prescriptionData or consultationId
+    const investigations = prescriptionData.investigations || prescriptionData.consultationId?.investigations || [];
+    if (investigations && investigations.length > 0) {
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
       doc.text('Recommended Tests', margin, yPos)
       yPos += 6
       
-      prescriptionData.investigations.forEach((inv) => {
+      investigations.forEach((inv) => {
         // Light purple box for each test
-        const testBoxHeight = inv.notes ? 14 : 9
+        // Handle both frontend format (name) and backend format (testName)
+        const invName = typeof inv === 'string' 
+          ? inv 
+          : (inv.name || inv.testName || 'Investigation');
+        const invNotes = typeof inv === 'object' ? (inv.notes || '') : '';
+        const testBoxHeight = invNotes ? 14 : 9
         doc.setFillColor(...lightPurpleColor)
         doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
         
         doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(0, 0, 0)
-        doc.text(inv.name, margin + 4, yPos + 2)
+        doc.text(invName, margin + 4, yPos + 2)
         
-        if (inv.notes) {
+        if (invNotes) {
           doc.setFontSize(7)
           doc.setFont('helvetica', 'normal')
           doc.setTextColor(80, 80, 80)
-          doc.text(inv.notes, margin + 4, yPos + 8)
+          doc.text(invNotes, margin + 4, yPos + 8)
         }
         
         yPos += testBoxHeight + 3
@@ -1533,21 +1996,18 @@ const DoctorConsultations = () => {
       yPos += 2
     }
 
-    // Medical Advice Section with Green Bullet Points
+    // Medical Advice Section - Dark text like medications
     if (prescriptionData.advice) {
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
       doc.text('Medical Advice', margin, yPos)
       yPos += 6
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0) // Dark black color like medications
       const adviceLines = prescriptionData.advice.split('\n').filter(line => line.trim())
       adviceLines.forEach((advice) => {
-        // Green bullet point
-        doc.setFillColor(34, 197, 94) // Green color
-        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
-        doc.setTextColor(0, 0, 0)
-        doc.text(advice.trim(), margin + 5, yPos)
+        doc.text(advice.trim(), margin, yPos)
         yPos += 4
       })
       yPos += 2
@@ -1698,8 +2158,14 @@ const DoctorConsultations = () => {
     const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
     let yPos = margin
 
-    // Header Section - Clinic Name in Teal (Large, Bold)
+    // Header Section - Healiinn (Above Clinic Name)
     doc.setTextColor(...tealColor)
+    doc.setFontSize(24)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
+    yPos += 8
+    
+    // Clinic Name in Teal (Below Healiinn)
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
     doc.text(doctorInfo.clinicName || 'Medical Clinic', pageWidth / 2, yPos, { align: 'center' })
@@ -1769,12 +2235,33 @@ const DoctorConsultations = () => {
       patientYPos += 4
     }
     if (prescriptionData.patientAddress || selectedConsultation?.patientAddress) {
-      const addressText = prescriptionData.patientAddress || selectedConsultation?.patientAddress || 'N/A'
+      let addressText = '';
+      const address = prescriptionData.patientAddress || selectedConsultation?.patientAddress;
+      
+      if (typeof address === 'string') {
+        addressText = address;
+      } else if (typeof address === 'object' && address !== null) {
+        // Build address string from object
+        const addressParts = [];
+        if (address.line1) addressParts.push(address.line1);
+        if (address.line2) addressParts.push(address.line2);
+        if (address.city) addressParts.push(address.city);
+        if (address.state) addressParts.push(address.state);
+        if (address.pincode || address.postalCode) {
+          addressParts.push(address.pincode || address.postalCode);
+        }
+        addressText = addressParts.join(', ').trim();
+      } else {
+        addressText = 'N/A';
+      }
+      
+      if (addressText && addressText !== '[object Object]' && addressText !== 'N/A') {
       const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin)
       addressLines.forEach((line, index) => {
         doc.text(line, pageWidth - margin, patientYPos + (index * 4), { align: 'right' })
       })
       patientYPos += (addressLines.length - 1) * 4
+      }
     }
 
     // Set yPos to the maximum of doctor info end or patient info end
@@ -1876,28 +2363,35 @@ const DoctorConsultations = () => {
     }
 
     // Recommended Tests Section (Light Purple Boxes)
-    if (prescriptionData.investigations && prescriptionData.investigations.length > 0) {
+    // Get investigations from prescriptionData or consultationId
+    const investigations = prescriptionData.investigations || prescriptionData.consultationId?.investigations || [];
+    if (investigations && investigations.length > 0) {
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
       doc.text('Recommended Tests', margin, yPos)
       yPos += 6
       
-      prescriptionData.investigations.forEach((inv) => {
+      investigations.forEach((inv) => {
         // Light purple box for each test
-        const testBoxHeight = inv.notes ? 14 : 9
+        // Handle both frontend format (name) and backend format (testName)
+        const invName = typeof inv === 'string' 
+          ? inv 
+          : (inv.name || inv.testName || 'Investigation');
+        const invNotes = typeof inv === 'object' ? (inv.notes || '') : '';
+        const testBoxHeight = invNotes ? 14 : 9
         doc.setFillColor(...lightPurpleColor)
         doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
         
         doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(0, 0, 0)
-        doc.text(inv.name, margin + 4, yPos + 2)
+        doc.text(invName, margin + 4, yPos + 2)
         
-        if (inv.notes) {
+        if (invNotes) {
           doc.setFontSize(7)
           doc.setFont('helvetica', 'normal')
           doc.setTextColor(80, 80, 80)
-          doc.text(inv.notes, margin + 4, yPos + 8)
+          doc.text(invNotes, margin + 4, yPos + 8)
         }
         
         yPos += testBoxHeight + 3
@@ -1905,21 +2399,18 @@ const DoctorConsultations = () => {
       yPos += 2
     }
 
-    // Medical Advice Section with Green Bullet Points
+    // Medical Advice Section - Dark text like medications
     if (prescriptionData.advice) {
       doc.setFontSize(10)
       doc.setFont('helvetica', 'bold')
       doc.text('Medical Advice', margin, yPos)
       yPos += 6
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(0, 0, 0) // Dark black color like medications
       const adviceLines = prescriptionData.advice.split('\n').filter(line => line.trim())
       adviceLines.forEach((advice) => {
-        // Green bullet point
-        doc.setFillColor(34, 197, 94) // Green color
-        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
-        doc.setTextColor(0, 0, 0)
-        doc.text(advice.trim(), margin + 5, yPos)
+        doc.text(advice.trim(), margin, yPos)
         yPos += 4
       })
       yPos += 2
@@ -2022,95 +2513,339 @@ const DoctorConsultations = () => {
       return
     }
 
-    const prescriptionData = {
-      id: editingPrescriptionId || Date.now().toString(),
-      consultationId: selectedConsultation.id,
-      patientId: selectedConsultation.patientId,
-      patientName: selectedConsultation.patientName,
-      patientImage: selectedConsultation.patientImage,
-      patientPhone: selectedConsultation.patientPhone,
-      patientEmail: selectedConsultation.patientEmail,
-      patientAddress: selectedConsultation.patientAddress,
-      diagnosis,
-      symptoms,
-      vitals,
-      medications: [...medications],
-      investigations: [...investigations],
-      advice,
-      followUpDate,
+    try {
+      // Get appointment ID from consultation - check multiple possible locations
+      let appointmentId = selectedConsultation.appointmentId?._id || 
+                          selectedConsultation.appointmentId || 
+                          selectedConsultation.originalData?._id ||
+                          selectedConsultation.originalData?.id ||
+                          selectedConsultation.originalData?.appointmentId?._id ||
+                          selectedConsultation.originalData?.appointmentId
+
+      // If appointmentId is still not found, try to extract from consultation ID
+      // Consultation ID format: cons-{appointmentId}-{timestamp}
+      if (!appointmentId && selectedConsultation.id && selectedConsultation.id.startsWith('cons-')) {
+        const parts = selectedConsultation.id.split('-')
+        if (parts.length >= 3) {
+          appointmentId = parts[1]
+          console.log('✅ Extracted appointmentId from consultation ID:', appointmentId)
+        }
+      }
+
+      if (!appointmentId) {
+        toast.error('Appointment ID not found. Cannot save prescription.')
+        return
+      }
+
+      // Get real consultation ID from database (or create consultation if it doesn't exist)
+      let consultationId = selectedConsultation.id || selectedConsultation._id
+      
+      // Check if consultation ID is a valid MongoDB ObjectId
+      const isValidObjectId = consultationId && consultationId.match(/^[0-9a-fA-F]{24}$/)
+      
+      if (!isValidObjectId) {
+        // Consultation ID is not valid ObjectId - need to find or create consultation
+        console.log('Consultation ID is not valid ObjectId, checking if consultation exists...')
+        
+        // First, try to find existing consultation by appointmentId
+        let foundConsultation = null
+        try {
+          const { getDoctorConsultations } = await import('../doctor-services/doctorService')
+          const consultationsResponse = await getDoctorConsultations()
+          
+          if (consultationsResponse.success && consultationsResponse.data) {
+            const consultations = Array.isArray(consultationsResponse.data) 
+              ? consultationsResponse.data 
+              : consultationsResponse.data.items || []
+            
+            // Find consultation by appointmentId
+            foundConsultation = consultations.find(cons => {
+              const consAppointmentId = cons.appointmentId?._id || cons.appointmentId?.id || cons.appointmentId
+              return consAppointmentId?.toString() === appointmentId.toString()
+            })
+            
+            if (foundConsultation) {
+              consultationId = foundConsultation._id || foundConsultation.id
+              console.log('✅ Found existing consultation with ID:', consultationId)
+              // Update selected consultation with real ID
+              setSelectedConsultation(prev => ({
+                ...prev,
+                id: consultationId,
+                _id: consultationId,
+              }))
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching consultations:', error)
+        }
+        
+        // If consultation not found, try to create one
+        if (!foundConsultation || !consultationId || !consultationId.match(/^[0-9a-fA-F]{24}$/)) {
+          console.log('Creating new consultation before saving prescription...')
+          
+          // Prepare vitals data
+          const vitalsData = {
+            ...vitals,
       date: new Date().toISOString(),
-      savedAt: new Date().toLocaleString('en-US', {
+            recordedAt: new Date().toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
       }),
-      updatedAt: editingPrescriptionId ? new Date().toLocaleString('en-US', {
+          }
+
+          try {
+            // Transform investigations to ensure they have the correct format
+            const transformedInvestigationsForCreate = (investigations && investigations.length > 0)
+              ? investigations.map(inv => ({
+                  name: inv.name || inv.testName || 'Investigation',
+                  testName: inv.testName || inv.name || 'Investigation',
+                  notes: inv.notes || ''
+                }))
+              : []
+
+            // Debug logging before create
+            console.log('🔍 Creating consultation with data:', {
+              appointmentId,
+              diagnosis,
+              symptoms,
+              investigationsCount: transformedInvestigationsForCreate.length,
+              investigations: transformedInvestigationsForCreate,
+              advice,
+              followUpDate
+            })
+
+            const consultationResponse = await createConsultation({
+              appointmentId,
+              diagnosis: diagnosis || '',
+              symptoms: symptoms || '',
+              vitals: vitalsData,
+              medications: medications || [],
+              investigations: transformedInvestigationsForCreate,
+              advice: advice || '',
+              followUpDate: followUpDate || null,
+            })
+
+            if (consultationResponse.success) {
+              consultationId = consultationResponse.data._id || consultationResponse.data.id
+              // Update selected consultation with real ID
+              setSelectedConsultation(prev => ({
+                ...prev,
+                id: consultationId,
+                _id: consultationId,
+                diagnosis,
+                vitals: vitalsData,
+                medications,
+                investigations,
+                advice,
+                followUpDate,
+              }))
+              console.log('✅ Created consultation with ID:', consultationId)
+            } else {
+              toast.error('Failed to create consultation. Cannot save prescription.')
+              return
+            }
+          } catch (createError) {
+            // If error is "already exists", find it again
+            if (createError.message?.includes('already exists')) {
+              console.log('Consultation already exists, finding it again...')
+              try {
+                const { getDoctorConsultations } = await import('../doctor-services/doctorService')
+                const consultationsResponse = await getDoctorConsultations()
+                
+                if (consultationsResponse.success && consultationsResponse.data) {
+                  const consultations = Array.isArray(consultationsResponse.data) 
+                    ? consultationsResponse.data 
+                    : consultationsResponse.data.items || []
+                  
+                  const existingConsultation = consultations.find(cons => {
+                    const consAppointmentId = cons.appointmentId?._id || cons.appointmentId?.id || cons.appointmentId
+                    return consAppointmentId?.toString() === appointmentId.toString()
+                  })
+                  
+                  if (existingConsultation) {
+                    consultationId = existingConsultation._id || existingConsultation.id
+                    console.log('✅ Found existing consultation with ID:', consultationId)
+                    setSelectedConsultation(prev => ({
+                      ...prev,
+                      id: consultationId,
+                      _id: consultationId,
+                    }))
+                  } else {
+                    toast.error('Consultation exists but could not be found. Please refresh and try again.')
+                    return
+                  }
+                }
+              } catch (findError) {
+                console.error('Error finding existing consultation:', findError)
+                toast.error('Failed to find existing consultation. Cannot save prescription.')
+                return
+              }
+            } else {
+              toast.error(createError.message || 'Failed to create consultation. Cannot save prescription.')
+              return
+            }
+          }
+        }
+      } else {
+        // Consultation exists - update it with prescription data
+        console.log('Updating existing consultation with prescription data...')
+        
+        // Prepare vitals data
+        const vitalsData = {
+          ...vitals,
+          date: new Date().toISOString(),
+          recordedAt: new Date().toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-      }) : undefined,
+          }),
     }
 
-    // Update or add prescription
-    if (editingPrescriptionId) {
-      // Update existing prescription
-      setSavedPrescriptions((prev) =>
-        prev.map((presc) =>
-          presc.id === editingPrescriptionId ? prescriptionData : presc
-        )
-      )
-      
-      // Update prescription via API
-      try {
-        // Prescription is saved as part of consultation update
-        // The updateConsultation API will handle prescription data
-        toast.success('Prescription updated successfully!')
-      } catch (error) {
-        console.error('Error updating prescription:', error)
-        toast.error('Failed to update prescription')
+        // Transform investigations to ensure they have the correct format
+        const transformedInvestigations = (investigations && investigations.length > 0)
+          ? investigations.map(inv => ({
+              name: inv.name || inv.testName || 'Investigation',
+              testName: inv.testName || inv.name || 'Investigation',
+              notes: inv.notes || ''
+            }))
+          : []
+
+        // Debug logging before update
+        console.log('🔍 Updating consultation with data:', {
+          consultationId,
+          diagnosis,
+          symptoms,
+          investigationsCount: transformedInvestigations.length,
+          investigations: transformedInvestigations,
+          advice,
+          followUpDate
+        })
+
+        const updateResponse = await updateConsultation(consultationId, {
+          diagnosis,
+          symptoms: symptoms || '',
+          vitals: vitalsData,
+          medications,
+          investigations: transformedInvestigations,
+          advice,
+          followUpDate: followUpDate || null,
+        })
+
+        if (!updateResponse.success) {
+          console.error('Failed to update consultation:', updateResponse)
+          toast.error('Failed to update consultation. Cannot save prescription.')
+          return
+        }
+        console.log('✅ Updated consultation with ID:', consultationId)
       }
-    } else {
-      // Create new prescription via API
-      try {
+
+      // Now create prescription with real consultation ID (MongoDB ObjectId)
+      console.log('Creating prescription with consultationId:', consultationId)
         const prescriptionResponse = await createPrescription({
-          ...prescriptionData,
-          consultationId: selectedConsultation?.id,
-          patientId: selectedConsultation?.patientId,
+        consultationId: consultationId, // Use real MongoDB ObjectId
+        medications: medications.map(med => ({
+          name: med.name,
+          dosage: med.dosage,
+          frequency: med.frequency,
+          duration: med.duration,
+          instructions: med.instructions,
+        })),
+        notes: advice || '', // Use advice as notes
+        expiryDate: followUpDate || null,
+        // Include diagnosis, symptoms, investigations in the request
+        // Backend will get these from consultation, but we can also pass them explicitly
+        diagnosis: diagnosis || '',
+        symptoms: symptoms || '',
+        investigations: investigations || [],
         })
         
         if (prescriptionResponse.success) {
-          setSavedPrescriptions((prev) => [prescriptionResponse.data, ...prev])
-          toast.success('Prescription saved successfully!')
+        // Transform prescription data to match component structure
+        const prescriptionData = prescriptionResponse.data
+        const transformedPrescription = {
+          id: prescriptionData._id || prescriptionData.id,
+          _id: prescriptionData._id || prescriptionData.id,
+          consultationId: prescriptionData.consultationId?._id || prescriptionData.consultationId || consultationId,
+          patientId: prescriptionData.patientId?._id || prescriptionData.patientId?.id || prescriptionData.patientId || selectedConsultation.patientId,
+          patientName: prescriptionData.patientId?.firstName && prescriptionData.patientId?.lastName
+            ? `${prescriptionData.patientId.firstName} ${prescriptionData.patientId.lastName}`
+            : selectedConsultation.patientName || 'Patient',
+          patientImage: prescriptionData.patientId?.profileImage || selectedConsultation.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedConsultation.patientName || 'Patient')}&background=11496c&color=fff&size=160`,
+          patientPhone: prescriptionData.patientId?.phone || selectedConsultation.patientPhone || '',
+          patientEmail: prescriptionData.patientId?.email || selectedConsultation.patientEmail || '',
+          patientAddress: prescriptionData.patientId?.address || selectedConsultation.patientAddress || '',
+          // Get diagnosis, symptoms, investigations from consultationId
+          diagnosis: prescriptionData.consultationId?.diagnosis || diagnosis || '',
+          symptoms: prescriptionData.consultationId?.symptoms || symptoms || '',
+          medications: prescriptionData.medications || medications || [],
+          investigations: prescriptionData.consultationId?.investigations || investigations || [],
+          advice: prescriptionData.consultationId?.advice || prescriptionData.notes || advice || '',
+          followUpDate: prescriptionData.consultationId?.followUpDate || prescriptionData.expiryDate || followUpDate || '',
+          date: prescriptionData.createdAt ? new Date(prescriptionData.createdAt).toISOString() : new Date().toISOString(),
+          savedAt: prescriptionData.createdAt ? new Date(prescriptionData.createdAt).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }) : new Date().toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          status: prescriptionData.status || 'active',
+          pdfFileUrl: prescriptionData.pdfFileUrl || null,
+          originalData: prescriptionData,
         }
-      } catch (error) {
-        console.error('Error creating prescription:', error)
-        toast.error('Failed to save prescription')
+        
+        // Update saved prescriptions list
+        setSavedPrescriptions((prev) => {
+          // Check if prescription already exists (avoid duplicates)
+          const exists = prev.find(p => (p.id || p._id) === (transformedPrescription.id || transformedPrescription._id))
+          if (exists) {
+            return prev.map(p => (p.id || p._id) === (transformedPrescription.id || transformedPrescription._id) ? transformedPrescription : p)
       }
-    }
+          return [transformedPrescription, ...prev]
+        })
     
     // Update consultation status in both consultations list and selectedConsultation
     const updatedConsultation = {
       ...selectedConsultation,
+          id: consultationId,
+          _id: consultationId,
       status: 'completed',
       diagnosis,
       vitals,
       medications,
       investigations,
       advice,
+          prescriptionId: prescriptionData._id || prescriptionData.id,
     }
     
     setConsultations((prev) =>
       prev.map((cons) =>
-        cons.id === selectedConsultation.id ? updatedConsultation : cons
+            (cons.id === selectedConsultation.id || cons._id === consultationId) ? updatedConsultation : cons
       )
     )
     
     // Also update selectedConsultation state
     setSelectedConsultation(updatedConsultation)
+        
+        toast.success('Prescription saved successfully!')
+      } else {
+        toast.error(prescriptionResponse.message || 'Failed to save prescription')
+      }
+    } catch (error) {
+      console.error('Error saving prescription:', error)
+      toast.error(error.message || 'Failed to save prescription')
+    }
 
     // Reset form and editing state
     setDiagnosis('')
@@ -2130,8 +2865,6 @@ const DoctorConsultations = () => {
       bmi: '',
     })
     setEditingPrescriptionId(null)
-
-    console.log('Prescription saved:', prescriptionData)
     
     // Switch to saved prescriptions tab
     setActiveTab('saved')
@@ -2186,6 +2919,9 @@ const DoctorConsultations = () => {
                 <div
                   key={consultation.id}
                   onClick={async () => {
+                    // Mark as manually selected - this prevents socket handlers from clearing it
+                    isManuallySelectedRef.current = true
+                    
                     // Refresh consultation data from API to get latest patient info
                     try {
                       const response = await getConsultationById(consultation.id)
@@ -2369,13 +3105,19 @@ const DoctorConsultations = () => {
                         <div className="flex items-center gap-1 sm:gap-2">
                           <input
                             type="number"
-                            value={vitals.bloodPressure.systolic || ''}
+                            value={vitals.bloodPressure?.systolic || ''}
                             onChange={(e) => {
+                              // Set active flag IMMEDIATELY to prevent other useEffects from resetting
+                              isConsultationActiveRef.current = true
                               setVitalsEdited(true)
-                              setVitals({
-                                ...vitals,
-                                bloodPressure: { ...vitals.bloodPressure, systolic: e.target.value },
-                              })
+                              const newValue = e.target.value
+                              setVitals((prev) => ({
+                                ...prev,
+                                bloodPressure: { 
+                                  ...(prev.bloodPressure || {}), 
+                                  systolic: newValue 
+                                },
+                              }))
                             }}
                             placeholder="Systolic"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
@@ -2383,13 +3125,19 @@ const DoctorConsultations = () => {
                           <span className="text-xs sm:text-sm lg:text-xs text-slate-500">/</span>
                           <input
                             type="number"
-                            value={vitals.bloodPressure.diastolic || ''}
+                            value={vitals.bloodPressure?.diastolic || ''}
                             onChange={(e) => {
+                              // Set active flag IMMEDIATELY to prevent other useEffects from resetting
+                              isConsultationActiveRef.current = true
                               setVitalsEdited(true)
-                              setVitals({
-                                ...vitals,
-                                bloodPressure: { ...vitals.bloodPressure, diastolic: e.target.value },
-                              })
+                              const newValue = e.target.value
+                              setVitals((prev) => ({
+                                ...prev,
+                                bloodPressure: { 
+                                  ...(prev.bloodPressure || {}), 
+                                  diastolic: newValue 
+                                },
+                              }))
                             }}
                             placeholder="Diastolic"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
@@ -2409,8 +3157,11 @@ const DoctorConsultations = () => {
                             type="number"
                             value={vitals.temperature || ''}
                             onChange={(e) => {
+                              // Set active flag IMMEDIATELY to prevent other useEffects from resetting
+                              isConsultationActiveRef.current = true
                               setVitalsEdited(true)
-                              setVitals({ ...vitals, temperature: e.target.value })
+                              const newValue = e.target.value
+                              setVitals((prev) => ({ ...prev, temperature: newValue }))
                             }}
                             placeholder="98.6"
                             step="0.1"
@@ -2431,8 +3182,11 @@ const DoctorConsultations = () => {
                             type="number"
                             value={vitals.pulse || ''}
                             onChange={(e) => {
+                              // Set active flag IMMEDIATELY to prevent other useEffects from resetting
+                              isConsultationActiveRef.current = true
                               setVitalsEdited(true)
-                              setVitals({ ...vitals, pulse: e.target.value })
+                              const newValue = e.target.value
+                              setVitals((prev) => ({ ...prev, pulse: newValue }))
                             }}
                             placeholder="72"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
@@ -2452,8 +3206,11 @@ const DoctorConsultations = () => {
                             type="number"
                             value={vitals.respiratoryRate || ''}
                             onChange={(e) => {
+                              // Set active flag IMMEDIATELY to prevent other useEffects from resetting
+                              isConsultationActiveRef.current = true
                               setVitalsEdited(true)
-                              setVitals({ ...vitals, respiratoryRate: e.target.value })
+                              const newValue = e.target.value
+                              setVitals((prev) => ({ ...prev, respiratoryRate: newValue }))
                             }}
                             placeholder="16"
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 sm:px-3 lg:px-2 py-1.5 sm:py-2 lg:py-1.5 text-xs sm:text-sm lg:text-xs text-slate-900 focus:outline-none focus:ring-2"
@@ -2473,8 +3230,11 @@ const DoctorConsultations = () => {
                             type="number"
                             value={vitals.oxygenSaturation || ''}
                             onChange={(e) => {
+                              // Set active flag IMMEDIATELY to prevent other useEffects from resetting
+                              isConsultationActiveRef.current = true
                               setVitalsEdited(true)
-                              setVitals({ ...vitals, oxygenSaturation: e.target.value })
+                              const newValue = e.target.value
+                              setVitals((prev) => ({ ...prev, oxygenSaturation: newValue }))
                             }}
                             placeholder="98"
                             max="100"
@@ -2495,19 +3255,24 @@ const DoctorConsultations = () => {
                             type="number"
                             value={vitals.weight || ''}
                             onChange={(e) => {
+                              // Set active flag IMMEDIATELY to prevent other useEffects from resetting
+                              isConsultationActiveRef.current = true
                               setVitalsEdited(true)
                               const weightValue = e.target.value
                               setVitals((prev) => {
                                 const updated = { ...prev, weight: weightValue }
+                                // Calculate BMI synchronously if both height and weight are available
                                 if (updated.height && weightValue) {
-                                  setTimeout(() => {
                                     const heightInMeters = parseFloat(updated.height) / 100
                                     const weightInKg = parseFloat(weightValue)
-                                    if (heightInMeters > 0 && weightInKg > 0) {
+                                  if (heightInMeters > 0 && weightInKg > 0 && !isNaN(heightInMeters) && !isNaN(weightInKg)) {
                                       const bmi = (weightInKg / (heightInMeters * heightInMeters)).toFixed(1)
-                                      setVitals((prevVitals) => ({ ...prevVitals, bmi }))
+                                    updated.bmi = bmi
+                                  } else {
+                                    updated.bmi = ''
                                     }
-                                  }, 100)
+                                } else {
+                                  updated.bmi = ''
                                 }
                                 return updated
                               })
@@ -2532,19 +3297,24 @@ const DoctorConsultations = () => {
                             type="number"
                             value={vitals.height || ''}
                             onChange={(e) => {
+                              // Set active flag IMMEDIATELY to prevent other useEffects from resetting
+                              isConsultationActiveRef.current = true
                               setVitalsEdited(true)
                               const heightValue = e.target.value
                               setVitals((prev) => {
                                 const updated = { ...prev, height: heightValue }
+                                // Calculate BMI synchronously if both height and weight are available
                                 if (updated.weight && heightValue) {
-                                  setTimeout(() => {
                                     const heightInMeters = parseFloat(heightValue) / 100
                                     const weightInKg = parseFloat(updated.weight)
-                                    if (heightInMeters > 0 && weightInKg > 0) {
+                                  if (heightInMeters > 0 && weightInKg > 0 && !isNaN(heightInMeters) && !isNaN(weightInKg)) {
                                       const bmi = (weightInKg / (heightInMeters * heightInMeters)).toFixed(1)
-                                      setVitals((prevVitals) => ({ ...prevVitals, bmi }))
+                                    updated.bmi = bmi
+                                  } else {
+                                    updated.bmi = ''
                                     }
-                                  }, 100)
+                                } else {
+                                  updated.bmi = ''
                                 }
                                 return updated
                               })
@@ -2580,10 +3350,84 @@ const DoctorConsultations = () => {
                     <div className="mt-4 sm:mt-5">
                       <button
                         type="button"
-                        onClick={() => {
-                          // Save vitals to patient history
-                          if (selectedConsultation && patientHistory) {
+                        onClick={async () => {
+                          // Save vitals to patient history via API
+                          if (!selectedConsultation) {
+                            toast.warning('Please select a patient first')
+                            return
+                          }
+
+                          // Validate that at least some vitals are entered
+                          const hasVitals = vitals.temperature || vitals.pulse || vitals.respiratoryRate || 
+                                           vitals.oxygenSaturation || vitals.weight || vitals.height ||
+                                           vitals.bloodPressure?.systolic || vitals.bloodPressure?.diastolic
+                          
+                          if (!hasVitals) {
+                            toast.warning('Please enter at least one vital sign')
+                            return
+                          }
+
+                          try {
+                            // Get appointment ID from consultation - check multiple possible locations
+                            let appointmentId = selectedConsultation.appointmentId?._id || 
+                                                selectedConsultation.appointmentId || 
+                                                selectedConsultation.originalData?._id ||
+                                                selectedConsultation.originalData?.id ||
+                                                selectedConsultation.originalData?.appointmentId?._id ||
+                                                selectedConsultation.originalData?.appointmentId
+
+                            // If still not found, try to extract from consultation ID
+                            // Consultation ID format: cons-{appointmentId}-{timestamp}
+                            if (!appointmentId && selectedConsultation.id) {
+                              const idMatch = selectedConsultation.id.match(/^cons-([a-fA-F0-9]{24})-/)
+                              if (idMatch && idMatch[1]) {
+                                appointmentId = idMatch[1]
+                                console.log('✅ Extracted appointmentId from consultation ID:', appointmentId)
+                              }
+                            }
+
+                            // If still not found, try to get from patient's current appointment
+                            if (!appointmentId && selectedConsultation.patientId) {
                             try {
+                                const patientId = typeof selectedConsultation.patientId === 'object' 
+                                  ? (selectedConsultation.patientId._id || selectedConsultation.patientId.id || selectedConsultation.patientId)
+                                  : selectedConsultation.patientId
+                                
+                                // Get today's queue to find the appointment
+                                const today = new Date().toISOString().split('T')[0]
+                                const queueResponse = await getPatientQueue(today)
+                                
+                                if (queueResponse.success && queueResponse.data?.appointments) {
+                                  const appointment = queueResponse.data.appointments.find(apt => {
+                                    const aptPatientId = apt.patientId?._id || apt.patientId
+                                    return aptPatientId?.toString() === patientId?.toString() &&
+                                           (apt.status === 'called' || apt.status === 'in-consultation' || apt.status === 'in_progress' || apt.status === 'scheduled' || apt.status === 'confirmed')
+                                  })
+                                  
+                                  if (appointment) {
+                                    appointmentId = appointment._id || appointment.id
+                                    console.log('✅ Found appointmentId from patient queue:', appointmentId)
+                                  }
+                                }
+                              } catch (error) {
+                                console.error('Error fetching appointment from queue:', error)
+                              }
+                            }
+
+                            if (!appointmentId) {
+                              toast.error('Appointment ID not found. Cannot save vitals.')
+                              console.error('❌ Appointment ID not found in consultation:', {
+                                consultationId: selectedConsultation.id,
+                                hasAppointmentId: !!selectedConsultation.appointmentId,
+                                hasOriginalData: !!selectedConsultation.originalData,
+                                patientId: selectedConsultation.patientId
+                              })
+                              return
+                            }
+                            
+                            console.log('✅ Using appointmentId for saving vitals:', appointmentId)
+
+                            // Prepare vitals data with timestamp
                             const vitalsData = {
                               ...vitals,
                               date: new Date().toISOString(),
@@ -2596,11 +3440,62 @@ const DoctorConsultations = () => {
                               }),
                             }
                             
-                            // Vitals are saved as part of consultation update via API
-                            // Patient history is managed by backend
-                            toast.success('Vitals saved successfully!')
+                            // Check if consultation exists, if not create it, otherwise update it
+                            let consultationId = selectedConsultation.id || selectedConsultation._id
+                            
+                            // If consultation ID doesn't look like a MongoDB ID, we need to create/update via appointment
+                            if (!consultationId || !consultationId.match(/^[0-9a-fA-F]{24}$/)) {
+                              // Create new consultation with vitals
+                              const consultationResponse = await createConsultation({
+                                appointmentId,
+                                diagnosis: diagnosis || '',
+                                vitals: vitalsData,
+                                medications: medications || [],
+                                investigations: investigations || [],
+                                advice: advice || '',
+                                followUpDate: followUpDate || null,
+                              })
+
+                              if (consultationResponse.success) {
+                                consultationId = consultationResponse.data._id || consultationResponse.data.id
+                                // Update selected consultation with new ID
+                                setSelectedConsultation(prev => ({
+                                  ...prev,
+                                  id: consultationId,
+                                  _id: consultationId,
+                                  vitals: vitalsData
+                                }))
+                              }
+                            } else {
+                              // Update existing consultation with vitals
+                              const updateResponse = await updateConsultation(consultationId, {
+                                vitals: vitalsData,
+                              })
+
+                              if (updateResponse.success) {
+                                // Update selected consultation with new vitals
+                                setSelectedConsultation(prev => ({
+                                  ...prev,
+                                  vitals: vitalsData
+                                }))
+                              }
+                            }
+
+                            // Reload patient history to show updated vitals
+                            if (selectedConsultation.patientId) {
+                              const patientId = typeof selectedConsultation.patientId === 'object' 
+                                ? (selectedConsultation.patientId._id || selectedConsultation.patientId.id || selectedConsultation.patientId)
+                                : selectedConsultation.patientId
                               
-                              // Reset vitals form
+                              const historyResponse = await getPatientHistory(patientId)
+                              if (historyResponse.success && historyResponse.data) {
+                                setPatientHistory(historyResponse.data)
+                              }
+                            }
+
+                            toast.success('Vitals saved to patient history successfully!')
+                              
+                            // Reset vitals form after successful save
                               setVitals({
                                 bloodPressure: { systolic: '', diastolic: '' },
                                 temperature: '',
@@ -2611,12 +3506,10 @@ const DoctorConsultations = () => {
                                 height: '',
                                 bmi: '',
                               })
+                            setVitalsEdited(false)
                             } catch (error) {
                               console.error('Error saving vitals to history:', error)
-                              toast.error('Error saving vitals. Please try again.')
-                            }
-                          } else {
-                            toast.warning('Please select a patient first')
+                            toast.error(error.message || 'Error saving vitals. Please try again.')
                           }
                         }}
                         className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"
@@ -3267,9 +4160,11 @@ const DoctorConsultations = () => {
                         {/* Filter prescriptions for current patient only */}
                         {(() => {
                           const filteredPrescriptions = selectedConsultation 
-                            ? savedPrescriptions.filter((prescription) => 
-                                prescription.patientId === selectedConsultation.patientId
-                              )
+                            ? savedPrescriptions.filter((prescription) => {
+                                const prescPatientId = prescription.patientId?._id || prescription.patientId?.id || prescription.patientId
+                                const selectedPatientId = selectedConsultation.patientId?._id || selectedConsultation.patientId?.id || selectedConsultation.patientId
+                                return prescPatientId?.toString() === selectedPatientId?.toString()
+                              })
                             : []
                           
                           return (
@@ -3425,76 +4320,68 @@ const DoctorConsultations = () => {
                       </div>
                       )}
 
-                      {/* Conditions */}
-                      <div>
-                        <h4 className="mb-3 text-sm font-semibold text-slate-900 uppercase tracking-wide">
-                          Conditions
-                        </h4>
-                        <div className="space-y-2">
-                          {patientHistory.conditions && Array.isArray(patientHistory.conditions) && patientHistory.conditions.length > 0 ? (
-                          patientHistory.conditions.map((condition, idx) => (
-                            <div key={idx} className="rounded-lg bg-slate-50 p-3">
-                              <p className="text-sm font-semibold text-slate-900">{condition.name}</p>
-                              <p className="text-xs text-slate-600 mt-1">
-                                Since {formatDate(condition.diagnosedDate)} • {condition.status}
-                              </p>
-                            </div>
-                          ))
-                          ) : (
-                            <p className="text-sm text-slate-500">No conditions recorded</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Allergies */}
-                      <div>
-                        <h4 className="mb-3 text-sm font-semibold text-slate-900 uppercase tracking-wide">
-                          Allergies
-                        </h4>
-                        <div className="space-y-2">
-                          {patientHistory.allergies && Array.isArray(patientHistory.allergies) && patientHistory.allergies.length > 0 ? (
-                          patientHistory.allergies.map((allergy, idx) => (
-                            <div key={idx} className="rounded-lg bg-red-50 p-3">
-                              <p className="text-sm font-semibold text-red-900">{allergy.name}</p>
-                              <p className="text-xs text-red-700 mt-1">
-                                {allergy.severity} • {allergy.reaction}
-                              </p>
-                            </div>
-                          ))
-                          ) : (
-                            <p className="text-sm text-slate-500">No allergies recorded</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Current Medications */}
-                      <div>
-                        <h4 className="mb-3 text-sm font-semibold text-slate-900 uppercase tracking-wide">
-                          Current Medications
-                        </h4>
-                        <div className="space-y-2">
-                          {patientHistory.medications && Array.isArray(patientHistory.medications) && patientHistory.medications.length > 0 ? (
-                          patientHistory.medications.map((med, idx) => (
-                            <div key={idx} className="rounded-lg bg-emerald-50 p-3">
-                              <p className="text-sm font-semibold text-emerald-900">{med.name}</p>
-                              <p className="text-xs text-emerald-700 mt-1">
-                                {med.dosage} • {med.frequency}
-                              </p>
-                              <p className="text-xs text-emerald-600 mt-1">Since {formatDate(med.startDate)}</p>
-                            </div>
-                          ))
-                          ) : (
-                            <p className="text-sm text-slate-500">No medications recorded</p>
-                          )}
-                        </div>
-                      </div>
-
                       {/* Vitals Records */}
                       {(() => {
                         try {
+                          // Extract vitals from consultations in patientHistory
+                          const vitalsRecords = []
+                          
+                          // First, try to get from patientHistory.consultations (from backend)
+                          if (patientHistory?.consultations && Array.isArray(patientHistory.consultations)) {
+                            patientHistory.consultations.forEach((consultation) => {
+                              if (consultation.vitals) {
+                                // Check if vitals has any data
+                                const hasVitalsData = consultation.vitals.bloodPressure?.systolic || 
+                                                      consultation.vitals.temperature || 
+                                                      consultation.vitals.pulse || 
+                                                      consultation.vitals.heartRate ||
+                                                      consultation.vitals.respiratoryRate ||
+                                                      consultation.vitals.oxygenSaturation ||
+                                                      consultation.vitals.spo2 ||
+                                                      consultation.vitals.weight ||
+                                                      consultation.vitals.height ||
+                                                      consultation.vitals.bmi
+                                
+                                if (hasVitalsData) {
+                                  const consultationDate = consultation.consultationDate || consultation.createdAt || consultation.updatedAt
+                                  const dateObj = consultationDate ? new Date(consultationDate) : new Date()
+                                  
+                                  vitalsRecords.push({
+                                    ...consultation.vitals,
+                                    consultationId: consultation._id || consultation.id,
+                                    date: consultationDate,
+                                    dateObj: dateObj, // For sorting
+                                    recordedAt: consultation.vitals.recordedAt || 
+                                                dateObj.toLocaleString('en-US', {
+                                                  month: 'short',
+                                                  day: 'numeric',
+                                                  year: 'numeric',
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                                }),
+                                  })
+                                }
+                              }
+                            })
+                          }
+                          
+                          // Fallback: Also check localStorage for backward compatibility
+                          if (vitalsRecords.length === 0) {
                           const historyKey = `patientHistory_${selectedConsultation?.patientId}`
                           const savedHistory = JSON.parse(localStorage.getItem(historyKey) || '{}')
-                          const vitalsRecords = savedHistory.vitalsRecords || []
+                            const localStorageVitals = savedHistory.vitalsRecords || []
+                            vitalsRecords.push(...localStorageVitals.map(v => ({
+                              ...v,
+                              dateObj: v.date ? new Date(v.date) : new Date()
+                            })))
+                          }
+                          
+                          // Sort by date (newest first) - so latest vitals show first
+                          vitalsRecords.sort((a, b) => {
+                            const dateA = a.dateObj || (a.date ? new Date(a.date) : new Date(0))
+                            const dateB = b.dateObj || (b.date ? new Date(b.date) : new Date(0))
+                            return dateB - dateA // Newest first
+                          })
                           
                           if (vitalsRecords.length > 0) {
                             return (
@@ -3525,10 +4412,10 @@ const DoctorConsultations = () => {
                                             <p className="font-semibold text-slate-900">{vital.temperature} °F</p>
                                           </div>
                                         )}
-                                        {vital.pulse && (
+                                        {(vital.pulse || vital.heartRate) && (
                                           <div>
                                             <p className="text-slate-600">Pulse</p>
-                                            <p className="font-semibold text-slate-900">{vital.pulse} bpm</p>
+                                            <p className="font-semibold text-slate-900">{vital.pulse || vital.heartRate} bpm</p>
                                           </div>
                                         )}
                                         {vital.respiratoryRate && (
@@ -3537,10 +4424,10 @@ const DoctorConsultations = () => {
                                             <p className="font-semibold text-slate-900">{vital.respiratoryRate} /min</p>
                                           </div>
                                         )}
-                                        {vital.oxygenSaturation && (
+                                        {(vital.oxygenSaturation || vital.spo2) && (
                                           <div>
                                             <p className="text-slate-600">SpO2</p>
-                                            <p className="font-semibold text-slate-900">{vital.oxygenSaturation}%</p>
+                                            <p className="font-semibold text-slate-900">{vital.oxygenSaturation || vital.spo2}%</p>
                                           </div>
                                         )}
                                         {vital.weight && (
@@ -3580,33 +4467,118 @@ const DoctorConsultations = () => {
                           Previous Consultations
                         </h4>
                         <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {patientHistory.previousConsultations && Array.isArray(patientHistory.previousConsultations) && patientHistory.previousConsultations.length > 0 ? (
-                          patientHistory.previousConsultations.map((consult, idx) => (
-                            <div key={idx} className="rounded-lg border border-slate-200 bg-white p-4">
+                          {(() => {
+                            // Get consultations from patientHistory.consultations (backend) or patientHistory.previousConsultations (fallback)
+                            const consultations = patientHistory?.consultations || patientHistory?.previousConsultations || []
+                            
+                            if (Array.isArray(consultations) && consultations.length > 0) {
+                              // Sort by date (newest first)
+                              const sortedConsultations = [...consultations].sort((a, b) => {
+                                const dateA = new Date(a.consultationDate || a.date || a.createdAt || 0)
+                                const dateB = new Date(b.consultationDate || b.date || b.createdAt || 0)
+                                return dateB - dateA
+                              })
+                              
+                              return sortedConsultations.map((consult, idx) => {
+                                // Get doctor name - check multiple possible locations
+                                let doctorName = 'Unknown Doctor'
+                                if (consult.doctorId) {
+                                  if (typeof consult.doctorId === 'object') {
+                                    // Populated doctor object
+                                    if (consult.doctorId.firstName && consult.doctorId.lastName) {
+                                      doctorName = `Dr. ${consult.doctorId.firstName} ${consult.doctorId.lastName}`
+                                    } else if (consult.doctorId.name) {
+                                      doctorName = consult.doctorId.name
+                                    }
+                                  } else {
+                                    // Just ID, try to get from current doctor context
+                                    doctorName = 'Current Doctor'
+                                  }
+                                } else if (consult.doctor) {
+                                  doctorName = typeof consult.doctor === 'string' ? consult.doctor : `Dr. ${consult.doctor.name || 'Unknown'}`
+                                }
+                                
+                                // Get diagnosis - show actual diagnosis or indicate if missing
+                                const diagnosis = consult.diagnosis && consult.diagnosis.trim() !== '' 
+                                  ? consult.diagnosis 
+                                  : 'No diagnosis recorded'
+                                
+                                // Get date
+                                const date = consult.consultationDate || consult.date || consult.createdAt || consult.updatedAt
+                                
+                                // Get medications
+                                const medications = consult.medications || []
+                                
+                                // Get advice if available
+                                const advice = consult.advice || ''
+                                
+                                // Get investigations if available
+                                const investigations = consult.investigations || []
+                                
+                                return (
+                                  <div key={consult._id || consult.id || idx} className="rounded-lg border border-slate-200 bg-white p-4">
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
-                                  <p className="font-semibold text-slate-900">{consult.diagnosis}</p>
-                                  <p className="mt-1 text-xs text-slate-600">{formatDate(consult.date)}</p>
-                                  <p className="mt-1 text-xs text-slate-600">Dr. {consult.doctor}</p>
-                                  {consult.medications && consult.medications.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                      {consult.medications.map((med, medIdx) => (
+                                        <p className="text-sm sm:text-base font-semibold text-slate-900">{diagnosis}</p>
+                                        <p className="mt-1 text-xs text-slate-600">{formatDate(date)}</p>
+                                        <p className="mt-1 text-xs text-slate-600">{doctorName}</p>
+                                        
+                                        {/* Show advice if available */}
+                                        {advice && advice.trim() !== '' && (
+                                          <div className="mt-2 rounded bg-blue-50 border border-blue-200 p-2">
+                                            <p className="text-xs font-semibold text-blue-900 mb-1">Advice</p>
+                                            <p className="text-xs text-blue-800">{advice}</p>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Show medications if available */}
+                                        {medications.length > 0 && (
+                                          <div className="mt-2">
+                                            <p className="text-xs font-semibold text-slate-700 mb-1">Medications ({medications.length})</p>
+                                            <div className="flex flex-wrap gap-1">
+                                              {medications.map((med, medIdx) => {
+                                                const medName = typeof med === 'string' ? med : med.name || 'Unknown'
+                                                return (
                                         <span
                                           key={medIdx}
                                           className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
                                         >
-                                          {med}
+                                                    {medName}
                                         </span>
-                                      ))}
+                                                )
+                                              })}
+                                            </div>
                                     </div>
                                   )}
+                                        
+                                        {/* Show investigations if available */}
+                                        {investigations.length > 0 && (
+                                          <div className="mt-2">
+                                            <p className="text-xs font-semibold text-slate-700 mb-1">Investigations ({investigations.length})</p>
+                                            <div className="flex flex-wrap gap-1">
+                                              {investigations.map((inv, invIdx) => {
+                                                const invName = typeof inv === 'string' ? inv : inv.name || inv.testName || 'Unknown'
+                                                return (
+                                                  <span
+                                                    key={invIdx}
+                                                    className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700"
+                                                  >
+                                                    {invName}
+                                                  </span>
+                                                )
+                                              })}
                                 </div>
                               </div>
+                                        )}
+                                      </div>
+                                    </div>
                             </div>
-                          ))
-                          ) : (
-                            <p className="text-sm text-slate-500">No previous consultations</p>
-                          )}
+                                )
+                              })
+                            }
+                            
+                            return <p className="text-sm text-slate-500">No previous consultations</p>
+                          })()}
                         </div>
                       </div>
 

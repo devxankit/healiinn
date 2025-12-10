@@ -9,7 +9,7 @@ import {
   IoCloseCircleOutline,
   IoCallOutline,
 } from 'react-icons/io5'
-import { getPatientAppointments, rescheduleAppointment } from '../patient-services/patientService'
+import { getPatientAppointments, rescheduleAppointment, createAppointmentPaymentOrder, verifyAppointmentPayment } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getSocket } from '../../../utils/socketClient'
 
@@ -177,6 +177,7 @@ const PatientAppointments = () => {
             })(),
             token: apt.tokenNumber ? `Token #${apt.tokenNumber}` : apt.token || null,
             fee: apt.fee || apt.consultationFee || 0,
+            paymentStatus: apt.paymentStatus || 'paid', // Include payment status
             cancelledBy: apt.cancelledBy,
             cancelledAt: apt.cancelledAt,
             cancelReason: apt.cancellationReason || apt.cancelReason,
@@ -416,6 +417,78 @@ const PatientAppointments = () => {
     navigate(`/patient/doctors/${doctorId}?reschedule=${appointmentId}`)
   }
 
+  const handleCompletePayment = async (appointment) => {
+    try {
+      const appointmentId = appointment.id || appointment._id
+      
+      // Create payment order
+      const paymentOrderResponse = await createAppointmentPaymentOrder(appointmentId)
+      
+      if (!paymentOrderResponse.success) {
+        toast.error(paymentOrderResponse.message || 'Failed to create payment order. Please try again.')
+        return
+      }
+
+      const { orderId, amount, currency, razorpayKeyId } = paymentOrderResponse.data
+
+      // Initialize Razorpay payment
+      if (!window.Razorpay) {
+        toast.error('Payment gateway not loaded. Please refresh the page and try again.')
+        return
+      }
+
+      const options = {
+        key: razorpayKeyId,
+        amount: Math.round(amount * 100), // Convert to paise
+        currency: currency || 'INR',
+        name: 'Healiinn',
+        description: `Appointment payment for ${appointment.doctor.name}`,
+        order_id: orderId,
+        handler: async (response) => {
+          try {
+            // Verify payment
+            const verifyResponse = await verifyAppointmentPayment(appointmentId, {
+              paymentId: response.razorpay_payment_id,
+              orderId: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              paymentMethod: 'razorpay',
+            })
+
+            if (verifyResponse.success) {
+              toast.success('Payment successful! Appointment confirmed.')
+              // Refresh appointments
+              window.dispatchEvent(new CustomEvent('appointmentBooked'))
+            } else {
+              toast.error(verifyResponse.message || 'Payment verification failed.')
+            }
+          } catch (error) {
+            console.error('Error verifying payment:', error)
+            toast.error(error.message || 'Error verifying payment. Please contact support.')
+          }
+        },
+        prefill: {
+          name: '', // Can be filled from user profile if available
+          email: '',
+          contact: '',
+        },
+        theme: {
+          color: '#11496c',
+        },
+        modal: {
+          ondismiss: () => {
+            console.log('Payment modal closed')
+          },
+        },
+      }
+
+      const razorpay = new window.Razorpay(options)
+      razorpay.open()
+    } catch (error) {
+      console.error('Error processing payment:', error)
+      toast.error(error.message || 'Error processing payment. Please try again.')
+    }
+  }
+
   // Calculate filtered appointments - MUST be before early returns (React Hooks rule)
   const filteredAppointments = useMemo(() => {
     if (!appointments || appointments.length === 0) {
@@ -567,7 +640,9 @@ const PatientAppointments = () => {
                   </div>
                   {(() => {
                     const displayStatus = mapBackendStatusToDisplay(appointment.status)
+                    const isPendingPayment = appointment.paymentStatus === 'pending' && displayStatus !== 'cancelled'
                     // Priority: If cancelled, show "Cancelled" regardless of rescheduled status
+                    // If pending payment, show "Pending Payment" with high priority
                     // Otherwise, show "Rescheduled" if rescheduled, or the actual status
                     const isInConsultation = inConsultationRoom && (
                       consultationAppointmentId === appointment.id || 
@@ -579,6 +654,8 @@ const PatientAppointments = () => {
                     
                     let statusText = displayStatus === 'cancelled'
                       ? 'Cancelled'
+                      : isPendingPayment
+                      ? 'Pending Payment'
                       : appointment.isRescheduled 
                       ? 'Rescheduled' 
                       : isInConsultation
@@ -595,6 +672,8 @@ const PatientAppointments = () => {
                           ? 'bg-green-100 text-green-700'
                           : displayStatus === 'cancelled' 
                           ? getStatusColor(appointment.status) 
+                          : isPendingPayment
+                          ? 'bg-amber-100 text-amber-700'
                           : appointment.isRescheduled 
                             ? 'bg-blue-100 text-blue-700' 
                             : isCalled
@@ -634,6 +713,27 @@ const PatientAppointments = () => {
                   </div>
                 </div>
 
+                {appointment.paymentStatus === 'pending' && appointment.status !== 'cancelled' && (
+                  <div className="mt-3 space-y-2">
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                      <p className="text-xs font-semibold text-amber-800 mb-1">
+                        Payment Pending
+                      </p>
+                      <p className="text-xs text-amber-700">
+                        Please complete payment to confirm your appointment. Amount: ₹{appointment.fee}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCompletePayment(appointment)
+                      }}
+                      className="flex-1 w-full rounded-xl bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-[rgba(217,119,6,0.2)] transition hover:bg-amber-700 active:scale-95"
+                    >
+                      Complete Payment
+                    </button>
+                  </div>
+                )}
                 {appointment.status === 'cancelled' && (
                   <div className="mt-3 space-y-2">
                     {appointment.cancelledBy === 'doctor' && (
@@ -659,7 +759,7 @@ const PatientAppointments = () => {
                     </button>
                   </div>
                 )}
-                {(appointment.status === 'confirmed' || appointment.status === 'scheduled' || appointment.status === 'upcoming') && (
+                {(appointment.status === 'confirmed' || appointment.status === 'scheduled' || appointment.status === 'upcoming') && appointment.paymentStatus !== 'pending' && (
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={() => navigate(`/patient/doctors/${appointment.doctor.id}`)}

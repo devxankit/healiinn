@@ -33,6 +33,7 @@ const PatientProfile = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef(null)
+  const [newAllergy, setNewAllergy] = useState('')
   
   // Initialize with empty/default data
   const [formData, setFormData] = useState({
@@ -57,7 +58,6 @@ const PatientProfile = () => {
       phone: '',
       relation: '',
     },
-    medicalHistory: [],
     allergies: [],
   })
 
@@ -104,7 +104,6 @@ const PatientProfile = () => {
               phone: '',
               relation: '',
             },
-            medicalHistory: Array.isArray(cachedProfile.medicalHistory) ? cachedProfile.medicalHistory : [],
             allergies: Array.isArray(cachedProfile.allergies) ? cachedProfile.allergies : [],
           }
           setFormData(cachedData)
@@ -142,7 +141,6 @@ const PatientProfile = () => {
               phone: '',
               relation: '',
             },
-            medicalHistory: Array.isArray(patient.medicalHistory) ? patient.medicalHistory : [],
             allergies: Array.isArray(patient.allergies) ? patient.allergies : [],
           }
           
@@ -226,7 +224,6 @@ const PatientProfile = () => {
         profileImage: formData.profileImage,
         address: formData.address,
         emergencyContact: formData.emergencyContact,
-        medicalHistory: formData.medicalHistory,
         allergies: formData.allergies,
       }
 
@@ -238,6 +235,7 @@ const PatientProfile = () => {
         storage.setItem('patientProfile', JSON.stringify(response.data?.patient || response.data))
         
         toast.success('Profile updated successfully!')
+        setNewAllergy('')
         setIsEditing(false)
         setActiveSection(null)
       } else {
@@ -283,7 +281,6 @@ const PatientProfile = () => {
             phone: '',
             relation: '',
           },
-          medicalHistory: Array.isArray(patient.medicalHistory) ? patient.medicalHistory : [],
           allergies: Array.isArray(patient.allergies) ? patient.allergies : [],
         }
         setFormData(transformedData)
@@ -292,6 +289,7 @@ const PatientProfile = () => {
       console.error('Error reloading profile:', error)
       toast.error('Failed to reload profile data')
     }
+    setNewAllergy('')
     setIsEditing(false)
     setActiveSection(null)
   }
@@ -783,7 +781,7 @@ const PatientProfile = () => {
                   Allergies
                 </label>
                 {formData.allergies && formData.allergies.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 mb-3">
                     {formData.allergies.map((allergy, index) => (
                       <span
                         key={index}
@@ -791,42 +789,76 @@ const PatientProfile = () => {
                       >
                         <IoWarningOutline className="h-3.5 w-3.5" />
                         {allergy}
+                        {isEditing && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updatedAllergies = formData.allergies.filter((_, i) => i !== index)
+                              setFormData({ ...formData, allergies: updatedAllergies })
+                            }}
+                            className="ml-1.5 hover:bg-red-100 rounded-full p-0.5 transition-colors"
+                            aria-label="Remove allergy"
+                          >
+                            <IoCloseOutline className="h-3 w-3" />
+                          </button>
+                        )}
                       </span>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500 py-2.5">No allergies recorded</p>
+                  !isEditing && <p className="text-sm text-slate-500 py-2.5 mb-3">No allergies recorded</p>
+                )}
+                
+                {isEditing && (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newAllergy}
+                      onChange={(e) => setNewAllergy(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && newAllergy.trim()) {
+                          e.preventDefault()
+                          const trimmedAllergy = newAllergy.trim()
+                          if (!formData.allergies.includes(trimmedAllergy)) {
+                            setFormData({
+                              ...formData,
+                              allergies: [...formData.allergies, trimmedAllergy]
+                            })
+                            setNewAllergy('')
+                          } else {
+                            toast.error('This allergy is already added')
+                            setNewAllergy('')
+                          }
+                        }
+                      }}
+                      placeholder="Add allergy (press Enter)"
+                      className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[#11496c]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newAllergy.trim()) {
+                          const trimmedAllergy = newAllergy.trim()
+                          if (!formData.allergies.includes(trimmedAllergy)) {
+                            setFormData({
+                              ...formData,
+                              allergies: [...formData.allergies, trimmedAllergy]
+                            })
+                            setNewAllergy('')
+                          } else {
+                            toast.error('This allergy is already added')
+                            setNewAllergy('')
+                          }
+                        }
+                      }}
+                      className="px-4 py-2 bg-[#11496c] text-white rounded-lg text-sm font-semibold hover:bg-[#0d3a52] transition-colors active:scale-95"
+                    >
+                      Add
+                    </button>
+                  </div>
                 )}
               </div>
 
-              <div>
-                <label className="mb-2 block text-xs font-semibold text-slate-700">
-                  Medical History
-                </label>
-                {formData.medicalHistory && formData.medicalHistory.length > 0 ? (
-                  <div className="space-y-3">
-                    {formData.medicalHistory.map((history, index) => (
-                      <div
-                        key={index}
-                        className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-900">{history.condition}</p>
-                            <p className="mt-1 text-xs text-slate-600">{history.notes}</p>
-                            <p className="mt-1.5 text-xs text-slate-500">
-                              Diagnosed: {formatDate(history.diagnosedAt)}
-                            </p>
-                          </div>
-                          <IoMedicalOutline className="h-5 w-5 text-[#11496c] shrink-0" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500 py-2.5">No medical history recorded</p>
-                )}
-              </div>
             </div>
           )}
         </div>

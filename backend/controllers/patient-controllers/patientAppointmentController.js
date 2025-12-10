@@ -70,16 +70,9 @@ exports.getAppointments = asyncHandler(async (req, res) => {
       }
     }
   } else {
-    // By default, include all appointments (including cancelled) but exclude pending payment appointments
-    // Only exclude pending payment appointments that are not cancelled
-    // This allows cancelled appointments to show even if payment was pending
-    filter.$or = [
-      { 
-        paymentStatus: { $ne: 'pending' },
-        status: { $ne: 'cancelled' } // Non-cancelled appointments must have paid status
-      },
-      { status: 'cancelled' } // Include cancelled appointments regardless of payment status
-    ];
+    // By default, include all appointments (including cancelled and pending payment)
+    // Show all appointments so user can see pending payment appointments and complete payment
+    // No filter needed - show everything
   }
   
   if (date) {
@@ -187,22 +180,28 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if there's a cancelled session for this date before creating appointment
+  // Check if there's a cancelled or completed session for this date before creating appointment
   const sessionDateStart = new Date(parsedAppointmentDate);
   sessionDateStart.setHours(0, 0, 0, 0);
   const sessionDateEnd = new Date(parsedAppointmentDate);
   sessionDateEnd.setHours(23, 59, 59, 999);
   
-  const cancelledSession = await Session.findOne({
+  const { SESSION_STATUS } = require('../../utils/constants');
+  const cancelledOrCompletedSession = await Session.findOne({
     doctorId,
     date: { $gte: sessionDateStart, $lt: sessionDateEnd },
-    status: 'cancelled',
+    status: { $in: [SESSION_STATUS.CANCELLED, SESSION_STATUS.COMPLETED] },
   });
   
-  if (cancelledSession) {
+  if (cancelledOrCompletedSession) {
+    const isCancelled = cancelledOrCompletedSession.status === SESSION_STATUS.CANCELLED;
+    const isCompleted = cancelledOrCompletedSession.status === SESSION_STATUS.COMPLETED;
+    
     return res.status(400).json({
       success: false,
-      message: 'Session was cancelled for this date. Please select a different date.',
+      message: isCancelled 
+        ? 'Session was cancelled for this date. Please select a different date.'
+        : 'Session has ended for this date. No new appointments can be booked.',
       data: {
         cancelledSessionDate: cancelledSession.date.toISOString().split('T')[0],
         selectedDate: appointmentDate,
@@ -285,9 +284,12 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     // For future bookings or same-day without past slots, use normal increment
     // Token should be next available token (currentToken + 1)
     // But ensure we don't skip tokens if there are existing appointments
+    // Exclude pending payment appointments to match the display filter
+    // Only count appointments that are actually confirmed (paid)
     const existingAppointments = await Appointment.countDocuments({
       sessionId: session._id,
       status: { $in: ['scheduled', 'confirmed'] },
+      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
     });
     
     // Token number should be max of (currentToken + 1) or (existing appointments + 1)
@@ -366,9 +368,12 @@ exports.createAppointment = asyncHandler(async (req, res) => {
 
   // Update session - ensure currentToken reflects the highest token number
   // This ensures consistency even if appointments were cancelled
+  // Exclude pending payment appointments to match the display filter
+  // Only count appointments that are actually confirmed (paid)
   const maxTokenInSession = await Appointment.findOne({
     sessionId: session._id,
     status: { $in: ['scheduled', 'confirmed'] },
+    paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
   }).sort({ tokenNumber: -1 }).select('tokenNumber');
   
   const highestToken = maxTokenInSession?.tokenNumber || tokenNumber;

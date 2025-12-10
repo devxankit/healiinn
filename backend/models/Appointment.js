@@ -40,7 +40,7 @@ const appointmentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress', 'completed', 'cancelled', 'rescheduled'],
+      enum: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress', 'completed', 'cancelled', 'rescheduled', 'cancelled_by_session'],
       default: 'scheduled',
       index: true,
     },
@@ -93,6 +93,11 @@ const appointmentSchema = new mongoose.Schema(
     },
     cancelledAt: {
       type: Date,
+    },
+    cancelledBy: {
+      type: String,
+      enum: ['patient', 'doctor', 'admin', 'system'],
+      trim: true,
     },
     cancellationReason: {
       type: String,

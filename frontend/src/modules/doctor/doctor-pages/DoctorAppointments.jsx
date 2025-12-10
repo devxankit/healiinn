@@ -119,11 +119,20 @@ const DoctorAppointments = () => {
           
           // Store statistics from backend if available
           if (response.data.statistics) {
+            console.log('📊 Backend statistics received:', response.data.statistics)
             setStatistics(response.data.statistics)
+          } else {
+            console.log('⚠️ No statistics in backend response, will calculate client-side')
+            setStatistics(null)
           }
           
           // Transform API data to match component structure
-          const transformed = appointmentsData.map(apt => ({
+          const transformed = appointmentsData.map(apt => {
+            // Normalize date - use appointmentDate from backend
+            const appointmentDate = apt.appointmentDate || apt.date
+            const normalizedDate = appointmentDate ? new Date(appointmentDate) : new Date()
+            
+            return {
             id: apt._id || apt.id,
             _id: apt._id || apt.id,
             patientId: apt.patientId?._id || apt.patientId?.id || apt.patientId || 'pat-unknown',
@@ -131,7 +140,8 @@ const DoctorAppointments = () => {
               ? `${apt.patientId.firstName} ${apt.patientId.lastName}`
               : apt.patientId?.name || apt.patientName || 'Unknown Patient',
             patientImage: apt.patientId?.profileImage || apt.patientId?.image || apt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(apt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
-            date: apt.appointmentDate || apt.date,
+            date: appointmentDate, // Use appointmentDate from backend
+            appointmentDate: appointmentDate, // Keep both for compatibility
             time: apt.time || '',
             type: apt.appointmentType || apt.type || 'In-person',
             status: apt.status || 'scheduled',
@@ -160,7 +170,14 @@ const DoctorAppointments = () => {
             isRescheduled: !!apt.rescheduledAt,
             // Preserve original appointment data for reference
             originalData: apt,
-          }))
+          }
+          })
+          
+          console.log('📋 Transformed appointments:', {
+            count: transformed.length,
+            sample: transformed[0] || null,
+            dateFields: transformed.slice(0, 3).map(apt => ({ id: apt.id, date: apt.date, appointmentDate: apt.appointmentDate }))
+          })
           
           setAppointments(transformed)
         }
@@ -210,21 +227,24 @@ const DoctorAppointments = () => {
   const filteredAppointments = useMemo(() => {
     let filtered = appointments
 
-    // Filter by period
+    // Filter by period - normalize dates for comparison
     if (filterPeriod === 'today') {
       filtered = filtered.filter((apt) => {
-        const aptDate = new Date(apt.date)
-        return aptDate >= today && aptDate < tomorrow
+        const aptDate = new Date(apt.date || apt.appointmentDate)
+        aptDate.setHours(0, 0, 0, 0)
+        return aptDate.getTime() >= today.getTime() && aptDate.getTime() < tomorrow.getTime()
       })
     } else if (filterPeriod === 'monthly') {
       filtered = filtered.filter((apt) => {
-        const aptDate = new Date(apt.date)
-        return aptDate >= currentMonthStart && aptDate <= currentMonthEnd
+        const aptDate = new Date(apt.date || apt.appointmentDate)
+        aptDate.setHours(0, 0, 0, 0)
+        return aptDate.getTime() >= currentMonthStart.getTime() && aptDate.getTime() <= currentMonthEnd.getTime()
       })
     } else if (filterPeriod === 'yearly') {
       filtered = filtered.filter((apt) => {
-        const aptDate = new Date(apt.date)
-        return aptDate >= currentYearStart && aptDate <= currentYearEnd
+        const aptDate = new Date(apt.date || apt.appointmentDate)
+        aptDate.setHours(0, 0, 0, 0)
+        return aptDate.getTime() >= currentYearStart.getTime() && aptDate.getTime() <= currentYearEnd.getTime()
       })
     }
     // 'all' shows all appointments
@@ -235,15 +255,15 @@ const DoctorAppointments = () => {
         (apt) =>
           apt.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           apt.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          apt.time.toLowerCase().includes(searchTerm.toLowerCase())
+          (apt.time && apt.time.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     }
 
     // Sort by date (newest first)
     return filtered.sort((a, b) => {
-      const dateA = new Date(a.date + ' ' + a.time)
-      const dateB = new Date(b.date + ' ' + b.time)
-      return dateB - dateA
+      const dateA = new Date(a.date || a.appointmentDate || 0)
+      const dateB = new Date(b.date || b.appointmentDate || 0)
+      return dateB.getTime() - dateA.getTime()
     })
   }, [appointments, filterPeriod, searchTerm, today, tomorrow, currentMonthStart, currentMonthEnd, currentYearStart, currentYearEnd])
 
@@ -260,17 +280,21 @@ const DoctorAppointments = () => {
     }
     
     // Fallback: calculate from appointments (client-side)
+    // Normalize dates for proper comparison
     const todayApts = appointments.filter((apt) => {
-      const aptDate = new Date(apt.date)
-      return aptDate >= today && aptDate < tomorrow
+      const aptDate = new Date(apt.date || apt.appointmentDate)
+      aptDate.setHours(0, 0, 0, 0)
+      return aptDate.getTime() >= today.getTime() && aptDate.getTime() < tomorrow.getTime()
     })
     const monthlyApts = appointments.filter((apt) => {
-      const aptDate = new Date(apt.date)
-      return aptDate >= currentMonthStart && aptDate <= currentMonthEnd
+      const aptDate = new Date(apt.date || apt.appointmentDate)
+      aptDate.setHours(0, 0, 0, 0)
+      return aptDate.getTime() >= currentMonthStart.getTime() && aptDate.getTime() <= currentMonthEnd.getTime()
     })
     const yearlyApts = appointments.filter((apt) => {
-      const aptDate = new Date(apt.date)
-      return aptDate >= currentYearStart && aptDate <= currentYearEnd
+      const aptDate = new Date(apt.date || apt.appointmentDate)
+      aptDate.setHours(0, 0, 0, 0)
+      return aptDate.getTime() >= currentYearStart.getTime() && aptDate.getTime() <= currentYearEnd.getTime()
     })
 
     // Calculate scheduled and rescheduled counts
@@ -508,7 +532,7 @@ const DoctorAppointments = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-purple-500/0 group-hover:from-purple-500/10 group-hover:to-purple-500/20 transition-all duration-300"></div>
             <div className="relative">
               <p className="text-[10px] font-semibold uppercase text-purple-700 mb-1 group-hover:text-purple-900 transition-colors">Today</p>
-              <p className="text-xl font-bold text-purple-900 group-hover:text-purple-950 transition-colors duration-300">{stats.today?.total ?? stats.today}</p>
+              <p className="text-xl font-bold text-purple-900 group-hover:text-purple-950 transition-colors duration-300">{stats.today?.total ?? 0}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-[8px] text-purple-600">Scheduled: {stats.today?.scheduled ?? 0}</span>
                 <span className="text-[8px] text-purple-400">•</span>
@@ -529,7 +553,7 @@ const DoctorAppointments = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-blue-500/0 group-hover:from-blue-500/10 group-hover:to-blue-500/20 transition-all duration-300"></div>
             <div className="relative">
               <p className="text-[10px] font-semibold uppercase text-blue-700 mb-1 group-hover:text-blue-900 transition-colors">This Month</p>
-              <p className="text-xl font-bold text-blue-900 group-hover:text-blue-950 transition-colors duration-300">{stats.monthly?.total ?? stats.monthly}</p>
+              <p className="text-xl font-bold text-blue-900 group-hover:text-blue-950 transition-colors duration-300">{stats.monthly?.total ?? 0}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-[8px] text-blue-600">Scheduled: {stats.monthly?.scheduled ?? 0}</span>
                 <span className="text-[8px] text-blue-400">•</span>
@@ -550,7 +574,7 @@ const DoctorAppointments = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-emerald-500/0 group-hover:from-emerald-500/10 group-hover:to-emerald-500/20 transition-all duration-300"></div>
             <div className="relative">
               <p className="text-[10px] font-semibold uppercase text-emerald-700 mb-1 group-hover:text-emerald-900 transition-colors">This Year</p>
-              <p className="text-xl font-bold text-emerald-900 group-hover:text-emerald-950 transition-colors duration-300">{stats.yearly?.total ?? stats.yearly}</p>
+              <p className="text-xl font-bold text-emerald-900 group-hover:text-emerald-950 transition-colors duration-300">{stats.yearly?.total ?? 0}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-[8px] text-emerald-600">Scheduled: {stats.yearly?.scheduled ?? 0}</span>
                 <span className="text-[8px] text-emerald-400">•</span>
@@ -571,7 +595,7 @@ const DoctorAppointments = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-slate-500/0 to-slate-500/0 group-hover:from-slate-500/10 group-hover:to-slate-500/20 transition-all duration-300"></div>
             <div className="relative">
               <p className="text-[10px] font-semibold uppercase text-slate-600 mb-1 group-hover:text-slate-900 transition-colors">Total</p>
-              <p className="text-xl font-bold text-slate-900 group-hover:text-slate-950 transition-colors duration-300">{stats.total?.total ?? stats.total}</p>
+              <p className="text-xl font-bold text-slate-900 group-hover:text-slate-950 transition-colors duration-300">{stats.total?.total ?? 0}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-[8px] text-slate-600">Scheduled: {stats.total?.scheduled ?? 0}</span>
                 <span className="text-[8px] text-slate-400">•</span>

@@ -35,13 +35,23 @@ const consultationSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    symptoms: {
+      type: String,
+      trim: true,
+    },
     vitals: {
-      bloodPressure: { type: String, trim: true },
+      bloodPressure: {
+        systolic: { type: String, trim: true },
+        diastolic: { type: String, trim: true },
+      },
       temperature: { type: String, trim: true },
-      heartRate: { type: String, trim: true },
+      pulse: { type: String, trim: true }, // Also support 'pulse' field name
+      heartRate: { type: String, trim: true }, // Keep for backward compatibility
+      respiratoryRate: { type: String, trim: true },
+      oxygenSaturation: { type: String, trim: true }, // Also support 'oxygenSaturation' field name
+      spo2: { type: String, trim: true }, // Keep for backward compatibility
       weight: { type: String, trim: true },
       height: { type: String, trim: true },
-      spo2: { type: String, trim: true },
       bmi: { type: String, trim: true },
     },
     medications: [

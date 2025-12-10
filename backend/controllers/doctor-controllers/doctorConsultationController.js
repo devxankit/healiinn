@@ -93,7 +93,7 @@ exports.getConsultations = asyncHandler(async (req, res) => {
 // POST /api/doctors/consultations
 exports.createConsultation = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { appointmentId, diagnosis, vitals, medications, investigations, advice, followUpDate } = req.body;
+  const { appointmentId, diagnosis, symptoms, vitals, medications, investigations, advice, followUpDate } = req.body;
 
   if (!appointmentId) {
     return res.status(400).json({
@@ -124,6 +124,25 @@ exports.createConsultation = asyncHandler(async (req, res) => {
     });
   }
 
+  // Transform investigations from frontend format (name) to backend format (testName)
+  let transformedInvestigations = [];
+  if (investigations && Array.isArray(investigations)) {
+    transformedInvestigations = investigations.map(inv => {
+      // If investigation has 'name' field, convert it to 'testName'
+      if (inv.name && !inv.testName) {
+        return {
+          testName: inv.name,
+          notes: inv.notes || ''
+        };
+      }
+      // If it already has testName, keep it
+      return {
+        testName: inv.testName || inv.name || 'Investigation',
+        notes: inv.notes || ''
+      };
+    });
+  }
+
   const consultation = await Consultation.create({
     appointmentId,
     patientId: appointment.patientId,
@@ -131,17 +150,17 @@ exports.createConsultation = asyncHandler(async (req, res) => {
     consultationDate: new Date(),
     status: 'in-progress',
     diagnosis,
+    symptoms,
     vitals,
     medications,
-    investigations,
+    investigations: transformedInvestigations,
     advice,
     followUpDate: followUpDate ? new Date(followUpDate) : null,
   });
 
-  // Update appointment status
-  appointment.status = 'completed';
-  appointment.queueStatus = 'completed';
-  await appointment.save();
+  // DO NOT update appointment status to completed here
+  // Appointment will be marked as completed only when doctor clicks "Complete" button in patient tab
+  // This allows doctor to add vitals, prescription, and other details before completing
 
   // Emit real-time event
   try {
@@ -188,8 +207,48 @@ exports.updateConsultation = asyncHandler(async (req, res) => {
     });
   }
 
+  // Transform investigations from frontend format (name) to backend format (testName)
+  if (updateData.investigations !== undefined) {
+    if (Array.isArray(updateData.investigations) && updateData.investigations.length > 0) {
+      updateData.investigations = updateData.investigations.map(inv => {
+        // If investigation has 'name' field, convert it to 'testName'
+        if (inv.name && !inv.testName) {
+          return {
+            testName: inv.name,
+            notes: inv.notes || ''
+          };
+        }
+        // If it already has testName, keep it
+        return {
+          testName: inv.testName || inv.name || 'Investigation',
+          notes: inv.notes || ''
+        };
+      });
+    } else {
+      // If empty array or null, set to empty array
+      updateData.investigations = [];
+    }
+  }
+
+  // Ensure diagnosis and symptoms are properly set (even if empty string)
+  if (updateData.diagnosis !== undefined) {
+    consultation.diagnosis = updateData.diagnosis || '';
+  }
+  if (updateData.symptoms !== undefined) {
+    consultation.symptoms = updateData.symptoms || '';
+  }
+
   Object.assign(consultation, updateData);
   await consultation.save();
+  
+  // Debug logging
+  console.log('🔍 Updated consultation:', {
+    id: consultation._id,
+    diagnosis: consultation.diagnosis,
+    symptoms: consultation.symptoms,
+    investigationsCount: consultation.investigations?.length || 0,
+    investigations: consultation.investigations
+  });
 
   // Emit real-time event
   try {
