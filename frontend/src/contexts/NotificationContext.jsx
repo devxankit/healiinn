@@ -233,6 +233,9 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
 
     let socket = null
     let mounted = true
+    // Declare handlers outside try block so they're accessible in cleanup
+    let handleCallInvite = null
+    let handleCallError = null
 
     try {
       socket = initSocket(currentModule)
@@ -349,6 +352,35 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
       fetchNotifications()
     })
 
+    // Listen for incoming call invites (for patients)
+    if (currentModule === 'patient') {
+      handleCallInvite = (data) => {
+        console.log('📞 [NotificationContext] Received call invite:', data)
+        
+        // If patientId is specified in broadcast, check if it matches current user
+        // (This handles the fallback broadcast case)
+        if (data.patientId) {
+          // Get current patient ID from token (we'll need to decode it or get from API)
+          // For now, accept all invites - the PatientAppointments component will handle filtering
+        }
+        
+        // Dispatch custom event so PatientAppointments can handle it
+        window.dispatchEvent(new CustomEvent('call:invite', { detail: data }))
+        // Also show a toast notification
+        toast.info(`${data.doctorName || 'Doctor'} is calling you`, {
+          duration: 10000,
+        })
+      }
+
+      handleCallError = (data) => {
+        console.error('📞 [NotificationContext] Call error:', data)
+        window.dispatchEvent(new CustomEvent('call:error', { detail: data }))
+      }
+
+      socket.on('call:invite', handleCallInvite)
+      socket.on('call:error', handleCallError)
+    }
+
       // Fetch initial notifications
       fetchNotifications()
     } catch (error) {
@@ -372,6 +404,12 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
           socket.off('request:assigned')
           socket.off('support:ticket:responded')
           socket.off('support:ticket:status:updated')
+          if (handleCallInvite) {
+            socket.off('call:invite', handleCallInvite)
+          }
+          if (handleCallError) {
+            socket.off('call:error', handleCallError)
+          }
           disconnectSocket()
         } catch (error) {
           console.error('Error cleaning up socket:', error)
@@ -379,7 +417,7 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
       }
       setIsConnected(false)
     }
-  }, [currentModule, location.pathname, handleNewNotification, fetchNotifications, fetchUnreadCount])
+  }, [currentModule, location.pathname, handleNewNotification, fetchNotifications, fetchUnreadCount, toast])
 
   // Refresh notifications when module changes (with debounce to prevent infinite loops)
   useEffect(() => {

@@ -16,6 +16,8 @@ import {
 } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getSocket } from '../../../utils/socketClient'
+import { openCallPopup } from '../../../utils/callService'
+import { useCall } from '../../../contexts/CallContext'
 import {
   IoPeopleOutline,
   IoSearchOutline,
@@ -254,6 +256,7 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
 }
 
 const DoctorPatients = () => {
+  const { startCall, updateCallStatus, setCallInfoFull } = useCall()
   console.log('🔵 DoctorPatients component rendering...') // Debug log
   
   const location = useLocation()
@@ -444,10 +447,31 @@ const DoctorPatients = () => {
 
     const handleQueueUpdated = (data) => {
       if (data?.appointmentId) {
-        // Update appointment state when queue is updated (e.g., after recall)
+        // Update appointment state when queue is updated (e.g., after recall, skip)
         setAppointments((prev) =>
           prev.map((appt) => {
             if (appt.id === data.appointmentId || appt._id === data.appointmentId) {
+              // If status and queueStatus are provided (e.g., from skip), update them
+              // This ensures skipped patients are removed from consultation room immediately
+              if (data.status !== undefined || data.queueStatus !== undefined) {
+                const preservedRecallCount = appt.recallCount !== undefined && appt.recallCount !== null
+                  ? appt.recallCount
+                  : (appt.originalData?.recallCount !== undefined && appt.originalData?.recallCount !== null
+                      ? appt.originalData.recallCount
+                      : 0)
+                return {
+                  ...appt,
+                  status: data.status !== undefined ? data.status : appt.status,
+                  queueStatus: data.queueStatus !== undefined ? data.queueStatus : (data.status || appt.queueStatus),
+                  recallCount: preservedRecallCount,
+                  originalData: {
+                    ...(appt.originalData || {}),
+                    status: data.status !== undefined ? data.status : appt.originalData?.status,
+                    queueStatus: data.queueStatus !== undefined ? data.queueStatus : (data.status || appt.originalData?.queueStatus),
+                    recallCount: preservedRecallCount
+                  }
+                }
+              }
               // Update recallCount if provided - this ensures button visibility updates immediately
               if (data.recallCount !== undefined && data.recallCount !== null) {
                 const updatedRecallCount = data.recallCount
@@ -462,25 +486,6 @@ const DoctorPatients = () => {
                   }
                 }
               }
-              // Update status if provided, but ALWAYS preserve recallCount
-              if (data.status || data.queueStatus) {
-                const preservedRecallCount = appt.recallCount !== undefined && appt.recallCount !== null
-                  ? appt.recallCount
-                  : (appt.originalData?.recallCount !== undefined && appt.originalData?.recallCount !== null
-                      ? appt.originalData.recallCount
-                      : 0)
-                return {
-                  ...appt,
-                  status: data.status || appt.status,
-                  queueStatus: data.queueStatus || data.status || appt.queueStatus,
-                  // ALWAYS preserve recallCount when only status updates
-                  recallCount: preservedRecallCount,
-                  originalData: {
-                    ...(appt.originalData || {}),
-                    recallCount: preservedRecallCount
-                  }
-                }
-              }
             }
             return appt
           })
@@ -490,10 +495,139 @@ const DoctorPatients = () => {
 
     socket.on('queue:updated', handleQueueUpdated)
 
-    return () => {
-      socket.off('queue:updated', handleQueueUpdated)
+    // Listen for call events
+    const handleCallAccepted = (data) => {
+      if (data.callId) {
+        try {
+          // Find the appointment to get patient name
+          const appointment = appointments.find(appt => appt.id === data.appointmentId)
+          const patientName = appointment?.patientName || 'Patient'
+          
+          // Update call status to 'accepted' (patient accepted, but may not have joined yet)
+          updateCallStatus('accepted')
+          setCallInfoFull((prev) => ({
+            ...prev,
+            callId: data.callId,
+            appointmentId: data.appointmentId,
+            patientName,
+          }))
+          
+          toast.info('Patient accepted the call, waiting for them to join...')
+        } catch (error) {
+          console.error('Error handling call accepted:', error)
+          toast.error(error.message || 'Failed to handle call acceptance')
+        }
+      }
     }
-  }, [])
+
+    // Listen for when patient actually joins the call (mediasoup connected)
+    const handlePatientJoined = (data) => {
+      console.log('📞 [DoctorPatients] ====== call:patientJoined EVENT RECEIVED ======')
+      console.log('📞 [DoctorPatients] Event data:', data)
+      console.log('📞 [DoctorPatients] Socket connected:', socket?.connected)
+      console.log('📞 [DoctorPatients] Socket ID:', socket?.id)
+      console.log('📞 [DoctorPatients] Current callInfoFull:', callInfoFull)
+      console.log('📞 [DoctorPatients] Current appointments count:', appointments.length)
+      
+      // Check if this event is for us (if doctorId is provided in fallback broadcast)
+      if (data.doctorId) {
+        // This is a fallback broadcast - we should ignore if it's not for us
+        // We'll handle it in the main flow since we're already filtering by callId
+      }
+      
+      if (data && data.callId) {
+        try {
+          console.log('📞 [DoctorPatients] Processing patient joined event for callId:', data.callId)
+          
+          // Check if we're already expecting this call
+          const isExpectedCall = callInfoFull?.callId === data.callId || 
+                                appointments.some(appt => 
+                                  (appt.id === data.appointmentId || appt._id === data.appointmentId) &&
+                                  appt.consultationMode === 'call'
+                                )
+          
+          if (!isExpectedCall && !callInfoFull?.callId) {
+            console.warn('📞 [DoctorPatients] Received call:patientJoined for unexpected call, ignoring')
+            return
+          }
+          
+          // Find the appointment to get patient name
+          const appointment = appointments.find(appt => 
+            appt.id === data.appointmentId || 
+            appt._id === data.appointmentId ||
+            appt._id?.toString() === data.appointmentId?.toString()
+          )
+          const patientName = appointment?.patientName || callInfoFull?.patientName || 'Patient'
+          
+          console.log('📞 [DoctorPatients] Found appointment:', appointment ? 'Yes' : 'No')
+          console.log('📞 [DoctorPatients] Patient name:', patientName)
+          console.log('📞 [DoctorPatients] Matching appointment ID:', appointment?._id || appointment?.id)
+          
+          // Update call status to 'started' and call info
+          updateCallStatus('started')
+          setCallInfoFull((prev) => ({
+            ...prev,
+            callId: data.callId,
+            appointmentId: data.appointmentId,
+            patientName,
+            startTime: new Date().toISOString(),
+          }))
+          
+          console.log('📞 [DoctorPatients] Opening call popup with:', { callId: data.callId, patientName })
+          
+          // Open the full call popup for audio controls
+          openCallPopup(startCall, data.callId, patientName)
+          toast.success('Patient joined the call')
+          
+          console.log('📞 [DoctorPatients] ✅ Successfully processed patient joined event')
+        } catch (error) {
+          console.error('📞 [DoctorPatients] Error processing patient joined:', error)
+          console.error('📞 [DoctorPatients] Error stack:', error.stack)
+          toast.error(error.message || 'Failed to start call')
+        }
+      } else {
+        console.warn('📞 [DoctorPatients] call:patientJoined event missing callId:', data)
+      }
+    }
+
+    const handleCallError = (data) => {
+      toast.error(data.message || 'Call error occurred')
+    }
+
+    // Set up listeners with detailed logging
+    console.log('📞 [DoctorPatients] Setting up socket listeners for call events')
+    console.log('📞 [DoctorPatients] Socket state:', {
+      connected: socket?.connected,
+      id: socket?.id,
+      hasListeners: {
+        'call:accepted': socket?.hasListeners?.('call:accepted') || 'unknown',
+        'call:patientJoined': socket?.hasListeners?.('call:patientJoined') || 'unknown',
+        'call:error': socket?.hasListeners?.('call:error') || 'unknown'
+      }
+    })
+    
+    socket.on('call:accepted', handleCallAccepted)
+    socket.on('call:patientJoined', handlePatientJoined)
+    socket.on('call:error', handleCallError)
+    
+    // Also listen on socket.io any event to debug
+    const debugAllEvents = (eventName, ...args) => {
+      if (eventName.startsWith('call:')) {
+        console.log(`📞 [DoctorPatients] ====== SOCKET EVENT: ${eventName} ======`)
+        console.log(`📞 [DoctorPatients] Event args:`, args)
+      }
+    }
+    socket.onAny(debugAllEvents)
+
+    return () => {
+      console.log('📞 [DoctorPatients] Cleaning up socket listeners')
+      socket.off('queue:updated', handleQueueUpdated)
+      socket.off('call:accepted', handleCallAccepted)
+      socket.off('call:patientJoined', handlePatientJoined)
+      socket.off('call:error', handleCallError)
+      socket.offAny(debugAllEvents)
+    }
+  }, [toast])
 
   // Check session date on mount and clear if not today
   useEffect(() => {
@@ -627,9 +761,17 @@ const DoctorPatients = () => {
       }
     }
 
-    // If appointment is called/in-consultation/in_progress, show: Recall (if recallCount < 2), Skip, No Show, Complete
+    // If appointment is called/in-consultation/in_progress, show: Video Call (for video_call mode only), Audio Call (for call mode only), Recall (if recallCount < 2), Skip, No Show, Complete
     if (status === 'called' || status === 'in-consultation' || status === 'in_progress') {
       const buttons = ['skip', 'noShow', 'complete']
+      // For video_call mode, show video call button (not regular call button) after patient is called
+      if (consultationMode === 'video_call') {
+        buttons.unshift('videoCall') // Add video call button at the beginning
+      }
+      // For call mode, show audio call button after patient is called
+      if (consultationMode === 'call') {
+        buttons.unshift('audioCall') // Add audio call button at the beginning
+      }
       if (recallCount < 2) {
         buttons.unshift('recall') // Add recall at the beginning
       }
@@ -642,10 +784,12 @@ const DoctorPatients = () => {
 
     // If appointment is waiting/scheduled/confirmed (before call), show: Call, Skip, No Show
     // Note: Recall button only shows when patient is called/in-consultation (not when waiting)
+    // Note: Audio Call button only shows after patient is called (not before)
     if (status === 'waiting' || status === 'scheduled' || status === 'confirmed') {
+      const buttons = ['call', 'skip', 'noShow']
       return {
         showButtons: true,
-        buttons: ['call', 'skip', 'noShow'],
+        buttons,
         consultationMode
       }
     }
@@ -899,6 +1043,154 @@ const DoctorPatients = () => {
         return 'Cancelled'
       default:
         return status || 'Not Started'
+    }
+  }
+
+  // Handler for audio call button
+  const handleAudioCall = async (appointmentId) => {
+    console.log('📞 [handleAudioCall] Button clicked for appointmentId:', appointmentId)
+    try {
+      const appointment = appointments.find((appt) => appt.id === appointmentId)
+      if (!appointment) {
+        console.error('📞 [handleAudioCall] Appointment not found:', appointmentId)
+        toast.error('Appointment not found')
+        return
+      }
+
+      console.log('📞 [handleAudioCall] Appointment found:', {
+        id: appointment.id,
+        consultationMode: appointment.consultationMode,
+        status: appointment.status,
+        patientId: appointment.patientId
+      })
+
+      // Check if consultation mode is 'call'
+      if (appointment.consultationMode !== 'call') {
+        console.warn('📞 [handleAudioCall] Invalid consultation mode:', appointment.consultationMode)
+        toast.error('Audio call is only available for call consultation mode')
+        return
+      }
+
+      // Check if appointment is called, in-consultation, or in_progress (after doctor has called the patient)
+      const validStatuses = ['called', 'in-consultation', 'in_progress']
+      if (!validStatuses.includes(appointment.status)) {
+        console.warn('📞 [handleAudioCall] Invalid status:', appointment.status, 'Valid:', validStatuses)
+        toast.error('Please call the patient first before starting audio call')
+        return
+      }
+
+      const socket = getSocket()
+      if (!socket) {
+        console.error('📞 [handleAudioCall] Socket not available')
+        toast.error('Not connected to server. Please refresh the page.')
+        return
+      }
+
+      console.log('📞 [handleAudioCall] Socket state:', {
+        connected: socket.connected,
+        id: socket.id,
+        disconnected: socket.disconnected,
+        io: socket.io ? {
+          readyState: socket.io.readyState,
+          engine: socket.io.engine ? {
+            transport: socket.io.engine.transport?.name,
+            readyState: socket.io.engine.readyState
+          } : null
+        } : null
+      })
+
+      // Ensure socket is connected and ready
+      if (!socket.connected || socket.disconnected) {
+        console.error('📞 [handleAudioCall] Socket not connected. Current state:', {
+          connected: socket.connected,
+          disconnected: socket.disconnected
+        })
+        toast.error('Not connected to server. Please wait a moment and try again.')
+        return
+      }
+
+      // Double-check socket is ready
+      if (!socket.id) {
+        console.error('📞 [handleAudioCall] Socket has no ID, not ready')
+        toast.error('Socket not ready. Please wait a moment and try again.')
+        return
+      }
+
+      console.log('📞 [handleAudioCall] Emitting call:initiate event with appointmentId:', appointmentId)
+      console.log('📞 [handleAudioCall] Socket details:', {
+        id: socket.id,
+        connected: socket.connected,
+        disconnected: socket.disconnected,
+        transport: socket.io?.engine?.transport?.name,
+        readyState: socket.io?.readyState
+      })
+      
+      // Test socket connection with a simple event first
+      socket.emit('test:ping', { timestamp: Date.now() }, (response) => {
+        console.log('📞 [handleAudioCall] Test ping response:', response)
+      })
+      
+      // Emit call:initiate event with acknowledgment
+      console.log('📞 [handleAudioCall] About to emit call:initiate...')
+      const emitResult = socket.emit('call:initiate', { appointmentId }, (response) => {
+        console.log('📞 [handleAudioCall] Server response received:', response)
+        if (response && response.error) {
+          console.error('📞 [handleAudioCall] Server error:', response.error)
+          toast.error(response.error)
+        } else if (response && response.callId) {
+          console.log('📞 [handleAudioCall] Call initiated successfully, callId:', response.callId)
+        } else if (!response) {
+          console.warn('📞 [handleAudioCall] No response from server (might be using one-way emit)')
+        }
+      })
+      console.log('📞 [handleAudioCall] Emit result:', emitResult)
+      
+      // Also listen for call:initiated event (one-way emit from server)
+      const handleCallInitiated = (data) => {
+        console.log('📞 [handleAudioCall] Received call:initiated event:', data)
+        
+        // Update call status to 'calling' and store call info
+        updateCallStatus('calling')
+        setCallInfoFull({
+          callId: data.callId || null,
+          patientName: appointment.patientName || 'Patient',
+          appointmentId: appointmentId,
+          startTime: null,
+        })
+        
+        socket.off('call:initiated', handleCallInitiated)
+      }
+      socket.once('call:initiated', handleCallInitiated)
+      
+      // Listen for errors
+      const handleCallError = (data) => {
+        console.error('📞 [handleAudioCall] Received call:error event:', data)
+        toast.error(data.message || 'Call error occurred')
+        updateCallStatus('idle')
+        setCallInfoFull(null)
+        socket.off('call:error', handleCallError)
+      }
+      socket.once('call:error', handleCallError)
+
+      // Set status to calling immediately (before server response)
+      console.log('📞 [handleAudioCall] Setting call status to calling and call info')
+      console.log('📞 [handleAudioCall] Appointment:', {
+        patientName: appointment.patientName,
+        appointmentId: appointmentId
+      })
+      updateCallStatus('calling')
+      setCallInfoFull({
+        callId: null,
+        patientName: appointment.patientName || 'Patient',
+        appointmentId: appointmentId,
+        startTime: null,
+      })
+      console.log('📞 [handleAudioCall] Call status and info set. Should trigger re-render.')
+
+      toast.info('Initiating audio call...')
+    } catch (error) {
+      console.error('📞 [handleAudioCall] Error initiating audio call:', error)
+      toast.error('Failed to initiate audio call')
     }
   }
 
@@ -1294,64 +1586,91 @@ const DoctorPatients = () => {
 
   const handleSkip = async (appointmentId) => {
     try {
+      const appointment = appointments.find((appt) => appt.id === appointmentId || appt._id === appointmentId)
+      if (!appointment) {
+        toast.error('Appointment not found')
+        return
+      }
+
       const response = await skipPatient(appointmentId)
       
       if (response.success) {
         toast.success('Patient skipped successfully')
-        // Update local state
+        
+        // Update local state immediately to remove from consultation room
+        // If patient is currently in consultation room (called/in-consultation/in_progress),
+        // change status to 'scheduled' to remove them from consultation room
+        const currentStatus = appointment.status || appointment.originalData?.status
+        const isInConsultation = currentStatus === 'called' || currentStatus === 'in-consultation' || currentStatus === 'in_progress'
+        const newStatus = isInConsultation ? 'scheduled' : (currentStatus || 'waiting')
+        
         setAppointments((prev) =>
           prev.map((appt) =>
-            appt.id === appointmentId ? { ...appt, status: 'skipped', queueStatus: 'skipped' } : appt
-          )
-        )
-        // Refresh appointments
-        const queueResponse = await getPatientQueue(getTodayDateString())
-        if (queueResponse.success && queueResponse.data) {
-          const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
-          const transformedAppointments = queueData.map((appt) => ({
-            id: appt._id || appt.id,
-            _id: appt._id || appt.id,
-            patientId: appt.patientId?._id || appt.patientId || appt.patientId,
-            patientName: appt.patientId?.firstName && appt.patientId?.lastName
-              ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
-              : appt.patientId?.name || appt.patientName || 'Patient',
-            age: appt.patientId?.age || appt.age || 0,
-            gender: appt.patientId?.gender || appt.gender || 'unknown',
-            appointmentTime: (() => {
-              // Properly format appointment time
-              if (appt.appointmentTime) {
-                // If it's already a valid ISO string, return as is
-                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && !appt.appointmentTime.includes('AM') && !appt.appointmentTime.includes('PM')) {
-                  return appt.appointmentTime
-                }
-                // If it's a malformed string, try to fix it
-                if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && (appt.appointmentTime.includes('AM') || appt.appointmentTime.includes('PM'))) {
-                  // Extract date and time parts
-                  const dateMatch = appt.appointmentTime.match(/(\d{4}-\d{2}-\d{2})/)
-                  const timeMatch = appt.appointmentTime.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i)
-                  if (dateMatch && timeMatch) {
-                    return formatAppointmentTime(dateMatch[1], timeMatch[1])
+            appt.id === appointmentId || appt._id === appointmentId
+              ? { 
+                  ...appt, 
+                  status: newStatus, 
+                  queueStatus: 'skipped',
+                  originalData: {
+                    ...(appt.originalData || {}),
+                    status: newStatus,
+                    queueStatus: 'skipped'
                   }
                 }
-              }
-              if (appt.appointmentDate && appt.time) {
-                return formatAppointmentTime(appt.appointmentDate, appt.time) || new Date().toISOString()
-              }
-              return new Date().toISOString()
-            })(),
-            appointmentType: appt.appointmentType || appt.type || 'New',
-            consultationMode: appt.consultationMode || 'in_person',
-            status: appt.status || 'waiting',
-            queueStatus: appt.queueStatus || appt.status || 'waiting',
-            queueNumber: appt.tokenNumber || appt.queueNumber || 0,
-            recallCount: appt.recallCount || 0,
-            reason: appt.reason || appt.chiefComplaint || 'Consultation',
-            time: appt.time, // Store the time field directly
-            patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
-            originalData: appt,
-          }))
-          setAppointments(transformedAppointments)
-        }
+              : appt
+          )
+        )
+        
+        // Wait a bit to ensure backend has saved the changes, then refresh
+        setTimeout(async () => {
+          const queueResponse = await getPatientQueue(getTodayDateString())
+          if (queueResponse.success && queueResponse.data) {
+            const queueData = queueResponse.data.queue || queueResponse.data.appointments || []
+            const transformedAppointments = queueData.map((appt) => ({
+              id: appt._id || appt.id,
+              _id: appt._id || appt.id,
+              patientId: appt.patientId?._id || appt.patientId || appt.patientId,
+              patientName: appt.patientId?.firstName && appt.patientId?.lastName
+                ? `${appt.patientId.firstName} ${appt.patientId.lastName}`
+                : appt.patientId?.name || appt.patientName || 'Patient',
+              age: appt.patientId?.age || appt.age || 0,
+              gender: appt.patientId?.gender || appt.gender || 'unknown',
+              appointmentTime: (() => {
+                // Properly format appointment time
+                if (appt.appointmentTime) {
+                  // If it's already a valid ISO string, return as is
+                  if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && !appt.appointmentTime.includes('AM') && !appt.appointmentTime.includes('PM')) {
+                    return appt.appointmentTime
+                  }
+                  // If it's a malformed string, try to fix it
+                  if (typeof appt.appointmentTime === 'string' && appt.appointmentTime.includes('T') && (appt.appointmentTime.includes('AM') || appt.appointmentTime.includes('PM'))) {
+                    // Extract date and time parts
+                    const dateMatch = appt.appointmentTime.match(/(\d{4}-\d{2}-\d{2})/)
+                    const timeMatch = appt.appointmentTime.match(/(\d{1,2}:\d{2}\s*(?:AM|PM))/i)
+                    if (dateMatch && timeMatch) {
+                      return formatAppointmentTime(dateMatch[1], timeMatch[1])
+                    }
+                  }
+                }
+                if (appt.appointmentDate && appt.time) {
+                  return formatAppointmentTime(appt.appointmentDate, appt.time) || new Date().toISOString()
+                }
+                return new Date().toISOString()
+              })(),
+              appointmentType: appt.appointmentType || appt.type || 'New',
+              consultationMode: appt.consultationMode || 'in_person',
+              status: appt.status || 'waiting',
+              queueStatus: appt.queueStatus || appt.status || 'waiting',
+              queueNumber: appt.tokenNumber || appt.queueNumber || 0,
+              recallCount: appt.recallCount || 0,
+              reason: appt.reason || appt.chiefComplaint || 'Consultation',
+              time: appt.time, // Store the time field directly
+              patientImage: appt.patientId?.profileImage || appt.patientId?.image || appt.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(appt.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
+              originalData: appt,
+            }))
+            setAppointments(transformedAppointments)
+          }
+        }, 500) // Wait 500ms for backend to save
       } else {
         toast.error(response.message || 'Failed to skip patient')
       }
@@ -1862,45 +2181,46 @@ const DoctorPatients = () => {
 
                         const { buttons, consultationMode } = buttonConfig
                         const appointmentId = appointment.id || appointment._id
+                        
+                        // Get consultationMode from multiple sources for reliability
+                        const actualConsultationMode = consultationMode || appointment.consultationMode || appointment.originalData?.consultationMode || 'in_person'
+                        const isCallMode = actualConsultationMode && actualConsultationMode.toLowerCase() === 'call'
+
+                        // Debug log to check button configuration
+                        console.log('📞 Button Configuration Check:', {
+                          appointmentId,
+                          consultationMode,
+                          actualConsultationMode,
+                          isCallMode,
+                          buttons,
+                          hasCall: buttons.includes('call'),
+                          hasAudioCall: buttons.includes('audioCall'),
+                          status: appointment.status || appointment.originalData?.status,
+                          queueStatus: appointment.queueStatus || appointment.originalData?.queueStatus,
+                          appointmentConsultationMode: appointment.consultationMode,
+                          originalDataConsultationMode: appointment.originalData?.consultationMode
+                        })
 
                         return (
                           <>
                             {/* Call button - only show for waiting/scheduled/confirmed/skipped (before first call) */}
                             {buttons.includes('call') && (
                               <>
-                                {consultationMode === 'video_call' ? (
+                                {actualConsultationMode === 'video_call' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCallNext(appointmentId)}
+                                    className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
+                                  >
+                                    <IoCallOutline className="h-3.5 w-3.5" />
+                                    Call
+                                  </button>
+                                ) : isCallMode ? (
                                   <>
                                     <button
                                       type="button"
                                       onClick={() => handleCallNext(appointmentId)}
                                       className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                                    >
-                                      <IoCallOutline className="h-3.5 w-3.5" />
-                                      Call
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleVideoCall(appointmentId)}
-                                      className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
-                                    >
-                                      <IoVideocamOutline className="h-3.5 w-3.5" />
-                                      Video Call
-                                    </button>
-                                  </>
-                                ) : consultationMode === 'call' ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCallNext(appointmentId)}
-                                      className="flex items-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95"
-                                    >
-                                      <IoCallOutline className="h-3.5 w-3.5" />
-                                      Call
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCallPatient(appointmentId)}
-                                      className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-green-700 active:scale-95"
                                     >
                                       <IoCallOutline className="h-3.5 w-3.5" />
                                       Call
@@ -1917,6 +2237,35 @@ const DoctorPatients = () => {
                                   </button>
                                 )}
                               </>
+                            )}
+
+                            {/* Video Call button - only show for video_call mode after patient is called */}
+                            {buttons.includes('videoCall') && consultationMode === 'video_call' && (
+                              <button
+                                type="button"
+                                onClick={() => handleVideoCall(appointmentId)}
+                                className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-purple-700 active:scale-95"
+                              >
+                                <IoVideocamOutline className="h-3.5 w-3.5" />
+                                Video Call
+                              </button>
+                            )}
+
+                            {/* Audio Call button - only show for call mode after patient is called */}
+                            {buttons.includes('audioCall') && isCallMode && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  console.log('📞 Audio Call button clicked for appointmentId:', appointmentId)
+                                  handleAudioCall(appointmentId)
+                                }}
+                                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
+                                title="Start audio call"
+                              >
+                                <IoCallOutline className="h-3.5 w-3.5" />
+                                Audio Call
+                              </button>
                             )}
 
                             {/* Recall button - only show when called/in-consultation and recallCount < 2 */}

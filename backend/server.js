@@ -10,6 +10,7 @@ require('dotenv').config();
 const connectDB = require('./config/db');
 const rateLimiter = require('./middleware/rateLimiter');
 const { initializeSocket } = require('./config/socket');
+const { getWorker } = require('./config/mediasoup');
 
 const app = express();
 const path = require('path');
@@ -55,6 +56,16 @@ app.use('/uploads', (req, res, next) => {
 
 // Connect to database
 connectDB();
+
+// Initialize mediasoup worker
+(async () => {
+  try {
+    await getWorker();
+    console.log('✅ mediasoup worker initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize mediasoup worker:', error);
+  }
+})();
 
 // Auth Routes
 app.use('/api/patients/auth', require('./routes/patient-routes/auth.routes'));

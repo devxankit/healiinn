@@ -855,7 +855,7 @@ const PatientProfile = () => {
                     >
                       Add
                     </button>
-                  </div>
+                          </div>
                 )}
               </div>
 

@@ -210,6 +210,47 @@ exports.skipPatient = asyncHandler(async (req, res) => {
     });
   }
 
+  // IMPORTANT: End any active calls for this appointment before skipping
+  // This prevents "A call is already in progress" error when test script runs again
+  try {
+    const Call = require('../../models/Call');
+    const { cleanupCall } = require('../../config/mediasoup');
+    const io = getIO();
+    
+    // Find all active calls for this appointment
+    const activeCalls = await Call.find({
+      appointmentId: appointment._id,
+      status: { $in: ['initiated', 'accepted'] },
+    });
+
+    // End all active calls
+    for (const call of activeCalls) {
+      try {
+        console.log(`📞 Ending active call ${call.callId} for skipped appointment ${appointmentId}`);
+        
+        // End the call (updates status to 'ended')
+        await call.endCall();
+        
+        // Cleanup mediasoup resources (WebRTC transports, producers, etc.)
+        await cleanupCall(call.callId);
+        
+        // Notify all participants that call has ended
+        io.to(`call-${call.callId}`).emit('call:ended', { 
+          callId: call.callId, 
+          reason: 'patient_skipped' 
+        });
+        
+        console.log(`✅ Successfully ended call ${call.callId}`);
+      } catch (callError) {
+        console.error(`❌ Error ending call ${call.callId}:`, callError);
+        // Continue with skip even if call cleanup fails
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error checking/ending active calls:', error);
+    // Continue with skip even if call cleanup fails
+  }
+
   const originalTokenNumber = appointment.tokenNumber;
 
   // Get ALL active appointments (excluding skipped, no-show, completed, cancelled, cancelled_by_session)
@@ -733,6 +774,8 @@ exports.skipPatient = asyncHandler(async (req, res) => {
     io.to(`doctor-${id}`).emit('queue:updated', {
       appointmentId: appointment._id,
       tokenReordered: true,
+      status: updatedAppointment.status, // Send updated status
+      queueStatus: updatedAppointment.queueStatus, // Send updated queueStatus
     });
     io.to(`patient-${appointment.patientId}`).emit('appointment:skipped', {
       appointmentId: appointment._id,
@@ -1155,27 +1198,28 @@ exports.markNoShow = asyncHandler(async (req, res) => {
         session.endedAt = new Date();
         await session.save();
 
-        // Notify doctor
-        try {
-          const { createNotification } = require('../../services/notificationService');
-          await createNotification({
-            userId: id,
-            userType: 'doctor',
-            type: 'session',
-            title: 'Session Completed',
-            message: 'All patients have been seen. Session has been completed.',
-            data: {
-              sessionId: session._id.toString(),
-              eventType: 'completed',
-              status: SESSION_STATUS.COMPLETED,
-            },
-            priority: 'medium',
-            actionUrl: '/doctor/patients',
-            icon: 'session',
-          }).catch((error) => console.error('Error creating completion notification:', error));
-        } catch (error) {
-          console.error('Error creating notifications:', error);
-        }
+        // Notify doctor - REMOVED: Doctors don't need session completed notifications
+        // Only patients receive these notifications
+        // try {
+        //   const { createNotification } = require('../../services/notificationService');
+        //   await createNotification({
+        //     userId: id,
+        //     userType: 'doctor',
+        //     type: 'session',
+        //     title: 'Session Completed',
+        //     message: 'All patients have been seen. Session has been completed.',
+        //     data: {
+        //       sessionId: session._id.toString(),
+        //       eventType: 'completed',
+        //       status: SESSION_STATUS.COMPLETED,
+        //     },
+        //     priority: 'medium',
+        //     actionUrl: '/doctor/patients',
+        //     icon: 'session',
+        //   }).catch((error) => console.error('Error creating completion notification:', error));
+        // } catch (error) {
+        //   console.error('Error creating notifications:', error);
+        // }
       }
     }
   }
@@ -1436,27 +1480,28 @@ exports.updateQueueStatus = asyncHandler(async (req, res) => {
         session.status = SESSION_STATUS.COMPLETED;
         session.endedAt = new Date();
         
-        // Notify doctor
-        try {
-          const { createNotification } = require('../../services/notificationService');
-          await createNotification({
-            userId: id,
-            userType: 'doctor',
-            type: 'session',
-            title: 'Session Completed',
-            message: 'All patients have been seen. Session has been completed.',
-            data: {
-              sessionId: session._id.toString(),
-              eventType: 'completed',
-              status: SESSION_STATUS.COMPLETED,
-            },
-            priority: 'medium',
-            actionUrl: '/doctor/patients',
-            icon: 'session',
-          }).catch((error) => console.error('Error creating completion notification:', error));
-        } catch (error) {
-          console.error('Error creating notifications:', error);
-        }
+        // Notify doctor - REMOVED: Doctors don't need session completed notifications
+        // Only patients receive these notifications
+        // try {
+        //   const { createNotification } = require('../../services/notificationService');
+        //   await createNotification({
+        //     userId: id,
+        //     userType: 'doctor',
+        //     type: 'session',
+        //     title: 'Session Completed',
+        //     message: 'All patients have been seen. Session has been completed.',
+        //     data: {
+        //       sessionId: session._id.toString(),
+        //       eventType: 'completed',
+        //       status: SESSION_STATUS.COMPLETED,
+        //     },
+        //     priority: 'medium',
+        //     actionUrl: '/doctor/patients',
+        //     icon: 'session',
+        //   }).catch((error) => console.error('Error creating completion notification:', error));
+        // } catch (error) {
+        //   console.error('Error creating notifications:', error);
+        // }
       }
       
       await session.save();

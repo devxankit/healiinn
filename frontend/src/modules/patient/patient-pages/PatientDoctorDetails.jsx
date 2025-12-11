@@ -769,6 +769,9 @@ const PatientDoctorDetails = () => {
 
     setIsSubmitting(true)
     
+    // Store appointmentId for potential cancellation if payment fails
+    let createdAppointmentId = null
+    
     try {
       // Handle reschedule (no payment required)
       if (isRescheduling && rescheduleAppointmentId) {
@@ -850,43 +853,15 @@ const PatientDoctorDetails = () => {
       
       if (!bookingResponse.success) {
         toast.error(bookingResponse.message || 'Failed to book appointment. Please try again.')
+        setIsSubmitting(false)
         return
       }
 
       const appointmentId = bookingResponse.data?._id || bookingResponse.data?.id
+      createdAppointmentId = appointmentId
 
-      // Store appointmentId for potential cancellation if payment fails
-      let createdAppointmentId = appointmentId
-
-      // Step 2: If free booking, skip payment
-      if (isFreeBooking) {
-        toast.success('Appointment booked successfully! (Free consultation)')
-        
-        // Refresh slot availability for the booked date
-        if (selectedDate && doctor?.id) {
-          fetchSlotAvailabilityForDate(selectedDate, doctor.id, true)
-        }
-        
-        // Refresh all dates availability
-        const dates = getAvailableDates()
-        dates.slice(0, 14).forEach(date => {
-          fetchSlotAvailabilityForDate(date.value, doctor.id, true)
-        })
-        
-        handleCloseModal()
-        // Reset form
-        setSelectedDate('')
-        setAppointmentType('in_person')
-        setReason('')
-        setNotes('')
-        setSelectedPrescriptions([])
-        setBookingStep(1)
-        
-        setTimeout(() => {
-          navigate('/patient/appointments')
-        }, 1500)
-        return
-      }
+      // Step 2: Payment is always required (no free bookings)
+      // All appointments require payment before confirmation
 
       // Step 3: Create payment order
       const paymentOrderResponse = await createAppointmentPaymentOrder(appointmentId)
@@ -1564,7 +1539,7 @@ const PatientDoctorDetails = () => {
                           </div>
                           
                           {/* Returning Patient Info */}
-                          {isFreeBooking && (
+                          {false && (
                             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
                               <div className="flex items-start gap-2">
                                 <IoCheckmarkCircleOutline className="h-5 w-5 text-blue-600 mt-0.5" />
@@ -1781,20 +1756,6 @@ const PatientDoctorDetails = () => {
                       </div>
                     )}
 
-                    {/* Returning Patient Badge */}
-                    {isFreeBooking && (
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                        <div className="flex items-center gap-2">
-                          <IoCheckmarkCircleOutline className="h-5 w-5 text-emerald-600" />
-                          <p className="text-sm font-semibold text-emerald-900">
-                            Returning Patient - Free Consultation!
-                          </p>
-                        </div>
-                        <p className="text-xs text-emerald-700 mt-1">
-                          You visited this doctor {returningPatientInfo.daysSince} day(s) ago. This appointment is free.
-                        </p>
-                      </div>
-                    )}
 
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                       <div className="space-y-4">
@@ -1870,11 +1831,6 @@ const PatientDoctorDetails = () => {
                                 <span className="text-lg font-bold text-blue-600">Already Paid</span>
                                 <p className="text-xs text-slate-500">No additional payment required</p>
                               </div>
-                            ) : isFreeBooking ? (
-                              <div className="text-right">
-                                <span className="text-lg font-bold text-emerald-600">FREE</span>
-                                <p className="text-xs text-slate-500 line-through">₹{doctor.consultationFee}</p>
-                              </div>
                             ) : (
                               <span className="text-lg font-bold text-slate-900">₹{doctor.consultationFee}</span>
                             )}
@@ -1935,11 +1891,6 @@ const PatientDoctorDetails = () => {
                           <>
                             <IoCheckmarkCircleOutline className="h-5 w-5" />
                             Reschedule
-                          </>
-                        ) : isFreeBooking ? (
-                          <>
-                            <IoCheckmarkCircleOutline className="h-5 w-5" />
-                            Confirm Appointment (Free)
                           </>
                         ) : (
                           <>

@@ -9,8 +9,9 @@ const SOCKET_URL = API_BASE_URL.replace('/api', '').replace(/\/$/, '') // Remove
 let socketInstance = null
 let connectionErrorCount = 0
 let lastErrorLogTime = 0
-const ERROR_LOG_THROTTLE = 10000 // Only log errors every 10 seconds
-const MAX_ERROR_COUNT_BEFORE_SILENT = 3 // After 3 errors, reduce logging
+let hasShownServerUnavailableWarning = false // Track if we've already shown the warning
+const ERROR_LOG_THROTTLE = 30000 // Only log errors every 30 seconds (increased to reduce spam)
+const MAX_ERROR_COUNT_BEFORE_SILENT = 1 // After 1 error, reduce logging
 
 /**
  * Get authentication token from storage
@@ -52,7 +53,10 @@ export const initSocket = (module) => {
     return null
   }
 
-  console.log(`🔌 Attempting Socket.IO connection for ${module} to:`, SOCKET_URL)
+  // Only log connection attempt if it's the first time or after a long delay
+  if (connectionErrorCount === 0) {
+    console.log(`🔌 Attempting Socket.IO connection for ${module} to:`, SOCKET_URL)
+  }
 
   socketInstance = io(SOCKET_URL, {
     auth: {
@@ -60,18 +64,22 @@ export const initSocket = (module) => {
     },
     transports: ['polling', 'websocket'], // Try polling first, then websocket
     reconnection: true,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
+    reconnectionDelay: 2000, // Start with 2 seconds delay
+    reconnectionDelayMax: 10000, // Max 10 seconds delay
     reconnectionAttempts: Infinity, // Keep trying to reconnect
     timeout: 20000, // 20 seconds timeout
     forceNew: true, // Force new connection
     withCredentials: true, // Include credentials in CORS requests
+    autoConnect: true, // Auto connect on initialization
+    // Suppress connection errors in console when server is not available
+    rejectUnauthorized: false, // For development only
   })
 
   socketInstance.on('connect', () => {
-    // Reset error count on successful connection
+    // Reset error count and warning flag on successful connection
     connectionErrorCount = 0
     lastErrorLogTime = 0
+    hasShownServerUnavailableWarning = false
     console.log(`✅ Socket.IO connected for ${module}`, {
       id: socketInstance.id,
       transport: socketInstance.io.engine.transport.name,
@@ -91,8 +99,10 @@ export const initSocket = (module) => {
     const isConnectionRefused = error.message?.includes('ECONNREFUSED') || 
                                error.message?.includes('Failed to fetch') ||
                                error.message?.includes('xhr poll error') ||
+                               error.message?.includes('ERR_CONNECTION_REFUSED') ||
                                error.type === 'TransportError' ||
-                               error.description === 0
+                               error.description === 0 ||
+                               error.code === 'ECONNREFUSED'
     
     // Throttle error logging - only log every ERROR_LOG_THROTTLE ms
     const shouldLog = (now - lastErrorLogTime) > ERROR_LOG_THROTTLE || connectionErrorCount <= MAX_ERROR_COUNT_BEFORE_SILENT
@@ -101,8 +111,13 @@ export const initSocket = (module) => {
       lastErrorLogTime = now
       
       if (isConnectionRefused) {
-        // Server is not available - log once with helpful message
-        console.warn(`⚠️ Socket.IO: Backend server not available (${SOCKET_URL}). Socket will retry silently.`)
+        // Server is not available - log once with helpful message, then suppress completely
+        if (!hasShownServerUnavailableWarning && connectionErrorCount === 1) {
+          console.warn(`⚠️ Socket.IO: Backend server not available (${SOCKET_URL}). Make sure the backend server is running on port 5000. Socket will retry silently in the background.`)
+          hasShownServerUnavailableWarning = true
+        }
+        // Suppress all subsequent connection refused errors completely
+        return
       } else if (error.message?.includes('Authentication error')) {
         console.warn('⚠️ Socket.IO: Authentication failed. Please check your login token.')
       } else if (error.message?.includes('timeout')) {
@@ -134,12 +149,20 @@ export const initSocket = (module) => {
 
   socketInstance.on('reconnect_error', (error) => {
     // Silently handle reconnection errors - they're expected when server is down
-    // Only log if it's not a connection refused error
+    // Suppress all connection refused errors
     const isConnectionRefused = error.message?.includes('ECONNREFUSED') || 
                                error.message?.includes('Failed to fetch') ||
-                               error.message?.includes('xhr poll error')
+                               error.message?.includes('xhr poll error') ||
+                               error.message?.includes('ERR_CONNECTION_REFUSED') ||
+                               error.code === 'ECONNREFUSED'
     
-    if (!isConnectionRefused && connectionErrorCount <= MAX_ERROR_COUNT_BEFORE_SILENT) {
+    // Don't log connection refused errors - they're expected when server is not running
+    if (isConnectionRefused) {
+      return // Suppress these errors completely
+    }
+    
+    // Only log non-connection errors
+    if (connectionErrorCount <= MAX_ERROR_COUNT_BEFORE_SILENT) {
       const now = Date.now()
       if ((now - lastErrorLogTime) > ERROR_LOG_THROTTLE) {
         console.warn(`⚠️ Socket.IO reconnection error for ${module}:`, error.message)

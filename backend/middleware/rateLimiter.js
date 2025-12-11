@@ -34,6 +34,12 @@ const authRateLimiter = rateLimit({
     message: 'Too many authentication attempts, please try again after 15 minutes.',
   },
   skipSuccessfulRequests: false,
+  // Skip rate limiting in development/test mode or if DISABLE_AUTH_RATE_LIMIT is set
+  skip: (req, res) => {
+    return process.env.NODE_ENV === 'development' || 
+           process.env.NODE_ENV === 'test' ||
+           process.env.DISABLE_AUTH_RATE_LIMIT === 'true';
+  },
 });
 
 // Rate limiter for password reset endpoints
@@ -63,6 +69,12 @@ const otpRateLimiter = rateLimit({
   message: {
     success: false,
     message: 'Too many OTP requests, please try again after 5 minutes.',
+  },
+  // Skip rate limiting in development/test mode or if DISABLE_OTP_RATE_LIMIT is set
+  skip: (req, res) => {
+    return process.env.NODE_ENV === 'development' || 
+           process.env.NODE_ENV === 'test' ||
+           process.env.DISABLE_OTP_RATE_LIMIT === 'true';
   },
 });
 

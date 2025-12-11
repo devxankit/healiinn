@@ -336,7 +336,12 @@ const PatientAppointments = () => {
   // Setup socket listener for token:called event
   useEffect(() => {
     const socket = getSocket()
-    if (!socket) return
+    if (!socket) {
+      console.warn('⚠️ Patient socket not connected')
+      return
+    }
+    
+    console.log('✅ Patient socket connected, listening for call invites. Socket ID:', socket.id)
 
     const handleTokenCalled = (data) => {
       if (data?.appointmentId) {
@@ -821,6 +826,7 @@ const PatientAppointments = () => {
           )}
         </div>
       )}
+
     </section>
   )
 }

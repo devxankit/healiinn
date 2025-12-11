@@ -3,6 +3,7 @@ import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { getAuthToken } from './utils/apiClient'
 import { NotificationProvider } from './contexts/NotificationContext'
+import { CallProvider } from './contexts/CallContext'
 import PatientNavbar from './modules/patient/patient-components/PatientNavbar'
 import PatientDashboard from './modules/patient/patient-pages/PatientDashboard'
 import PatientDoctors from './modules/patient/patient-pages/PatientDoctors'
@@ -22,6 +23,9 @@ import PatientOrders from './modules/patient/patient-pages/PatientOrders'
 import PatientSupport from './modules/patient/patient-pages/PatientSupport'
 import PatientHistory from './modules/patient/patient-pages/PatientHistory'
 import NotificationsPage from './modules/shared/NotificationsPage'
+import CallPopup from './modules/shared/CallPopup'
+import IncomingCallNotification from './modules/shared/IncomingCallNotification'
+import DoctorCallStatus from './modules/shared/DoctorCallStatus'
 import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
 import DoctorHeader from './modules/doctor/doctor-components/DoctorHeader'
 import DoctorFooter from './modules/doctor/doctor-components/DoctorFooter'
@@ -128,6 +132,7 @@ function PatientRoutes() {
   return (
     <NotificationProvider module="patient">
       {!isLoginPage && <PatientNavbar />}
+      {!isLoginPage && <IncomingCallNotification />}
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
         <Routes>
           <Route path="/" element={
@@ -242,6 +247,9 @@ function DoctorRoutes() {
       
       {/* Desktop Header - Only visible on desktop */}
       {!isLoginPage && <DoctorHeader />}
+      
+      {/* Doctor Call Status Indicator */}
+      {!isLoginPage && <DoctorCallStatus />}
       
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
         <div className="max-w-7xl mx-auto w-full lg:flex-1">
@@ -963,54 +971,58 @@ function DefaultRedirect() {
 
 function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-slate-50 text-slate-900">
-        <Routes>
-          {/* Patient Routes */}
-          <Route path="/patient/*" element={<PatientRoutes />} />
+    <CallProvider>
+      <Router>
+        <div className="min-h-screen bg-slate-50 text-slate-900">
+          <Routes>
+            {/* Patient Routes */}
+            <Route path="/patient/*" element={<PatientRoutes />} />
 
-          {/* Doctor Routes */}
-          <Route path="/doctor/*" element={<DoctorRoutes />} />
+            {/* Doctor Routes */}
+            <Route path="/doctor/*" element={<DoctorRoutes />} />
 
-          {/* Pharmacy Routes */}
-          <Route
-            path="/pharmacy/*"
-            element={
-              <PharmacySidebarProvider>
-                <PharmacyRoutes />
-              </PharmacySidebarProvider>
-            }
-          />
+            {/* Pharmacy Routes */}
+            <Route
+              path="/pharmacy/*"
+              element={
+                <PharmacySidebarProvider>
+                  <PharmacyRoutes />
+                </PharmacySidebarProvider>
+              }
+            />
 
-          {/* Laboratory Routes */}
-          <Route path="/laboratory/*" element={<LaboratoryRoutes />} />
+            {/* Laboratory Routes */}
+            <Route path="/laboratory/*" element={<LaboratoryRoutes />} />
 
-          {/* Admin Routes */}
-          <Route path="/admin/*" element={<AdminRoutes />} />
+            {/* Admin Routes */}
+            <Route path="/admin/*" element={<AdminRoutes />} />
 
-          {/* Website Routes - Landing Page */}
-          <Route path="/website/*" element={<WebsiteRoutes />} />
+            {/* Website Routes - Landing Page */}
+            <Route path="/website/*" element={<WebsiteRoutes />} />
 
-          {/* Onboarding Route - No Navbar */}
-          <Route path="/onboarding" element={<WebOnBoarding />} />
+            {/* Onboarding Route - No Navbar */}
+            <Route path="/onboarding" element={<WebOnBoarding />} />
 
-          {/* Default route - show landing page or redirect if authenticated */}
-          <Route path="/" element={<DefaultRedirect />} />
-        </Routes>
-      </div>
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-      />
-    </Router>
+            {/* Default route - show landing page or redirect if authenticated */}
+            <Route path="/" element={<DefaultRedirect />} />
+          </Routes>
+        </div>
+        {/* Global Call Popup - Renders as overlay when active */}
+        <CallPopup />
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+        />
+      </Router>
+    </CallProvider>
   )
 }
 

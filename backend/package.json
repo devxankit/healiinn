@@ -10,7 +10,8 @@
     "test:all": "node scripts/testAllAPIs.js",
     "test:razorpay": "node scripts/testRazorpay.js",
     "test:pharmacy": "node scripts/testPharmacyWorkflows.js",
-    "test:labs": "node scripts/testLabWorkflows.js"
+    "test:labs": "node scripts/testLabWorkflows.js",
+    "test:audio-call": "node scripts/testAudioCall.js"
   },
   "keywords": [
     "healthcare",
@@ -24,7 +25,7 @@
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.21.1",
-    "cloudinary": "^1.41.3",
+    "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
@@ -35,14 +36,16 @@
     "firebase-admin": "^12.0.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mediasoup": "^3.15.1",
     "mongoose": "^8.19.3",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
-    "multer-storage-cloudinary": "^4.0.0",
-    "nodemailer": "^6.9.15",
+    "multer-storage-cloudinary": "^2.2.1",
+    "nodemailer": "^7.0.11",
     "pdfkit": "^0.15.0",
     "razorpay": "^2.9.5",
     "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

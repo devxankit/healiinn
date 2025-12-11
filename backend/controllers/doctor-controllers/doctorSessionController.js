@@ -355,15 +355,16 @@ exports.updateSession = asyncHandler(async (req, res) => {
         patientMessage = 'Doctor has ended the session. Please contact the clinic for any queries.';
       }
 
-      // Notify doctor
-      if (eventType) {
-        await createSessionNotification({
-          userId: id,
-          userType: 'doctor',
-          session,
-          eventType,
-        }).catch((error) => console.error('Error creating doctor session notification:', error));
-      }
+      // Notify doctor - REMOVED: Doctors don't need session started/completed notifications
+      // Only patients receive these notifications
+      // if (eventType) {
+      //   await createSessionNotification({
+      //     userId: id,
+      //     userType: 'doctor',
+      //     session,
+      //     eventType,
+      //   }).catch((error) => console.error('Error creating doctor session notification:', error));
+      // }
 
       // Notify all patients in the session
       if (eventType && (status === SESSION_STATUS.LIVE || status === SESSION_STATUS.COMPLETED)) {

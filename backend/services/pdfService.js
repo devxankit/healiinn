@@ -32,7 +32,7 @@ const generatePrescriptionPDF = async (prescriptionData, doctorData, patientData
         doc.fontSize(16).font('Helvetica').fillColor(0, 0, 0).text(doctorData.clinicName, 50, yPos, { align: 'center' });
         yPos += 10;
       }
-      
+
       // Clinic Address (if available)
       if (doctorData.letterhead?.address) {
         doc.fontSize(9).text(doctorData.letterhead.address, 50, yPos, { align: 'center' });

@@ -3,6 +3,7 @@ const Appointment = require('../../models/Appointment');
 const Session = require('../../models/Session');
 const Doctor = require('../../models/Doctor');
 const Patient = require('../../models/Patient');
+const Transaction = require('../../models/Transaction');
 const { getIO } = require('../../config/socket');
 const {
   sendAppointmentConfirmationEmail,
@@ -262,93 +263,30 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     }
   }
 
-  // Calculate token number based on current time for same-day bookings
-  let tokenNumber;
-  
-  if (isSameDay && slotCheck.pastSlotsCount > 0) {
-    // For same-day bookings with past slots, calculate token from current time
-    // We need to find the minimum token that is >= pastSlotsCount + 1
-    // and also account for already booked tokens
-    const minTokenFromCurrentTime = slotCheck.pastSlotsCount + 1;
-    const nextAvailableToken = Math.max(minTokenFromCurrentTime, (session.currentToken || 0) + 1);
-    tokenNumber = nextAvailableToken;
-    
-    console.log(`⏰ Same-day booking token calculation:`, {
-      pastSlotsCount: slotCheck.pastSlotsCount,
-      minTokenFromCurrentTime,
-      currentToken: session.currentToken || 0,
-      calculatedToken: tokenNumber,
-      sessionMaxTokens: session.maxTokens,
-    });
-  } else {
-    // For future bookings or same-day without past slots, use normal increment
-    // Token should be next available token (currentToken + 1)
-    // But ensure we don't skip tokens if there are existing appointments
-    // Exclude pending payment appointments to match the display filter
-    // Only count appointments that are actually confirmed (paid)
-    const existingAppointments = await Appointment.countDocuments({
-      sessionId: session._id,
-      status: { $in: ['scheduled', 'confirmed'] },
-      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
-    });
-    
-    // Token number should be max of (currentToken + 1) or (existing appointments + 1)
-    // This ensures tokens are sequential and don't skip numbers
-    tokenNumber = Math.max((session.currentToken || 0) + 1, existingAppointments + 1);
-    
-    console.log(`📊 Token calculation for future booking:`, {
-      currentToken: session.currentToken || 0,
-      existingAppointments,
-      calculatedToken: tokenNumber,
-    });
-  }
+  // Check slot availability based on paid appointments only
+  // Token number will be assigned only after payment success
+  const paidAppointmentsCount = await Appointment.countDocuments({
+    sessionId: session._id,
+    status: { $in: ['scheduled', 'confirmed'] },
+    paymentStatus: 'paid', // Only count paid appointments
+  });
 
-  // Double check slot availability after session creation
-  // For same-day bookings, max token is still session.maxTokens (not reduced)
-  if (tokenNumber > session.maxTokens) {
+  // Check if slots are available (based on paid appointments)
+  if (paidAppointmentsCount >= session.maxTokens) {
     return res.status(400).json({
       success: false,
       message: 'No available slots for this session. All slots are booked.',
       data: {
         totalSlots: session.maxTokens,
-        bookedSlots: session.currentToken,
+        bookedSlots: paidAppointmentsCount,
         availableSlots: 0,
       },
     });
   }
-  // Always calculate appointment time based on token number for consistency
-  // This ensures time is always calculated correctly regardless of booking type
-  const { timeToMinutes } = require('../../services/etaService');
-  const sessionStartMinutes = timeToMinutes(session.sessionStartTime);
-  const avgConsultation = doctor.averageConsultationMinutes || 20;
-  
-  // Calculate time for this token (token - 1 because token 1 starts at session start)
-  const tokenTimeMinutes = sessionStartMinutes + (tokenNumber - 1) * avgConsultation;
-  const tokenHour = Math.floor(tokenTimeMinutes / 60);
-  const tokenMin = tokenTimeMinutes % 60;
-  
-  // Convert to 12-hour format
-  let displayHour = tokenHour;
-  let period = 'AM';
-  if (tokenHour >= 12) {
-    period = 'PM';
-    if (tokenHour > 12) {
-      displayHour = tokenHour - 12;
-    }
-  } else if (tokenHour === 0) {
-    displayHour = 12;
-  }
-  
-  const appointmentTime = `${displayHour}:${tokenMin.toString().padStart(2, '0')} ${period}`;
-  
-  console.log(`⏰ Calculated appointment time for token ${tokenNumber}:`, {
-    sessionStartTime: session.sessionStartTime,
-    sessionStartMinutes,
-    tokenNumber,
-    avgConsultationMinutes: avgConsultation,
-    tokenTimeMinutes,
-    calculatedTime: appointmentTime,
-  });
+
+  // Calculate estimated time (will be recalculated after payment with actual token number)
+  // For now, use a placeholder time
+  const appointmentTime = 'Will be assigned by system based on token number';
 
   const appointment = await Appointment.create({
     patientId: id,
@@ -360,33 +298,26 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     appointmentType: appointmentType || 'New',
     consultationMode: consultationMode || 'in_person',
     duration: doctor.averageConsultationMinutes || 30, // Use doctor's average consultation time instead of default 30
-    tokenNumber,
+    tokenNumber: null, // Token will be assigned only after payment success
     fee: doctor.consultationFee || 0,
-    status: 'scheduled',
+    status: 'pending_payment', // Set as pending_payment until payment is verified
     queueStatus: 'waiting',
+    paymentStatus: 'pending', // Set as pending until payment is verified
   });
 
-  // Update session - ensure currentToken reflects the highest token number
-  // This ensures consistency even if appointments were cancelled
-  // Exclude pending payment appointments to match the display filter
-  // Only count appointments that are actually confirmed (paid)
-  const maxTokenInSession = await Appointment.findOne({
-    sessionId: session._id,
-    status: { $in: ['scheduled', 'confirmed'] },
-    paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
-  }).sort({ tokenNumber: -1 }).select('tokenNumber');
-  
-  const highestToken = maxTokenInSession?.tokenNumber || tokenNumber;
-  session.currentToken = Math.max(session.currentToken || 0, highestToken);
+  // Don't update session token count yet - wait for payment success
+  // Session will be updated after payment verification
   session.appointments.push(appointment._id);
   await session.save();
   
-  console.log(`✅ Session updated:`, {
+  console.log(`✅ Appointment created (pending payment):`, {
     sessionId: session._id,
-    newTokenNumber: tokenNumber,
-    highestTokenInSession: highestToken,
+    appointmentId: appointment._id,
+    status: appointment.status,
+    paymentStatus: appointment.paymentStatus,
     currentToken: session.currentToken,
     maxTokens: session.maxTokens,
+    note: 'Token number will be assigned after payment success',
   });
 
   // Calculate ETA for the appointment
@@ -618,7 +549,7 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
 
   // If rescheduling a cancelled appointment, check if the new date is the same as the cancelled session date
   if (isCancelled && appointment.sessionId) {
-    const Session = require('../../models/Session');
+    // Session is already imported at the top
     const cancelledSession = await Session.findById(appointment.sessionId);
     
     if (cancelledSession && cancelledSession.status === 'cancelled') {
@@ -1074,9 +1005,43 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
   const isValid = verifyPayment(orderId, paymentId, signature);
 
   if (!isValid) {
+    // Create failed transaction record
+    await Transaction.create({
+      userId: id,
+      userType: 'patient',
+      type: 'payment',
+      amount: appointment.fee,
+      status: 'failed',
+      description: `Appointment payment failed - Invalid signature for appointment ${appointment._id}`,
+      referenceId: appointment._id.toString(),
+      category: 'appointment',
+      paymentMethod: paymentMethod || 'razorpay',
+      paymentId: paymentId,
+      appointmentId: appointment._id,
+      metadata: {
+        orderId: orderId,
+        error: 'Invalid payment signature',
+      },
+    });
+
+    // Cancel appointment
+    appointment.status = 'cancelled';
+    appointment.cancelledBy = 'system';
+    appointment.cancellationReason = 'Payment verification failed - Invalid signature';
+    await appointment.save();
+
+    // Remove from session
+    const session = await Session.findById(appointment.sessionId);
+    if (session) {
+      session.appointments = session.appointments.filter(
+        (apptId) => apptId.toString() !== appointment._id.toString()
+      );
+      await session.save();
+    }
+
     return res.status(400).json({
       success: false,
-      message: 'Invalid payment signature',
+      message: 'Invalid payment signature. Appointment has been cancelled.',
     });
   }
 
@@ -1084,21 +1049,155 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
   const paymentDetails = await getPaymentDetails(paymentId);
 
   if (paymentDetails.payment.status !== 'captured' && paymentDetails.payment.status !== 'authorized') {
+    // Create failed transaction record
+    await Transaction.create({
+      userId: id,
+      userType: 'patient',
+      type: 'payment',
+      amount: appointment.fee,
+      status: 'failed',
+      description: `Appointment payment failed - Payment not successful for appointment ${appointment._id}`,
+      referenceId: appointment._id.toString(),
+      category: 'appointment',
+      paymentMethod: paymentMethod || 'razorpay',
+      paymentId: paymentId,
+      appointmentId: appointment._id,
+      metadata: {
+        orderId: orderId,
+        razorpayStatus: paymentDetails.payment.status,
+        error: 'Payment not successful',
+      },
+    });
+
+    // Cancel appointment
+    appointment.status = 'cancelled';
+    appointment.cancelledBy = 'system';
+    appointment.cancellationReason = 'Payment verification failed - Payment not successful';
+    await appointment.save();
+
+    // Remove from session
+    const session = await Session.findById(appointment.sessionId);
+    if (session) {
+      session.appointments = session.appointments.filter(
+        (apptId) => apptId.toString() !== appointment._id.toString()
+      );
+      await session.save();
+    }
+
     return res.status(400).json({
       success: false,
-      message: 'Payment not successful',
+      message: 'Payment not successful. Appointment has been cancelled.',
     });
   }
 
-  // Update appointment payment status
+  // Payment successful - Now assign token number and update appointment
+  // Calculate token number based on paid appointments only
+  const session = await Session.findById(appointment.sessionId);
+  
+  if (!session) {
+    return res.status(404).json({
+      success: false,
+      message: 'Session not found',
+    });
+  }
+
+  // Count only paid appointments for token calculation
+  const paidAppointmentsCount = await Appointment.countDocuments({
+    sessionId: session._id,
+    status: { $in: ['scheduled', 'confirmed', 'pending_payment'] },
+    paymentStatus: 'paid', // Only count paid appointments
+    _id: { $ne: appointment._id }, // Exclude current appointment
+  });
+
+  const newTokenNumber = paidAppointmentsCount + 1;
+
+  // Check if token exceeds max tokens
+  if (newTokenNumber > session.maxTokens) {
+    // Create failed transaction record
+    await Transaction.create({
+      userId: id,
+      userType: 'patient',
+      type: 'payment',
+      amount: appointment.fee,
+      status: 'failed',
+      description: `Appointment payment failed - No available slots for appointment ${appointment._id}`,
+      referenceId: appointment._id.toString(),
+      category: 'appointment',
+      paymentMethod: paymentMethod || 'razorpay',
+      paymentId: paymentId,
+      appointmentId: appointment._id,
+      metadata: {
+        orderId: orderId,
+        error: 'No available slots',
+        maxTokens: session.maxTokens,
+        requestedToken: newTokenNumber,
+      },
+    });
+
+    // Cancel appointment and refund
+    appointment.status = 'cancelled';
+    appointment.cancelledBy = 'system';
+    appointment.cancellationReason = 'Payment successful but no available slots';
+    await appointment.save();
+
+    // Remove from session
+    session.appointments = session.appointments.filter(
+      (apptId) => apptId.toString() !== appointment._id.toString()
+    );
+    await session.save();
+
+    return res.status(400).json({
+      success: false,
+      message: 'Payment successful but no available slots. Appointment cancelled and refund will be processed.',
+    });
+  }
+
+  // Get doctor data (needed for both time calculation and wallet credit)
+  const doctor = await Doctor.findById(appointment.doctorId);
+  if (!doctor) {
+    return res.status(404).json({
+      success: false,
+      message: 'Doctor not found',
+    });
+  }
+
+  // Calculate appointment time based on new token number
+  const { timeToMinutes } = require('../../services/etaService');
+  const sessionStartMinutes = timeToMinutes(session.sessionStartTime);
+  const avgConsultation = doctor.averageConsultationMinutes || 20;
+  
+  const tokenTimeMinutes = sessionStartMinutes + (newTokenNumber - 1) * avgConsultation;
+  const tokenHour = Math.floor(tokenTimeMinutes / 60);
+  const tokenMin = tokenTimeMinutes % 60;
+  
+  let displayHour = tokenHour;
+  let period = 'AM';
+  if (tokenHour >= 12) {
+    period = 'PM';
+    if (tokenHour > 12) {
+      displayHour = tokenHour - 12;
+    }
+  } else if (tokenHour === 0) {
+    displayHour = 12;
+  }
+  
+  const appointmentTime = `${displayHour}:${tokenMin.toString().padStart(2, '0')} ${period}`;
+
+  // Update appointment with token number, time, and payment status
+  appointment.tokenNumber = newTokenNumber;
+  appointment.time = appointmentTime;
   appointment.paymentStatus = 'paid';
   appointment.paymentId = paymentId;
   appointment.razorpayOrderId = orderId;
   appointment.paidAt = new Date();
+  appointment.status = 'scheduled'; // Change from pending_payment to scheduled
   await appointment.save();
 
+  // Update session token count
+  session.currentToken = Math.max(session.currentToken || 0, newTokenNumber);
+  await session.save();
+
   // Create transaction record
-  const Transaction = require('../../models/Transaction');
   const transaction = await Transaction.create({
     userId: id,
     userType: 'patient',
@@ -1148,12 +1247,8 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
 
   // Credit doctor wallet (doctor earns from appointment)
   const WalletTransaction = require('../../models/WalletTransaction');
-  const Doctor = require('../../models/Doctor');
   
   console.log(`💳 Processing wallet credit for appointment: ${appointment._id}, doctorId: ${appointment.doctorId}`);
-  
-  // Get doctor's current wallet balance
-  const doctor = await Doctor.findById(appointment.doctorId);
   if (!doctor) {
     console.error(`❌ Doctor not found for appointment: ${appointment._id}, doctorId: ${appointment.doctorId}`);
   } else {

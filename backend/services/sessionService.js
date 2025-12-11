@@ -784,25 +784,28 @@ const autoEndExpiredSessions = async () => {
         try {
           const io = getIO();
           
-          // Notify doctor
+          // Notify doctor - REMOVED: Doctors don't need session ended notifications
+          // Only patients receive these notifications
+          // if (session.doctorId) {
+          //   await createNotification({
+          //     userId: session.doctorId._id || session.doctorId,
+          //     userType: 'doctor',
+          //     type: 'session',
+          //     title: 'Session Ended',
+          //     message: 'Your session has automatically ended as all patients have been seen.',
+          //     data: {
+          //       sessionId: session._id.toString(),
+          //       eventType: 'completed',
+          //       status: SESSION_STATUS.COMPLETED,
+          //     },
+          //     priority: 'medium',
+          //     actionUrl: '/doctor/patients',
+          //     icon: 'session',
+          //   }).catch((error) => console.error('Error creating doctor notification:', error));
+          // }
+          
+          // Emit to doctor (keep socket event for real-time updates)
           if (session.doctorId) {
-            await createNotification({
-              userId: session.doctorId._id || session.doctorId,
-              userType: 'doctor',
-              type: 'session',
-              title: 'Session Ended',
-              message: 'Your session has automatically ended as all patients have been seen.',
-              data: {
-                sessionId: session._id.toString(),
-                eventType: 'completed',
-                status: SESSION_STATUS.COMPLETED,
-              },
-              priority: 'medium',
-              actionUrl: '/doctor/patients',
-              icon: 'session',
-            }).catch((error) => console.error('Error creating doctor notification:', error));
-            
-            // Emit to doctor
             io.to(`doctor-${session.doctorId._id || session.doctorId}`).emit('session:updated', {
               session: await Session.findById(session._id),
             });
