@@ -23,10 +23,33 @@ app.use(
 ); // Security headers (includes XSS protection)
 app.use(
   cors({
-    origin: [
-      process.env.FRONTEND_URL || "http://localhost:3000",
-      "https://healiinnx.vercel.app",
-    ],
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        process.env.FRONTEND_URL || "http://localhost:3000",
+        "https://healiinnx.vercel.app",
+        "https://www.healiinnx.vercel.app",
+      ];
+
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Check if origin is in allowed list
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        // In development, allow localhost origins
+        if (
+          process.env.NODE_ENV !== "production" &&
+          (origin.includes("localhost") || origin.includes("127.0.0.1"))
+        ) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      }
+    },
     credentials: true,
   })
 );
@@ -44,6 +67,7 @@ app.use(
     const allowedOrigins = [
       process.env.FRONTEND_URL || "http://localhost:3000",
       "https://healiinnx.vercel.app",
+      "https://www.healiinnx.vercel.app",
     ];
 
     if (allowedOrigins.includes(origin) || !origin) {
@@ -82,12 +106,18 @@ connectDB();
 })();
 
 // Auth Routes
-app.use('/api/patients/auth', require('./routes/patient-routes/auth.routes'));
-app.use('/api/doctors/auth', require('./routes/doctor-routes/auth.routes'));
-app.use('/api/laboratories/auth', require('./routes/laboratory-routes/auth.routes'));
-app.use('/api/pharmacies/auth', require('./routes/pharmacy-routes/auth.routes'));
-app.use('/api/nurses/auth', require('./routes/nurse-routes/auth.routes'));
-app.use('/api/admin/auth', require('./routes/admin-routes/auth.routes'));
+app.use("/api/patients/auth", require("./routes/patient-routes/auth.routes"));
+app.use("/api/doctors/auth", require("./routes/doctor-routes/auth.routes"));
+app.use(
+  "/api/laboratories/auth",
+  require("./routes/laboratory-routes/auth.routes")
+);
+app.use(
+  "/api/pharmacies/auth",
+  require("./routes/pharmacy-routes/auth.routes")
+);
+app.use("/api/nurses/auth", require("./routes/nurse-routes/auth.routes"));
+app.use("/api/admin/auth", require("./routes/admin-routes/auth.routes"));
 app.use("/api/patients/auth", require("./routes/patient-routes/auth.routes"));
 app.use("/api/doctors/auth", require("./routes/doctor-routes/auth.routes"));
 app.use(

@@ -18,11 +18,21 @@ let io;
 
 const initializeSocket = (server) => {
   // Determine allowed origins
-  const allowedOrigins = process.env.SOCKET_IO_CORS_ORIGIN 
+  // Build a comprehensive list of allowed origins
+  const baseOrigins = process.env.SOCKET_IO_CORS_ORIGIN 
     ? process.env.SOCKET_IO_CORS_ORIGIN.split(',').map(origin => origin.trim())
     : process.env.FRONTEND_URL 
       ? [process.env.FRONTEND_URL]
       : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+
+  // Add production domains if not already included
+  const productionOrigins = [
+    'https://healiinnx.vercel.app',
+    'https://www.healiinnx.vercel.app',
+  ];
+
+  // Combine and deduplicate origins
+  const allowedOrigins = [...new Set([...baseOrigins, ...productionOrigins])];
 
   // In development, allow all localhost origins
   const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -38,7 +48,14 @@ const initializeSocket = (server) => {
               callback(new Error('Not allowed by CORS'));
             }
           }
-        : allowedOrigins,
+        : (origin, callback) => {
+            // In production, check against allowed origins
+            if (!origin || allowedOrigins.includes(origin)) {
+              callback(null, true);
+            } else {
+              callback(new Error('Not allowed by CORS'));
+            }
+          },
       methods: ['GET', 'POST', 'OPTIONS'],
       credentials: true,
       allowedHeaders: ['Authorization', 'Content-Type'],
