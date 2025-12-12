@@ -130,13 +130,47 @@ class P2PCallManager {
 
     // Track handler (remote stream)
     this.peerConnection.ontrack = (event) => {
-      console.log('🔗 [P2P] Remote track received:', event.track)
+      console.log('🔗 [P2P] ====== REMOTE TRACK RECEIVED ======')
+      console.log('🔗 [P2P] Track details:', {
+        id: event.track.id,
+        kind: event.track.kind,
+        label: event.track.label,
+        enabled: event.track.enabled,
+        muted: event.track.muted,
+        readyState: event.track.readyState
+      })
+      console.log('🔗 [P2P] Event streams:', event.streams?.length || 0)
+      console.log('🔗 [P2P] Event transceiver:', event.transceiver?.direction)
+      
       if (event.streams && event.streams[0]) {
         this.remoteStream = event.streams[0]
+        console.log('🔗 [P2P] Remote stream set:', {
+          id: this.remoteStream.id,
+          active: this.remoteStream.active,
+          audioTracks: this.remoteStream.getAudioTracks().length,
+          videoTracks: this.remoteStream.getVideoTracks().length
+        })
+        
+        // Log all tracks in the remote stream
+        this.remoteStream.getTracks().forEach((track, index) => {
+          console.log(`🔗 [P2P] Remote stream track ${index}:`, {
+            id: track.id,
+            kind: track.kind,
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState
+          })
+        })
+        
         // Trigger callback for remote stream
         if (this.onRemoteStream) {
+          console.log('🔗 [P2P] Calling onRemoteStream callback')
           this.onRemoteStream(this.remoteStream)
+        } else {
+          console.warn('🔗 [P2P] ⚠️ No onRemoteStream callback set!')
         }
+      } else {
+        console.warn('🔗 [P2P] ⚠️ No streams in track event!')
       }
     }
 
@@ -157,7 +191,30 @@ class P2PCallManager {
   async createOffer() {
     try {
       console.log('🔗 [P2P] Creating offer...')
+      
+      // Verify local tracks are in the peer connection
+      const senders = this.peerConnection.getSenders()
+      console.log('🔗 [P2P] Senders before creating offer:', senders.length)
+      senders.forEach((sender, index) => {
+        if (sender.track) {
+          console.log(`🔗 [P2P] Sender ${index}: track ID=${sender.track.id}, kind=${sender.track.kind}, enabled=${sender.track.enabled}`)
+        } else {
+          console.warn(`🔗 [P2P] Sender ${index}: no track attached`)
+        }
+      })
+      
       const offer = await this.peerConnection.createOffer()
+      
+      // Verify offer includes audio
+      console.log('🔗 [P2P] Offer SDP type:', offer.type)
+      if (offer.sdp) {
+        const hasAudioInSdp = offer.sdp.includes('m=audio')
+        console.log('🔗 [P2P] Offer SDP contains audio:', hasAudioInSdp)
+        if (!hasAudioInSdp) {
+          console.warn('🔗 [P2P] ⚠️ WARNING: Offer SDP does not contain audio!')
+        }
+      }
+      
       await this.peerConnection.setLocalDescription(offer)
       
       console.log('🔗 [P2P] Offer created, sending to peer')
@@ -186,17 +243,61 @@ class P2PCallManager {
   async handleOffer(offer) {
     try {
       console.log('🔗 [P2P] Received offer, setting remote description...')
+      
+      // Verify local tracks are still in the peer connection
+      const senders = this.peerConnection.getSenders()
+      console.log('🔗 [P2P] Current senders before handling offer:', senders.length)
+      senders.forEach((sender, index) => {
+        if (sender.track) {
+          console.log(`🔗 [P2P] Sender ${index}: track ID=${sender.track.id}, kind=${sender.track.kind}, enabled=${sender.track.enabled}`)
+        } else {
+          console.warn(`🔗 [P2P] Sender ${index}: no track attached`)
+        }
+      })
+      
+      // If no senders with tracks, re-add the local stream
+      const hasAudioTrack = senders.some(sender => sender.track && sender.track.kind === 'audio')
+      if (!hasAudioTrack && this.localStream) {
+        console.log('🔗 [P2P] No audio track found in senders, re-adding local stream...')
+        this.localStream.getAudioTracks().forEach(track => {
+          console.log('🔗 [P2P] Re-adding track to peer connection:', track.id)
+          this.peerConnection.addTrack(track, this.localStream)
+        })
+      }
+      
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
       
       console.log('🔗 [P2P] Creating answer...')
+      // Create answer - tracks added via addTrack() should be automatically included
       const answer = await this.peerConnection.createAnswer()
+      
+      // Verify answer includes audio
+      console.log('🔗 [P2P] Answer SDP type:', answer.type)
+      if (answer.sdp) {
+        const hasAudioInSdp = answer.sdp.includes('m=audio')
+        console.log('🔗 [P2P] Answer SDP contains audio:', hasAudioInSdp)
+        if (!hasAudioInSdp) {
+          console.warn('🔗 [P2P] ⚠️ WARNING: Answer SDP does not contain audio!')
+        }
+      }
+      
       await this.peerConnection.setLocalDescription(answer)
+      
+      // Verify senders after setting local description
+      const sendersAfter = this.peerConnection.getSenders()
+      console.log('🔗 [P2P] Senders after creating answer:', sendersAfter.length)
+      sendersAfter.forEach((sender, index) => {
+        if (sender.track) {
+          console.log(`🔗 [P2P] Sender ${index} after answer: track ID=${sender.track.id}, kind=${sender.track.kind}`)
+        }
+      })
       
       console.log('🔗 [P2P] Answer created, sending to peer')
       this.socket.emit('p2p:answer', {
         callId: this.callId,
         answer: answer
       })
+      console.log('🔗 [P2P] ✅ Answer sent successfully')
     } catch (error) {
       console.error('🔗 [P2P] Error handling offer:', error)
       throw error

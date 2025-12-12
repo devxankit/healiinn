@@ -653,19 +653,79 @@ const CallPopup = () => {
         
         // Set up remote stream handler
         p2pManager.onRemoteStream = (remoteStream) => {
-          console.log('🔗 [P2P] Remote stream received, setting up audio element')
+          console.log('🔗 [P2P] ====== REMOTE STREAM RECEIVED IN CALLPOPUP ======')
+          console.log('🔗 [P2P] Remote stream details:', {
+            id: remoteStream?.id,
+            active: remoteStream?.active,
+            audioTracks: remoteStream?.getAudioTracks().length || 0,
+            videoTracks: remoteStream?.getVideoTracks().length || 0
+          })
+          
+          if (remoteStream) {
+            remoteStream.getTracks().forEach((track, index) => {
+              console.log(`🔗 [P2P] Remote stream track ${index}:`, {
+                id: track.id,
+                kind: track.kind,
+                enabled: track.enabled,
+                muted: track.muted,
+                readyState: track.readyState
+              })
+            })
+          }
+          
           const audioElement = remoteAudioRef.current
+          console.log('🔗 [P2P] Audio element available:', !!audioElement)
+          
           if (audioElement && remoteStream) {
+            console.log('🔗 [P2P] Setting up audio element with remote stream...')
             audioElement.srcObject = remoteStream
             audioElement.volume = 1.0
             audioElement.muted = false
             
-            // Try to play
-            audioElement.play().catch(err => {
-              console.error('🔗 [P2P] Error playing remote audio:', err)
+            console.log('🔗 [P2P] Audio element configured:', {
+              srcObject: !!audioElement.srcObject,
+              volume: audioElement.volume,
+              muted: audioElement.muted,
+              paused: audioElement.paused
             })
             
+            // Try to play with retry logic
+            const playAudio = async (retryCount = 0) => {
+              try {
+                await audioElement.play()
+                console.log('🔗 [P2P] ✅ Remote audio playing successfully')
+              } catch (err) {
+                console.error(`🔗 [P2P] Error playing remote audio (attempt ${retryCount + 1}):`, err)
+                if (retryCount < 3) {
+                  setTimeout(() => playAudio(retryCount + 1), 500)
+                } else {
+                  console.error('🔗 [P2P] ❌ Failed to play remote audio after retries')
+                }
+              }
+            }
+            
+            playAudio()
             console.log('🔗 [P2P] ✅ Remote audio stream configured')
+          } else {
+            if (!audioElement) {
+              console.warn('🔗 [P2P] ⚠️ Audio element not available yet, will retry...')
+              // Retry after a short delay
+              setTimeout(() => {
+                const retryElement = remoteAudioRef.current
+                if (retryElement && remoteStream) {
+                  console.log('🔗 [P2P] Retrying audio element setup...')
+                  retryElement.srcObject = remoteStream
+                  retryElement.volume = 1.0
+                  retryElement.muted = false
+                  retryElement.play().catch(err => {
+                    console.error('🔗 [P2P] Error playing remote audio on retry:', err)
+                  })
+                }
+              }, 500)
+            }
+            if (!remoteStream) {
+              console.error('🔗 [P2P] ❌ No remote stream provided!')
+            }
           }
         }
         
