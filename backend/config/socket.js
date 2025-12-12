@@ -796,15 +796,33 @@ const initializeSocket = (server) => {
     // Connect transport
     socket.on('mediasoup:connectTransport', async (data, callback) => {
       try {
-        const { transportId, dtlsParameters } = data;
+        const { transportId, dtlsParameters, callId } = data;
+        console.log(`📞 [mediasoup:connectTransport] Connecting transport: ${transportId}`);
+        console.log(`📞 [mediasoup:connectTransport] CallId: ${callId || 'not provided'}`);
+        
         if (!transportId || !dtlsParameters) {
+          console.error(`📞 [mediasoup:connectTransport] ❌ Missing required parameters:`, {
+            hasTransportId: !!transportId,
+            hasDtlsParameters: !!dtlsParameters
+          });
           return callback({ error: 'transportId and dtlsParameters are required' });
         }
 
+        console.log(`📞 [mediasoup:connectTransport] DTLS parameters:`, {
+          role: dtlsParameters.role,
+          fingerprints: dtlsParameters.fingerprints?.length || 0
+        });
+
         await connectTransport(transportId, dtlsParameters);
+        console.log(`📞 [mediasoup:connectTransport] ✅ Transport ${transportId} connected successfully`);
         callback({ success: true });
       } catch (error) {
-        console.error('Error in mediasoup:connectTransport:', error);
+        console.error(`📞 [mediasoup:connectTransport] ❌ Error connecting transport:`, error);
+        console.error(`📞 [mediasoup:connectTransport] Error details:`, {
+          message: error.message,
+          stack: error.stack,
+          transportId: data?.transportId
+        });
         callback({ error: error.message || 'Failed to connect transport' });
       }
     });

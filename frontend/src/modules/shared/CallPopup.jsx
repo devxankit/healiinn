@@ -652,27 +652,77 @@ const CallPopup = () => {
         console.log(`🔍 [DIAGNOSTIC] Send transport details:`, {
           id: sendTransport.id,
           connectionState: sendTransport.connectionState,
+          iceState: sendTransport.iceState,
+          dtlsState: sendTransport.dtlsState,
           state: state
         })
+        
+        if (state === 'failed' || state === 'disconnected') {
+          console.error(`🔍 [DIAGNOSTIC] ⚠️ Send transport connection issue: ${state}`)
+          console.error(`🔍 [DIAGNOSTIC] Send transport failure details:`, {
+            id: sendTransport.id,
+            connectionState: sendTransport.connectionState,
+            iceState: sendTransport.iceState,
+            dtlsState: sendTransport.dtlsState,
+            closed: sendTransport.closed,
+            iceServers: iceServers
+          })
+        }
+      })
+      
+      // DIAGNOSTIC: Monitor ICE state changes
+      sendTransport.on('icegatheringstatechange', (state) => {
+        console.log(`🔍 [DIAGNOSTIC] Send transport ICE gathering state: ${state}`)
+      })
+      
+      // DIAGNOSTIC: Monitor ICE connection state
+      sendTransport.on('iceconnectionstatechange', (state) => {
+        console.log(`🔍 [DIAGNOSTIC] Send transport ICE connection state: ${state}`)
+        if (state === 'failed' || state === 'disconnected') {
+          console.error(`🔍 [DIAGNOSTIC] ⚠️ Send transport ICE connection issue: ${state}`)
+        }
+      })
+      
+      // DIAGNOSTIC: Monitor DTLS state changes
+      sendTransport.on('dtlsstatechange', (state) => {
+        console.log(`🔍 [DIAGNOSTIC] Send transport DTLS state: ${state}`)
+        if (state === 'failed') {
+          console.error(`🔍 [DIAGNOSTIC] ⚠️ Send transport DTLS failed`)
+        }
       })
 
       sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
         console.log(`🔍 [DIAGNOSTIC] Send transport connecting...`)
+        console.log(`🔍 [DIAGNOSTIC] DTLS parameters:`, {
+          role: dtlsParameters.role,
+          fingerprints: dtlsParameters.fingerprints?.length || 0
+        })
         try {
+          // Add timeout for transport connection
+          const timeout = setTimeout(() => {
+            console.error(`🔍 [DIAGNOSTIC] ⏱️ Send transport connection timeout (10s)`)
+            errback(new Error('Transport connection timeout'))
+          }, 10000)
+          
           socket.emit('mediasoup:connectTransport', {
             transportId: sendTransport.id,
             dtlsParameters,
+            callId: currentCallId, // Include callId for verification
           }, (response) => {
-            if (response.error) {
-              console.error(`🔍 [DIAGNOSTIC] Send transport DTLS connection failed:`, response.error)
+            clearTimeout(timeout)
+            if (response && response.error) {
+              console.error(`🔍 [DIAGNOSTIC] ❌ Send transport DTLS connection failed:`, response.error)
+              console.error(`🔍 [DIAGNOSTIC] Server response:`, response)
               errback(new Error(response.error))
             } else {
               console.log(`🔍 [DIAGNOSTIC] ✅ Send transport DTLS connected successfully`)
+              console.log(`🔍 [DIAGNOSTIC] Server response:`, response)
               callback()
             }
           })
         } catch (error) {
           console.error(`🔍 [DIAGNOSTIC] Send transport connect error:`, error)
+          console.error(`🔍 [DIAGNOSTIC] Error stack:`, error.stack)
           errback(error)
         }
       })

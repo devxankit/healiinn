@@ -169,11 +169,46 @@ async function createWebRtcTransport(callId, options = {}) {
  * Connect transport
  */
 async function connectTransport(transportId, dtlsParameters) {
+  console.log(`📞 [mediasoup] connectTransport called for: ${transportId}`);
   const transport = transports.get(transportId);
   if (!transport) {
+    console.error(`📞 [mediasoup] ❌ Transport not found: ${transportId}`);
+    console.error(`📞 [mediasoup] Available transports:`, Array.from(transports.keys()));
     throw new Error(`Transport not found: ${transportId}`);
   }
-  await transport.connect({ dtlsParameters });
+  
+  // Check if transport is closed
+  if (transport.closed) {
+    console.error(`📞 [mediasoup] ❌ Transport ${transportId} is already closed`);
+    throw new Error(`Transport ${transportId} is closed`);
+  }
+  
+  console.log(`📞 [mediasoup] Transport found, connecting...`);
+  console.log(`📞 [mediasoup] Transport state:`, {
+    id: transport.id,
+    closed: transport.closed,
+    connectionState: transport.connectionState,
+    iceState: transport.iceState,
+    dtlsState: transport.dtlsState
+  });
+  
+  try {
+    await transport.connect({ dtlsParameters });
+    console.log(`📞 [mediasoup] ✅ Transport ${transportId} connected successfully`);
+    console.log(`📞 [mediasoup] Transport state after connect:`, {
+      connectionState: transport.connectionState,
+      iceState: transport.iceState,
+      dtlsState: transport.dtlsState
+    });
+  } catch (error) {
+    console.error(`📞 [mediasoup] ❌ Transport connect failed:`, error);
+    console.error(`📞 [mediasoup] Error details:`, {
+      message: error.message,
+      stack: error.stack,
+      transportId: transportId
+    });
+    throw error;
+  }
 }
 
 /**
