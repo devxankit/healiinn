@@ -283,18 +283,35 @@ const CallPopup = () => {
         }
 
         const handleNewProducer = async (data) => {
-          console.log('📞 [CallPopup] New producer available:', data)
+          console.log('📞 [CallPopup] ====== mediasoup:newProducer EVENT RECEIVED ======')
+          console.log('📞 [CallPopup] Producer data:', data)
+          console.log('📞 [CallPopup] Our producer ID:', producerRef.current?.id)
+          console.log('📞 [CallPopup] New producer ID:', data.producerId)
+          
           // Don't consume if call is ending or ended
           if (isEndingRef.current || status === 'ended' || status === 'error') {
             console.log('📞 [CallPopup] Ignoring new producer - call is ending or ended')
             return
           }
-          if (data.producerId) {
-            if (producerRef.current && producerRef.current.id !== data.producerId) {
-              await consumeRemoteAudio(data.producerId)
-            } else if (!producerRef.current) {
-              await consumeRemoteAudio(data.producerId)
-            }
+          
+          if (!data.producerId) {
+            console.warn('📞 [CallPopup] New producer event missing producerId')
+            return
+          }
+          
+          // Never consume our own producer
+          const isOurOwnProducer = producerRef.current && producerRef.current.id === data.producerId
+          if (isOurOwnProducer) {
+            console.log('📞 [CallPopup] Ignoring new producer - this is our own producer')
+            return
+          }
+          
+          // Consume the remote producer
+          console.log('📞 [CallPopup] ✅ Consuming remote producer:', data.producerId)
+          try {
+            await consumeRemoteAudio(data.producerId)
+          } catch (error) {
+            console.error('📞 [CallPopup] Error consuming remote audio in handleNewProducer:', error)
           }
         }
 
@@ -309,7 +326,13 @@ const CallPopup = () => {
           socketRef.current = socket
           
           // Join call room BEFORE starting the call
-          await joinCallRoom(socket)
+          console.log('📞 [CallPopup] Joining call room before starting call...')
+          const roomJoined = await joinCallRoom(socket)
+          if (!roomJoined) {
+            console.warn('📞 [CallPopup] Failed to join call room, but continuing with call setup')
+          } else {
+            console.log('📞 [CallPopup] ✅ Successfully joined call room, now starting call')
+          }
           
           // Store cleanup function after socketRef is set
           if (socketRef.current) {
@@ -373,18 +396,35 @@ const CallPopup = () => {
         }
 
         const handleNewProducer = async (data) => {
-          console.log('📞 [CallPopup] New producer available:', data)
+          console.log('📞 [CallPopup] ====== mediasoup:newProducer EVENT RECEIVED ======')
+          console.log('📞 [CallPopup] Producer data:', data)
+          console.log('📞 [CallPopup] Our producer ID:', producerRef.current?.id)
+          console.log('📞 [CallPopup] New producer ID:', data.producerId)
+          
           // Don't consume if call is ending or ended
           if (isEndingRef.current || status === 'ended' || status === 'error') {
             console.log('📞 [CallPopup] Ignoring new producer - call is ending or ended')
             return
           }
-          if (data.producerId) {
-            if (producerRef.current && producerRef.current.id !== data.producerId) {
-              await consumeRemoteAudio(data.producerId)
-            } else if (!producerRef.current) {
-              await consumeRemoteAudio(data.producerId)
-            }
+          
+          if (!data.producerId) {
+            console.warn('📞 [CallPopup] New producer event missing producerId')
+            return
+          }
+          
+          // Never consume our own producer
+          const isOurOwnProducer = producerRef.current && producerRef.current.id === data.producerId
+          if (isOurOwnProducer) {
+            console.log('📞 [CallPopup] Ignoring new producer - this is our own producer')
+            return
+          }
+          
+          // Consume the remote producer
+          console.log('📞 [CallPopup] ✅ Consuming remote producer:', data.producerId)
+          try {
+            await consumeRemoteAudio(data.producerId)
+          } catch (error) {
+            console.error('📞 [CallPopup] Error consuming remote audio in handleNewProducer:', error)
           }
         }
 
@@ -406,7 +446,13 @@ const CallPopup = () => {
         }
         
         // Join call room BEFORE starting the call (for existing socket)
-        await joinCallRoom(socket)
+        console.log('📞 [CallPopup] Joining call room before starting call...')
+        const roomJoined = await joinCallRoom(socket)
+        if (!roomJoined) {
+          console.warn('📞 [CallPopup] Failed to join call room, but continuing with call setup')
+        } else {
+          console.log('📞 [CallPopup] ✅ Successfully joined call room, now starting call')
+        }
         
         // Socket already connected, join call immediately
         joinCall()
@@ -421,13 +467,21 @@ const CallPopup = () => {
   const joinCall = async () => {
     try {
       const socket = socketRef.current
-      if (!socket) return
+      if (!socket) {
+        console.error('📞 [CallPopup] No socket available, cannot join call')
+        return
+      }
 
       const currentCallId = callIdRef.current // Use ref to get current callId
       if (!currentCallId) {
         console.warn('📞 [CallPopup] No callId available, cannot join call')
         return
       }
+      
+      console.log('📞 [CallPopup] ====== JOINING CALL ======')
+      console.log('📞 [CallPopup] Call ID:', currentCallId)
+      console.log('📞 [CallPopup] Socket connected:', socket.connected)
+      console.log('📞 [CallPopup] Socket ID:', socket.id)
 
       // Get RTP capabilities
       const { rtpCapabilities, iceServers } = await new Promise((resolve, reject) => {
@@ -543,6 +597,8 @@ const CallPopup = () => {
       await produceLocalAudio()
 
       // Request existing producers for this call (to handle race condition)
+      // This ensures we consume audio from participants who joined before us
+      console.log('📞 [CallPopup] Fetching existing producers for call:', currentCallId)
       try {
         const existingProducersResponse = await new Promise((resolve, reject) => {
           socket.emit('mediasoup:getProducers', { callId: currentCallId }, (response) => {
@@ -554,21 +610,46 @@ const CallPopup = () => {
           })
         })
 
-        console.log('📞 [CallPopup] Existing producers:', existingProducersResponse.producers)
+        const existingProducers = existingProducersResponse.producers || []
+        console.log('📞 [CallPopup] Found', existingProducers.length, 'existing producer(s):', existingProducers.map(p => p.id))
+        console.log('📞 [CallPopup] Our producer ID:', producerRef.current?.id)
         
         // Consume all existing producers (from other participants who joined earlier)
-        if (existingProducersResponse.producers && existingProducersResponse.producers.length > 0) {
-          for (const producer of existingProducersResponse.producers) {
-            // Only consume if we haven't already consumed this producer
-            // and it's not our own producer
-            if (producer.id && producer.id !== producerRef.current?.id) {
-              console.log('📞 [CallPopup] Consuming existing producer:', producer.id)
-              await consumeRemoteAudio(producer.id)
+        if (existingProducers.length > 0) {
+          for (const producer of existingProducers) {
+            // Only consume if:
+            // 1. Producer has a valid ID
+            // 2. It's not our own producer
+            // 3. We haven't already consumed it (check consumerRef)
+            const isOurProducer = producer.id === producerRef.current?.id
+            const alreadyConsumed = consumerRef.current && 
+              consumerRef.current.producerId === producer.id
+            
+            if (producer.id && !isOurProducer && !alreadyConsumed) {
+              console.log('📞 [CallPopup] ✅ Consuming existing producer:', producer.id)
+              try {
+                await consumeRemoteAudio(producer.id)
+                console.log('📞 [CallPopup] ✅ Successfully consumed existing producer:', producer.id)
+              } catch (error) {
+                console.error('📞 [CallPopup] Error consuming existing producer:', producer.id, error)
+                // Continue with other producers even if one fails
+              }
+            } else {
+              if (isOurProducer) {
+                console.log('📞 [CallPopup] Skipping existing producer - this is our own:', producer.id)
+              } else if (alreadyConsumed) {
+                console.log('📞 [CallPopup] Skipping existing producer - already consumed:', producer.id)
+              } else {
+                console.warn('📞 [CallPopup] Skipping existing producer - invalid ID:', producer)
+              }
             }
           }
+        } else {
+          console.log('📞 [CallPopup] No existing producers found - will wait for new producer events')
         }
       } catch (error) {
         console.warn('📞 [CallPopup] Error getting existing producers (non-critical):', error)
+        console.warn('📞 [CallPopup] Will rely on mediasoup:newProducer events for remote audio')
         // Don't fail the call if this fails - we'll still listen for new producers
       }
 
@@ -616,10 +697,29 @@ const CallPopup = () => {
 
   const produceLocalAudio = async () => {
     try {
+      console.log('📞 [CallPopup] ====== PRODUCING LOCAL AUDIO ======')
+      console.log('📞 [CallPopup] Requesting microphone access...')
+      
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       localStreamRef.current = stream
+      
+      const audioTracks = stream.getAudioTracks()
+      console.log('📞 [CallPopup] Microphone access granted, audio tracks:', audioTracks.length)
+      if (audioTracks.length > 0) {
+        console.log('📞 [CallPopup] Audio track details:', {
+          id: audioTracks[0].id,
+          label: audioTracks[0].label,
+          enabled: audioTracks[0].enabled,
+          muted: audioTracks[0].muted,
+          readyState: audioTracks[0].readyState
+        })
+      }
 
-      const track = stream.getAudioTracks()[0]
+      if (!sendTransportRef.current) {
+        throw new Error('Send transport not available')
+      }
+      
+      const track = audioTracks[0]
       const params = {
         track,
         codecOptions: {
@@ -630,14 +730,25 @@ const CallPopup = () => {
         },
       }
 
+      console.log('📞 [CallPopup] Creating producer with send transport:', sendTransportRef.current.id)
       const producer = await sendTransportRef.current.produce(params)
       producerRef.current = producer
 
-      console.log('Producer created:', producer.id)
+      console.log('📞 [CallPopup] ✅ Producer created successfully:', {
+        id: producer.id,
+        kind: producer.kind,
+        trackId: producer.track?.id
+      })
+      console.log('📞 [CallPopup] Producer will notify other participants via mediasoup:newProducer event')
 
       // Note: We'll consume when we receive mediasoup:newProducer event
     } catch (error) {
-      console.error('Error producing local audio:', error)
+      console.error('📞 [CallPopup] ❌ Error producing local audio:', error)
+      console.error('📞 [CallPopup] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      })
       setError('Failed to access microphone: ' + error.message)
       setStatus('error')
     }
@@ -645,6 +756,9 @@ const CallPopup = () => {
 
   const consumeRemoteAudio = async (producerId) => {
     try {
+      console.log('📞 [CallPopup] ====== CONSUMING REMOTE AUDIO ======')
+      console.log('📞 [CallPopup] Producer ID:', producerId)
+      
       // Don't consume if call is ending or ended
       if (isEndingRef.current || status === 'ended' || status === 'error') {
         console.log('📞 [CallPopup] Cannot consume - call is ending or ended')
@@ -654,8 +768,10 @@ const CallPopup = () => {
       // Close existing consumer if we're replacing it (for 1-to-1 calls, there should only be one remote producer)
       if (consumerRef.current) {
         console.log('📞 [CallPopup] Replacing existing consumer with new producer:', producerId)
+        console.log('📞 [CallPopup] Old consumer ID:', consumerRef.current.id)
         try {
           consumerRef.current.close()
+          console.log('📞 [CallPopup] Old consumer closed')
         } catch (error) {
           console.warn('📞 [CallPopup] Error closing existing consumer:', error)
         }
@@ -667,7 +783,11 @@ const CallPopup = () => {
       const socket = socketRef.current
 
       if (!device || !recvTransport || !socket) {
-        console.warn('📞 [CallPopup] Cannot consume - missing device, transport, or socket')
+        console.warn('📞 [CallPopup] Cannot consume - missing required components:', {
+          device: !!device,
+          recvTransport: !!recvTransport,
+          socket: !!socket
+        })
         return
       }
 
@@ -677,6 +797,10 @@ const CallPopup = () => {
         return
       }
 
+      console.log('📞 [CallPopup] Requesting consumer from server...')
+      console.log('📞 [CallPopup] Transport ID:', recvTransport.id)
+      console.log('📞 [CallPopup] Call ID:', currentCallId)
+      
       const { consumer } = await new Promise((resolve, reject) => {
         socket.emit('mediasoup:consume', {
           transportId: recvTransport.id,
@@ -685,8 +809,10 @@ const CallPopup = () => {
           callId: currentCallId,
         }, (response) => {
           if (response.error) {
+            console.error('📞 [CallPopup] Server error creating consumer:', response.error)
             reject(new Error(response.error))
           } else {
+            console.log('📞 [CallPopup] ✅ Consumer created on server:', response.consumer?.id)
             resolve(response)
           }
         })
@@ -698,6 +824,7 @@ const CallPopup = () => {
         return
       }
 
+      console.log('📞 [CallPopup] Creating consumer instance with mediasoup-client...')
       // Create consumer using mediasoup-client
       const consumerInstance = await recvTransport.consume({
         id: consumer.id,
@@ -707,99 +834,151 @@ const CallPopup = () => {
       })
 
       consumerRef.current = consumerInstance
+      console.log('📞 [CallPopup] ✅ Consumer instance created:', {
+        id: consumerInstance.id,
+        producerId: consumerInstance.producerId,
+        kind: consumerInstance.kind,
+        hasTrack: !!consumerInstance.track
+      })
 
       // Resume consumer on server (consumers are paused by default in mediasoup)
+      console.log('📞 [CallPopup] Resuming consumer on server...')
       try {
         await new Promise((resolve, reject) => {
           socket.emit('mediasoup:resumeConsumer', {
             consumerId: consumerInstance.id,
           }, (response) => {
             if (response.error) {
+              console.error('📞 [CallPopup] Server error resuming consumer:', response.error)
               reject(new Error(response.error))
             } else {
+              console.log('📞 [CallPopup] ✅ Consumer resumed on server')
               resolve(response)
             }
           })
         })
-        console.log('📞 [CallPopup] Consumer resumed on server:', consumerInstance.id)
       } catch (error) {
-        console.error('📞 [CallPopup] Error resuming consumer:', error)
+        console.error('📞 [CallPopup] ❌ Error resuming consumer:', error)
         // Don't fail the call if resume fails - try to continue anyway
       }
 
       // Ensure the track is enabled
       if (consumerInstance.track) {
         consumerInstance.track.enabled = true
-        console.log('📞 [CallPopup] Consumer track enabled:', {
+        console.log('📞 [CallPopup] Consumer track details:', {
           id: consumerInstance.track.id,
           kind: consumerInstance.track.kind,
           enabled: consumerInstance.track.enabled,
-          readyState: consumerInstance.track.readyState
+          readyState: consumerInstance.track.readyState,
+          muted: consumerInstance.track.muted
         })
+      } else {
+        console.error('📞 [CallPopup] ❌ Consumer instance has no track!')
       }
 
-      // Wait for audio element to be ready
-      const setupAudioElement = () => {
+      // Wait for audio element to be ready and set up remote audio playback
+      console.log('📞 [CallPopup] Setting up audio element for remote audio...')
+      const setupAudioElement = (retryCount = 0) => {
+        const maxRetries = 10
         if (!remoteAudioRef.current) {
-          console.warn('📞 [CallPopup] Audio element not available, retrying...')
-          // Retry after a short delay if element is not ready
-          setTimeout(() => {
-            if (remoteAudioRef.current) {
-              setupAudioElement()
-            } else {
-              console.error('📞 [CallPopup] Audio element still not available after retry')
-            }
-          }, 100)
-          return
+          if (retryCount < maxRetries) {
+            console.warn(`📞 [CallPopup] Audio element not available, retrying... (${retryCount + 1}/${maxRetries})`)
+            // Retry after a short delay if element is not ready
+            setTimeout(() => {
+              setupAudioElement(retryCount + 1)
+            }, 100)
+            return
+          } else {
+            console.error('📞 [CallPopup] ❌ Audio element still not available after', maxRetries, 'retries')
+            return
+          }
         }
 
         const audioElement = remoteAudioRef.current
+        console.log('📞 [CallPopup] Audio element found, setting up remote audio stream...')
 
         // Create audio element for remote audio
         const stream = new MediaStream([consumerInstance.track])
+        console.log('📞 [CallPopup] Created MediaStream with track:', {
+          trackId: consumerInstance.track.id,
+          kind: consumerInstance.track.kind,
+          enabled: consumerInstance.track.enabled
+        })
         
         // Set up audio element properties
         audioElement.srcObject = stream
         audioElement.volume = 1.0 // Ensure volume is at maximum
         audioElement.muted = false // Ensure not muted
         
+        console.log('📞 [CallPopup] Audio element configured:', {
+          volume: audioElement.volume,
+          muted: audioElement.muted,
+          paused: audioElement.paused,
+          readyState: audioElement.readyState
+        })
+        
         // Add event listeners for debugging
-        audioElement.addEventListener('loadedmetadata', () => {
-          console.log('📞 [CallPopup] Audio metadata loaded')
-        })
+        const onLoadedMetadata = () => {
+          console.log('📞 [CallPopup] ✅ Audio metadata loaded')
+        }
         
-        audioElement.addEventListener('canplay', () => {
-          console.log('📞 [CallPopup] Audio can play')
-        })
+        const onCanPlay = () => {
+          console.log('📞 [CallPopup] ✅ Audio can play')
+        }
         
-        audioElement.addEventListener('play', () => {
-          console.log('📞 [CallPopup] Audio started playing')
-        })
+        const onPlay = () => {
+          console.log('📞 [CallPopup] ✅ Audio started playing')
+        }
         
-        audioElement.addEventListener('error', (e) => {
-          console.error('📞 [CallPopup] Audio element error:', e)
-        })
+        const onError = (e) => {
+          console.error('📞 [CallPopup] ❌ Audio element error:', e)
+          console.error('📞 [CallPopup] Error details:', {
+            error: audioElement.error,
+            code: audioElement.error?.code,
+            message: audioElement.error?.message
+          })
+        }
+        
+        audioElement.addEventListener('loadedmetadata', onLoadedMetadata)
+        audioElement.addEventListener('canplay', onCanPlay)
+        audioElement.addEventListener('play', onPlay)
+        audioElement.addEventListener('error', onError)
 
         // Play the audio with retry logic
-        const playAudio = async () => {
+        const playAudio = async (playRetryCount = 0) => {
+          const maxPlayRetries = 3
           try {
+            console.log('📞 [CallPopup] Attempting to play remote audio...')
             await audioElement.play()
-            console.log('📞 [CallPopup] Remote audio playing successfully')
+            console.log('📞 [CallPopup] ✅ Remote audio playing successfully')
           } catch (playError) {
-            console.warn('📞 [CallPopup] Initial play() failed, retrying...', playError)
-            // Retry after a short delay
-            setTimeout(async () => {
-              try {
-                await audioElement.play()
-                console.log('📞 [CallPopup] Remote audio playing after retry')
-              } catch (retryError) {
-                console.error('📞 [CallPopup] Failed to play remote audio after retry:', retryError)
-                // Some browsers require user interaction - log but don't fail
-                if (retryError.name === 'NotAllowedError') {
-                  console.warn('📞 [CallPopup] Browser blocked autoplay - user interaction may be required')
+            console.warn('📞 [CallPopup] Initial play() failed:', playError.name, playError.message)
+            if (playRetryCount < maxPlayRetries) {
+              // Retry after a short delay
+              console.log(`📞 [CallPopup] Retrying play()... (${playRetryCount + 1}/${maxPlayRetries})`)
+              setTimeout(async () => {
+                try {
+                  await audioElement.play()
+                  console.log('📞 [CallPopup] ✅ Remote audio playing after retry')
+                } catch (retryError) {
+                  console.error('📞 [CallPopup] ❌ Failed to play remote audio after retry:', retryError)
+                  // Some browsers require user interaction - log but don't fail
+                  if (retryError.name === 'NotAllowedError') {
+                    console.warn('📞 [CallPopup] Browser blocked autoplay - user interaction may be required')
+                  } else {
+                    // Try one more time if not a permission error
+                    if (playRetryCount < maxPlayRetries - 1) {
+                      playAudio(playRetryCount + 1)
+                    }
+                  }
                 }
+              }, 200 * (playRetryCount + 1)) // Exponential backoff
+            } else {
+              console.error('📞 [CallPopup] ❌ Failed to play remote audio after', maxPlayRetries, 'retries')
+              if (playError.name === 'NotAllowedError') {
+                console.warn('📞 [CallPopup] Browser blocked autoplay - user interaction may be required')
               }
-            }, 200)
+            }
           }
         }
 
@@ -809,7 +988,7 @@ const CallPopup = () => {
       // Setup audio element (with retry if not ready)
       setupAudioElement()
       
-      console.log('📞 [CallPopup] Successfully consuming remote audio from producer:', producerId)
+      console.log('📞 [CallPopup] ✅ Successfully consuming remote audio from producer:', producerId)
     } catch (error) {
       // Check if error is due to call being ended or transport/router being closed
       const errorMessage = error.message || error.toString()
