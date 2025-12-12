@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -21,20 +21,23 @@ import {
   FaUserMd,
   FaPills,
   FaFlask,
+  FaHeartbeat,
 } from 'react-icons/fa'
 import { useToast } from '../../../contexts/ToastContext'
 import { signupPatient } from '../../patient/patient-services/patientService'
 import { signupDoctor } from '../../doctor/doctor-services/doctorService'
 import { signupPharmacy } from '../../pharmacy/pharmacy-services/pharmacyService'
 import { signupLaboratory } from '../../laboratory/laboratory-services/laboratoryService'
+import { signupNurse } from '../../nurse/nurse-services/nurseService'
 import WebFooter from '../web-components/WebFooter'
 import onboardingImage from '../../../assets/images/img4.png'
 import healinnLogo from '../../../assets/images/logo.png'
 
 const WebOnBoarding = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
-  const [selectedUserType, setSelectedUserType] = useState('patient') // 'patient' | 'doctor' | 'pharmacy' | 'laboratory'
+  const [selectedUserType, setSelectedUserType] = useState('patient') // 'patient' | 'doctor' | 'pharmacy' | 'laboratory' | 'nurse'
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Refs for user type buttons to measure positions for indicator
@@ -42,6 +45,7 @@ const WebOnBoarding = () => {
   const doctorButtonRef = useRef(null)
   const pharmacyButtonRef = useRef(null)
   const laboratoryButtonRef = useRef(null)
+  const nurseButtonRef = useRef(null)
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
 
   // Patient signup state
@@ -146,6 +150,37 @@ const WebOnBoarding = () => {
   const [laboratoryData, setLaboratoryData] = useState(initialLaboratoryState)
   const [laboratoryDocuments, setLaboratoryDocuments] = useState([]) // Array of {file, preview, id}
 
+  // Nurse signup state
+  const initialNurseState = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    gender: '',
+    qualification: '',
+    registrationNumber: '',
+    registrationCouncilName: '',
+    experienceYears: '',
+    specialization: '',
+    fees: '',
+    bio: '',
+    address: {
+      line1: '',
+      line2: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: '',
+    },
+    termsAccepted: false,
+  }
+  const [nurseData, setNurseData] = useState(initialNurseState)
+  const [nurseDocuments, setNurseDocuments] = useState({
+    nursingCertificate: null,
+    registrationCertificate: null,
+    profileImage: null,
+  }) // Object with file, preview, name for each document type
+
   // Document upload handlers
   const handleDoctorDocumentUpload = (e) => {
     const files = Array.from(e.target.files || [])
@@ -246,6 +281,42 @@ const WebOnBoarding = () => {
     setLaboratoryDocuments((prev) => prev.filter((doc) => doc.id !== id))
   }
 
+  const handleNurseDocumentUpload = (e, documentType) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      toast.error(`File ${file.name} is too large. Maximum size is 10MB.`)
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setNurseDocuments((prev) => ({
+        ...prev,
+        [documentType]: {
+          file: file,
+          preview: reader.result,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+        },
+      }))
+    }
+    reader.readAsDataURL(file)
+
+    // Reset input
+    e.target.value = ''
+  }
+
+  const removeNurseDocument = (documentType) => {
+    setNurseDocuments((prev) => ({
+      ...prev,
+      [documentType]: null,
+    }))
+  }
+
   // Preview modal state
   const [previewDoc, setPreviewDoc] = useState(null)
 
@@ -258,6 +329,18 @@ const WebOnBoarding = () => {
       reader.onerror = (error) => reject(error)
     })
   }
+
+  // Scroll to top when component mounts or route changes
+  useEffect(() => {
+    // Scroll window to top
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    
+    // Also scroll the form container to top (for mobile/scrollable sections)
+    const formContainer = document.querySelector('.overflow-y-auto')
+    if (formContainer) {
+      formContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    }
+  }, [location.pathname])
 
   // Update indicator position based on selected user type
   useEffect(() => {
@@ -272,7 +355,9 @@ const WebOnBoarding = () => {
             ? doctorButtonRef
             : selectedUserType === 'pharmacy'
               ? pharmacyButtonRef
-              : laboratoryButtonRef
+              : selectedUserType === 'laboratory'
+                ? laboratoryButtonRef
+                : nurseButtonRef
 
       const activeButton = activeButtonRef.current
       if (!activeButton) return
@@ -305,6 +390,11 @@ const WebOnBoarding = () => {
     setDoctorDocuments([])
     setPharmacyDocuments([])
     setLaboratoryDocuments([])
+    setNurseDocuments({
+      nursingCertificate: null,
+      registrationCertificate: null,
+      profileImage: null,
+    })
   }
 
   // Patient form handlers
@@ -890,6 +980,161 @@ const WebOnBoarding = () => {
     }
   }
 
+  // Nurse form handlers
+  const handleNurseChange = (e) => {
+    const { name, value, type, checked } = e.target
+
+    if (name === 'termsAccepted') {
+      setNurseData((prev) => ({
+        ...prev,
+        termsAccepted: checked,
+      }))
+      return
+    }
+
+    if (name.startsWith('address.')) {
+      const key = name.split('.')[1]
+      setNurseData((prev) => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          [key]: value,
+        },
+      }))
+      return
+    }
+
+    if (name === 'phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setNurseData((prev) => ({
+        ...prev,
+        [name]: numericValue,
+      }))
+      return
+    }
+
+    if (name === 'fees') {
+      // Remove any non-numeric characters except decimal point
+      const cleanedValue = value.replace(/[^\d.]/g, '')
+      // Ensure only one decimal point
+      const parts = cleanedValue.split('.')
+      const finalValue = parts.length > 1 ? parts[0] + '.' + parts.slice(1).join('') : parts[0]
+      setNurseData((prev) => ({
+        ...prev,
+        [name]: finalValue,
+      }))
+      return
+    }
+
+    setNurseData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }))
+  }
+
+  const handleNurseSubmit = async (e) => {
+    e.preventDefault()
+    
+    if (!nurseData.termsAccepted) {
+      toast.error('Please accept the terms and conditions')
+      return
+    }
+
+    if (!nurseData.firstName || !nurseData.email || !nurseData.phone || !nurseData.qualification || !nurseData.registrationNumber || !nurseData.registrationCouncilName) {
+      toast.error('Please fill in all required fields.')
+      return
+    }
+
+    if (nurseData.firstName.trim().length < 2) {
+      toast.error('First name must be at least 2 characters')
+      return
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(nurseData.email.trim())) {
+      toast.error('Please enter a valid email address')
+      return
+    }
+
+    if (nurseData.phone.length !== 10) {
+      toast.error('Please enter a valid 10-digit mobile number')
+      return
+    }
+
+    if (!nurseData.address.line1 || !nurseData.address.city || !nurseData.address.state || !nurseData.address.postalCode) {
+      toast.error('Please provide complete address (Line 1, City, State, and Postal Code)')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      // Convert documents to base64
+      const documentsBase64 = []
+      if (nurseDocuments.nursingCertificate) {
+        const base64 = await fileToBase64(nurseDocuments.nursingCertificate.file)
+        documentsBase64.push({
+          name: nurseDocuments.nursingCertificate.name,
+          type: nurseDocuments.nursingCertificate.type,
+          data: base64,
+        })
+      }
+      if (nurseDocuments.registrationCertificate) {
+        const base64 = await fileToBase64(nurseDocuments.registrationCertificate.file)
+        documentsBase64.push({
+          name: nurseDocuments.registrationCertificate.name,
+          type: nurseDocuments.registrationCertificate.type,
+          data: base64,
+        })
+      }
+
+      const payload = {
+        firstName: nurseData.firstName,
+        lastName: nurseData.lastName || undefined,
+        email: nurseData.email,
+        phone: nurseData.phone,
+        gender: nurseData.gender || undefined,
+        qualification: nurseData.qualification,
+        registrationNumber: nurseData.registrationNumber,
+        registrationCouncilName: nurseData.registrationCouncilName,
+        experienceYears: nurseData.experienceYears ? Number(nurseData.experienceYears) : undefined,
+        specialization: nurseData.specialization || undefined,
+        fees: nurseData.fees && nurseData.fees !== '' 
+          ? (() => {
+              const feeStr = String(nurseData.fees).trim()
+              const feeNum = parseFloat(feeStr)
+              return !isNaN(feeNum) && isFinite(feeNum) ? feeNum : undefined
+            })()
+          : undefined,
+        bio: nurseData.bio || undefined,
+        address: {
+          line1: nurseData.address.line1,
+          city: nurseData.address.city,
+          state: nurseData.address.state,
+          postalCode: nurseData.address.postalCode,
+          country: nurseData.address.country || 'India',
+          line2: nurseData.address.line2 || undefined,
+        },
+        documents: documentsBase64.length > 0 ? documentsBase64 : undefined,
+      }
+
+      const response = await signupNurse(payload)
+
+      if (response.success) {
+        toast.success('Registration submitted successfully! Please wait for admin approval. Redirecting to home...')
+        setTimeout(() => {
+          navigate('/')
+        }, 1500)
+      } else {
+        toast.error(response.message || 'Registration failed. Please try again.')
+        setIsSubmitting(false)
+      }
+    } catch (error) {
+      console.error('Signup error:', error)
+      toast.error(error.message || 'An error occurred. Please try again.')
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex flex-col md:flex-row flex-1">
@@ -1004,6 +1249,21 @@ const WebOnBoarding = () => {
                 <div className="flex items-center justify-center gap-2">
                   <FaFlask className="text-base sm:text-lg" />
                   <span className="hidden sm:inline">Lab</span>
+                </div>
+              </button>
+              <button
+                ref={nurseButtonRef}
+                type="button"
+                onClick={() => handleUserTypeChange('nurse')}
+                className={`relative z-10 flex-1 rounded-xl py-3 px-4 text-xs sm:text-sm font-semibold text-center transition ${
+                  selectedUserType === 'nurse'
+                    ? 'text-white'
+                    : 'text-white/70 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <FaHeartbeat className="text-base sm:text-lg" />
+                  <span className="hidden sm:inline">Nurse</span>
                 </div>
               </button>
             </div>
@@ -2549,6 +2809,457 @@ const WebOnBoarding = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting || !laboratoryData.termsAccepted}
+                  className="w-full flex h-12 items-center justify-center gap-2 rounded-xl bg-white text-[#11496c] text-base font-semibold shadow-lg transition hover:bg-white/90 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#11496c] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      Complete Registration
+                      <IoArrowForwardOutline className="text-xl" />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* Nurse Form */}
+            {selectedUserType === 'nurse' && (
+              <form onSubmit={handleNurseSubmit} className="space-y-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-firstName" className="text-sm font-semibold text-white">
+                      First Name <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none z-10">
+                        <IoPersonOutline className="h-5 w-5 text-white" />
+                      </span>
+                      <input
+                        id="nurse-firstName"
+                        name="firstName"
+                        type="text"
+                        value={nurseData.firstName}
+                        onChange={handleNurseChange}
+                        required
+                        placeholder="John"
+                        maxLength={50}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 pl-11 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-lastName" className="text-sm font-semibold text-white">
+                      Last Name
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none z-10">
+                        <IoPersonOutline className="h-5 w-5 text-white" />
+                      </span>
+                      <input
+                        id="nurse-lastName"
+                        name="lastName"
+                        type="text"
+                        value={nurseData.lastName}
+                        onChange={handleNurseChange}
+                        placeholder="Doe"
+                        maxLength={50}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 pl-11 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-email" className="text-sm font-semibold text-white">
+                      Email <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none z-10">
+                        <IoMailOutline className="h-5 w-5 text-white" />
+                      </span>
+                      <input
+                        id="nurse-email"
+                        name="email"
+                        type="email"
+                        value={nurseData.email}
+                        onChange={handleNurseChange}
+                        required
+                        placeholder="nurse@example.com"
+                        maxLength={100}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 pl-11 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-phone" className="text-sm font-semibold text-white">
+                      Phone <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none z-10">
+                        <IoCallOutline className="h-5 w-5 text-white" />
+                      </span>
+                      <input
+                        id="nurse-phone"
+                        name="phone"
+                        type="tel"
+                        value={nurseData.phone}
+                        onChange={handleNurseChange}
+                        required
+                        placeholder="9876543210"
+                        maxLength={10}
+                        inputMode="numeric"
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 pl-11 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-gender" className="text-sm font-semibold text-white">
+                      Gender
+                    </label>
+                    <select
+                      id="nurse-gender"
+                      name="gender"
+                      value={nurseData.gender}
+                      onChange={handleNurseChange}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    >
+                      <option value="" className="text-slate-900">Select gender</option>
+                      <option value="male" className="text-slate-900">Male</option>
+                      <option value="female" className="text-slate-900">Female</option>
+                      <option value="other" className="text-slate-900">Other</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-qualification" className="text-sm font-semibold text-white">
+                      Qualification <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none z-10">
+                        <IoSchoolOutline className="h-5 w-5 text-white" />
+                      </span>
+                      <input
+                        id="nurse-qualification"
+                        name="qualification"
+                        type="text"
+                        value={nurseData.qualification}
+                        onChange={handleNurseChange}
+                        required
+                        placeholder="GNM, B.Sc Nursing, etc."
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 pl-11 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-registrationNumber" className="text-sm font-semibold text-white">
+                      Registration Number <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none z-10">
+                        <IoDocumentTextOutline className="h-5 w-5 text-white" />
+                      </span>
+                      <input
+                        id="nurse-registrationNumber"
+                        name="registrationNumber"
+                        type="text"
+                        value={nurseData.registrationNumber}
+                        onChange={handleNurseChange}
+                        required
+                        placeholder="Enter nursing registration number"
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 pl-11 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-registrationCouncilName" className="text-sm font-semibold text-white">
+                      Registration Council Name <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      id="nurse-registrationCouncilName"
+                      name="registrationCouncilName"
+                      type="text"
+                      value={nurseData.registrationCouncilName}
+                      onChange={handleNurseChange}
+                      required
+                      placeholder="Indian Nursing Council, etc."
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-experienceYears" className="text-sm font-semibold text-white">
+                      Experience (Years)
+                    </label>
+                    <input
+                      id="nurse-experienceYears"
+                      name="experienceYears"
+                      type="number"
+                      value={nurseData.experienceYears}
+                      onChange={handleNurseChange}
+                      placeholder="5"
+                      min="0"
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-specialization" className="text-sm font-semibold text-white">
+                      Specialization
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none z-10">
+                        <IoMedicalOutline className="h-5 w-5 text-white" />
+                      </span>
+                      <input
+                        id="nurse-specialization"
+                        name="specialization"
+                        type="text"
+                        value={nurseData.specialization}
+                        onChange={handleNurseChange}
+                        placeholder="Critical Care, Pediatric, etc."
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 pl-11 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-fees" className="text-sm font-semibold text-white">
+                      Service Fee (₹)
+                    </label>
+                    <input
+                      id="nurse-fees"
+                      name="fees"
+                      type="number"
+                      value={nurseData.fees}
+                      onChange={handleNurseChange}
+                      placeholder="500"
+                      min="0"
+                      step="1"
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 sm:col-span-2">
+                    <label htmlFor="nurse-bio" className="text-sm font-semibold text-white">
+                      Bio
+                    </label>
+                    <textarea
+                      id="nurse-bio"
+                      name="bio"
+                      value={nurseData.bio}
+                      onChange={handleNurseChange}
+                      rows="3"
+                      placeholder="Tell us about your professional background..."
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50 resize-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div className="border-t border-white/20 pt-4 space-y-4">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <IoLocationOutline className="h-5 w-5" />
+                    Address <span className="text-red-400">*</span>
+                  </h3>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5 sm:col-span-2">
+                      <label htmlFor="nurse-address.line1" className="text-sm font-semibold text-white">
+                        Address Line 1 <span className="text-red-400">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none z-10">
+                          <IoLocationOutline className="h-5 w-5 text-white" />
+                        </span>
+                        <input
+                          id="nurse-address.line1"
+                          name="address.line1"
+                          value={nurseData.address.line1}
+                          onChange={handleNurseChange}
+                          required
+                          placeholder="123 Health Street"
+                          disabled={isSubmitting}
+                          className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 pl-11 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+                    <input
+                      name="address.line2"
+                      value={nurseData.address.line2}
+                      onChange={handleNurseChange}
+                      placeholder="Address Line 2 (optional)"
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    />
+                    <input
+                      name="address.city"
+                      value={nurseData.address.city}
+                      onChange={handleNurseChange}
+                      required
+                      placeholder="City"
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    />
+                    <input
+                      name="address.state"
+                      value={nurseData.address.state}
+                      onChange={handleNurseChange}
+                      required
+                      placeholder="State"
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    />
+                    <input
+                      name="address.postalCode"
+                      value={nurseData.address.postalCode}
+                      onChange={handleNurseChange}
+                      required
+                      placeholder="Postal Code"
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    />
+                    <input
+                      name="address.country"
+                      value={nurseData.address.country}
+                      onChange={handleNurseChange}
+                      placeholder="Country"
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-3 text-sm text-white placeholder-white/50 outline-none transition focus:border-white/40 focus:bg-white/15 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                {/* Documents Upload */}
+                <div className="border-t border-white/20 pt-4 space-y-4">
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <IoDocumentTextOutline className="h-5 w-5" />
+                    Upload Documents
+                  </h3>
+                  <p className="text-xs text-white/70">
+                    Upload your nursing certificate and registration certificate (PDF, JPG, PNG, DOC - Max 10MB each)
+                  </p>
+                  
+                  {/* Nursing Certificate */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-white/80">Nursing Certificate</label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        id="nurse-nursingCertificate"
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                        onChange={(e) => handleNurseDocumentUpload(e, 'nursingCertificate')}
+                        disabled={isSubmitting}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="nurse-nursingCertificate"
+                        className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                          isSubmitting
+                            ? 'border-white/10 bg-white/5 cursor-not-allowed opacity-50'
+                            : 'border-white/30 bg-white/5 hover:border-white/50 hover:bg-white/10'
+                        }`}
+                      >
+                        <IoCloudUploadOutline className="h-6 w-6 text-white/70 mb-1" />
+                        <p className="text-xs font-medium text-white">Click to upload</p>
+                      </label>
+                    </div>
+                    {nurseDocuments.nursingCertificate && (
+                      <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/10 border border-white/20">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <IoDocumentTextOutline className="h-4 w-4 text-white shrink-0" />
+                          <p className="text-xs font-medium text-white truncate">{nurseDocuments.nursingCertificate.name}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeNurseDocument('nursingCertificate')}
+                          disabled={isSubmitting}
+                          className="p-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 transition disabled:opacity-50"
+                        >
+                          <IoCloseCircleOutline className="h-4 w-4 text-red-300" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Registration Certificate */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-white/80">Registration Certificate</label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        id="nurse-registrationCertificate"
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                        onChange={(e) => handleNurseDocumentUpload(e, 'registrationCertificate')}
+                        disabled={isSubmitting}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="nurse-registrationCertificate"
+                        className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                          isSubmitting
+                            ? 'border-white/10 bg-white/5 cursor-not-allowed opacity-50'
+                            : 'border-white/30 bg-white/5 hover:border-white/50 hover:bg-white/10'
+                        }`}
+                      >
+                        <IoCloudUploadOutline className="h-6 w-6 text-white/70 mb-1" />
+                        <p className="text-xs font-medium text-white">Click to upload</p>
+                      </label>
+                    </div>
+                    {nurseDocuments.registrationCertificate && (
+                      <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/10 border border-white/20">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <IoDocumentTextOutline className="h-4 w-4 text-white shrink-0" />
+                          <p className="text-xs font-medium text-white truncate">{nurseDocuments.registrationCertificate.name}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeNurseDocument('registrationCertificate')}
+                          disabled={isSubmitting}
+                          className="p-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 transition disabled:opacity-50"
+                        >
+                          <IoCloseCircleOutline className="h-4 w-4 text-red-300" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-3 rounded-xl bg-white/5 backdrop-blur-sm px-4 py-4 text-sm text-white/90">
+                  <input
+                    type="checkbox"
+                    name="termsAccepted"
+                    checked={nurseData.termsAccepted}
+                    onChange={handleNurseChange}
+                    disabled={isSubmitting}
+                    className="mt-0.5 h-4 w-4 rounded border-white/30 bg-white/10 text-[#11496c] focus:ring-white/20 disabled:cursor-not-allowed"
+                  />
+                  <span>
+                    I have read and agree to Healiinn's{' '}
+                    <a href="/terms" className="font-semibold text-white underline hover:text-white/80">
+                      terms of service
+                    </a>{' '}
+                    and{' '}
+                    <a href="/privacy" className="font-semibold text-white underline hover:text-white/80">
+                      privacy policy
+                    </a>
+                    .
+                  </span>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !nurseData.termsAccepted}
                   className="w-full flex h-12 items-center justify-center gap-2 rounded-xl bg-white text-[#11496c] text-base font-semibold shadow-lg transition hover:bg-white/90 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#11496c] disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isSubmitting ? (
