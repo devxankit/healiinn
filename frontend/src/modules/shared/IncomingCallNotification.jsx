@@ -4,6 +4,7 @@ import { getSocket } from '../../utils/socketClient'
 import { openCallPopup } from '../../utils/callService'
 import { useToast } from '../../contexts/ToastContext'
 import { useCall } from '../../contexts/CallContext'
+import ringtoneSound from '../../assets/sounds/ringtone-030-437513.mp3'
 
 const IncomingCallNotification = () => {
   const [incomingCall, setIncomingCall] = useState(null) // { callId, appointmentId, doctorName }
@@ -12,6 +13,8 @@ const IncomingCallNotification = () => {
   const { startCall } = useCall()
   // Track ended callIds to prevent showing notifications for already-ended calls
   const endedCallIdsRef = useRef(new Set())
+  // Audio ref for ringtone
+  const ringtoneRef = useRef(null)
 
   useEffect(() => {
     console.log('📞 [IncomingCallNotification] Component mounted, setting up listeners...')
@@ -127,6 +130,12 @@ const IncomingCallNotification = () => {
             
             if (shouldClose) {
               console.log('📞 [IncomingCallNotification] Closing notification - call ended by doctor')
+              // Stop ringtone when call is ended
+              if (ringtoneRef.current) {
+                ringtoneRef.current.pause()
+                ringtoneRef.current.currentTime = 0
+                console.log('📞 [IncomingCallNotification] Ringtone stopped (call ended)')
+              }
               toast.info('Call was ended by the doctor')
               setIsProcessing(false)
               return null
@@ -224,8 +233,58 @@ const IncomingCallNotification = () => {
     }
   }, [])
 
+  // Play ringtone when incoming call is received
+  useEffect(() => {
+    if (incomingCall && !isProcessing) {
+      // Initialize audio if not already done
+      if (!ringtoneRef.current) {
+        ringtoneRef.current = new Audio(ringtoneSound)
+        ringtoneRef.current.loop = true
+        ringtoneRef.current.volume = 0.7 // Set volume to 70%
+      }
+
+      // Play ringtone
+      const playRingtone = async () => {
+        try {
+          ringtoneRef.current.currentTime = 0 // Reset to start
+          await ringtoneRef.current.play()
+          console.log('📞 [IncomingCallNotification] Ringtone started')
+        } catch (error) {
+          console.warn('📞 [IncomingCallNotification] Could not play ringtone:', error)
+          // Some browsers require user interaction before playing audio
+          // This is okay - the notification will still show
+        }
+      }
+
+      playRingtone()
+
+      // Cleanup: stop ringtone when component unmounts or call is cleared
+      return () => {
+        if (ringtoneRef.current) {
+          ringtoneRef.current.pause()
+          ringtoneRef.current.currentTime = 0
+          console.log('📞 [IncomingCallNotification] Ringtone stopped')
+        }
+      }
+    } else {
+      // Stop ringtone if no incoming call
+      if (ringtoneRef.current && !ringtoneRef.current.paused) {
+        ringtoneRef.current.pause()
+        ringtoneRef.current.currentTime = 0
+        console.log('📞 [IncomingCallNotification] Ringtone stopped (no incoming call)')
+      }
+    }
+  }, [incomingCall, isProcessing])
+
   const handleAcceptCall = async () => {
     if (!incomingCall || isProcessing) return
+
+    // Stop ringtone immediately when accepting
+    if (ringtoneRef.current) {
+      ringtoneRef.current.pause()
+      ringtoneRef.current.currentTime = 0
+      console.log('📞 [IncomingCallNotification] Ringtone stopped (call accepted)')
+    }
 
     const socket = getSocket()
     if (!socket || !socket.connected) {
@@ -317,6 +376,13 @@ const IncomingCallNotification = () => {
 
   const handleDeclineCall = () => {
     if (!incomingCall || isProcessing) return
+
+    // Stop ringtone immediately when declining
+    if (ringtoneRef.current) {
+      ringtoneRef.current.pause()
+      ringtoneRef.current.currentTime = 0
+      console.log('📞 [IncomingCallNotification] Ringtone stopped (call declined)')
+    }
 
     const socket = getSocket()
     if (!socket || !socket.connected) {

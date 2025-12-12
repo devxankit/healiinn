@@ -4,6 +4,7 @@ import { IoCallOutline, IoMicOutline, IoMicOffOutline, IoCloseOutline, IoRemoveO
 import { useCall } from '../../contexts/CallContext'
 import { formatCallDuration } from '../../utils/callService'
 import { getSocket } from '../../utils/socketClient'
+import callingRingtone from '../../assets/sounds/phone-ringing-382734.mp3'
 
 const DoctorCallStatus = () => {
   const location = useLocation()
@@ -27,6 +28,8 @@ const DoctorCallStatus = () => {
   // Use refs to avoid stale closures in socket handlers
   const callStatusRef = useRef(callStatus)
   const callInfoRef = useRef(callInfo)
+  // Audio ref for calling ringtone
+  const callingRingtoneRef = useRef(null)
 
   // Center popup on screen when call starts
   useEffect(() => {
@@ -81,6 +84,49 @@ const DoctorCallStatus = () => {
     callInfoRef.current = callInfo
   }, [callStatus, callInfo])
 
+  // Play calling ringtone when doctor is calling patient
+  useEffect(() => {
+    if (callStatus === 'calling' && callInfo?.callId) {
+      // Initialize audio if not already done
+      if (!callingRingtoneRef.current) {
+        callingRingtoneRef.current = new Audio(callingRingtone)
+        callingRingtoneRef.current.loop = true
+        callingRingtoneRef.current.volume = 0.7 // Set volume to 70%
+      }
+
+      // Play ringtone
+      const playRingtone = async () => {
+        try {
+          callingRingtoneRef.current.currentTime = 0 // Reset to start
+          await callingRingtoneRef.current.play()
+          console.log('📞 [DoctorCallStatus] Calling ringtone started')
+        } catch (error) {
+          console.warn('📞 [DoctorCallStatus] Could not play calling ringtone:', error)
+          // Some browsers require user interaction before playing audio
+          // This is okay - the UI will still show
+        }
+      }
+
+      playRingtone()
+
+      // Cleanup: stop ringtone when status changes
+      return () => {
+        if (callingRingtoneRef.current && !callingRingtoneRef.current.paused) {
+          callingRingtoneRef.current.pause()
+          callingRingtoneRef.current.currentTime = 0
+          console.log('📞 [DoctorCallStatus] Calling ringtone stopped')
+        }
+      }
+    } else {
+      // Stop ringtone if not calling
+      if (callingRingtoneRef.current && !callingRingtoneRef.current.paused) {
+        callingRingtoneRef.current.pause()
+        callingRingtoneRef.current.currentTime = 0
+        console.log('📞 [DoctorCallStatus] Calling ringtone stopped (status changed)')
+      }
+    }
+  }, [callStatus, callInfo?.callId])
+
   // Listen to socket events
   useEffect(() => {
     // Define setupListeners before it's used
@@ -132,6 +178,13 @@ const DoctorCallStatus = () => {
           
           console.log('📞 [DoctorCallStatus] Updating status to started, callId:', data.callId)
           
+          // Stop calling ringtone when patient joins
+          if (callingRingtoneRef.current) {
+            callingRingtoneRef.current.pause()
+            callingRingtoneRef.current.currentTime = 0
+            console.log('📞 [DoctorCallStatus] Calling ringtone stopped (patient joined)')
+          }
+          
           // Patient has actually joined - update status to started
           updateCallStatus('started')
           
@@ -179,6 +232,12 @@ const DoctorCallStatus = () => {
         }
         
         console.log('📞 [DoctorCallStatus] Updating status to ended and closing call UI')
+        // Stop calling ringtone
+        if (callingRingtoneRef.current) {
+          callingRingtoneRef.current.pause()
+          callingRingtoneRef.current.currentTime = 0
+          console.log('📞 [DoctorCallStatus] Calling ringtone stopped (call ended)')
+        }
         updateCallStatus('ended')
         // Close immediately - this will close both DoctorCallStatus and CallPopup
         setTimeout(() => {
@@ -218,6 +277,12 @@ const DoctorCallStatus = () => {
         }
         
         console.log('📞 [DoctorCallStatus] Patient declined call - closing doctor UI')
+        // Stop calling ringtone
+        if (callingRingtoneRef.current) {
+          callingRingtoneRef.current.pause()
+          callingRingtoneRef.current.currentTime = 0
+          console.log('📞 [DoctorCallStatus] Calling ringtone stopped (call declined)')
+        }
         updateCallStatus('idle')
         // Close immediately - this will close both DoctorCallStatus and CallPopup
         endCall() // This clears activeCall in CallContext, which will close CallPopup
@@ -378,6 +443,13 @@ const DoctorCallStatus = () => {
   }
 
   const handleEndCall = () => {
+    // Stop calling ringtone immediately
+    if (callingRingtoneRef.current) {
+      callingRingtoneRef.current.pause()
+      callingRingtoneRef.current.currentTime = 0
+      console.log('📞 [DoctorCallStatus] Calling ringtone stopped (doctor ended call)')
+    }
+    
     const socket = getSocket()
     if (socket && callInfo?.callId) {
       socket.emit('call:end', { callId: callInfo.callId })
