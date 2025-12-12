@@ -3,6 +3,7 @@ const mediasoup = require('mediasoup');
 let worker = null;
 const routers = new Map(); // Map<callId, Router>
 const transports = new Map(); // Map<transportId, Transport>
+const transportToCallId = new Map(); // Map<transportId, callId> - for reliable callId lookup
 const producers = new Map(); // Map<producerId, Producer>
 const consumers = new Map(); // Map<consumerId, Consumer>
 
@@ -98,6 +99,24 @@ function getRouter(callId) {
 }
 
 /**
+ * Get callId for a router (reverse lookup)
+ */
+function getCallIdForRouter(router) {
+  if (!router) {
+    return null;
+  }
+  
+  // Iterate through routers map to find matching router
+  for (const [callId, storedRouter] of routers.entries()) {
+    if (storedRouter === router) {
+      return callId;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Get RTP capabilities for a router
  */
 async function getRtpCapabilities(callId) {
@@ -127,10 +146,15 @@ async function createWebRtcTransport(callId, options = {}) {
   });
 
   transports.set(transport.id, transport);
+  // Store transportId -> callId mapping for reliable lookup
+  transportToCallId.set(transport.id, callId);
+  console.log(`✅ Transport created: ${transport.id} for callId: ${callId}`);
 
   // Clean up transport on close
   transport.on('close', () => {
     transports.delete(transport.id);
+    transportToCallId.delete(transport.id);
+    console.log(`✅ Transport closed: ${transport.id}, removed from mapping`);
   });
 
   return {
@@ -302,6 +326,20 @@ function getProducersForCall(callId) {
 }
 
 /**
+ * Get callId for a transport
+ */
+function getCallIdForTransport(transportId) {
+  return transportToCallId.get(transportId);
+}
+
+/**
+ * Get transport by ID (for router lookup)
+ */
+function getTransport(transportId) {
+  return transports.get(transportId);
+}
+
+/**
  * Close transport
  */
 async function closeTransport(transportId) {
@@ -309,6 +347,8 @@ async function closeTransport(transportId) {
   if (transport) {
     transport.close();
     transports.delete(transportId);
+    transportToCallId.delete(transportId);
+    console.log(`✅ Transport ${transportId} closed and removed from mapping`);
   }
 }
 
@@ -371,15 +411,18 @@ module.exports = {
   getWorker,
   createRouter,
   getRouter,
+  getCallIdForRouter,
   getRtpCapabilities,
   createWebRtcTransport,
   connectTransport,
+  getTransport,
   createProducer,
   createConsumer,
   getProducer,
   getConsumer,
   resumeConsumer,
   getProducersForCall,
+  getCallIdForTransport,
   closeTransport,
   closeRouter,
   cleanupCall,

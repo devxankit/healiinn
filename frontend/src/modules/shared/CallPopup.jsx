@@ -593,6 +593,34 @@ const CallPopup = () => {
 
       recvTransportRef.current = recvTransport
 
+      // CRITICAL: Ensure we're in the call room before producing audio
+      // This prevents race condition where producer event is emitted before room join completes
+      console.log('📞 [CallPopup] Verifying call room membership before producing...')
+      const socket = socketRef.current
+      if (socket && socket.connected) {
+        // Double-check room membership
+        const verifyRoomJoin = () => {
+          return new Promise((resolve) => {
+            socket.emit('call:joinRoom', { callId: currentCallId }, (response) => {
+              if (response && response.error) {
+                console.warn('📞 [CallPopup] Room join verification failed:', response.error)
+                resolve(false)
+              } else {
+                console.log('📞 [CallPopup] ✅ Confirmed in call room, proceeding with audio production')
+                resolve(true)
+              }
+            })
+          })
+        }
+        
+        const roomJoined = await verifyRoomJoin()
+        if (!roomJoined) {
+          console.warn('📞 [CallPopup] ⚠️ Room join verification failed, but continuing with production')
+        }
+      } else {
+        console.warn('📞 [CallPopup] ⚠️ Socket not available for room verification')
+      }
+
       // Get user media and produce
       await produceLocalAudio()
 

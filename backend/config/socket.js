@@ -11,6 +11,9 @@ const {
   createConsumer,
   resumeConsumer,
   getProducersForCall,
+  getCallIdForTransport,
+  getCallIdForRouter,
+  getTransport,
   cleanupCall,
   getIceServers,
 } = require('./mediasoup');
@@ -589,11 +592,14 @@ const initializeSocket = (server) => {
       try {
         const { callId } = data;
         if (!callId) {
+          console.warn(`📞 [call:joinRoom] Missing callId from ${role} ${id}`);
           return callback({ error: 'callId is required' });
         }
 
+        console.log(`📞 [call:joinRoom] ${role} ${id} requesting to join call room: call-${callId}`);
         const call = await Call.findOne({ callId });
         if (!call) {
+          console.warn(`📞 [call:joinRoom] Call not found: ${callId}`);
           return callback({ error: 'Call not found' });
         }
 
@@ -602,16 +608,18 @@ const initializeSocket = (server) => {
         const isPatient = role === 'patient' && call.patientId.toString() === id;
 
         if (!isDoctor && !isPatient) {
+          console.warn(`📞 [call:joinRoom] Unauthorized: ${role} ${id} not part of call ${callId}`);
           return callback({ error: 'Unauthorized' });
         }
 
         // Join call room
         socket.join(`call-${callId}`);
-        console.log(`📞 [call:joinRoom] ${role} ${id} joined call room: call-${callId}`);
+        console.log(`📞 [call:joinRoom] ✅ ${role} ${id} successfully joined call room: call-${callId}`);
+        console.log(`📞 [call:joinRoom] Socket ${socket.id} is now in rooms:`, Array.from(socket.rooms));
         
         callback({ success: true, callId });
       } catch (error) {
-        console.error('Error in call:joinRoom:', error);
+        console.error(`📞 [call:joinRoom] Error:`, error);
         callback({ error: error.message || 'Failed to join call room' });
       }
     });
@@ -813,24 +821,61 @@ const initializeSocket = (server) => {
           return callback({ error: 'Only audio is supported' });
         }
 
+        console.log(`📞 [mediasoup:produce] Creating producer for transport: ${transportId}`);
         const producer = await createProducer(transportId, rtpParameters, kind);
+        console.log(`📞 [mediasoup:produce] Producer created: ${producer.id}`);
 
         // Notify other participants about new producer
-        // We need to find the callId from the transport
-        // For now, we'll emit to the call room that the socket is in
-        const callRooms = Array.from(socket.rooms).filter(room => room.startsWith('call-'));
-        if (callRooms.length > 0) {
-          const callId = callRooms[0].replace('call-', '');
+        // CRITICAL FIX: Get callId from transport mapping instead of relying on socket rooms
+        // This fixes the race condition where socket might not be in room yet
+        let callId = null;
+        
+        // Method 1: Try transport-to-callId mapping (most reliable)
+        callId = getCallIdForTransport(transportId);
+        if (callId) {
+          console.log(`📞 [mediasoup:produce] Found callId from transport mapping: ${callId}`);
+        } else {
+          // Method 2: Try router lookup (fallback)
+          const transport = getTransport(transportId);
+          if (transport && transport.router) {
+            callId = getCallIdForRouter(transport.router);
+            if (callId) {
+              console.log(`📞 [mediasoup:produce] Found callId from router lookup: ${callId}`);
+            } else {
+              console.log(`📞 [mediasoup:produce] Router found but no callId mapping, trying socket rooms...`);
+            }
+          } else {
+            console.log(`📞 [mediasoup:produce] Transport not found or has no router, trying socket rooms...`);
+          }
+        }
+        
+        // Method 3: Fallback to socket rooms (for backward compatibility)
+        if (!callId) {
+          const callRooms = Array.from(socket.rooms).filter(room => room.startsWith('call-'));
+          if (callRooms.length > 0) {
+            callId = callRooms[0].replace('call-', '');
+            console.log(`📞 [mediasoup:produce] Found callId from socket rooms (fallback): ${callId}`);
+          }
+        }
+
+        // Emit event if we found a callId
+        if (callId) {
           const io = getIO();
+          console.log(`📞 [mediasoup:produce] Emitting mediasoup:newProducer to call-${callId} for producer: ${producer.id}`);
           io.to(`call-${callId}`).emit('mediasoup:newProducer', {
             producerId: producer.id,
             kind: producer.kind,
           });
+          console.log(`📞 [mediasoup:produce] ✅ Event emitted successfully`);
+        } else {
+          console.error(`📞 [mediasoup:produce] ❌ WARNING: Could not determine callId for transport ${transportId}. Event NOT emitted!`);
+          console.error(`📞 [mediasoup:produce] Socket rooms:`, Array.from(socket.rooms));
+          // Still return success for producer creation, but log the issue
         }
 
         callback({ producer });
       } catch (error) {
-        console.error('Error in mediasoup:produce:', error);
+        console.error('📞 [mediasoup:produce] Error:', error);
         callback({ error: error.message || 'Failed to produce' });
       }
     });
