@@ -736,31 +736,8 @@ const autoEndExpiredSessions = async () => {
     let endedCount = 0;
     
     for (const session of liveSessions) {
-      // Convert session end time to minutes for comparison
-      const timeStringToMinutes = (timeStr) => {
-        if (!timeStr) return null;
-        
-        // Handle 12-hour format (e.g., "2:30 PM")
-        if (timeStr.includes('AM') || timeStr.includes('PM')) {
-          const [timePart, period] = timeStr.split(/\s*(AM|PM)/i);
-          const [hours, minutes] = timePart.split(':').map(Number);
-          let totalMinutes = hours * 60 + (minutes || 0);
-          
-          if (period.toUpperCase() === 'PM' && hours !== 12) {
-            totalMinutes += 12 * 60;
-          } else if (period.toUpperCase() === 'AM' && hours === 12) {
-            totalMinutes -= 12 * 60;
-          }
-          
-          return totalMinutes;
-        }
-        
-        // Handle 24-hour format (e.g., "14:30")
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        return hours * 60 + (minutes || 0);
-      };
-      
-      const sessionEndMinutes = timeStringToMinutes(session.sessionEndTime);
+      // Convert session end time to minutes for comparison using the imported timeToMinutes function
+      const sessionEndMinutes = timeToMinutes(session.sessionEndTime);
       // Use IST time for doctor session operations
       const currentMinutes = getISTTimeInMinutes();
       

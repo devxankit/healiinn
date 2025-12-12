@@ -124,24 +124,38 @@ exports.getSessions = asyncHandler(async (req, res) => {
 const timeStringToMinutes = (timeStr) => {
   if (!timeStr) return null;
   
-  // Handle 12-hour format (e.g., "2:30 PM")
-  if (timeStr.includes('AM') || timeStr.includes('PM')) {
-    const [timePart, period] = timeStr.split(/\s*(AM|PM)/i);
-    const [hours, minutes] = timePart.split(':').map(Number);
-    let totalMinutes = hours * 60 + (minutes || 0);
+  // Trim whitespace
+  timeStr = String(timeStr).trim();
+  
+  // Handle 12-hour format (e.g., "2:30 PM", "12:00 AM", "5:00 PM")
+  const amPmMatch = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (amPmMatch) {
+    let hours = parseInt(amPmMatch[1], 10);
+    const minutes = parseInt(amPmMatch[2], 10);
+    const period = amPmMatch[3].toUpperCase();
     
-    if (period.toUpperCase() === 'PM' && hours !== 12) {
-      totalMinutes += 12 * 60; // Add 12 hours for PM
-    } else if (period.toUpperCase() === 'AM' && hours === 12) {
-      totalMinutes -= 12 * 60; // Subtract 12 hours for 12 AM
+    // Convert to 24-hour format
+    if (period === 'AM' && hours === 12) {
+      hours = 0; // 12:00 AM = 0:00 (midnight)
+    } else if (period === 'PM' && hours !== 12) {
+      hours += 12; // 1:00 PM = 13:00, etc.
     }
+    // 12:00 PM stays as 12 (noon)
     
-    return totalMinutes;
+    return hours * 60 + minutes;
   }
   
-  // Handle 24-hour format (e.g., "14:30")
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + (minutes || 0);
+  // Handle 24-hour format (e.g., "14:30", "00:00")
+  const time24Match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (time24Match) {
+    const hours = parseInt(time24Match[1], 10);
+    const minutes = parseInt(time24Match[2], 10);
+    return hours * 60 + minutes;
+  }
+  
+  // If no match, log error and return null
+  console.log('⚠️ [Backend] Failed to parse time string:', timeStr);
+  return null;
 };
 
 // Helper function to check if current time is within session time
@@ -205,7 +219,16 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
     startMinutes,
     endMinutes,
     isWithin,
+    comparison: `${currentMinutes} >= ${startMinutes} && ${currentMinutes} <= ${endMinutes}`,
   });
+  
+  if (!isWithin) {
+    console.log('❌ [Backend] Time validation failed:', {
+      reason: currentMinutes < startMinutes 
+        ? `Current time (${currentMinutes} min = ${istTimeString}) is before session start (${startMinutes} min = ${sessionStartTime})`
+        : `Current time (${currentMinutes} min = ${istTimeString}) is after session end (${endMinutes} min = ${sessionEndTime})`,
+    });
+  }
   
   return isWithin;
 };
