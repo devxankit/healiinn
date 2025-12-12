@@ -173,6 +173,64 @@ const CallPopup = () => {
     }
   }, [activeCall?.remoteParticipant])
 
+  // Keep audio and microphone active when minimized
+  useEffect(() => {
+    if (!isMinimized || status !== 'connected') {
+      return
+    }
+
+    console.log('📞 [CallPopup] Minimized - ensuring audio and microphone stay active')
+    
+    const keepAudioActive = () => {
+      // Keep remote audio playing
+      const audioElement = remoteAudioRef.current
+      if (audioElement && audioElement.srcObject && audioElement.paused) {
+        console.log('📞 [CallPopup] Resuming paused audio element')
+        audioElement.play().catch(err => {
+          console.error('📞 [CallPopup] Error resuming audio:', err)
+        })
+      }
+
+      // Keep local microphone enabled (P2P)
+      if (p2pManagerRef.current && p2pManagerRef.current.localStream) {
+        p2pManagerRef.current.localStream.getAudioTracks().forEach(track => {
+          if (!track.enabled) {
+            console.log('📞 [CallPopup] Re-enabling local audio track')
+            track.enabled = true
+          }
+        })
+      }
+
+      // Keep local microphone enabled (SFU)
+      if (localStreamRef.current) {
+        localStreamRef.current.getAudioTracks().forEach(track => {
+          if (!track.enabled) {
+            console.log('📞 [CallPopup] Re-enabling local audio track (SFU)')
+            track.enabled = true
+          }
+        })
+      }
+
+      // Keep producer track enabled (SFU)
+      if (producerRef.current && producerRef.current.track) {
+        if (!producerRef.current.track.enabled) {
+          console.log('📞 [CallPopup] Re-enabling producer track')
+          producerRef.current.track.enabled = true
+        }
+      }
+    }
+
+    // Check immediately
+    keepAudioActive()
+
+    // Set up interval to periodically check and resume if needed
+    const interval = setInterval(keepAudioActive, 1000)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [isMinimized, status])
+
   const initializeCall = async () => {
     try {
       const module = getModule()
@@ -1866,57 +1924,78 @@ const CallPopup = () => {
     return null
   }
 
+  // Audio element must always be rendered to keep audio playing (even when minimized)
+  // Render it before any conditional returns
+  const audioElement = (
+    <audio 
+      ref={remoteAudioRef} 
+      autoPlay 
+      playsInline 
+      volume={1.0}
+      style={{ display: 'none' }}
+    />
+  )
+
   if (status === 'error') {
     return (
-      <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center shadow-2xl">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Call Error</h2>
-          <p className="text-slate-600 mb-4">{error || 'An error occurred'}</p>
-          <button
-            onClick={() => endCall()}
-            className="bg-slate-900 text-white px-6 py-2 rounded-lg font-semibold hover:bg-slate-800 transition"
-          >
-            Close
-          </button>
+      <>
+        {audioElement}
+        <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center shadow-2xl">
+            <div className="text-red-500 text-5xl mb-4">⚠️</div>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Call Error</h2>
+            <p className="text-slate-600 mb-4">{error || 'An error occurred'}</p>
+            <button
+              onClick={() => endCall()}
+              className="bg-slate-900 text-white px-6 py-2 rounded-lg font-semibold hover:bg-slate-800 transition"
+            >
+              Close
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
   if (status === 'ended') {
     return (
-      <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center shadow-2xl">
-          <div className="text-green-500 text-5xl mb-4">✓</div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Call Ended</h2>
-          <p className="text-slate-600">Duration: {formatCallDuration(callDuration)}</p>
+      <>
+        {audioElement}
+        <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center shadow-2xl">
+            <div className="text-green-500 text-5xl mb-4">✓</div>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Call Ended</h2>
+            <p className="text-slate-600">Duration: {formatCallDuration(callDuration)}</p>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
   // Minimized view - floating button (for doctors)
   if (isMinimized && getModule() === 'doctor') {
     return (
-      <div className="fixed bottom-6 right-6 z-[10000]">
-        <button
-          onClick={maximize}
-          className="relative flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full shadow-lg hover:bg-blue-700 transition active:scale-95"
-          title="Click to expand call"
-        >
-          {/* Pulsing animation */}
-          <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-75"></div>
-          <IoCallOutline className="text-white text-2xl relative z-10" />
-          
-          {/* Duration badge */}
-          {status === 'connected' && callDuration > 0 && (
-            <span className="absolute -bottom-1 -right-1 bg-green-500 text-white text-xs font-semibold px-1.5 py-0.5 rounded-full">
-              {formatCallDuration(callDuration).split(':')[1]}
-            </span>
-          )}
-        </button>
-      </div>
+      <>
+        {audioElement}
+        <div className="fixed bottom-6 right-6 z-[10000]">
+          <button
+            onClick={maximize}
+            className="relative flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full shadow-lg hover:bg-blue-700 transition active:scale-95"
+            title="Click to expand call"
+          >
+            {/* Pulsing animation */}
+            <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-75"></div>
+            <IoCallOutline className="text-white text-2xl relative z-10" />
+            
+            {/* Duration badge */}
+            {status === 'connected' && callDuration > 0 && (
+              <span className="absolute -bottom-1 -right-1 bg-green-500 text-white text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                {formatCallDuration(callDuration).split(':')[1]}
+              </span>
+            )}
+          </button>
+        </div>
+      </>
     )
   }
 
@@ -1974,8 +2053,10 @@ const CallPopup = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
+    <>
+      {audioElement}
+      <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
         {/* Minimize button (for doctors) */}
         {getModule() === 'doctor' && (
           <button
@@ -2010,15 +2091,6 @@ const CallPopup = () => {
             <p className="text-slate-500 text-xs mt-2">Connecting...</p>
           )}
         </div>
-
-        {/* Audio element for remote audio */}
-        <audio 
-          ref={remoteAudioRef} 
-          autoPlay 
-          playsInline 
-          volume={1.0}
-          style={{ display: 'none' }}
-        />
 
         {/* Controls */}
         <div className="flex items-center justify-center gap-4 mt-8">
@@ -2162,6 +2234,7 @@ const CallPopup = () => {
         )}
       </div>
     </div>
+    </>
   )
 }
 
