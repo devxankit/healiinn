@@ -22,7 +22,7 @@ const CallPopup = () => {
   const [remoteParticipant, setRemoteParticipant] = useState(activeCall?.remoteParticipant || 'Participant')
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const [diagnosticLogs, setDiagnosticLogs] = useState([])
-  const [useP2P, setUseP2P] = useState(false) // P2P fallback flag
+  const [useP2P, setUseP2P] = useState(true) // P2P enabled by default (SFU has issues)
   const p2pManagerRef = useRef(null)
   const roomJoinedRef = useRef(false) // Track if we successfully joined the call room
 
@@ -596,22 +596,112 @@ const CallPopup = () => {
       console.log('📞 [CallPopup] Socket connected:', socket.connected)
       console.log('📞 [CallPopup] Socket ID:', socket.id)
 
-      // TODO 9: P2P/SFU Selection Logic
-      // For now, always use SFU. P2P can be enabled if SFU diagnostics show issues.
-      // To enable P2P: Set useP2P to true and implement P2P flow below
-      // This is a 1-to-1 call, so P2P is an option
-      const shouldUseP2P = useP2P // Can be enabled via environment variable or user preference
+      // P2P/SFU Selection Logic
+      const shouldUseP2P = useP2P
+      const module = getModule()
+      const isInitiator = module === 'doctor' // Doctor initiates the call
       
       if (shouldUseP2P) {
         console.log('🔗 [P2P] Using P2P connection mode')
-        // P2P implementation would go here
-        // For now, fallback to SFU
-        console.log('🔗 [P2P] P2P not fully implemented yet, using SFU')
+        console.log('🔗 [P2P] Is initiator:', isInitiator)
+        
+        // Initialize P2P manager
+        const p2pManager = new P2PCallManager(currentCallId, socket, () => {
+          const module = getModule()
+          return getAuthToken(module) || getAuthToken('patient') || getAuthToken('doctor')
+        })
+        p2pManagerRef.current = p2pManager
+        
+        // Set up remote stream handler
+        p2pManager.onRemoteStream = (remoteStream) => {
+          console.log('🔗 [P2P] Remote stream received, setting up audio element')
+          const audioElement = remoteAudioRef.current
+          if (audioElement && remoteStream) {
+            audioElement.srcObject = remoteStream
+            audioElement.volume = 1.0
+            audioElement.muted = false
+            
+            // Try to play
+            audioElement.play().catch(err => {
+              console.error('🔗 [P2P] Error playing remote audio:', err)
+            })
+            
+            console.log('🔗 [P2P] ✅ Remote audio stream configured')
+          }
+        }
+        
+        // Set up connection state handler
+        p2pManager.onConnectionStateChange = (state) => {
+          console.log('🔗 [P2P] Connection state changed:', state)
+          if (state === 'connected') {
+            setStatus('connected')
+            if (!callStartTimeRef.current) {
+              callStartTimeRef.current = Date.now()
+              startDurationTimer()
+            }
+          } else if (state === 'failed' || state === 'disconnected') {
+            console.error('🔗 [P2P] Connection failed:', state)
+            setError('P2P connection failed')
+            setStatus('error')
+          }
+        }
+        
+        // Set up P2P event handlers
+        socket.on('p2p:offer', async (data) => {
+          if (data.callId === currentCallId && !isInitiator) {
+            console.log('🔗 [P2P] Received offer')
+            try {
+              await p2pManager.handleOffer(data.offer)
+            } catch (error) {
+              console.error('🔗 [P2P] Error handling offer:', error)
+            }
+          }
+        })
+        
+        socket.on('p2p:answer', async (data) => {
+          if (data.callId === currentCallId && isInitiator) {
+            console.log('🔗 [P2P] Received answer')
+            try {
+              await p2pManager.handleAnswer(data.answer)
+            } catch (error) {
+              console.error('🔗 [P2P] Error handling answer:', error)
+            }
+          }
+        })
+        
+        socket.on('p2p:iceCandidate', async (data) => {
+          if (data.callId === currentCallId && data.candidate) {
+            console.log('🔗 [P2P] Received ICE candidate')
+            try {
+              await p2pManager.handleIceCandidate(data.candidate)
+            } catch (error) {
+              console.error('🔗 [P2P] Error handling ICE candidate:', error)
+            }
+          }
+        })
+        
+        // Initialize P2P connection
+        const p2pInitialized = await p2pManager.initialize(isInitiator)
+        if (!p2pInitialized) {
+          console.error('🔗 [P2P] Failed to initialize P2P connection')
+          setError('Failed to initialize P2P connection')
+          setStatus('error')
+          return
+        }
+        
+        console.log('🔗 [P2P] ✅ P2P connection initialized')
+        setStatus('connected')
+        if (!callStartTimeRef.current) {
+          callStartTimeRef.current = Date.now()
+          startDurationTimer()
+        }
+        
+        return // Exit early, P2P flow complete
       } else {
         console.log('📞 [SFU] Using SFU (mediasoup) connection mode')
       }
 
-      // Get RTP capabilities
+      // Get RTP capabilities (SFU flow continues below)
       const { rtpCapabilities, iceServers } = await new Promise((resolve, reject) => {
         socket.emit('mediasoup:getRtpCapabilities', { callId: currentCallId }, (response) => {
           if (response.error) {
@@ -1477,6 +1567,19 @@ const CallPopup = () => {
   }
 
   const handleMuteToggle = () => {
+    // Handle P2P mute
+    if (p2pManagerRef.current) {
+      const newMutedState = !isMuted
+      p2pManagerRef.current.setMuted(newMutedState)
+      setIsMuted(newMutedState)
+      
+      // Notify DoctorCallStatus of mute state change
+      const event = new CustomEvent('call:muteStateUpdate', { detail: { muted: newMutedState } })
+      window.dispatchEvent(event)
+      return
+    }
+    
+    // Handle SFU mute
     if (producerRef.current) {
       const newMutedState = !isMuted
       if (newMutedState) {
@@ -1567,25 +1670,40 @@ const CallPopup = () => {
       clearInterval(durationIntervalRef.current)
     }
 
+    // Cleanup P2P connection
+    if (p2pManagerRef.current) {
+      console.log('🔗 [P2P] Cleaning up P2P connection')
+      p2pManagerRef.current.cleanup()
+      p2pManagerRef.current = null
+      
+      // Remove P2P event listeners
+      const socket = socketRef.current
+      if (socket) {
+        socket.off('p2p:offer')
+        socket.off('p2p:answer')
+        socket.off('p2p:iceCandidate')
+      }
+    }
+
     // Stop local stream
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop())
       localStreamRef.current = null
     }
 
-    // Close producer
+    // Close producer (SFU)
     if (producerRef.current) {
       producerRef.current.close()
       producerRef.current = null
     }
 
-    // Close consumer
+    // Close consumer (SFU)
     if (consumerRef.current) {
       consumerRef.current.close()
       consumerRef.current = null
     }
 
-    // Close transports
+    // Close transports (SFU)
     if (sendTransportRef.current) {
       sendTransportRef.current.close()
       sendTransportRef.current = null
