@@ -25,6 +25,8 @@ const CallPopup = () => {
   const [useP2P, setUseP2P] = useState(true) // P2P enabled by default (SFU has issues)
   const p2pManagerRef = useRef(null)
   const roomJoinedRef = useRef(false) // Track if we successfully joined the call room
+  const hasAttemptedFallbackRef = useRef(false) // Track if we've already attempted SFU fallback
+  const isSwitchingToSFURef = useRef(false) // Track if we're currently switching to SFU
 
   // Refs
   const socketRef = useRef(null)
@@ -231,6 +233,227 @@ const CallPopup = () => {
     }
   }, [isMinimized, status])
 
+  // Function to switch from P2P to SFU when P2P fails
+  const switchToSFU = async () => {
+    if (isSwitchingToSFURef.current) {
+      console.log('🔄 [Fallback] Already switching to SFU, ignoring duplicate call')
+      return
+    }
+
+    isSwitchingToSFURef.current = true
+    console.log('🔄 [Fallback] ====== SWITCHING TO SFU ======')
+    
+    try {
+      const socket = socketRef.current
+      const currentCallId = callIdRef.current
+      
+      if (!socket || !currentCallId) {
+        console.error('🔄 [Fallback] Missing socket or callId, cannot switch to SFU')
+        setError('Failed to switch to SFU. Please try again.')
+        setStatus('error')
+        isSwitchingToSFURef.current = false
+        return
+      }
+
+      // Clean up P2P connection
+      if (p2pManagerRef.current) {
+        console.log('🔄 [Fallback] Cleaning up P2P connection...')
+        try {
+          p2pManagerRef.current.cleanup()
+        } catch (error) {
+          console.warn('🔄 [Fallback] Error cleaning up P2P:', error)
+        }
+        p2pManagerRef.current = null
+      }
+
+      // Remove P2P event handlers
+      if (socket._p2pHandlers) {
+        console.log('🔄 [Fallback] Removing P2P event handlers...')
+        socket.off('p2p:offer', socket._p2pHandlers.offer)
+        socket.off('p2p:answer', socket._p2pHandlers.answer)
+        socket.off('p2p:iceCandidate', socket._p2pHandlers.iceCandidate)
+        delete socket._p2pHandlers
+      }
+
+      // Update state to use SFU
+      setUseP2P(false)
+      setStatus('connecting')
+      setError(null)
+      
+      console.log('🔄 [Fallback] Starting SFU connection...')
+      
+      // Call the SFU initialization code
+      await initializeSFU(socket, currentCallId)
+      
+      console.log('🔄 [Fallback] ✅ Successfully switched to SFU')
+    } catch (error) {
+      console.error('🔄 [Fallback] ❌ Error switching to SFU:', error)
+      setError('Failed to switch to SFU. Please try again.')
+      setStatus('error')
+    } finally {
+      isSwitchingToSFURef.current = false
+    }
+  }
+
+  // Extract SFU initialization logic into a separate function
+  const initializeSFU = async (socket, currentCallId) => {
+    try {
+      console.log('📞 [SFU] Initializing SFU connection...')
+      
+      // Get RTP capabilities
+      const { rtpCapabilities, iceServers } = await new Promise((resolve, reject) => {
+        socket.emit('mediasoup:getRtpCapabilities', { callId: currentCallId }, (response) => {
+          if (response.error) {
+            reject(new Error(response.error))
+          } else {
+            resolve(response)
+          }
+        })
+      })
+
+      // Create device
+      const device = new mediasoupClient.Device()
+      await device.load({ routerRtpCapabilities: rtpCapabilities })
+      deviceRef.current = device
+
+      // Create send transport
+      const sendTransportData = await new Promise((resolve, reject) => {
+        socket.emit('mediasoup:createWebRtcTransport', { callId: currentCallId }, (response) => {
+          if (response.error) {
+            reject(new Error(response.error))
+          } else {
+            resolve(response.transport)
+          }
+        })
+      })
+
+      const sendTransport = device.createSendTransport({
+        id: sendTransportData.id,
+        iceParameters: sendTransportData.iceParameters,
+        iceCandidates: sendTransportData.iceCandidates,
+        dtlsParameters: sendTransportData.dtlsParameters,
+        iceServers,
+      })
+
+      sendTransportRef.current = sendTransport
+
+      // Handle send transport events
+      sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+        try {
+          socket.emit('mediasoup:connectTransport', {
+            callId: currentCallId,
+            transportId: sendTransport.id,
+            dtlsParameters,
+          }, (response) => {
+            if (response.error) {
+              errback(new Error(response.error))
+            } else {
+              callback()
+            }
+          })
+        } catch (error) {
+          errback(error)
+        }
+      })
+
+      sendTransport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
+        try {
+          socket.emit('mediasoup:produce', {
+            callId: currentCallId,
+            transportId: sendTransport.id,
+            kind,
+            rtpParameters,
+          }, (response) => {
+            if (response.error) {
+              errback(new Error(response.error))
+            } else {
+              callback({ id: response.producerId })
+            }
+          })
+        } catch (error) {
+          errback(error)
+        }
+      })
+
+      // Get user media and produce
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      })
+      localStreamRef.current = stream
+
+      const track = stream.getAudioTracks()[0]
+      const producer = await sendTransport.produce({ track })
+      producerRef.current = producer
+
+      // Create receive transport
+      const recvTransportData = await new Promise((resolve, reject) => {
+        socket.emit('mediasoup:createWebRtcTransport', { callId: currentCallId }, (response) => {
+          if (response.error) {
+            reject(new Error(response.error))
+          } else {
+            resolve(response.transport)
+          }
+        })
+      })
+
+      const recvTransport = device.createRecvTransport({
+        id: recvTransportData.id,
+        iceParameters: recvTransportData.iceParameters,
+        iceCandidates: recvTransportData.iceCandidates,
+        dtlsParameters: recvTransportData.dtlsParameters,
+        iceServers,
+      })
+
+      recvTransportRef.current = recvTransport
+
+      recvTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+        try {
+          socket.emit('mediasoup:connectTransport', {
+            callId: currentCallId,
+            transportId: recvTransport.id,
+            dtlsParameters,
+          }, (response) => {
+            if (response.error) {
+              errback(new Error(response.error))
+            } else {
+              callback()
+            }
+          })
+        } catch (error) {
+          errback(error)
+        }
+      })
+
+      // Get existing producers and consume them
+      const { producers } = await new Promise((resolve, reject) => {
+        socket.emit('mediasoup:getProducers', { callId: currentCallId }, (response) => {
+          if (response.error) {
+            reject(new Error(response.error))
+          } else {
+            resolve(response)
+          }
+        })
+      })
+
+      for (const producerId of producers) {
+        await consumeRemoteAudio(producerId)
+      }
+
+      setStatus('connected')
+      if (!callStartTimeRef.current) {
+        callStartTimeRef.current = Date.now()
+        startDurationTimer()
+      }
+    } catch (error) {
+      console.error('📞 [SFU] Error initializing SFU:', error)
+      throw error
+    }
+  }
+
   const initializeCall = async () => {
     try {
       const module = getModule()
@@ -240,6 +463,10 @@ const CallPopup = () => {
         console.warn('📞 [CallPopup] No callId available, cannot initialize call')
         return
       }
+      
+      // Reset fallback flags for new call
+      hasAttemptedFallbackRef.current = false
+      isSwitchingToSFURef.current = false
       
       // Try to use existing socket first (for patient to ensure same connection)
       let socket = getSocket()
@@ -787,7 +1014,7 @@ const CallPopup = () => {
           }
         }
         
-        // Set up connection state handler
+        // Set up connection state handler with automatic SFU fallback
         p2pManager.onConnectionStateChange = (state) => {
           console.log('🔗 [P2P] Connection state changed:', state)
           if (state === 'connected') {
@@ -796,10 +1023,44 @@ const CallPopup = () => {
               callStartTimeRef.current = Date.now()
               startDurationTimer()
             }
+            // Reset fallback flag on successful connection
+            hasAttemptedFallbackRef.current = false
           } else if (state === 'failed' || state === 'disconnected') {
             console.error('🔗 [P2P] Connection failed:', state)
-            setError('P2P connection failed')
-            setStatus('error')
+            
+            // Only attempt fallback once and if not already switching
+            if (!hasAttemptedFallbackRef.current && !isSwitchingToSFURef.current) {
+              console.log('🔄 [Fallback] P2P connection failed, attempting SFU fallback...')
+              hasAttemptedFallbackRef.current = true
+              switchToSFU()
+            } else {
+              // If fallback already attempted or in progress, show error
+              setError('P2P connection failed. Please try again.')
+              setStatus('error')
+            }
+          }
+        }
+
+        // Set up ICE connection state handler for early failure detection
+        p2pManager.onIceConnectionStateChange = (iceState) => {
+          console.log('🔗 [P2P] ICE connection state changed:', iceState)
+          
+          // If ICE fails, attempt fallback (but only if peer connection state hasn't already failed)
+          if (iceState === 'failed' && !hasAttemptedFallbackRef.current && !isSwitchingToSFURef.current) {
+            const pcState = p2pManager.peerConnection?.connectionState
+            console.log('🔗 [P2P] ICE connection failed, peer connection state:', pcState)
+            
+            // Wait a bit to see if peer connection state also fails
+            setTimeout(() => {
+              const currentPcState = p2pManager.peerConnection?.connectionState
+              if (currentPcState === 'failed' || currentPcState === 'disconnected') {
+                if (!hasAttemptedFallbackRef.current && !isSwitchingToSFURef.current) {
+                  console.log('🔄 [Fallback] ICE failed and peer connection failed, attempting SFU fallback...')
+                  hasAttemptedFallbackRef.current = true
+                  switchToSFU()
+                }
+              }
+            }, 2000) // Wait 2 seconds for peer connection to catch up
           }
         }
         
@@ -853,50 +1114,32 @@ const CallPopup = () => {
         const p2pInitialized = await p2pManager.initialize(isInitiator)
         if (!p2pInitialized) {
           console.error('🔗 [P2P] ❌ Failed to initialize P2P connection')
-          // Check console logs for detailed error - it will show what specifically failed
-          setError('Failed to initialize P2P connection. Check browser console for details. Make sure microphone permission is granted.')
-          setStatus('error')
-          return
+          
+          // Attempt automatic fallback to SFU if not already attempted
+          if (!hasAttemptedFallbackRef.current && !isSwitchingToSFURef.current) {
+            console.log('🔄 [Fallback] P2P initialization failed, attempting SFU fallback...')
+            hasAttemptedFallbackRef.current = true
+            await switchToSFU()
+            return // Exit, SFU will handle the rest
+          } else {
+            // If fallback already attempted or in progress, show error
+            setError('Failed to initialize P2P connection. Check browser console for details. Make sure microphone permission is granted.')
+            setStatus('error')
+            return
+          }
         }
         
         console.log('🔗 [P2P] ✅ P2P connection initialized successfully')
-        setStatus('connected')
-        if (!callStartTimeRef.current) {
-          callStartTimeRef.current = Date.now()
-          startDurationTimer()
-        }
+        // Note: Connection state will be set by onConnectionStateChange handler
+        // Don't set status here as P2P might still fail during ICE negotiation
         
         return // Exit early, P2P flow complete
       } else {
         console.log('📞 [SFU] Using SFU (mediasoup) connection mode')
+        // Use the extracted SFU initialization function
+        await initializeSFU(socket, currentCallId)
+        return
       }
-
-      // Get RTP capabilities (SFU flow continues below)
-      const { rtpCapabilities, iceServers } = await new Promise((resolve, reject) => {
-        socket.emit('mediasoup:getRtpCapabilities', { callId: currentCallId }, (response) => {
-          if (response.error) {
-            reject(new Error(response.error))
-          } else {
-            resolve(response)
-          }
-        })
-      })
-
-      // Create device
-      const device = new mediasoupClient.Device()
-      await device.load({ routerRtpCapabilities: rtpCapabilities })
-      deviceRef.current = device
-
-      // Create send transport
-      const sendTransportData = await new Promise((resolve, reject) => {
-        socket.emit('mediasoup:createWebRtcTransport', { callId: currentCallId }, (response) => {
-          if (response.error) {
-            reject(new Error(response.error))
-          } else {
-            resolve(response.transport)
-          }
-        })
-      })
 
       const sendTransport = device.createSendTransport({
         id: sendTransportData.id,

@@ -18,9 +18,43 @@ class P2PCallManager {
     this.localStream = null
     this.remoteStream = null
     this.isInitiator = false
+    // Default STUN server (will be enhanced with TURN from backend)
     this.iceServers = [
       { urls: ['stun:stun.l.google.com:19302'] }
     ]
+  }
+
+  /**
+   * Fetch ICE servers from backend (includes TURN if configured)
+   */
+  async fetchIceServers() {
+    return new Promise((resolve, reject) => {
+      if (!this.socket || !this.socket.connected) {
+        console.warn('🔗 [P2P] Socket not connected, using default STUN only')
+        resolve(this.iceServers)
+        return
+      }
+
+      this.socket.emit('p2p:getIceServers', {}, (response) => {
+        if (response && response.iceServers) {
+          console.log('🔗 [P2P] Received ICE servers from backend:', response.iceServers.length, 'servers')
+          this.iceServers = response.iceServers
+          resolve(this.iceServers)
+        } else if (response && response.error) {
+          console.warn('🔗 [P2P] Error fetching ICE servers:', response.error, '- using default STUN')
+          resolve(this.iceServers) // Fallback to default
+        } else {
+          console.warn('🔗 [P2P] No ICE servers response, using default STUN')
+          resolve(this.iceServers) // Fallback to default
+        }
+      })
+
+      // Timeout after 3 seconds
+      setTimeout(() => {
+        console.warn('🔗 [P2P] ICE servers fetch timeout, using default STUN')
+        resolve(this.iceServers)
+      }, 3000)
+    })
   }
 
   /**
@@ -44,10 +78,18 @@ class P2PCallManager {
         throw new Error('getUserMedia not supported in this browser')
       }
 
+      // Fetch ICE servers from backend (includes TURN if configured)
+      console.log('🔗 [P2P] Fetching ICE servers from backend...')
+      const iceServers = await this.fetchIceServers()
+      console.log('🔗 [P2P] Using ICE servers:', iceServers.length, 'servers')
+      iceServers.forEach((server, index) => {
+        console.log(`🔗 [P2P] ICE Server ${index + 1}:`, server.urls || server.url)
+      })
+
       // Create RTCPeerConnection
       console.log('🔗 [P2P] Creating RTCPeerConnection...')
       this.peerConnection = new RTCPeerConnection({
-        iceServers: this.iceServers
+        iceServers: iceServers
       })
       console.log('🔗 [P2P] ✅ RTCPeerConnection created')
 
@@ -184,7 +226,13 @@ class P2PCallManager {
 
     // ICE connection state handler
     this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('🔗 [P2P] ICE connection state:', this.peerConnection.iceConnectionState)
+      const iceState = this.peerConnection.iceConnectionState
+      console.log('🔗 [P2P] ICE connection state:', iceState)
+      
+      // Trigger callback for ICE state changes (for fallback detection)
+      if (this.onIceConnectionStateChange) {
+        this.onIceConnectionStateChange(iceState)
+      }
     }
   }
 

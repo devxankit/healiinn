@@ -994,6 +994,21 @@ const initializeSocket = (server) => {
 
     // ========== P2P WebRTC Events (Fallback for 1-to-1 calls) ==========
 
+    // Get ICE servers for P2P (includes TURN if configured)
+    socket.on('p2p:getIceServers', (data, callback) => {
+      try {
+        const iceServers = getIceServers();
+        if (typeof callback === 'function') {
+          callback({ iceServers });
+        }
+      } catch (error) {
+        console.error('Error in p2p:getIceServers:', error);
+        if (typeof callback === 'function') {
+          callback({ error: error.message || 'Failed to get ICE servers' });
+        }
+      }
+    });
+
     // Handle P2P offer
     socket.on('p2p:offer', async (data, callback) => {
       try {
