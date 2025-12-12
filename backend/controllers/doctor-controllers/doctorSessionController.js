@@ -4,7 +4,7 @@ const Doctor = require('../../models/Doctor');
 const Appointment = require('../../models/Appointment');
 const { SESSION_STATUS } = require('../../utils/constants');
 const { getOrCreateSession } = require('../../services/sessionService');
-const { getISTTime, getISTDate, getISTTimeInMinutes, getISTTimeString, parseDateInIST } = require('../../utils/timezoneUtils');
+const { getISTTime, getISTDate, getISTDateComponents, getISTTimeInMinutes, getISTTimeString, parseDateInIST, parseDateInISTComponents } = require('../../utils/timezoneUtils');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -153,23 +153,26 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
   
   // Use IST time for doctor session operations
   const now = getISTTime();
-  const today = getISTDate();
   
-  // Parse session date in IST timezone to ensure consistent date handling
-  let sessionDay;
+  // Get IST date components for comparison (avoid timezone issues with Date objects)
+  let todayComponents;
+  let sessionComponents;
   try {
-    sessionDay = parseDateInIST(sessionDate);
-    sessionDay.setHours(0, 0, 0, 0);
+    todayComponents = getISTDateComponents();
+    sessionComponents = parseDateInISTComponents(sessionDate);
   } catch (error) {
     console.log('⚠️ [Backend] Error parsing session date:', error, sessionDate);
     return false;
   }
   
-  // Check if it's the same day
-  if (today.getTime() !== sessionDay.getTime()) {
+  // Check if it's the same day by comparing date components directly
+  // This avoids timezone issues with Date object comparisons
+  if (todayComponents.year !== sessionComponents.year || 
+      todayComponents.month !== sessionComponents.month || 
+      todayComponents.day !== sessionComponents.day) {
     console.log('⚠️ [Backend] Session date mismatch:', {
-      today: today.toISOString().split('T')[0],
-      sessionDay: sessionDay.toISOString().split('T')[0],
+      today: `${todayComponents.year}-${String(todayComponents.month + 1).padStart(2, '0')}-${String(todayComponents.day).padStart(2, '0')}`,
+      sessionDay: `${sessionComponents.year}-${String(sessionComponents.month + 1).padStart(2, '0')}-${String(sessionComponents.day).padStart(2, '0')}`,
     });
     return false;
   }

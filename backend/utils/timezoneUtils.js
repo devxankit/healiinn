@@ -67,6 +67,20 @@ const getISTDate = () => {
 };
 
 /**
+ * Get IST date components for comparison (year, month, day)
+ * Returns plain numbers without creating Date objects to avoid timezone issues
+ * @returns {Object} Object with year, month (0-11), day properties
+ */
+const getISTDateComponents = () => {
+  const components = getISTComponents();
+  return {
+    year: components.year,
+    month: components.month,
+    day: components.day,
+  };
+};
+
+/**
  * Get current hour and minute in IST
  * @returns {Object} Object with hour and minute properties
  */
@@ -100,6 +114,60 @@ const getISTTimeString = () => {
     hour12: true,
   });
   return formatter.format(now);
+};
+
+/**
+ * Parse date and return IST date components for comparison
+ * @param {string|Date} date - Date string (YYYY-MM-DD) or Date object
+ * @returns {Object} Object with year, month (0-11), day properties
+ */
+const parseDateInISTComponents = (date) => {
+  if (!date) {
+    return getISTDateComponents();
+  }
+
+  if (date instanceof Date) {
+    // Convert Date to IST components
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    
+    const parts = formatter.formatToParts(date);
+    const components = {};
+    parts.forEach(part => {
+      components[part.type] = part.value;
+    });
+    
+    return {
+      year: parseInt(components.year),
+      month: parseInt(components.month) - 1,
+      day: parseInt(components.day),
+    };
+  }
+
+  if (typeof date === 'string') {
+    // Handle YYYY-MM-DD format
+    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = date.split('-').map(Number);
+      return {
+        year,
+        month: month - 1,
+        day,
+      };
+    } else {
+      // For other formats, parse normally and convert to IST
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) {
+        throw new Error(`Invalid date format: ${date}`);
+      }
+      return parseDateInISTComponents(parsedDate); // Recursive call with Date object
+    }
+  }
+
+  throw new Error(`Invalid date type: ${typeof date}`);
 };
 
 /**
@@ -180,9 +248,11 @@ const parseDateInIST = (date) => {
 module.exports = {
   getISTTime,
   getISTDate,
+  getISTDateComponents,
   getISTHourMinute,
   getISTTimeInMinutes,
   getISTTimeString,
   parseDateInIST,
+  parseDateInISTComponents,
 };
 
