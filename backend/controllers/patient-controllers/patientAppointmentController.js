@@ -14,6 +14,7 @@ const {
 const { ROLES } = require('../../utils/constants');
 const { getOrCreateSession, checkSlotAvailability } = require('../../services/sessionService');
 const { calculateAppointmentETA, recalculateSessionETAs } = require('../../services/etaService');
+const { getISTTime, getISTDate, getISTTimeInMinutes, getISTHourMinute } = require('../../utils/timezoneUtils');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -29,6 +30,11 @@ exports.getAppointments = asyncHandler(async (req, res) => {
   const { status, date, doctor } = req.query;
   const { page, limit, skip } = buildPagination(req);
 
+  // Auto-cancel pending appointments older than 30 minutes
+  // Use IST time for doctor session operations
+  const thirtyMinutesAgo = new Date(getISTTime().getTime() - 30 * 60 * 1000);
+  await Appointment.updateMany(
+    {
   // Auto-delete pending appointments older than 30 minutes (payment not completed)
   const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
   const pendingAppointmentsToDelete = await Appointment.find({
@@ -36,6 +42,13 @@ exports.getAppointments = asyncHandler(async (req, res) => {
       paymentStatus: 'pending',
     status: { $in: ['pending_payment', 'scheduled', 'confirmed'] },
       createdAt: { $lt: thirtyMinutesAgo },
+    },
+    {
+      status: 'cancelled',
+      cancelledAt: getISTTime(),
+      cancellationReason: 'Payment not completed within 30 minutes',
+    }
+  );
   });
 
   // Remove these appointments from sessions before deleting
@@ -251,29 +264,35 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if session end time has passed - if yes, reject new bookings
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Check if session end time has passed - only reject in-person bookings
+  // Call and video call appointments can be booked even after session end time
+  // Use IST time for doctor session operations
+  const today = getISTDate();
   const isSameDay = parsedAppointmentDate.getTime() === today.getTime();
   
   if (isSameDay) {
     const { timeToMinutes } = require('../../services/etaService');
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentTimeMinutes = currentHour * 60 + currentMinute;
+    // Use IST time for doctor session operations
+    const { hour: currentHour, minute: currentMinute } = getISTHourMinute();
+    const currentTimeMinutes = getISTTimeInMinutes();
     const sessionEndMinutes = timeToMinutes(session.sessionEndTime);
     
-    // If session end time has passed, reject new booking
+    // If session end time has passed, only reject in-person bookings
     if (sessionEndMinutes !== null && currentTimeMinutes >= sessionEndMinutes) {
-      return res.status(400).json({
-        success: false,
-        message: 'Session time has ended. No new appointments can be booked for this session. Existing appointments will continue.',
-        data: {
-          sessionEndTime: session.sessionEndTime,
-          currentTime: `${currentHour}:${currentMinute.toString().padStart(2, '0')}`,
-        },
-      });
+      // Check consultation mode - only reject in-person appointments
+      const appointmentConsultationMode = consultationMode || 'in_person';
+      if (appointmentConsultationMode === 'in_person') {
+        return res.status(400).json({
+          success: false,
+          message: 'In-person appointments cannot be booked after session time ends. Please select Call or Video Call.',
+          data: {
+            sessionEndTime: session.sessionEndTime,
+            currentTime: `${currentHour}:${currentMinute.toString().padStart(2, '0')}`,
+            consultationMode: appointmentConsultationMode,
+          },
+        });
+      }
+      // Allow call and video_call bookings even after session end time
     }
   }
 
@@ -477,7 +496,8 @@ exports.cancelAppointment = asyncHandler(async (req, res) => {
 
   // For paid appointments, cancel normally (don't delete)
   appointment.status = 'cancelled';
-  appointment.cancelledAt = new Date();
+  // Use IST time for doctor session operations
+  appointment.cancelledAt = getISTTime();
   appointment.cancellationReason = req.body.reason || 'Cancelled by patient';
   await appointment.save();
 
@@ -889,7 +909,8 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
   // If appointment was cancelled, reactivate it; otherwise keep as scheduled
   appointment.status = isCancelled ? 'scheduled' : 'scheduled';
   appointment.queueStatus = null;
-  appointment.rescheduledAt = new Date();
+  // Use IST time for doctor session operations
+  appointment.rescheduledAt = getISTTime();
   appointment.rescheduledBy = 'patient';
   appointment.rescheduleReason = isCancelled 
     ? `Appointment rebooked after cancellation. New date: ${normalizedAppointmentDate.toLocaleDateString('en-US')}`
@@ -1384,7 +1405,8 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
   appointment.paymentStatus = 'paid';
   appointment.paymentId = paymentId;
   appointment.razorpayOrderId = orderId;
-  appointment.paidAt = new Date();
+  // Use IST time for doctor session operations
+  appointment.paidAt = getISTTime();
   appointment.status = 'scheduled'; // Change from pending_payment to scheduled
   await appointment.save();
 

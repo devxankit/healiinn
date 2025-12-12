@@ -3,6 +3,7 @@ const mediasoup = require('mediasoup');
 let worker = null;
 const routers = new Map(); // Map<callId, Router>
 const transports = new Map(); // Map<transportId, Transport>
+const transportToCallId = new Map(); // Map<transportId, callId> - for reliable callId lookup
 const producers = new Map(); // Map<producerId, Producer>
 const consumers = new Map(); // Map<consumerId, Consumer>
 
@@ -98,6 +99,24 @@ function getRouter(callId) {
 }
 
 /**
+ * Get callId for a router (reverse lookup)
+ */
+function getCallIdForRouter(router) {
+  if (!router) {
+    return null;
+  }
+  
+  // Iterate through routers map to find matching router
+  for (const [callId, storedRouter] of routers.entries()) {
+    if (storedRouter === router) {
+      return callId;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Get RTP capabilities for a router
  */
 async function getRtpCapabilities(callId) {
@@ -127,10 +146,15 @@ async function createWebRtcTransport(callId, options = {}) {
   });
 
   transports.set(transport.id, transport);
+  // Store transportId -> callId mapping for reliable lookup
+  transportToCallId.set(transport.id, callId);
+  console.log(`✅ Transport created: ${transport.id} for callId: ${callId}`);
 
   // Clean up transport on close
   transport.on('close', () => {
     transports.delete(transport.id);
+    transportToCallId.delete(transport.id);
+    console.log(`✅ Transport closed: ${transport.id}, removed from mapping`);
   });
 
   return {
@@ -145,11 +169,46 @@ async function createWebRtcTransport(callId, options = {}) {
  * Connect transport
  */
 async function connectTransport(transportId, dtlsParameters) {
+  console.log(`📞 [mediasoup] connectTransport called for: ${transportId}`);
   const transport = transports.get(transportId);
   if (!transport) {
+    console.error(`📞 [mediasoup] ❌ Transport not found: ${transportId}`);
+    console.error(`📞 [mediasoup] Available transports:`, Array.from(transports.keys()));
     throw new Error(`Transport not found: ${transportId}`);
   }
-  await transport.connect({ dtlsParameters });
+  
+  // Check if transport is closed
+  if (transport.closed) {
+    console.error(`📞 [mediasoup] ❌ Transport ${transportId} is already closed`);
+    throw new Error(`Transport ${transportId} is closed`);
+  }
+  
+  console.log(`📞 [mediasoup] Transport found, connecting...`);
+  console.log(`📞 [mediasoup] Transport state:`, {
+    id: transport.id,
+    closed: transport.closed,
+    connectionState: transport.connectionState,
+    iceState: transport.iceState,
+    dtlsState: transport.dtlsState
+  });
+  
+  try {
+    await transport.connect({ dtlsParameters });
+    console.log(`📞 [mediasoup] ✅ Transport ${transportId} connected successfully`);
+    console.log(`📞 [mediasoup] Transport state after connect:`, {
+      connectionState: transport.connectionState,
+      iceState: transport.iceState,
+      dtlsState: transport.dtlsState
+    });
+  } catch (error) {
+    console.error(`📞 [mediasoup] ❌ Transport connect failed:`, error);
+    console.error(`📞 [mediasoup] Error details:`, {
+      message: error.message,
+      stack: error.stack,
+      transportId: transportId
+    });
+    throw error;
+  }
 }
 
 /**
@@ -189,15 +248,42 @@ async function createConsumer(transportId, producerId, rtpCapabilities, callId) 
     throw new Error(`Transport not found: ${transportId}`);
   }
 
+  // Check if transport is closed
+  if (transport.closed) {
+    // Remove closed transport from map
+    transports.delete(transportId);
+    throw new Error(`Transport ${transportId} is closed and cannot be used`);
+  }
+
   const producer = producers.get(producerId);
   if (!producer) {
     throw new Error(`Producer not found: ${producerId}`);
   }
 
   // Get router from transport (transport.router is the router it belongs to)
-  const router = transport.router;
+  let router = transport.router;
+  
+  // If transport.router is null (transport was closed or router was closed),
+  // try to get router from callId as fallback
+  if (!router && callId) {
+    router = routers.get(callId);
+    if (!router) {
+      // Transport exists but router is missing - this indicates the call/router was cleaned up
+      // Remove the stale transport from the map
+      transports.delete(transportId);
+      throw new Error(`Router not found for transport: ${transportId}. The call (${callId}) may have been ended or the router was closed.`);
+    }
+  }
+  
   if (!router) {
-    throw new Error(`Router not found for transport: ${transportId}`);
+    // Remove stale transport from map
+    transports.delete(transportId);
+    throw new Error(`Router not found for transport: ${transportId}. The transport may have been closed or the router was cleaned up.`);
+  }
+
+  // Verify router is not closed
+  if (router.closed) {
+    throw new Error(`Router for call ${callId} is closed and cannot be used`);
   }
 
   if (!router.canConsume({ producerId, rtpCapabilities })) {
@@ -232,6 +318,25 @@ function getProducer(producerId) {
 }
 
 /**
+ * Get consumer by ID
+ */
+function getConsumer(consumerId) {
+  return consumers.get(consumerId);
+}
+
+/**
+ * Resume consumer (consumers are paused by default in mediasoup)
+ */
+async function resumeConsumer(consumerId) {
+  const consumer = consumers.get(consumerId);
+  if (!consumer) {
+    throw new Error(`Consumer not found: ${consumerId}`);
+  }
+  await consumer.resume();
+  return true;
+}
+
+/**
  * Get all producers for a call
  */
 function getProducersForCall(callId) {
@@ -256,6 +361,20 @@ function getProducersForCall(callId) {
 }
 
 /**
+ * Get callId for a transport
+ */
+function getCallIdForTransport(transportId) {
+  return transportToCallId.get(transportId);
+}
+
+/**
+ * Get transport by ID (for router lookup)
+ */
+function getTransport(transportId) {
+  return transports.get(transportId);
+}
+
+/**
  * Close transport
  */
 async function closeTransport(transportId) {
@@ -263,6 +382,8 @@ async function closeTransport(transportId) {
   if (transport) {
     transport.close();
     transports.delete(transportId);
+    transportToCallId.delete(transportId);
+    console.log(`✅ Transport ${transportId} closed and removed from mapping`);
   }
 }
 
@@ -273,19 +394,33 @@ async function closeRouter(callId) {
   const router = routers.get(callId);
   if (router) {
     // Close all transports for this router
+    // Only close transports that belong to this router
+    const transportsToClose = [];
     for (const [transportId, transport] of transports.entries()) {
-      // In a production system, you'd track which transport belongs to which router
-      // For now, we'll close all transports when router closes
-      try {
-        transport.close();
-      } catch (error) {
-        console.error(`Error closing transport ${transportId}:`, error);
+      // Check if transport belongs to this router
+      if (transport.router === router) {
+        transportsToClose.push(transportId);
+      }
+    }
+    
+    // Close transports that belong to this router
+    for (const transportId of transportsToClose) {
+      const transport = transports.get(transportId);
+      if (transport) {
+        try {
+          transport.close();
+          // The transport's 'close' event handler will remove it from the map
+        } catch (error) {
+          console.error(`Error closing transport ${transportId}:`, error);
+          // Manually remove if close failed
+          transports.delete(transportId);
+        }
       }
     }
     
     router.close();
     routers.delete(callId);
-    console.log(`✅ Router closed for callId: ${callId}`);
+    console.log(`✅ Router closed for callId: ${callId}, closed ${transportsToClose.length} transport(s)`);
   }
 }
 
@@ -311,13 +446,18 @@ module.exports = {
   getWorker,
   createRouter,
   getRouter,
+  getCallIdForRouter,
   getRtpCapabilities,
   createWebRtcTransport,
   connectTransport,
+  getTransport,
   createProducer,
   createConsumer,
   getProducer,
+  getConsumer,
+  resumeConsumer,
   getProducersForCall,
+  getCallIdForTransport,
   closeTransport,
   closeRouter,
   cleanupCall,

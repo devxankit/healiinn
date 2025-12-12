@@ -390,12 +390,14 @@ const PharmacyProfile = () => {
       
       if (imageUrl) {
         // Construct full URL if it's a relative path
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        // Get base URL without /api for static file serving
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+        const baseUrl = apiBaseUrl.replace('/api', '').replace(/\/$/, '')
         const fullImageUrl = imageUrl.startsWith('http') 
           ? imageUrl 
           : imageUrl.startsWith('/')
-            ? `${apiBaseUrl}${imageUrl}`
-            : `${apiBaseUrl}/uploads/${imageUrl}`
+            ? `${baseUrl}${imageUrl}`
+            : `${baseUrl}/uploads/${imageUrl}`
         
         console.log('Setting image URL:', fullImageUrl) // Debug log
         

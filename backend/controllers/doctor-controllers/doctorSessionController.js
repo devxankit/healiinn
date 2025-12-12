@@ -4,6 +4,7 @@ const Doctor = require('../../models/Doctor');
 const Appointment = require('../../models/Appointment');
 const { SESSION_STATUS } = require('../../utils/constants');
 const { getOrCreateSession } = require('../../services/sessionService');
+const { getISTTime, getISTDate, getISTTimeInMinutes } = require('../../utils/timezoneUtils');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -145,8 +146,9 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
     return false;
   }
   
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Use IST time for doctor session operations
+  const now = getISTTime();
+  const today = getISTDate();
   
   // Parse session date - handle various formats
   let sessionDay;
@@ -186,7 +188,8 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
     return false;
   }
   
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  // Use IST time for comparison
+  const currentMinutes = getISTTimeInMinutes();
   const startMinutes = timeStringToMinutes(sessionStartTime);
   const endMinutes = timeStringToMinutes(sessionEndTime);
   
@@ -260,8 +263,9 @@ exports.updateSession = asyncHandler(async (req, res) => {
     const sessionEnd = sessionEndTime || session.sessionEndTime;
     
     if (!isWithinSessionTime(sessionStart, sessionEnd, session.date)) {
-      const now = new Date();
-      const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      // Use IST time for doctor session operations
+      const now = getISTTime();
+      const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
       
       return res.status(400).json({
         success: false,
@@ -276,12 +280,14 @@ exports.updateSession = asyncHandler(async (req, res) => {
     }
     
     if (!session.startedAt) {
-      session.startedAt = new Date();
+      // Use IST time for doctor session operations
+      session.startedAt = getISTTime();
     }
   }
 
   if (status === SESSION_STATUS.COMPLETED && !session.endedAt) {
-    session.endedAt = new Date();
+    // Use IST time for doctor session operations
+    session.endedAt = getISTTime();
   }
 
   // Store old status before updating
@@ -489,7 +495,7 @@ exports.deleteSession = asyncHandler(async (req, res) => {
     { 
       status: 'cancelled_by_session',
       queueStatus: 'cancelled',
-      cancelledAt: new Date(),
+      cancelledAt: getISTTime(),
       cancelledBy: 'doctor',
       cancellationReason: cancellationReason,
       // Clear reschedule info if it was rescheduled and now cancelled
@@ -501,7 +507,8 @@ exports.deleteSession = asyncHandler(async (req, res) => {
 
   // Update session status to cancelled instead of deleting
   session.status = SESSION_STATUS.CANCELLED;
-  session.endedAt = new Date();
+  // Use IST time for doctor session operations
+  session.endedAt = getISTTime();
   await session.save();
 
   // Send notifications to all affected patients

@@ -315,10 +315,12 @@ const PatientProfile = () => {
       const response = await uploadProfileImage(file)
       
       if (response.success && response.data?.url) {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        // Get base URL without /api for static file serving
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+        const baseUrl = apiBaseUrl.replace('/api', '').replace(/\/$/, '')
         const imageUrl = response.data.url.startsWith('http') 
           ? response.data.url 
-          : `${apiBaseUrl}${response.data.url}`
+          : `${baseUrl}${response.data.url.startsWith('/') ? response.data.url : `/${response.data.url}`}`
         
         setFormData((prev) => ({
           ...prev,

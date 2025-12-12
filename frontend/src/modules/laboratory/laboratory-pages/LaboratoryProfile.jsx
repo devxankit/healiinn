@@ -104,8 +104,10 @@ const LaboratoryProfile = () => {
             profileImage: (() => {
               const img = cachedProfile.profileImage || cachedProfile.documents?.profileImage || ''
               if (!img) return ''
-              const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
-              return img.startsWith('http') ? img : img.startsWith('/') ? `${apiBaseUrl}${img}` : `${apiBaseUrl}/uploads/${img}`
+              // Get base URL without /api for static file serving
+              const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+              const baseUrl = apiBaseUrl.replace('/api', '').replace(/\/$/, '')
+              return img.startsWith('http') ? img : img.startsWith('/') ? `${baseUrl}${img}` : `${baseUrl}/uploads/${img}`
             })(),
             bio: cachedProfile.bio || '',
             address: cachedProfile.address || {
@@ -152,8 +154,10 @@ const LaboratoryProfile = () => {
             profileImage: (() => {
               const img = laboratory.profileImage || laboratory.documents?.profileImage || ''
               if (!img) return ''
-              const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
-              return img.startsWith('http') ? img : img.startsWith('/') ? `${apiBaseUrl}${img}` : `${apiBaseUrl}/uploads/${img}`
+              // Get base URL without /api for static file serving
+              const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+              const baseUrl = apiBaseUrl.replace('/api', '').replace(/\/$/, '')
+              return img.startsWith('http') ? img : img.startsWith('/') ? `${baseUrl}${img}` : `${baseUrl}/uploads/${img}`
             })(),
             bio: laboratory.bio || '',
             gender: laboratory.gender || '',
@@ -372,12 +376,14 @@ const LaboratoryProfile = () => {
       
       if (imageUrl) {
         // Construct full URL if it's a relative path
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        // Get base URL without /api for static file serving
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+        const baseUrl = apiBaseUrl.replace('/api', '').replace(/\/$/, '')
         const fullImageUrl = imageUrl.startsWith('http') 
           ? imageUrl 
           : imageUrl.startsWith('/')
-            ? `${apiBaseUrl}${imageUrl}`
-            : `${apiBaseUrl}/uploads/${imageUrl}`
+            ? `${baseUrl}${imageUrl}`
+            : `${baseUrl}/uploads/${imageUrl}`
         
         console.log('Setting image URL:', fullImageUrl) // Debug log
         
@@ -509,8 +515,10 @@ const LaboratoryProfile = () => {
           profileImage: (() => {
             const img = laboratory.profileImage || laboratory.documents?.profileImage || ''
             if (!img) return ''
-            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
-            return img.startsWith('http') ? img : img.startsWith('/') ? `${apiBaseUrl}${img}` : `${apiBaseUrl}/uploads/${img}`
+            // Get base URL without /api for static file serving
+            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+            const baseUrl = apiBaseUrl.replace('/api', '').replace(/\/$/, '')
+            return img.startsWith('http') ? img : img.startsWith('/') ? `${baseUrl}${img}` : `${baseUrl}/uploads/${img}`
           })(),
           bio: laboratory.bio || '',
           address: laboratory.address || {

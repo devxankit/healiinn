@@ -9,7 +9,11 @@ const {
   connectTransport,
   createProducer,
   createConsumer,
+  resumeConsumer,
   getProducersForCall,
+  getCallIdForTransport,
+  getCallIdForRouter,
+  getTransport,
   cleanupCall,
   getIceServers,
 } = require('./mediasoup');
@@ -18,11 +22,21 @@ let io;
 
 const initializeSocket = (server) => {
   // Determine allowed origins
-  const allowedOrigins = process.env.SOCKET_IO_CORS_ORIGIN 
+  // Build a comprehensive list of allowed origins
+  const baseOrigins = process.env.SOCKET_IO_CORS_ORIGIN 
     ? process.env.SOCKET_IO_CORS_ORIGIN.split(',').map(origin => origin.trim())
     : process.env.FRONTEND_URL 
       ? [process.env.FRONTEND_URL]
       : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+
+  // Add production domains if not already included
+  const productionOrigins = [
+    'https://healiinnx.vercel.app',
+    'https://www.healiinnx.vercel.app',
+  ];
+
+  // Combine and deduplicate origins
+  const allowedOrigins = [...new Set([...baseOrigins, ...productionOrigins])];
 
   // In development, allow all localhost origins
   const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -38,7 +52,14 @@ const initializeSocket = (server) => {
               callback(new Error('Not allowed by CORS'));
             }
           }
-        : allowedOrigins,
+        : (origin, callback) => {
+            // In production, check against allowed origins
+            if (!origin || allowedOrigins.includes(origin)) {
+              callback(null, true);
+            } else {
+              callback(new Error('Not allowed by CORS'));
+            }
+          },
       methods: ['GET', 'POST', 'OPTIONS'],
       credentials: true,
       allowedHeaders: ['Authorization', 'Content-Type'],
@@ -571,11 +592,14 @@ const initializeSocket = (server) => {
       try {
         const { callId } = data;
         if (!callId) {
+          console.warn(`📞 [call:joinRoom] Missing callId from ${role} ${id}`);
           return callback({ error: 'callId is required' });
         }
 
+        console.log(`📞 [call:joinRoom] ${role} ${id} requesting to join call room: call-${callId}`);
         const call = await Call.findOne({ callId });
         if (!call) {
+          console.warn(`📞 [call:joinRoom] Call not found: ${callId}`);
           return callback({ error: 'Call not found' });
         }
 
@@ -584,16 +608,18 @@ const initializeSocket = (server) => {
         const isPatient = role === 'patient' && call.patientId.toString() === id;
 
         if (!isDoctor && !isPatient) {
+          console.warn(`📞 [call:joinRoom] Unauthorized: ${role} ${id} not part of call ${callId}`);
           return callback({ error: 'Unauthorized' });
         }
 
         // Join call room
         socket.join(`call-${callId}`);
-        console.log(`📞 [call:joinRoom] ${role} ${id} joined call room: call-${callId}`);
+        console.log(`📞 [call:joinRoom] ✅ ${role} ${id} successfully joined call room: call-${callId}`);
+        console.log(`📞 [call:joinRoom] Socket ${socket.id} is now in rooms:`, Array.from(socket.rooms));
         
         callback({ success: true, callId });
       } catch (error) {
-        console.error('Error in call:joinRoom:', error);
+        console.error(`📞 [call:joinRoom] Error:`, error);
         callback({ error: error.message || 'Failed to join call room' });
       }
     });
@@ -770,15 +796,33 @@ const initializeSocket = (server) => {
     // Connect transport
     socket.on('mediasoup:connectTransport', async (data, callback) => {
       try {
-        const { transportId, dtlsParameters } = data;
+        const { transportId, dtlsParameters, callId } = data;
+        console.log(`📞 [mediasoup:connectTransport] Connecting transport: ${transportId}`);
+        console.log(`📞 [mediasoup:connectTransport] CallId: ${callId || 'not provided'}`);
+        
         if (!transportId || !dtlsParameters) {
+          console.error(`📞 [mediasoup:connectTransport] ❌ Missing required parameters:`, {
+            hasTransportId: !!transportId,
+            hasDtlsParameters: !!dtlsParameters
+          });
           return callback({ error: 'transportId and dtlsParameters are required' });
         }
 
+        console.log(`📞 [mediasoup:connectTransport] DTLS parameters:`, {
+          role: dtlsParameters.role,
+          fingerprints: dtlsParameters.fingerprints?.length || 0
+        });
+
         await connectTransport(transportId, dtlsParameters);
+        console.log(`📞 [mediasoup:connectTransport] ✅ Transport ${transportId} connected successfully`);
         callback({ success: true });
       } catch (error) {
-        console.error('Error in mediasoup:connectTransport:', error);
+        console.error(`📞 [mediasoup:connectTransport] ❌ Error connecting transport:`, error);
+        console.error(`📞 [mediasoup:connectTransport] Error details:`, {
+          message: error.message,
+          stack: error.stack,
+          transportId: data?.transportId
+        });
         callback({ error: error.message || 'Failed to connect transport' });
       }
     });
@@ -795,24 +839,106 @@ const initializeSocket = (server) => {
           return callback({ error: 'Only audio is supported' });
         }
 
+        console.log(`📞 [mediasoup:produce] Creating producer for transport: ${transportId}`);
+        const producerCreateStartTime = Date.now();
         const producer = await createProducer(transportId, rtpParameters, kind);
+        const producerCreateDuration = Date.now() - producerCreateStartTime;
+        console.log(`📞 [mediasoup:produce] Producer created: ${producer.id} (took ${producerCreateDuration}ms)`);
+        
+        // DIAGNOSTIC: Log producer creation details
+        console.log(`🔍 [DIAGNOSTIC] Producer creation:`, {
+          producerId: producer.id,
+          transportId: transportId,
+          kind: kind,
+          createdAt: new Date(producerCreateStartTime).toISOString(),
+          creationDuration: producerCreateDuration + 'ms',
+          socketId: socket.id,
+          socketRooms: Array.from(socket.rooms)
+        });
 
         // Notify other participants about new producer
-        // We need to find the callId from the transport
-        // For now, we'll emit to the call room that the socket is in
-        const callRooms = Array.from(socket.rooms).filter(room => room.startsWith('call-'));
-        if (callRooms.length > 0) {
-          const callId = callRooms[0].replace('call-', '');
+        // CRITICAL FIX: Get callId from transport mapping instead of relying on socket rooms
+        // This fixes the race condition where socket might not be in room yet
+        let callId = null;
+        
+        // Method 1: Try transport-to-callId mapping (most reliable)
+        callId = getCallIdForTransport(transportId);
+        if (callId) {
+          console.log(`📞 [mediasoup:produce] Found callId from transport mapping: ${callId}`);
+        } else {
+          // Method 2: Try router lookup (fallback)
+          const transport = getTransport(transportId);
+          if (transport && transport.router) {
+            callId = getCallIdForRouter(transport.router);
+            if (callId) {
+              console.log(`📞 [mediasoup:produce] Found callId from router lookup: ${callId}`);
+            } else {
+              console.log(`📞 [mediasoup:produce] Router found but no callId mapping, trying socket rooms...`);
+            }
+          } else {
+            console.log(`📞 [mediasoup:produce] Transport not found or has no router, trying socket rooms...`);
+          }
+        }
+        
+        // Method 3: Fallback to socket rooms (for backward compatibility)
+        if (!callId) {
+          const callRooms = Array.from(socket.rooms).filter(room => room.startsWith('call-'));
+          if (callRooms.length > 0) {
+            callId = callRooms[0].replace('call-', '');
+            console.log(`📞 [mediasoup:produce] Found callId from socket rooms (fallback): ${callId}`);
+          }
+        }
+
+        // Emit event if we found a callId
+        if (callId) {
           const io = getIO();
-          io.to(`call-${callId}`).emit('mediasoup:newProducer', {
+          const callRoom = `call-${callId}`;
+          
+          // DIAGNOSTIC: Check how many sockets are in the call room
+          const room = io.sockets.adapter.rooms.get(callRoom);
+          const socketCount = room ? room.size : 0;
+          
+          console.log(`📞 [mediasoup:produce] Emitting mediasoup:newProducer to ${callRoom} for producer: ${producer.id}`);
+          console.log(`🔍 [DIAGNOSTIC] Event emission details:`, {
+            callId: callId,
+            callRoom: callRoom,
+            producerId: producer.id,
+            producerKind: producer.kind,
+            socketsInRoom: socketCount,
+            socketIds: socketCount > 0 ? Array.from(room || []) : [],
+            timestamp: new Date().toISOString()
+          });
+          
+          io.to(callRoom).emit('mediasoup:newProducer', {
             producerId: producer.id,
             kind: producer.kind,
           });
+          
+          console.log(`📞 [mediasoup:produce] ✅ Event emitted successfully to ${socketCount} socket(s) in room ${callRoom}`);
+          
+          // DIAGNOSTIC: Verify event was actually sent
+          if (socketCount === 0) {
+            console.warn(`🔍 [DIAGNOSTIC] ⚠️ WARNING: Event emitted to empty room! No sockets in ${callRoom}`);
+            console.warn(`🔍 [DIAGNOSTIC] This means the other party may not receive the producer notification`);
+          }
+        } else {
+          console.error(`📞 [mediasoup:produce] ❌ WARNING: Could not determine callId for transport ${transportId}. Event NOT emitted!`);
+          console.error(`🔍 [DIAGNOSTIC] CallId lookup failed:`, {
+            transportId: transportId,
+            socketId: socket.id,
+            socketRooms: Array.from(socket.rooms),
+            lookupMethods: {
+              transportMapping: 'failed',
+              routerLookup: 'failed',
+              socketRooms: 'failed'
+            }
+          });
+          // Still return success for producer creation, but log the issue
         }
 
         callback({ producer });
       } catch (error) {
-        console.error('Error in mediasoup:produce:', error);
+        console.error('📞 [mediasoup:produce] Error:', error);
         callback({ error: error.message || 'Failed to produce' });
       }
     });
@@ -833,6 +959,22 @@ const initializeSocket = (server) => {
       }
     });
 
+    // Resume consumer (consumers are paused by default in mediasoup)
+    socket.on('mediasoup:resumeConsumer', async (data, callback) => {
+      try {
+        const { consumerId } = data;
+        if (!consumerId) {
+          return callback({ error: 'consumerId is required' });
+        }
+
+        await resumeConsumer(consumerId);
+        callback({ success: true });
+      } catch (error) {
+        console.error('Error in mediasoup:resumeConsumer:', error);
+        callback({ error: error.message || 'Failed to resume consumer' });
+      }
+    });
+
     // Get existing producers for a call
     socket.on('mediasoup:getProducers', async (data, callback) => {
       try {
@@ -847,6 +989,182 @@ const initializeSocket = (server) => {
       } catch (error) {
         console.error('Error in mediasoup:getProducers:', error);
         callback({ error: error.message || 'Failed to get producers' });
+      }
+    });
+
+    // ========== P2P WebRTC Events (Fallback for 1-to-1 calls) ==========
+
+    // Get ICE servers for P2P (includes TURN if configured)
+    socket.on('p2p:getIceServers', (data, callback) => {
+      try {
+        const iceServers = getIceServers();
+        if (typeof callback === 'function') {
+          callback({ iceServers });
+        }
+      } catch (error) {
+        console.error('Error in p2p:getIceServers:', error);
+        if (typeof callback === 'function') {
+          callback({ error: error.message || 'Failed to get ICE servers' });
+        }
+      }
+    });
+
+    // Handle P2P offer
+    socket.on('p2p:offer', async (data, callback) => {
+      try {
+        const { callId, offer } = data;
+        if (!callId || !offer) {
+          if (typeof callback === 'function') {
+            return callback({ error: 'callId and offer are required' });
+          }
+          return;
+        }
+
+        // Verify user is part of this call
+        const call = await Call.findOne({ callId });
+        if (!call) {
+          if (typeof callback === 'function') {
+            return callback({ error: 'Call not found' });
+          }
+          return;
+        }
+
+        const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
+        const isPatient = role === 'patient' && call.patientId.toString() === id;
+        if (!isDoctor && !isPatient) {
+          if (typeof callback === 'function') {
+            return callback({ error: 'Unauthorized' });
+          }
+          return;
+        }
+
+        // Forward offer to the other party
+        const io = getIO();
+        const otherPartyId = isDoctor ? call.patientId.toString() : call.doctorId.toString();
+        const otherPartyRoom = isDoctor ? `patient-${otherPartyId}` : `doctor-${otherPartyId}`;
+        
+        console.log(`🔗 [P2P] Forwarding offer from ${role} ${id} to ${otherPartyRoom}`);
+        io.to(otherPartyRoom).emit('p2p:offer', {
+          callId,
+          offer,
+          from: id,
+          fromRole: role
+        });
+
+        if (typeof callback === 'function') {
+          callback({ success: true });
+        }
+      } catch (error) {
+        console.error('Error in p2p:offer:', error);
+        if (typeof callback === 'function') {
+          callback({ error: error.message || 'Failed to handle offer' });
+        }
+      }
+    });
+
+    // Handle P2P answer
+    socket.on('p2p:answer', async (data, callback) => {
+      try {
+        const { callId, answer } = data;
+        if (!callId || !answer) {
+          if (typeof callback === 'function') {
+            return callback({ error: 'callId and answer are required' });
+          }
+          return;
+        }
+
+        // Verify user is part of this call
+        const call = await Call.findOne({ callId });
+        if (!call) {
+          if (typeof callback === 'function') {
+            return callback({ error: 'Call not found' });
+          }
+          return;
+        }
+
+        const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
+        const isPatient = role === 'patient' && call.patientId.toString() === id;
+        if (!isDoctor && !isPatient) {
+          if (typeof callback === 'function') {
+            return callback({ error: 'Unauthorized' });
+          }
+          return;
+        }
+
+        // Forward answer to the other party
+        const io = getIO();
+        const otherPartyId = isDoctor ? call.patientId.toString() : call.doctorId.toString();
+        const otherPartyRoom = isDoctor ? `patient-${otherPartyId}` : `doctor-${otherPartyId}`;
+        
+        console.log(`🔗 [P2P] Forwarding answer from ${role} ${id} to ${otherPartyRoom}`);
+        io.to(otherPartyRoom).emit('p2p:answer', {
+          callId,
+          answer,
+          from: id,
+          fromRole: role
+        });
+
+        if (typeof callback === 'function') {
+          callback({ success: true });
+        }
+      } catch (error) {
+        console.error('Error in p2p:answer:', error);
+        if (typeof callback === 'function') {
+          callback({ error: error.message || 'Failed to handle answer' });
+        }
+      }
+    });
+
+    // Handle P2P ICE candidate
+    socket.on('p2p:iceCandidate', async (data, callback) => {
+      try {
+        const { callId, candidate } = data;
+        if (!callId || !candidate) {
+          if (typeof callback === 'function') {
+            return callback({ error: 'callId and candidate are required' });
+          }
+          return;
+        }
+
+        // Verify user is part of this call
+        const call = await Call.findOne({ callId });
+        if (!call) {
+          if (typeof callback === 'function') {
+            return callback({ error: 'Call not found' });
+          }
+          return;
+        }
+
+        const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
+        const isPatient = role === 'patient' && call.patientId.toString() === id;
+        if (!isDoctor && !isPatient) {
+          if (typeof callback === 'function') {
+            return callback({ error: 'Unauthorized' });
+          }
+          return;
+        }
+
+        // Forward ICE candidate to the other party
+        const io = getIO();
+        const otherPartyId = isDoctor ? call.patientId.toString() : call.doctorId.toString();
+        const otherPartyRoom = isDoctor ? `patient-${otherPartyId}` : `doctor-${otherPartyId}`;
+        
+        console.log(`🔗 [P2P] Forwarding ICE candidate from ${role} ${id} to ${otherPartyRoom}`);
+        io.to(otherPartyRoom).emit('p2p:iceCandidate', {
+          callId,
+          candidate,
+          from: id,
+          fromRole: role
+        });
+
+        if (typeof callback === 'function') {
+          callback({ success: true });
+        }
+      } catch (error) {
+        console.error('Error in p2p:iceCandidate:', error);
+        if (typeof callback === 'function') {
+          callback({ error: error.message || 'Failed to handle ICE candidate' });
+        }
       }
     });
 
