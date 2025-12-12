@@ -1038,7 +1038,7 @@ const CallPopup = () => {
       startDurationTimer()
 
       // Notify server that we've successfully joined the call (for doctor notification)
-      const module = getModule()
+      // Note: module is already declared at the start of joinCall function
       const currentSocket = socketRef.current
       
       if (module === 'patient' && currentSocket) {
