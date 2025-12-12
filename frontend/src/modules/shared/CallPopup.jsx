@@ -6,6 +6,7 @@ import { formatCallDuration, isWebRTCSupported } from '../../utils/callService'
 import { getAuthToken } from '../../utils/apiClient'
 import { useCall } from '../../contexts/CallContext'
 import { getSocket } from '../../utils/socketClient'
+import P2PCallManager from '../../utils/p2pCallManager'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
 const SOCKET_URL = API_BASE_URL.replace('/api', '').replace(/\/$/, '')
@@ -19,6 +20,10 @@ const CallPopup = () => {
   const [callDuration, setCallDuration] = useState(0)
   const [error, setError] = useState(null)
   const [remoteParticipant, setRemoteParticipant] = useState(activeCall?.remoteParticipant || 'Participant')
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [diagnosticLogs, setDiagnosticLogs] = useState([])
+  const [useP2P, setUseP2P] = useState(false) // P2P fallback flag
+  const p2pManagerRef = useRef(null)
 
   // Refs
   const socketRef = useRef(null)
@@ -283,19 +288,35 @@ const CallPopup = () => {
         }
 
         const handleNewProducer = async (data) => {
+          const eventTimestamp = Date.now()
           console.log('📞 [CallPopup] ====== mediasoup:newProducer EVENT RECEIVED ======')
           console.log('📞 [CallPopup] Producer data:', data)
           console.log('📞 [CallPopup] Our producer ID:', producerRef.current?.id)
           console.log('📞 [CallPopup] New producer ID:', data.producerId)
           
+          // DIAGNOSTIC: Event flow tracking
+          console.log(`🔍 [DIAGNOSTIC] Event received at:`, new Date(eventTimestamp).toISOString())
+          const currentSocket = socketRef.current || socket
+          console.log(`🔍 [DIAGNOSTIC] Call room membership check:`, {
+            socketId: currentSocket?.id,
+            socketConnected: currentSocket?.connected,
+            callId: callIdRef.current,
+            socketRooms: currentSocket ? Array.from(currentSocket.rooms) : []
+          })
+          
           // Don't consume if call is ending or ended
           if (isEndingRef.current || status === 'ended' || status === 'error') {
             console.log('📞 [CallPopup] Ignoring new producer - call is ending or ended')
+            console.log(`🔍 [DIAGNOSTIC] Event ignored due to call state:`, {
+              isEnding: isEndingRef.current,
+              status: status
+            })
             return
           }
           
           if (!data.producerId) {
             console.warn('📞 [CallPopup] New producer event missing producerId')
+            console.warn(`🔍 [DIAGNOSTIC] Invalid event data:`, data)
             return
           }
           
@@ -303,15 +324,31 @@ const CallPopup = () => {
           const isOurOwnProducer = producerRef.current && producerRef.current.id === data.producerId
           if (isOurOwnProducer) {
             console.log('📞 [CallPopup] Ignoring new producer - this is our own producer')
+            console.log(`🔍 [DIAGNOSTIC] Event ignored - our own producer:`, {
+              ourProducerId: producerRef.current.id,
+              eventProducerId: data.producerId
+            })
             return
           }
           
+          // DIAGNOSTIC: Timing check - when was our producer created?
+          const producerCreatedTime = producerRef.current?._createdAt || 'unknown'
+          console.log(`🔍 [DIAGNOSTIC] Producer timing:`, {
+            ourProducerCreated: producerCreatedTime !== 'unknown' ? new Date(producerCreatedTime).toISOString() : 'unknown',
+            remoteProducerReceived: new Date(eventTimestamp).toISOString(),
+            timeSinceOurProducer: producerCreatedTime !== 'unknown' ? (eventTimestamp - producerCreatedTime) + 'ms' : 'unknown'
+          })
+          
           // Consume the remote producer
           console.log('📞 [CallPopup] ✅ Consuming remote producer:', data.producerId)
+          const consumeStartTime = Date.now()
           try {
             await consumeRemoteAudio(data.producerId)
+            const consumeDuration = Date.now() - consumeStartTime
+            console.log(`🔍 [DIAGNOSTIC] Consumer creation completed in ${consumeDuration}ms`)
           } catch (error) {
             console.error('📞 [CallPopup] Error consuming remote audio in handleNewProducer:', error)
+            console.error(`🔍 [DIAGNOSTIC] Consumer creation failed after ${Date.now() - consumeStartTime}ms:`, error)
           }
         }
 
@@ -396,19 +433,35 @@ const CallPopup = () => {
         }
 
         const handleNewProducer = async (data) => {
+          const eventTimestamp = Date.now()
           console.log('📞 [CallPopup] ====== mediasoup:newProducer EVENT RECEIVED ======')
           console.log('📞 [CallPopup] Producer data:', data)
           console.log('📞 [CallPopup] Our producer ID:', producerRef.current?.id)
           console.log('📞 [CallPopup] New producer ID:', data.producerId)
           
+          // DIAGNOSTIC: Event flow tracking
+          console.log(`🔍 [DIAGNOSTIC] Event received at:`, new Date(eventTimestamp).toISOString())
+          const currentSocket = socketRef.current || socket
+          console.log(`🔍 [DIAGNOSTIC] Call room membership check:`, {
+            socketId: currentSocket?.id,
+            socketConnected: currentSocket?.connected,
+            callId: callIdRef.current,
+            socketRooms: currentSocket ? Array.from(currentSocket.rooms) : []
+          })
+          
           // Don't consume if call is ending or ended
           if (isEndingRef.current || status === 'ended' || status === 'error') {
             console.log('📞 [CallPopup] Ignoring new producer - call is ending or ended')
+            console.log(`🔍 [DIAGNOSTIC] Event ignored due to call state:`, {
+              isEnding: isEndingRef.current,
+              status: status
+            })
             return
           }
           
           if (!data.producerId) {
             console.warn('📞 [CallPopup] New producer event missing producerId')
+            console.warn(`🔍 [DIAGNOSTIC] Invalid event data:`, data)
             return
           }
           
@@ -416,15 +469,31 @@ const CallPopup = () => {
           const isOurOwnProducer = producerRef.current && producerRef.current.id === data.producerId
           if (isOurOwnProducer) {
             console.log('📞 [CallPopup] Ignoring new producer - this is our own producer')
+            console.log(`🔍 [DIAGNOSTIC] Event ignored - our own producer:`, {
+              ourProducerId: producerRef.current.id,
+              eventProducerId: data.producerId
+            })
             return
           }
           
+          // DIAGNOSTIC: Timing check - when was our producer created?
+          const producerCreatedTime = producerRef.current?._createdAt || 'unknown'
+          console.log(`🔍 [DIAGNOSTIC] Producer timing:`, {
+            ourProducerCreated: producerCreatedTime !== 'unknown' ? new Date(producerCreatedTime).toISOString() : 'unknown',
+            remoteProducerReceived: new Date(eventTimestamp).toISOString(),
+            timeSinceOurProducer: producerCreatedTime !== 'unknown' ? (eventTimestamp - producerCreatedTime) + 'ms' : 'unknown'
+          })
+          
           // Consume the remote producer
           console.log('📞 [CallPopup] ✅ Consuming remote producer:', data.producerId)
+          const consumeStartTime = Date.now()
           try {
             await consumeRemoteAudio(data.producerId)
+            const consumeDuration = Date.now() - consumeStartTime
+            console.log(`🔍 [DIAGNOSTIC] Consumer creation completed in ${consumeDuration}ms`)
           } catch (error) {
             console.error('📞 [CallPopup] Error consuming remote audio in handleNewProducer:', error)
+            console.error(`🔍 [DIAGNOSTIC] Consumer creation failed after ${Date.now() - consumeStartTime}ms:`, error)
           }
         }
 
@@ -483,6 +552,21 @@ const CallPopup = () => {
       console.log('📞 [CallPopup] Socket connected:', socket.connected)
       console.log('📞 [CallPopup] Socket ID:', socket.id)
 
+      // TODO 9: P2P/SFU Selection Logic
+      // For now, always use SFU. P2P can be enabled if SFU diagnostics show issues.
+      // To enable P2P: Set useP2P to true and implement P2P flow below
+      // This is a 1-to-1 call, so P2P is an option
+      const shouldUseP2P = useP2P // Can be enabled via environment variable or user preference
+      
+      if (shouldUseP2P) {
+        console.log('🔗 [P2P] Using P2P connection mode')
+        // P2P implementation would go here
+        // For now, fallback to SFU
+        console.log('🔗 [P2P] P2P not fully implemented yet, using SFU')
+      } else {
+        console.log('📞 [SFU] Using SFU (mediasoup) connection mode')
+      }
+
       // Get RTP capabilities
       const { rtpCapabilities, iceServers } = await new Promise((resolve, reject) => {
         socket.emit('mediasoup:getRtpCapabilities', { callId: currentCallId }, (response) => {
@@ -518,22 +602,43 @@ const CallPopup = () => {
         iceServers,
       })
 
+      // DIAGNOSTIC: Monitor send transport connection state
+      sendTransport.on('connectstatechange', (state) => {
+        console.log(`🔍 [DIAGNOSTIC] Send transport connectionState changed: ${state}`)
+        console.log(`🔍 [DIAGNOSTIC] Send transport details:`, {
+          id: sendTransport.id,
+          connectionState: sendTransport.connectionState,
+          state: state
+        })
+      })
+
       sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+        console.log(`🔍 [DIAGNOSTIC] Send transport connecting...`)
         try {
           socket.emit('mediasoup:connectTransport', {
             transportId: sendTransport.id,
             dtlsParameters,
           }, (response) => {
             if (response.error) {
+              console.error(`🔍 [DIAGNOSTIC] Send transport DTLS connection failed:`, response.error)
               errback(new Error(response.error))
             } else {
+              console.log(`🔍 [DIAGNOSTIC] ✅ Send transport DTLS connected successfully`)
               callback()
             }
           })
         } catch (error) {
+          console.error(`🔍 [DIAGNOSTIC] Send transport connect error:`, error)
           errback(error)
         }
       })
+
+      // DIAGNOSTIC: Monitor ICE connection state
+      if (sendTransport.observer) {
+        sendTransport.observer.on('newtransport', (transport) => {
+          console.log(`🔍 [DIAGNOSTIC] Send transport observer: new transport`, transport)
+        })
+      }
 
       sendTransport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
         try {
@@ -574,22 +679,86 @@ const CallPopup = () => {
         iceServers,
       })
 
+      // DIAGNOSTIC: Monitor recv transport connection state
+      recvTransport.on('connectstatechange', (state) => {
+        console.log(`🔍 [DIAGNOSTIC] Recv transport connectionState changed: ${state}`)
+        console.log(`🔍 [DIAGNOSTIC] Recv transport details:`, {
+          id: recvTransport.id,
+          connectionState: recvTransport.connectionState,
+          state: state
+        })
+      })
+
       recvTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+        console.log(`🔍 [DIAGNOSTIC] Recv transport connecting...`)
         try {
           socket.emit('mediasoup:connectTransport', {
             transportId: recvTransport.id,
             dtlsParameters,
           }, (response) => {
             if (response.error) {
+              console.error(`🔍 [DIAGNOSTIC] Recv transport DTLS connection failed:`, response.error)
               errback(new Error(response.error))
             } else {
+              console.log(`🔍 [DIAGNOSTIC] ✅ Recv transport DTLS connected successfully`)
               callback()
             }
           })
         } catch (error) {
+          console.error(`🔍 [DIAGNOSTIC] Recv transport connect error:`, error)
           errback(error)
         }
       })
+
+      // DIAGNOSTIC: Log initial transport states
+      console.log(`🔍 [DIAGNOSTIC] Send transport initial state:`, {
+        id: sendTransport.id,
+        connectionState: sendTransport.connectionState,
+        closed: sendTransport.closed
+      })
+      console.log(`🔍 [DIAGNOSTIC] Recv transport initial state:`, {
+        id: recvTransport.id,
+        connectionState: recvTransport.connectionState,
+        closed: recvTransport.closed
+      })
+
+      // DIAGNOSTIC: Monitor ICE connection state
+      const monitorTransportStates = setInterval(() => {
+        if (!sendTransportRef.current || !recvTransportRef.current) {
+          clearInterval(monitorTransportStates)
+          return
+        }
+        
+        const sendState = sendTransportRef.current.connectionState
+        const recvState = recvTransportRef.current.connectionState
+        
+        console.log(`🔍 [DIAGNOSTIC] Transport states periodic check:`, {
+          sendTransport: {
+            id: sendTransportRef.current.id,
+            connectionState: sendState,
+            closed: sendTransportRef.current.closed
+          },
+          recvTransport: {
+            id: recvTransportRef.current.id,
+            connectionState: recvState,
+            closed: recvTransportRef.current.closed
+          },
+          timestamp: new Date().toISOString()
+        })
+
+        // Check for connection issues
+        if (sendState === 'failed' || sendState === 'disconnected') {
+          console.error(`🔍 [DIAGNOSTIC] ⚠️ Send transport connection issue: ${sendState}`)
+        }
+        if (recvState === 'failed' || recvState === 'disconnected') {
+          console.error(`🔍 [DIAGNOSTIC] ⚠️ Recv transport connection issue: ${recvState}`)
+        }
+      }, 5000) // Check every 5 seconds
+
+      // Store interval for cleanup
+      if (sendTransportRef.current) {
+        sendTransportRef.current._monitorInterval = monitorTransportStates
+      }
 
       recvTransportRef.current = recvTransport
 
@@ -758,15 +927,70 @@ const CallPopup = () => {
       }
 
       console.log('📞 [CallPopup] Creating producer with send transport:', sendTransportRef.current.id)
+      const producerCreateStartTime = Date.now()
       const producer = await sendTransportRef.current.produce(params)
+      const producerCreateDuration = Date.now() - producerCreateStartTime
       producerRef.current = producer
+      producer._createdAt = producerCreateStartTime // Store creation time for diagnostics
 
       console.log('📞 [CallPopup] ✅ Producer created successfully:', {
         id: producer.id,
         kind: producer.kind,
-        trackId: producer.track?.id
+        trackId: producer.track?.id,
+        creationTime: producerCreateDuration + 'ms'
       })
       console.log('📞 [CallPopup] Producer will notify other participants via mediasoup:newProducer event')
+      
+      // DIAGNOSTIC: Log producer creation timing
+      console.log(`🔍 [DIAGNOSTIC] Producer creation:`, {
+        producerId: producer.id,
+        createdAt: new Date(producerCreateStartTime).toISOString(),
+        creationDuration: producerCreateDuration + 'ms',
+        transportId: sendTransportRef.current.id,
+        callId: callIdRef.current
+      })
+
+      // DIAGNOSTIC: Monitor producer state
+      console.log(`🔍 [DIAGNOSTIC] Producer details:`, {
+        id: producer.id,
+        kind: producer.kind,
+        paused: producer.paused,
+        closed: producer.closed,
+        track: producer.track ? {
+          id: producer.track.id,
+          kind: producer.track.kind,
+          enabled: producer.track.enabled,
+          muted: producer.track.muted,
+          readyState: producer.track.readyState
+        } : null
+      })
+
+      // DIAGNOSTIC: Monitor producer events
+      producer.on('transportclose', () => {
+        console.warn(`🔍 [DIAGNOSTIC] ⚠️ Producer transport closed:`, producer.id)
+      })
+
+      // DIAGNOSTIC: Check if producer is actually sending data
+      if (producer.track) {
+        const checkProducerActivity = setInterval(() => {
+          if (producer.closed) {
+            clearInterval(checkProducerActivity)
+            return
+          }
+          console.log(`🔍 [DIAGNOSTIC] Producer activity check:`, {
+            id: producer.id,
+            paused: producer.paused,
+            trackEnabled: producer.track.enabled,
+            trackMuted: producer.track.muted,
+            trackReadyState: producer.track.readyState
+          })
+        }, 5000) // Check every 5 seconds
+
+        // Clean up interval on component unmount
+        if (producerRef.current) {
+          producerRef.current._activityCheckInterval = checkProducerActivity
+        }
+      }
 
       // Note: We'll consume when we receive mediasoup:newProducer event
     } catch (error) {
@@ -868,6 +1092,31 @@ const CallPopup = () => {
         hasTrack: !!consumerInstance.track
       })
 
+      // DIAGNOSTIC: Monitor consumer state
+      console.log(`🔍 [DIAGNOSTIC] Consumer details:`, {
+        id: consumerInstance.id,
+        producerId: consumerInstance.producerId,
+        kind: consumerInstance.kind,
+        paused: consumerInstance.paused,
+        closed: consumerInstance.closed,
+        track: consumerInstance.track ? {
+          id: consumerInstance.track.id,
+          kind: consumerInstance.track.kind,
+          enabled: consumerInstance.track.enabled,
+          muted: consumerInstance.track.muted,
+          readyState: consumerInstance.track.readyState
+        } : null
+      })
+
+      // DIAGNOSTIC: Monitor consumer events
+      consumerInstance.on('transportclose', () => {
+        console.warn(`🔍 [DIAGNOSTIC] ⚠️ Consumer transport closed:`, consumerInstance.id)
+      })
+
+      consumerInstance.on('producerclose', () => {
+        console.warn(`🔍 [DIAGNOSTIC] ⚠️ Consumer producer closed:`, consumerInstance.producerId)
+      })
+
       // Resume consumer on server (consumers are paused by default in mediasoup)
       console.log('📞 [CallPopup] Resuming consumer on server...')
       try {
@@ -880,12 +1129,21 @@ const CallPopup = () => {
               reject(new Error(response.error))
             } else {
               console.log('📞 [CallPopup] ✅ Consumer resumed on server')
+              
+              // DIAGNOSTIC: Verify consumer is actually resumed
+              console.log(`🔍 [DIAGNOSTIC] Consumer resume verification:`, {
+                id: consumerInstance.id,
+                paused: consumerInstance.paused,
+                closed: consumerInstance.closed
+              })
+              
               resolve(response)
             }
           })
         })
       } catch (error) {
         console.error('📞 [CallPopup] ❌ Error resuming consumer:', error)
+        console.error(`🔍 [DIAGNOSTIC] Consumer resume failed - consumer may be paused!`)
         // Don't fail the call if resume fails - try to continue anyway
       }
 
@@ -924,12 +1182,35 @@ const CallPopup = () => {
         const audioElement = remoteAudioRef.current
         console.log('📞 [CallPopup] Audio element found, setting up remote audio stream...')
 
+        // DIAGNOSTIC: Check audio element initial state
+        console.log(`🔍 [DIAGNOSTIC] Audio element initial state:`, {
+          paused: audioElement.paused,
+          muted: audioElement.muted,
+          volume: audioElement.volume,
+          readyState: audioElement.readyState,
+          srcObject: !!audioElement.srcObject,
+          error: audioElement.error
+        })
+
         // Create audio element for remote audio
         const stream = new MediaStream([consumerInstance.track])
         console.log('📞 [CallPopup] Created MediaStream with track:', {
           trackId: consumerInstance.track.id,
           kind: consumerInstance.track.kind,
           enabled: consumerInstance.track.enabled
+        })
+        
+        // DIAGNOSTIC: Check MediaStream state
+        console.log(`🔍 [DIAGNOSTIC] MediaStream details:`, {
+          id: stream.id,
+          active: stream.active,
+          tracks: stream.getTracks().map(t => ({
+            id: t.id,
+            kind: t.kind,
+            enabled: t.enabled,
+            muted: t.muted,
+            readyState: t.readyState
+          }))
         })
         
         // Set up audio element properties
@@ -942,6 +1223,17 @@ const CallPopup = () => {
           muted: audioElement.muted,
           paused: audioElement.paused,
           readyState: audioElement.readyState
+        })
+
+        // DIAGNOSTIC: Verify audio element configuration
+        console.log(`🔍 [DIAGNOSTIC] Audio element after configuration:`, {
+          srcObject: !!audioElement.srcObject,
+          srcObjectTracks: audioElement.srcObject ? audioElement.srcObject.getTracks().length : 0,
+          volume: audioElement.volume,
+          muted: audioElement.muted,
+          paused: audioElement.paused,
+          readyState: audioElement.readyState,
+          autoplay: audioElement.autoplay
         })
         
         // Add event listeners for debugging
@@ -964,12 +1256,59 @@ const CallPopup = () => {
             code: audioElement.error?.code,
             message: audioElement.error?.message
           })
+          console.error(`🔍 [DIAGNOSTIC] Audio element error state:`, {
+            paused: audioElement.paused,
+            muted: audioElement.muted,
+            volume: audioElement.volume,
+            readyState: audioElement.readyState,
+            srcObject: !!audioElement.srcObject,
+            error: audioElement.error
+          })
+        }
+
+        const onStalled = () => {
+          console.warn(`🔍 [DIAGNOSTIC] ⚠️ Audio element stalled`)
+        }
+
+        const onWaiting = () => {
+          console.warn(`🔍 [DIAGNOSTIC] ⚠️ Audio element waiting for data`)
+        }
+
+        const onSuspend = () => {
+          console.warn(`🔍 [DIAGNOSTIC] ⚠️ Audio element suspended`)
         }
         
         audioElement.addEventListener('loadedmetadata', onLoadedMetadata)
         audioElement.addEventListener('canplay', onCanPlay)
         audioElement.addEventListener('play', onPlay)
         audioElement.addEventListener('error', onError)
+        audioElement.addEventListener('stalled', onStalled)
+        audioElement.addEventListener('waiting', onWaiting)
+        audioElement.addEventListener('suspend', onSuspend)
+
+        // DIAGNOSTIC: Monitor audio element state periodically
+        const monitorAudioElement = setInterval(() => {
+          if (!audioElement || audioElement.ended) {
+            clearInterval(monitorAudioElement)
+            return
+          }
+          console.log(`🔍 [DIAGNOSTIC] Audio element periodic check:`, {
+            paused: audioElement.paused,
+            muted: audioElement.muted,
+            volume: audioElement.volume,
+            readyState: audioElement.readyState,
+            currentTime: audioElement.currentTime,
+            duration: audioElement.duration,
+            srcObject: !!audioElement.srcObject,
+            srcObjectActive: audioElement.srcObject ? audioElement.srcObject.active : false,
+            error: audioElement.error
+          })
+        }, 5000) // Check every 5 seconds
+
+        // Store interval for cleanup
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current._monitorInterval = monitorAudioElement
+        }
 
         // Play the audio with retry logic
         const playAudio = async (playRetryCount = 0) => {
@@ -1253,6 +1592,58 @@ const CallPopup = () => {
     )
   }
 
+  // DIAGNOSTIC: Get current diagnostic state
+  const getDiagnosticState = () => {
+    return {
+      callId: callIdRef.current,
+      status: status,
+      socket: socketRef.current ? {
+        id: socketRef.current.id,
+        connected: socketRef.current.connected,
+        rooms: Array.from(socketRef.current.rooms || [])
+      } : null,
+      sendTransport: sendTransportRef.current ? {
+        id: sendTransportRef.current.id,
+        connectionState: sendTransportRef.current.connectionState,
+        closed: sendTransportRef.current.closed
+      } : null,
+      recvTransport: recvTransportRef.current ? {
+        id: recvTransportRef.current.id,
+        connectionState: recvTransportRef.current.connectionState,
+        closed: recvTransportRef.current.closed
+      } : null,
+      producer: producerRef.current ? {
+        id: producerRef.current.id,
+        paused: producerRef.current.paused,
+        closed: producerRef.current.closed,
+        track: producerRef.current.track ? {
+          enabled: producerRef.current.track.enabled,
+          muted: producerRef.current.track.muted,
+          readyState: producerRef.current.track.readyState
+        } : null
+      } : null,
+      consumer: consumerRef.current ? {
+        id: consumerRef.current.id,
+        producerId: consumerRef.current.producerId,
+        paused: consumerRef.current.paused,
+        closed: consumerRef.current.closed,
+        track: consumerRef.current.track ? {
+          enabled: consumerRef.current.track.enabled,
+          muted: consumerRef.current.track.muted,
+          readyState: consumerRef.current.track.readyState
+        } : null
+      } : null,
+      audioElement: remoteAudioRef.current ? {
+        paused: remoteAudioRef.current.paused,
+        muted: remoteAudioRef.current.muted,
+        volume: remoteAudioRef.current.volume,
+        readyState: remoteAudioRef.current.readyState,
+        srcObject: !!remoteAudioRef.current.srcObject,
+        error: remoteAudioRef.current.error
+      } : null
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
@@ -1266,6 +1657,15 @@ const CallPopup = () => {
             <IoRemoveOutline className="text-xl" />
           </button>
         )}
+        
+        {/* Diagnostic Toggle Button */}
+        <button
+          onClick={() => setShowDiagnostics(!showDiagnostics)}
+          className="absolute top-4 left-4 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded transition"
+          title="Toggle Diagnostics"
+        >
+          🔍 {showDiagnostics ? 'Hide' : 'Show'} Diagnostics
+        </button>
         
         {/* Header */}
         <div className="text-center mb-6">
@@ -1327,6 +1727,110 @@ const CallPopup = () => {
             {status === 'connected' ? 'Connected' : 'Connecting...'}
           </div>
         </div>
+
+        {/* Diagnostic Panel */}
+        {showDiagnostics && (
+          <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 max-h-96 overflow-y-auto">
+            <h3 className="text-sm font-bold text-slate-900 mb-2">🔍 Diagnostic Information</h3>
+            <div className="space-y-2 text-xs">
+              <div>
+                <strong>Call ID:</strong> {callIdRef.current || 'N/A'}
+              </div>
+              <div>
+                <strong>Status:</strong> {status}
+              </div>
+              
+              {socketRef.current && (
+                <div className="mt-2">
+                  <strong>Socket:</strong>
+                  <div className="ml-2 text-slate-600">
+                    ID: {socketRef.current.id}<br/>
+                    Connected: {socketRef.current.connected ? '✅' : '❌'}<br/>
+                    Rooms: {Array.from(socketRef.current.rooms || []).join(', ') || 'None'}
+                  </div>
+                </div>
+              )}
+
+              {sendTransportRef.current && (
+                <div className="mt-2">
+                  <strong>Send Transport:</strong>
+                  <div className="ml-2 text-slate-600">
+                    ID: {sendTransportRef.current.id}<br/>
+                    State: <span className={sendTransportRef.current.connectionState === 'connected' ? 'text-green-600' : 'text-yellow-600'}>{sendTransportRef.current.connectionState}</span><br/>
+                    Closed: {sendTransportRef.current.closed ? '❌' : '✅'}
+                  </div>
+                </div>
+              )}
+
+              {recvTransportRef.current && (
+                <div className="mt-2">
+                  <strong>Recv Transport:</strong>
+                  <div className="ml-2 text-slate-600">
+                    ID: {recvTransportRef.current.id}<br/>
+                    State: <span className={recvTransportRef.current.connectionState === 'connected' ? 'text-green-600' : 'text-yellow-600'}>{recvTransportRef.current.connectionState}</span><br/>
+                    Closed: {recvTransportRef.current.closed ? '❌' : '✅'}
+                  </div>
+                </div>
+              )}
+
+              {producerRef.current && (
+                <div className="mt-2">
+                  <strong>Producer:</strong>
+                  <div className="ml-2 text-slate-600">
+                    ID: {producerRef.current.id}<br/>
+                    Paused: {producerRef.current.paused ? '⏸️' : '▶️'}<br/>
+                    Closed: {producerRef.current.closed ? '❌' : '✅'}<br/>
+                    {producerRef.current.track && (
+                      <>
+                        Track Enabled: {producerRef.current.track.enabled ? '✅' : '❌'}<br/>
+                        Track Muted: {producerRef.current.track.muted ? '🔇' : '🔊'}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {consumerRef.current && (
+                <div className="mt-2">
+                  <strong>Consumer:</strong>
+                  <div className="ml-2 text-slate-600">
+                    ID: {consumerRef.current.id}<br/>
+                    Producer ID: {consumerRef.current.producerId}<br/>
+                    Paused: {consumerRef.current.paused ? '⏸️' : '▶️'}<br/>
+                    Closed: {consumerRef.current.closed ? '❌' : '✅'}<br/>
+                    {consumerRef.current.track && (
+                      <>
+                        Track Enabled: {consumerRef.current.track.enabled ? '✅' : '❌'}<br/>
+                        Track Muted: {consumerRef.current.track.muted ? '🔇' : '🔊'}<br/>
+                        Track State: {consumerRef.current.track.readyState}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {remoteAudioRef.current && (
+                <div className="mt-2">
+                  <strong>Audio Element:</strong>
+                  <div className="ml-2 text-slate-600">
+                    Paused: {remoteAudioRef.current.paused ? '⏸️' : '▶️'}<br/>
+                    Muted: {remoteAudioRef.current.muted ? '🔇' : '🔊'}<br/>
+                    Volume: {remoteAudioRef.current.volume}<br/>
+                    Ready State: {remoteAudioRef.current.readyState}<br/>
+                    Has Source: {remoteAudioRef.current.srcObject ? '✅' : '❌'}<br/>
+                    {remoteAudioRef.current.error && (
+                      <span className="text-red-600">Error: {remoteAudioRef.current.error.message}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-2 text-xs text-slate-500">
+                <em>Check browser console (F12) for detailed diagnostic logs</em>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

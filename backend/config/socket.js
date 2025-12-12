@@ -822,8 +822,21 @@ const initializeSocket = (server) => {
         }
 
         console.log(`📞 [mediasoup:produce] Creating producer for transport: ${transportId}`);
+        const producerCreateStartTime = Date.now();
         const producer = await createProducer(transportId, rtpParameters, kind);
-        console.log(`📞 [mediasoup:produce] Producer created: ${producer.id}`);
+        const producerCreateDuration = Date.now() - producerCreateStartTime;
+        console.log(`📞 [mediasoup:produce] Producer created: ${producer.id} (took ${producerCreateDuration}ms)`);
+        
+        // DIAGNOSTIC: Log producer creation details
+        console.log(`🔍 [DIAGNOSTIC] Producer creation:`, {
+          producerId: producer.id,
+          transportId: transportId,
+          kind: kind,
+          createdAt: new Date(producerCreateStartTime).toISOString(),
+          creationDuration: producerCreateDuration + 'ms',
+          socketId: socket.id,
+          socketRooms: Array.from(socket.rooms)
+        });
 
         // Notify other participants about new producer
         // CRITICAL FIX: Get callId from transport mapping instead of relying on socket rooms
@@ -861,15 +874,47 @@ const initializeSocket = (server) => {
         // Emit event if we found a callId
         if (callId) {
           const io = getIO();
-          console.log(`📞 [mediasoup:produce] Emitting mediasoup:newProducer to call-${callId} for producer: ${producer.id}`);
-          io.to(`call-${callId}`).emit('mediasoup:newProducer', {
+          const callRoom = `call-${callId}`;
+          
+          // DIAGNOSTIC: Check how many sockets are in the call room
+          const room = io.sockets.adapter.rooms.get(callRoom);
+          const socketCount = room ? room.size : 0;
+          
+          console.log(`📞 [mediasoup:produce] Emitting mediasoup:newProducer to ${callRoom} for producer: ${producer.id}`);
+          console.log(`🔍 [DIAGNOSTIC] Event emission details:`, {
+            callId: callId,
+            callRoom: callRoom,
+            producerId: producer.id,
+            producerKind: producer.kind,
+            socketsInRoom: socketCount,
+            socketIds: socketCount > 0 ? Array.from(room || []) : [],
+            timestamp: new Date().toISOString()
+          });
+          
+          io.to(callRoom).emit('mediasoup:newProducer', {
             producerId: producer.id,
             kind: producer.kind,
           });
-          console.log(`📞 [mediasoup:produce] ✅ Event emitted successfully`);
+          
+          console.log(`📞 [mediasoup:produce] ✅ Event emitted successfully to ${socketCount} socket(s) in room ${callRoom}`);
+          
+          // DIAGNOSTIC: Verify event was actually sent
+          if (socketCount === 0) {
+            console.warn(`🔍 [DIAGNOSTIC] ⚠️ WARNING: Event emitted to empty room! No sockets in ${callRoom}`);
+            console.warn(`🔍 [DIAGNOSTIC] This means the other party may not receive the producer notification`);
+          }
         } else {
           console.error(`📞 [mediasoup:produce] ❌ WARNING: Could not determine callId for transport ${transportId}. Event NOT emitted!`);
-          console.error(`📞 [mediasoup:produce] Socket rooms:`, Array.from(socket.rooms));
+          console.error(`🔍 [DIAGNOSTIC] CallId lookup failed:`, {
+            transportId: transportId,
+            socketId: socket.id,
+            socketRooms: Array.from(socket.rooms),
+            lookupMethods: {
+              transportMapping: 'failed',
+              routerLookup: 'failed',
+              socketRooms: 'failed'
+            }
+          });
           // Still return success for producer creation, but log the issue
         }
 
@@ -926,6 +971,128 @@ const initializeSocket = (server) => {
       } catch (error) {
         console.error('Error in mediasoup:getProducers:', error);
         callback({ error: error.message || 'Failed to get producers' });
+      }
+    });
+
+    // ========== P2P WebRTC Events (Fallback for 1-to-1 calls) ==========
+
+    // Handle P2P offer
+    socket.on('p2p:offer', async (data, callback) => {
+      try {
+        const { callId, offer } = data;
+        if (!callId || !offer) {
+          return callback({ error: 'callId and offer are required' });
+        }
+
+        // Verify user is part of this call
+        const call = await Call.findOne({ callId });
+        if (!call) {
+          return callback({ error: 'Call not found' });
+        }
+
+        const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
+        const isPatient = role === 'patient' && call.patientId.toString() === id;
+        if (!isDoctor && !isPatient) {
+          return callback({ error: 'Unauthorized' });
+        }
+
+        // Forward offer to the other party
+        const io = getIO();
+        const otherPartyId = isDoctor ? call.patientId.toString() : call.doctorId.toString();
+        const otherPartyRoom = isDoctor ? `patient-${otherPartyId}` : `doctor-${otherPartyId}`;
+        
+        console.log(`🔗 [P2P] Forwarding offer from ${role} ${id} to ${otherPartyRoom}`);
+        io.to(otherPartyRoom).emit('p2p:offer', {
+          callId,
+          offer,
+          from: id,
+          fromRole: role
+        });
+
+        callback({ success: true });
+      } catch (error) {
+        console.error('Error in p2p:offer:', error);
+        callback({ error: error.message || 'Failed to handle offer' });
+      }
+    });
+
+    // Handle P2P answer
+    socket.on('p2p:answer', async (data, callback) => {
+      try {
+        const { callId, answer } = data;
+        if (!callId || !answer) {
+          return callback({ error: 'callId and answer are required' });
+        }
+
+        // Verify user is part of this call
+        const call = await Call.findOne({ callId });
+        if (!call) {
+          return callback({ error: 'Call not found' });
+        }
+
+        const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
+        const isPatient = role === 'patient' && call.patientId.toString() === id;
+        if (!isDoctor && !isPatient) {
+          return callback({ error: 'Unauthorized' });
+        }
+
+        // Forward answer to the other party
+        const io = getIO();
+        const otherPartyId = isDoctor ? call.patientId.toString() : call.doctorId.toString();
+        const otherPartyRoom = isDoctor ? `patient-${otherPartyId}` : `doctor-${otherPartyId}`;
+        
+        console.log(`🔗 [P2P] Forwarding answer from ${role} ${id} to ${otherPartyRoom}`);
+        io.to(otherPartyRoom).emit('p2p:answer', {
+          callId,
+          answer,
+          from: id,
+          fromRole: role
+        });
+
+        callback({ success: true });
+      } catch (error) {
+        console.error('Error in p2p:answer:', error);
+        callback({ error: error.message || 'Failed to handle answer' });
+      }
+    });
+
+    // Handle P2P ICE candidate
+    socket.on('p2p:iceCandidate', async (data, callback) => {
+      try {
+        const { callId, candidate } = data;
+        if (!callId || !candidate) {
+          return callback({ error: 'callId and candidate are required' });
+        }
+
+        // Verify user is part of this call
+        const call = await Call.findOne({ callId });
+        if (!call) {
+          return callback({ error: 'Call not found' });
+        }
+
+        const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
+        const isPatient = role === 'patient' && call.patientId.toString() === id;
+        if (!isDoctor && !isPatient) {
+          return callback({ error: 'Unauthorized' });
+        }
+
+        // Forward ICE candidate to the other party
+        const io = getIO();
+        const otherPartyId = isDoctor ? call.patientId.toString() : call.doctorId.toString();
+        const otherPartyRoom = isDoctor ? `patient-${otherPartyId}` : `doctor-${otherPartyId}`;
+        
+        console.log(`🔗 [P2P] Forwarding ICE candidate from ${role} ${id} to ${otherPartyRoom}`);
+        io.to(otherPartyRoom).emit('p2p:iceCandidate', {
+          callId,
+          candidate,
+          from: id,
+          fromRole: role
+        });
+
+        callback({ success: true });
+      } catch (error) {
+        console.error('Error in p2p:iceCandidate:', error);
+        callback({ error: error.message || 'Failed to handle ICE candidate' });
       }
     });
 
