@@ -11,6 +11,7 @@ import {
   IoBusinessOutline,
   IoFlaskOutline,
   IoMedicalOutline,
+  IoHeartOutline,
 } from 'react-icons/io5'
 import {
   getSupportTickets,
@@ -110,6 +111,8 @@ const AdminSupport = () => {
               ? getStringValue(user.contactPerson.name || user.contactPerson)
               : getStringValue(user.contactPerson)
             name = contactPersonName || getStringValue(user.ownerName) || getStringValue(user.labName) || getEmail() || 'Unknown'
+          } else if (role === 'nurse') {
+            name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || getEmail() || 'Unknown'
           }
 
           // Map status: 'open' -> 'pending' for UI consistency
@@ -194,6 +197,8 @@ const AdminSupport = () => {
         return <IoBusinessOutline className="h-5 w-5" />
       case 'laboratory':
         return <IoFlaskOutline className="h-5 w-5" />
+      case 'nurse':
+        return <IoHeartOutline className="h-5 w-5" />
       default:
         return <IoPersonOutline className="h-5 w-5" />
     }

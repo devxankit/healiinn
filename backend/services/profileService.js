@@ -1,9 +1,110 @@
 const { getModelForRole, ROLES } = require('../utils/getModelForRole');
+const { deleteFile } = require('./fileUploadService');
 
 const createError = (status, message) => {
   const error = new Error(message);
   error.status = status;
   return error;
+};
+
+/**
+ * Extract file path from URL
+ * @param {String} url - File URL (e.g., '/uploads/profiles/image.jpg' or 'http://...')
+ * @returns {String|null} - File path relative to upload directory or null if external URL
+ */
+const extractFilePathFromUrl = (url) => {
+  if (!url || typeof url !== 'string') {
+    return null;
+  }
+
+  // If it's an external URL (http/https), don't delete it
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return null;
+  }
+
+  // If it starts with /uploads/, remove that prefix
+  if (url.startsWith('/uploads/')) {
+    return url.replace('/uploads/', '');
+  }
+
+  // If it already looks like a relative path, return as is
+  if (url.includes('/') && !url.startsWith('/')) {
+    return url;
+  }
+
+  return null;
+};
+
+/**
+ * Delete old file if it exists and is different from new file
+ * @param {String} oldUrl - Old file URL
+ * @param {String} newUrl - New file URL
+ */
+const deleteOldFileIfNeeded = async (oldUrl, newUrl) => {
+  // Only delete if old and new URLs are different
+  if (!oldUrl || !newUrl || oldUrl === newUrl) {
+    return;
+  }
+
+  const oldFilePath = extractFilePathFromUrl(oldUrl);
+  
+  // Only delete if it's a local file (not external URL)
+  if (!oldFilePath) {
+    return;
+  }
+
+  try {
+    await deleteFile(oldFilePath);
+    console.log(`✅ Old file deleted: ${oldFilePath}`);
+  } catch (error) {
+    // Don't throw error, just log it - file deletion failure shouldn't block profile update
+    console.error(`⚠️ Failed to delete old file (${oldFilePath}):`, error.message);
+  }
+};
+
+/**
+ * Delete old files from documents object when new documents are uploaded
+ * @param {Object} oldDocuments - Old documents object
+ * @param {Object} newDocuments - New documents object
+ */
+const deleteOldDocumentFiles = async (oldDocuments, newDocuments) => {
+  if (!oldDocuments || !newDocuments || typeof oldDocuments !== 'object' || typeof newDocuments !== 'object') {
+    return;
+  }
+
+  // Check each document field
+  for (const [key, newDoc] of Object.entries(newDocuments)) {
+    const oldDoc = oldDocuments[key];
+    
+    if (!oldDoc) continue;
+
+    // Handle different document structures
+    let oldUrl = null;
+    let newUrl = null;
+
+    // Old document URL extraction
+    if (typeof oldDoc === 'string') {
+      oldUrl = oldDoc;
+    } else if (oldDoc.imageUrl) {
+      oldUrl = oldDoc.imageUrl;
+    } else if (oldDoc.url) {
+      oldUrl = oldDoc.url;
+    }
+
+    // New document URL extraction
+    if (typeof newDoc === 'string') {
+      newUrl = newDoc;
+    } else if (newDoc.imageUrl) {
+      newUrl = newDoc.imageUrl;
+    } else if (newDoc.url) {
+      newUrl = newDoc.url;
+    }
+
+    // Delete old file if URLs are different
+    if (oldUrl && newUrl && oldUrl !== newUrl) {
+      await deleteOldFileIfNeeded(oldUrl, newUrl);
+    }
+  }
 };
 
 const toPlainObject = (value) => (value && typeof value.toObject === 'function' ? value.toObject() : value);
@@ -42,6 +143,11 @@ const applyPatientUpdates = async (doc, updates, Model) => {
   if (updates.phone && updates.phone !== doc.phone) {
     await ensureUniqueField(Model, 'phone', updates.phone, doc._id, 'Phone number already registered.');
     doc.phone = updates.phone;
+  }
+
+  // Delete old profile image if new one is being uploaded
+  if (updates.profileImage && doc.profileImage && doc.profileImage !== updates.profileImage) {
+    await deleteOldFileIfNeeded(doc.profileImage, updates.profileImage);
   }
 
   allowedScalars.forEach((field) => {
@@ -88,18 +194,42 @@ const applyDoctorUpdates = async (doc, updates, Model) => {
     doc.phone = updates.phone;
   }
 
+  // Delete old profile image if new one is being uploaded
+  if (updates.profileImage && doc.profileImage && doc.profileImage !== updates.profileImage) {
+    await deleteOldFileIfNeeded(doc.profileImage, updates.profileImage);
+  }
+
+  // Delete old digital signature if new one is being uploaded
+  if (updates.digitalSignature && doc.digitalSignature) {
+    const oldSignature = typeof doc.digitalSignature === 'string' 
+      ? doc.digitalSignature 
+      : doc.digitalSignature.imageUrl || doc.digitalSignature.url;
+    const newSignature = typeof updates.digitalSignature === 'string'
+      ? updates.digitalSignature
+      : updates.digitalSignature.imageUrl || updates.digitalSignature.url;
+    
+    if (oldSignature && newSignature && oldSignature !== newSignature) {
+      await deleteOldFileIfNeeded(oldSignature, newSignature);
+    }
+  }
+
   allowedScalars.forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(updates, field) && updates[field] !== undefined) {
       doc[field] = updates[field];
     }
   });
 
-  mergeFields.forEach((field) => {
+  for (const field of mergeFields) {
     if (updates[field] !== undefined) {
+      // For documents field, delete old files before merging
+      if (field === 'documents' && doc[field]) {
+        await deleteOldDocumentFiles(doc[field], updates[field]);
+      }
+      // For digitalSignature field, already handled above
       doc[field] = mergeObjects(doc[field], updates[field]);
       doc.markModified(field);
     }
-  });
+  }
 
   arrayReplaceFields.forEach((field) => {
     if (updates[field] !== undefined) {
@@ -127,18 +257,27 @@ const applyLaboratoryUpdates = async (doc, updates, Model) => {
     doc.phone = updates.phone;
   }
 
+  // Delete old profile image if new one is being uploaded
+  if (updates.profileImage && doc.profileImage && doc.profileImage !== updates.profileImage) {
+    await deleteOldFileIfNeeded(doc.profileImage, updates.profileImage);
+  }
+
   allowedScalars.forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(updates, field) && updates[field] !== undefined) {
       doc[field] = updates[field];
     }
   });
 
-  mergeFields.forEach((field) => {
+  for (const field of mergeFields) {
     if (updates[field] !== undefined) {
+      // For documents field, delete old files before merging
+      if (field === 'documents' && doc[field]) {
+        await deleteOldDocumentFiles(doc[field], updates[field]);
+      }
       doc[field] = mergeObjects(doc[field], updates[field]);
       doc.markModified(field);
     }
-  });
+  }
 
   arrayReplaceFields.forEach((field) => {
     if (updates[field] !== undefined) {
@@ -158,18 +297,79 @@ const applyPharmacyUpdates = async (doc, updates, Model) => {
     doc.phone = updates.phone;
   }
 
+  // Delete old profile image if new one is being uploaded
+  if (updates.profileImage && doc.profileImage && doc.profileImage !== updates.profileImage) {
+    await deleteOldFileIfNeeded(doc.profileImage, updates.profileImage);
+  }
+
   allowedScalars.forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(updates, field) && updates[field] !== undefined) {
       doc[field] = updates[field];
     }
   });
 
-  mergeFields.forEach((field) => {
+  for (const field of mergeFields) {
     if (updates[field] !== undefined) {
+      // For documents field, delete old files before merging
+      if (field === 'documents' && doc[field]) {
+        await deleteOldDocumentFiles(doc[field], updates[field]);
+      }
       doc[field] = mergeObjects(doc[field], updates[field]);
       doc.markModified(field);
     }
+  }
+
+  arrayReplaceFields.forEach((field) => {
+    if (updates[field] !== undefined) {
+      doc[field] = updates[field];
+      doc.markModified(field);
+    }
   });
+};
+
+const applyNurseUpdates = async (doc, updates, Model) => {
+  const allowedScalars = [
+    'firstName',
+    'lastName',
+    'gender',
+    'qualification',
+    'experienceYears',
+    'specialization',
+    'fees',
+    'registrationNumber',
+    'registrationCouncilName',
+    'bio',
+    'profileImage',
+  ];
+  const mergeFields = ['address', 'documents'];
+  const arrayReplaceFields = [];
+
+  if (updates.phone && updates.phone !== doc.phone) {
+    await ensureUniqueField(Model, 'phone', updates.phone, doc._id, 'Phone number already registered.');
+    doc.phone = updates.phone;
+  }
+
+  // Delete old profile image if new one is being uploaded
+  if (updates.profileImage && doc.profileImage && doc.profileImage !== updates.profileImage) {
+    await deleteOldFileIfNeeded(doc.profileImage, updates.profileImage);
+  }
+
+  allowedScalars.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(updates, field) && updates[field] !== undefined) {
+      doc[field] = updates[field];
+    }
+  });
+
+  for (const field of mergeFields) {
+    if (updates[field] !== undefined) {
+      // For documents field, delete old files before merging
+      if (field === 'documents' && doc[field]) {
+        await deleteOldDocumentFiles(doc[field], updates[field]);
+      }
+      doc[field] = mergeObjects(doc[field], updates[field]);
+      doc.markModified(field);
+    }
+  }
 
   arrayReplaceFields.forEach((field) => {
     if (updates[field] !== undefined) {
@@ -189,6 +389,11 @@ const applyAdminUpdates = async (doc, updates, Model, { requester } = {}) => {
   if (updates.phone && updates.phone !== doc.phone) {
     await ensureUniqueField(Model, 'phone', updates.phone, doc._id, 'Phone number already registered.');
     doc.phone = updates.phone;
+  }
+
+  // Delete old profile image if new one is being uploaded
+  if (updates.profileImage && doc.profileImage && doc.profileImage !== updates.profileImage) {
+    await deleteOldFileIfNeeded(doc.profileImage, updates.profileImage);
   }
 
   allowedScalars.forEach((field) => {
@@ -225,6 +430,7 @@ const updateHandlers = {
   [ROLES.DOCTOR]: applyDoctorUpdates,
   [ROLES.LABORATORY]: applyLaboratoryUpdates,
   [ROLES.PHARMACY]: applyPharmacyUpdates,
+  [ROLES.NURSE]: applyNurseUpdates,
   [ROLES.ADMIN]: applyAdminUpdates,
 };
 

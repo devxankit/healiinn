@@ -20,7 +20,6 @@ import {
   IoChevronUpOutline,
   IoSchoolOutline,
   IoDocumentTextOutline,
-  IoPowerOutline,
   IoImageOutline,
 } from 'react-icons/io5'
 
@@ -198,34 +197,6 @@ const NurseProfile = () => {
     }
   }
 
-  const handleToggleActive = async () => {
-    const newActiveStatus = !formData.isActive
-    setFormData((prev) => ({ ...prev, isActive: newActiveStatus }))
-    
-    try {
-      // TODO: Implement update service
-      // const response = await updateNurseProfile({ isActive: newActiveStatus })
-      // if (response.success) {
-      //   if (newActiveStatus) {
-      //     toast.success('Your profile is now active')
-      //   } else {
-      //     toast.info('Your profile is now inactive')
-      //   }
-      // } else {
-      //   setFormData((prev) => ({ ...prev, isActive: !newActiveStatus }))
-      //   toast.error(response.message || 'Failed to update profile status')
-      // }
-      if (newActiveStatus) {
-        toast.success('Your profile is now active')
-      } else {
-        toast.info('Your profile is now inactive')
-      }
-    } catch (error) {
-      setFormData((prev) => ({ ...prev, isActive: !newActiveStatus }))
-      console.error('Error updating profile status:', error)
-      toast.error('Failed to update profile status')
-    }
-  }
 
   const handleCancel = () => {
     setIsEditing(false)
@@ -267,34 +238,6 @@ const NurseProfile = () => {
                 backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)',
                 backgroundSize: '20px 20px'
               }} />
-
-              {/* Active Status - Top Right Corner */}
-              <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5 z-10">
-                <button
-                  type="button"
-                  onClick={handleToggleActive}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${
-                    formData.isActive
-                      ? 'bg-emerald-500/95 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
-                      : 'bg-slate-500/95 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
-                  }`}
-                >
-                  {formData.isActive ? (
-                    <>
-                      <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                      <span>Active</span>
-                    </>
-                  ) : (
-                    <>
-                      <IoPowerOutline className="h-3.5 w-3.5" />
-                      <span>Inactive</span>
-                    </>
-                  )}
-                </button>
-                <p className="text-[10px] text-white/80 text-right whitespace-nowrap drop-shadow-md">
-                  {formData.isActive ? 'Visible' : 'Hidden'}
-                </p>
-              </div>
 
               <div className="relative flex flex-col items-center gap-4">
                 {/* Profile Picture */}
@@ -426,31 +369,6 @@ const NurseProfile = () => {
                 backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)',
                 backgroundSize: '20px 20px'
               }} />
-
-              {/* Active Status */}
-              <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5 z-10">
-                <button
-                  type="button"
-                  onClick={handleToggleActive}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${
-                    formData.isActive
-                      ? 'bg-emerald-500/95 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
-                      : 'bg-slate-500/95 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
-                  }`}
-                >
-                  {formData.isActive ? (
-                    <>
-                      <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                      <span>Active</span>
-                    </>
-                  ) : (
-                    <>
-                      <IoPowerOutline className="h-3.5 w-3.5" />
-                      <span>Inactive</span>
-                    </>
-                  )}
-                </button>
-              </div>
 
               <div className="relative flex flex-col items-center gap-4 sm:gap-5">
                 {/* Profile Picture */}

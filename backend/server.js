@@ -72,6 +72,7 @@ app.use('/api/patients/auth', require('./routes/patient-routes/auth.routes'));
 app.use('/api/doctors/auth', require('./routes/doctor-routes/auth.routes'));
 app.use('/api/laboratories/auth', require('./routes/laboratory-routes/auth.routes'));
 app.use('/api/pharmacies/auth', require('./routes/pharmacy-routes/auth.routes'));
+app.use('/api/nurses/auth', require('./routes/nurse-routes/auth.routes'));
 app.use('/api/admin/auth', require('./routes/admin-routes/auth.routes'));
 
 // Patient Routes (Profile is handled in auth.routes.js)

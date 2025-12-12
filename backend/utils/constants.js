@@ -3,6 +3,7 @@ const ROLES = {
   DOCTOR: 'doctor',
   LABORATORY: 'laboratory',
   PHARMACY: 'pharmacy',
+  NURSE: 'nurse',
   ADMIN: 'admin',
 };
 
@@ -81,6 +82,7 @@ const WITHDRAWAL_STATUS = {
 const DOCTOR_COMMISSION_RATE = Number(process.env.DOCTOR_COMMISSION_RATE || 0.1);
 const LABORATORY_COMMISSION_RATE = Number(process.env.LABORATORY_COMMISSION_RATE || 0.1);
 const PHARMACY_COMMISSION_RATE = Number(process.env.PHARMACY_COMMISSION_RATE || 0.1);
+const NURSE_COMMISSION_RATE = Number(process.env.NURSE_COMMISSION_RATE || 0.1);
 
 // Legacy: Keep COMMISSION_RATE for backward compatibility (defaults to doctor rate)
 const COMMISSION_RATE = DOCTOR_COMMISSION_RATE;
@@ -94,6 +96,8 @@ const getCommissionRateByRole = (providerRole) => {
       return LABORATORY_COMMISSION_RATE;
     case ROLES.PHARMACY:
       return PHARMACY_COMMISSION_RATE;
+    case ROLES.NURSE:
+      return NURSE_COMMISSION_RATE;
     default:
       return COMMISSION_RATE; // Default to doctor rate
   }
@@ -127,6 +131,7 @@ module.exports = {
   DOCTOR_COMMISSION_RATE,
   LABORATORY_COMMISSION_RATE,
   PHARMACY_COMMISSION_RATE,
+  NURSE_COMMISSION_RATE,
   getCommissionRateByRole,
   JOB_NAMES,
   PASSWORD_RESET_CONFIG,

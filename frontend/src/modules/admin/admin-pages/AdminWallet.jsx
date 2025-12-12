@@ -6,6 +6,7 @@ import {
   IoMedicalOutline,
   IoBusinessOutline,
   IoFlaskOutline,
+  IoHeartOutline,
   IoCashOutline,
   IoReceiptOutline,
   IoArrowForwardOutline,
@@ -42,6 +43,7 @@ const defaultProviders = {
   doctors: [],
   pharmacies: [],
   laboratories: [],
+  nurses: [],
 }
 
 const defaultWithdrawals = []
@@ -109,6 +111,8 @@ const getProviderIcon = (type) => {
       return IoBusinessOutline
     case 'laboratory':
       return IoFlaskOutline
+    case 'nurse':
+      return IoHeartOutline
     default:
       return IoPeopleOutline
   }
@@ -254,6 +258,17 @@ const AdminWallet = () => {
               totalTransactions: p.totalTransactions || 0,
               status: p.status || 'active',
             })),
+            nurses: summaries.filter(p => p.role === 'nurse' || p.type === 'nurse').map(p => ({
+              id: p.providerId || p.id,
+              name: p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+              email: p.email || '',
+              totalEarnings: p.totalEarnings || 0,
+              availableBalance: p.availableBalance || 0, // Use availableBalance directly
+              pendingBalance: p.pendingBalance || 0,
+              totalWithdrawals: p.totalWithdrawals || 0,
+              totalTransactions: p.totalTransactions || 0,
+              status: p.status || 'active',
+            })),
           }
           
           setProviders(grouped)
@@ -308,6 +323,13 @@ const AdminWallet = () => {
                     providerName = wd.userId.pharmacyName || wd.userId.ownerName || 'Pharmacy'
                   } else if (wd.userType === 'laboratory') {
                     providerName = wd.userId.labName || wd.userId.ownerName || 'Laboratory'
+                  } else if (wd.userType === 'nurse') {
+                    const firstName = wd.userId.firstName || ''
+                    const lastName = wd.userId.lastName || ''
+                    providerName = `${firstName} ${lastName}`.trim()
+                    if (!providerName) {
+                      providerName = wd.userId.email?.split('@')[0] || 'Nurse'
+                    }
                   }
                   
                   console.log('✅ Extracted provider data:', {
@@ -439,6 +461,7 @@ const AdminWallet = () => {
     ...(providers.doctors || []).map(p => ({ ...p, type: 'doctor' })),
     ...(providers.pharmacies || []).map(p => ({ ...p, type: 'pharmacy' })),
     ...(providers.laboratories || []).map(p => ({ ...p, type: 'laboratory' })),
+    ...(providers.nurses || []).map(p => ({ ...p, type: 'nurse' })),
   ]
 
   const filteredProviders = allProviders.filter((provider) => {
@@ -453,6 +476,7 @@ const AdminWallet = () => {
     doctors: loading ? 0 : (providers.doctors || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
     pharmacies: loading ? 0 : (providers.pharmacies || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
     laboratories: loading ? 0 : (providers.laboratories || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
+    nurses: loading ? 0 : (providers.nurses || []).reduce((sum, p) => sum + (p.totalEarnings || 0), 0),
   }
 
   const handleApprove = async (withdrawalId) => {
@@ -854,7 +878,7 @@ const AdminWallet = () => {
           <h2 className="text-base font-semibold text-slate-900">Earnings by Provider Type</h2>
           <p className="mt-1 text-xs text-slate-600">Commission breakdown</p>
         </header>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Doctors Earnings */}
           <article className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center gap-3 mb-3">
@@ -895,6 +919,20 @@ const AdminWallet = () => {
               </div>
             </div>
             <p className="text-xs text-slate-500">{loading ? '...' : (providers.laboratories || []).length} active laboratories</p>
+          </article>
+
+          {/* Nurses Earnings */}
+          <article className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-100">
+                <IoHeartOutline className="h-5 w-5 text-pink-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-slate-600 uppercase">Nurses</p>
+                <p className="text-lg font-bold text-slate-900">{loading ? '...' : formatCurrency(earningsByRole.nurses)}</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">{loading ? '...' : (providers.nurses || []).length} active nurses</p>
           </article>
         </div>
       </section>
@@ -963,6 +1001,7 @@ const AdminWallet = () => {
                 <option value="doctor">Doctors</option>
                 <option value="pharmacy">Pharmacies</option>
                 <option value="laboratory">Laboratories</option>
+                <option value="nurse">Nurses</option>
               </select>
             </div>
           </header>
@@ -1248,6 +1287,13 @@ const AdminWallet = () => {
                                       finalWithdrawal.providerName = origUserId.pharmacyName || origUserId.ownerName || 'Pharmacy'
                                     } else if (withdrawal.providerType === 'laboratory') {
                                       finalWithdrawal.providerName = origUserId.labName || origUserId.ownerName || 'Laboratory'
+                                    } else if (withdrawal.providerType === 'nurse') {
+                                      const firstName = origUserId.firstName || ''
+                                      const lastName = origUserId.lastName || ''
+                                      finalWithdrawal.providerName = `${firstName} ${lastName}`.trim()
+                                      if (!finalWithdrawal.providerName) {
+                                        finalWithdrawal.providerName = origUserId.email?.split('@')[0] || 'Nurse'
+                                      }
                                     }
                                   }
                                 }

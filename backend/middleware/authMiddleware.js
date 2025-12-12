@@ -74,9 +74,9 @@ const protect = (...allowedRoles) =>
       throw createError(403, 'You do not have access to this resource');
     }
 
-    // Check approval status for doctors, labs, and pharmacies
+    // Check approval status for doctors, labs, pharmacies, and nurses
     if (
-      [ROLES.DOCTOR, ROLES.LABORATORY, ROLES.PHARMACY].includes(role) &&
+      [ROLES.DOCTOR, ROLES.LABORATORY, ROLES.PHARMACY, ROLES.NURSE].includes(role) &&
       user.status &&
       user.status !== APPROVAL_STATUS.APPROVED
     ) {

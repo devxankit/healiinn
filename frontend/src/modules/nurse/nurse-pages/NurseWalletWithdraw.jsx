@@ -163,7 +163,7 @@ const NurseWalletWithdraw = () => {
             </div>
             <button
               onClick={() => setShowWithdrawModal(true)}
-              disabled={loading || withdrawData.availableBalance <= 0}
+              disabled={loading}
               className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-amber-400/40 transition-all hover:bg-amber-600 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <IoAddOutline className="h-5 w-5" />
