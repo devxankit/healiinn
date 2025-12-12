@@ -9,6 +9,7 @@ const {
   connectTransport,
   createProducer,
   createConsumer,
+  resumeConsumer,
   getProducersForCall,
   cleanupCall,
   getIceServers,
@@ -847,6 +848,22 @@ const initializeSocket = (server) => {
       } catch (error) {
         console.error('Error in mediasoup:consume:', error);
         callback({ error: error.message || 'Failed to consume' });
+      }
+    });
+
+    // Resume consumer (consumers are paused by default in mediasoup)
+    socket.on('mediasoup:resumeConsumer', async (data, callback) => {
+      try {
+        const { consumerId } = data;
+        if (!consumerId) {
+          return callback({ error: 'consumerId is required' });
+        }
+
+        await resumeConsumer(consumerId);
+        callback({ success: true });
+      } catch (error) {
+        console.error('Error in mediasoup:resumeConsumer:', error);
+        callback({ error: error.message || 'Failed to resume consumer' });
       }
     });
 

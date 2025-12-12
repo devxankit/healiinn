@@ -708,12 +708,106 @@ const CallPopup = () => {
 
       consumerRef.current = consumerInstance
 
-      // Create audio element for remote audio
-      const stream = new MediaStream([consumerInstance.track])
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = stream
-        remoteAudioRef.current.play().catch(err => console.error('Error playing remote audio:', err))
+      // Resume consumer on server (consumers are paused by default in mediasoup)
+      try {
+        await new Promise((resolve, reject) => {
+          socket.emit('mediasoup:resumeConsumer', {
+            consumerId: consumerInstance.id,
+          }, (response) => {
+            if (response.error) {
+              reject(new Error(response.error))
+            } else {
+              resolve(response)
+            }
+          })
+        })
+        console.log('📞 [CallPopup] Consumer resumed on server:', consumerInstance.id)
+      } catch (error) {
+        console.error('📞 [CallPopup] Error resuming consumer:', error)
+        // Don't fail the call if resume fails - try to continue anyway
       }
+
+      // Ensure the track is enabled
+      if (consumerInstance.track) {
+        consumerInstance.track.enabled = true
+        console.log('📞 [CallPopup] Consumer track enabled:', {
+          id: consumerInstance.track.id,
+          kind: consumerInstance.track.kind,
+          enabled: consumerInstance.track.enabled,
+          readyState: consumerInstance.track.readyState
+        })
+      }
+
+      // Wait for audio element to be ready
+      const setupAudioElement = () => {
+        if (!remoteAudioRef.current) {
+          console.warn('📞 [CallPopup] Audio element not available, retrying...')
+          // Retry after a short delay if element is not ready
+          setTimeout(() => {
+            if (remoteAudioRef.current) {
+              setupAudioElement()
+            } else {
+              console.error('📞 [CallPopup] Audio element still not available after retry')
+            }
+          }, 100)
+          return
+        }
+
+        const audioElement = remoteAudioRef.current
+
+        // Create audio element for remote audio
+        const stream = new MediaStream([consumerInstance.track])
+        
+        // Set up audio element properties
+        audioElement.srcObject = stream
+        audioElement.volume = 1.0 // Ensure volume is at maximum
+        audioElement.muted = false // Ensure not muted
+        
+        // Add event listeners for debugging
+        audioElement.addEventListener('loadedmetadata', () => {
+          console.log('📞 [CallPopup] Audio metadata loaded')
+        })
+        
+        audioElement.addEventListener('canplay', () => {
+          console.log('📞 [CallPopup] Audio can play')
+        })
+        
+        audioElement.addEventListener('play', () => {
+          console.log('📞 [CallPopup] Audio started playing')
+        })
+        
+        audioElement.addEventListener('error', (e) => {
+          console.error('📞 [CallPopup] Audio element error:', e)
+        })
+
+        // Play the audio with retry logic
+        const playAudio = async () => {
+          try {
+            await audioElement.play()
+            console.log('📞 [CallPopup] Remote audio playing successfully')
+          } catch (playError) {
+            console.warn('📞 [CallPopup] Initial play() failed, retrying...', playError)
+            // Retry after a short delay
+            setTimeout(async () => {
+              try {
+                await audioElement.play()
+                console.log('📞 [CallPopup] Remote audio playing after retry')
+              } catch (retryError) {
+                console.error('📞 [CallPopup] Failed to play remote audio after retry:', retryError)
+                // Some browsers require user interaction - log but don't fail
+                if (retryError.name === 'NotAllowedError') {
+                  console.warn('📞 [CallPopup] Browser blocked autoplay - user interaction may be required')
+                }
+              }
+            }, 200)
+          }
+        }
+
+        playAudio()
+      }
+
+      // Setup audio element (with retry if not ready)
+      setupAudioElement()
       
       console.log('📞 [CallPopup] Successfully consuming remote audio from producer:', producerId)
     } catch (error) {
@@ -983,7 +1077,13 @@ const CallPopup = () => {
         </div>
 
         {/* Audio element for remote audio */}
-        <audio ref={remoteAudioRef} autoPlay playsInline />
+        <audio 
+          ref={remoteAudioRef} 
+          autoPlay 
+          playsInline 
+          volume={1.0}
+          style={{ display: 'none' }}
+        />
 
         {/* Controls */}
         <div className="flex items-center justify-center gap-4 mt-8">

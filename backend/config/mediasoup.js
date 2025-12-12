@@ -259,6 +259,25 @@ function getProducer(producerId) {
 }
 
 /**
+ * Get consumer by ID
+ */
+function getConsumer(consumerId) {
+  return consumers.get(consumerId);
+}
+
+/**
+ * Resume consumer (consumers are paused by default in mediasoup)
+ */
+async function resumeConsumer(consumerId) {
+  const consumer = consumers.get(consumerId);
+  if (!consumer) {
+    throw new Error(`Consumer not found: ${consumerId}`);
+  }
+  await consumer.resume();
+  return true;
+}
+
+/**
  * Get all producers for a call
  */
 function getProducersForCall(callId) {
@@ -358,6 +377,8 @@ module.exports = {
   createProducer,
   createConsumer,
   getProducer,
+  getConsumer,
+  resumeConsumer,
   getProducersForCall,
   closeTransport,
   closeRouter,
