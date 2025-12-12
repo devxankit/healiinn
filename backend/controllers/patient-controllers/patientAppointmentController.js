@@ -239,7 +239,8 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if session end time has passed - if yes, reject new bookings
+  // Check if session end time has passed - only reject in-person bookings
+  // Call and video call appointments can be booked even after session end time
   // Use IST time for doctor session operations
   const today = getISTDate();
   const isSameDay = parsedAppointmentDate.getTime() === today.getTime();
@@ -251,16 +252,22 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     const currentTimeMinutes = getISTTimeInMinutes();
     const sessionEndMinutes = timeToMinutes(session.sessionEndTime);
     
-    // If session end time has passed, reject new booking
+    // If session end time has passed, only reject in-person bookings
     if (sessionEndMinutes !== null && currentTimeMinutes >= sessionEndMinutes) {
-      return res.status(400).json({
-        success: false,
-        message: 'Session time has ended. No new appointments can be booked for this session. Existing appointments will continue.',
-        data: {
-          sessionEndTime: session.sessionEndTime,
-          currentTime: `${currentHour}:${currentMinute.toString().padStart(2, '0')}`,
-        },
-      });
+      // Check consultation mode - only reject in-person appointments
+      const appointmentConsultationMode = consultationMode || 'in_person';
+      if (appointmentConsultationMode === 'in_person') {
+        return res.status(400).json({
+          success: false,
+          message: 'In-person appointments cannot be booked after session time ends. Please select Call or Video Call.',
+          data: {
+            sessionEndTime: session.sessionEndTime,
+            currentTime: `${currentHour}:${currentMinute.toString().padStart(2, '0')}`,
+            consultationMode: appointmentConsultationMode,
+          },
+        });
+      }
+      // Allow call and video_call bookings even after session end time
     }
   }
 

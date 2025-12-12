@@ -407,8 +407,9 @@ const checkSlotAvailability = async (doctorId, date) => {
     let pastSlotsCount = 0;
     let effectiveStartTime = session.sessionStartTime;
     
-    // Check if session end time has passed - if yes, no new bookings allowed
-    // But existing appointments with tokens can continue
+    // Check if session end time has passed - flag it but allow bookings for call/video
+    // In-person bookings will be rejected in createAppointment controller
+    let isSessionEnded = false;
     if (isSameDay) {
       // Use IST time for doctor session operations
       const { hour: currentHour, minute: currentMinute } = getISTHourMinute();
@@ -416,24 +417,9 @@ const checkSlotAvailability = async (doctorId, date) => {
       
       const sessionEndMinutes = timeToMinutes(session.sessionEndTime);
       
-      // If session end time has passed, no new bookings allowed
+      // If session end time has passed, set flag but continue (allow call/video bookings)
       if (sessionEndMinutes !== null && currentTimeMinutes >= sessionEndMinutes) {
-        // Check if there are any pending appointments (waiting/in-consultation)
-        const Appointment = require('../models/Appointment');
-        const pendingAppointments = await Appointment.countDocuments({
-          sessionId: session._id,
-          status: { $in: ['scheduled', 'confirmed', 'waiting', 'called', 'in-consultation', 'in_progress'] },
-        });
-        
-        return {
-          available: false,
-          message: 'Session time has ended. No new appointments can be booked for this session.',
-          totalSlots: session.maxTokens,
-          bookedSlots: pendingAppointments,
-          availableSlots: 0,
-          isSessionEnded: true,
-          hasPendingAppointments: pendingAppointments > 0,
-        };
+        isSessionEnded = true;
       }
       
       // If same day booking, calculate available slots from current time
@@ -530,6 +516,7 @@ const checkSlotAvailability = async (doctorId, date) => {
       avgConsultationMinutes: avgConsultation,
       isSameDay,
       pastSlotsCount,
+      isSessionEnded,
     };
   } catch (error) {
     console.error(`❌ Error checking slot availability for ${date}:`, error);

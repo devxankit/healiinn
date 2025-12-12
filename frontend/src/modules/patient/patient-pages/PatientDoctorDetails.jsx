@@ -443,6 +443,7 @@ const PatientDoctorDetails = () => {
         sessionStartTime: info.sessionStartTime || null,
         sessionEndTime: info.sessionEndTime || null,
         avgConsultationMinutes: info.avgConsultationMinutes || 20,
+        isSessionEnded: info.isSessionEnded || false,
       }
     }
     
@@ -457,7 +458,54 @@ const PatientDoctorDetails = () => {
       sessionStartTime: null,
       sessionEndTime: null,
       avgConsultationMinutes: 20,
+      isSessionEnded: false,
     }
+  }
+
+  // Function to check if session has ended for a given date
+  const isSessionEndedForDate = (date) => {
+    if (!date) return false
+    
+    // Check if date is today
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    let selectedDateObj
+    if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = date.split('-').map(Number)
+      selectedDateObj = new Date(year, month - 1, day, 0, 0, 0, 0)
+    } else {
+      selectedDateObj = new Date(date)
+      selectedDateObj.setHours(0, 0, 0, 0)
+    }
+    
+    // Only check for same day
+    if (selectedDateObj.getTime() !== today.getTime()) {
+      return false
+    }
+    
+    // Get session info for the date
+    const sessionInfo = getSessionInfoForDate(date)
+    
+    // Check if isSessionEnded flag is set (from API)
+    if (sessionInfo.isSessionEnded) {
+      return true
+    }
+    
+    // Fallback: manually check if session end time has passed
+    if (!sessionInfo.sessionEndTime) {
+      return false
+    }
+    
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const sessionEndMinutes = timeToMinutes(sessionInfo.sessionEndTime)
+    
+    if (sessionEndMinutes === null) {
+      return false
+    }
+    
+    return currentMinutes >= sessionEndMinutes
   }
 
   useEffect(() => {
@@ -615,11 +663,13 @@ const PatientDoctorDetails = () => {
           sessionEndTime: response.data.sessionEndTime,
           avgConsultationMinutes: response.data.avgConsultationMinutes,
           isCancelled: response.data.isCancelled,
+          isSessionEnded: response.data.isSessionEnded,
         })
         
         // If session is cancelled or completed, mark date as unavailable
         const isCancelled = response.data.isCancelled || false
         const isCompleted = response.data.isCompleted || false
+        const isSessionEnded = response.data.isSessionEnded || false
         
         setSlotAvailability(prev => {
           // If forceRefresh is true, always update. Otherwise, don't overwrite if already cached
@@ -637,6 +687,7 @@ const PatientDoctorDetails = () => {
               sessionStartTime: response.data.sessionStartTime, // Store session start time
               sessionEndTime: response.data.sessionEndTime, // Store session end time
               avgConsultationMinutes: response.data.avgConsultationMinutes || 20, // Store avg consultation minutes
+              isSessionEnded: isSessionEnded, // Store session ended flag
             }
           }
         })
@@ -717,6 +768,18 @@ const PatientDoctorDetails = () => {
     }
   }, [selectedDate, doctor?._id, slotAvailability, fetchSlotAvailabilityForDate])
 
+  // Auto-switch from in_person to call if session has ended for selected date
+  useEffect(() => {
+    if (selectedDate && appointmentType === 'in_person' && bookingStep === 2) {
+      const sessionEnded = isSessionEndedForDate(selectedDate)
+      if (sessionEnded) {
+        // Auto-switch to call when session has ended
+        setAppointmentType('call')
+        toast.info('Session time has ended. Switched to Call appointment type. In-person appointments are not available after session time ends.')
+      }
+    }
+  }, [selectedDate, appointmentType, bookingStep, slotAvailability])
+
   // Time will be automatically assigned by backend - no need to track selectedTime
 
   const handleBookingClick = () => {
@@ -751,6 +814,11 @@ const PatientDoctorDetails = () => {
       // Time will be automatically assigned by backend based on token number and session time
       setBookingStep(2)
     } else if (bookingStep === 2) {
+      // Validate that in-person appointments are not selected after session end time
+      if (selectedDate && appointmentType === 'in_person' && isSessionEndedForDate(selectedDate)) {
+        toast.error('In-person appointments cannot be booked after session time ends. Please select Call or Video Call.')
+        return
+      }
       setBookingStep(3)
     }
   }
@@ -1579,56 +1647,85 @@ const PatientDoctorDetails = () => {
                     
                     <div className="mb-6">
                       <label className="mb-2 block text-sm font-semibold text-slate-700">Appointment Type</label>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAppointmentType('in_person')}
-                          className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
-                            appointmentType === 'in_person'
-                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                              : 'border-slate-200 bg-white hover:border-slate-300'
-                          }`}
-                        >
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                            appointmentType === 'in_person' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            <IoPersonOutline className="h-4 w-4" />
+                      {(() => {
+                        const sessionEnded = selectedDate ? isSessionEndedForDate(selectedDate) : false
+                        // Auto-switch from in_person to call if session has ended
+                        if (sessionEnded && appointmentType === 'in_person') {
+                          // Don't auto-switch here, let user manually select - just show warning
+                        }
+                        return (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!sessionEnded) {
+                                  setAppointmentType('in_person')
+                                } else {
+                                  toast.warning('In-person appointments cannot be booked after session time ends. Please select Call or Video Call.')
+                                }
+                              }}
+                              disabled={sessionEnded}
+                              className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
+                                sessionEnded
+                                  ? 'border-slate-200 bg-slate-100 cursor-not-allowed opacity-60'
+                                  : appointmentType === 'in_person'
+                                  ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                              }`}
+                              title={sessionEnded ? 'In-person appointments cannot be booked after session time ends. Please select Call or Video Call.' : ''}
+                            >
+                              <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                                sessionEnded
+                                  ? 'bg-slate-200 text-slate-400'
+                                  : appointmentType === 'in_person' 
+                                  ? 'bg-[#11496c] text-white' 
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                <IoPersonOutline className="h-4 w-4" />
+                              </div>
+                              <span className={`text-xs font-semibold ${sessionEnded ? 'text-slate-500' : 'text-slate-900'}`}>In-Person</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAppointmentType('call')}
+                              className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
+                                appointmentType === 'call'
+                                  ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                              }`}
+                            >
+                              <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                                appointmentType === 'call' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                <IoCallOutline className="h-4 w-4" />
+                              </div>
+                              <span className="text-xs font-semibold text-slate-900">Call</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAppointmentType('video_call')}
+                              className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
+                                appointmentType === 'video_call'
+                                  ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                              }`}
+                            >
+                              <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                                appointmentType === 'video_call' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                <IoVideocamOutline className="h-4 w-4" />
+                              </div>
+                              <span className="text-xs font-semibold text-slate-900">Video Call</span>
+                            </button>
                           </div>
-                          <span className="text-xs font-semibold text-slate-900">In-Person</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAppointmentType('call')}
-                          className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
-                            appointmentType === 'call'
-                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                              : 'border-slate-200 bg-white hover:border-slate-300'
-                          }`}
-                        >
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                            appointmentType === 'call' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            <IoCallOutline className="h-4 w-4" />
-                          </div>
-                          <span className="text-xs font-semibold text-slate-900">Call</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAppointmentType('video_call')}
-                          className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
-                            appointmentType === 'video_call'
-                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                              : 'border-slate-200 bg-white hover:border-slate-300'
-                          }`}
-                        >
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                            appointmentType === 'video_call' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            <IoVideocamOutline className="h-4 w-4" />
-                          </div>
-                          <span className="text-xs font-semibold text-slate-900">Video Call</span>
-                        </button>
-                      </div>
+                        )
+                      })()}
+                      {selectedDate && isSessionEndedForDate(selectedDate) && (
+                        <p className="mt-2 text-xs text-amber-600">
+                          <IoInformationCircleOutline className="inline h-3 w-3 mr-1" />
+                          Session time has ended. In-person appointments are not available. Call and Video Call appointments can still be booked.
+                        </p>
+                      )}
                     </div>
 
                     <div className="mb-6">
