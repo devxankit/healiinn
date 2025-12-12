@@ -24,6 +24,7 @@ const CallPopup = () => {
   const [diagnosticLogs, setDiagnosticLogs] = useState([])
   const [useP2P, setUseP2P] = useState(false) // P2P fallback flag
   const p2pManagerRef = useRef(null)
+  const roomJoinedRef = useRef(false) // Track if we successfully joined the call room
 
   // Refs
   const socketRef = useRef(null)
@@ -190,38 +191,75 @@ const CallPopup = () => {
       const joinCallRoom = (socketInstance) => {
         return new Promise((resolve) => {
           if (!socketInstance || !currentCallId) {
+            console.error('📞 [CallPopup] Cannot join room: missing socket or callId', {
+              hasSocket: !!socketInstance,
+              callId: currentCallId
+            })
             resolve(false)
             return
           }
           
-          if (socketInstance.connected) {
+          const joinRoomWithTimeout = () => {
             console.log('📞 [CallPopup] Joining call room:', `call-${currentCallId}`)
+            console.log('📞 [CallPopup] Socket state:', {
+              id: socketInstance.id,
+              connected: socketInstance.connected,
+              disconnected: socketInstance.disconnected
+            })
+            
+            // Set timeout for room join (5 seconds)
+            const timeout = setTimeout(() => {
+              console.error('📞 [CallPopup] ⏱️ Room join timeout - no response from server')
+              resolve(false)
+            }, 5000)
+            
             socketInstance.emit('call:joinRoom', { callId: currentCallId }, (response) => {
+              clearTimeout(timeout)
+              
               if (response && response.error) {
-                console.warn('📞 [CallPopup] Failed to join call room:', response.error)
+                console.error('📞 [CallPopup] ❌ Failed to join call room:', response.error)
+                console.error('📞 [CallPopup] Response details:', response)
                 resolve(false)
               } else {
                 console.log('📞 [CallPopup] ✅ Successfully joined call room')
-                resolve(true)
+                console.log('📞 [CallPopup] Server response:', response)
+                
+                // Verify room join by checking socket state
+                // Note: socket.rooms is not available on client, but we trust server response
+                // We can verify by checking if socket is still connected
+                if (socketInstance.connected) {
+                  console.log('📞 [CallPopup] Socket still connected after room join')
+                  roomJoinedRef.current = true // Mark as joined
+                  resolve(true)
+                } else {
+                  console.warn('📞 [CallPopup] ⚠️ Socket disconnected after room join')
+                  roomJoinedRef.current = false
+                  resolve(false)
+                }
               }
             })
+          }
+          
+          if (socketInstance.connected) {
+            joinRoomWithTimeout()
           } else {
             // Wait for connection then join
             console.log('📞 [CallPopup] Socket not connected, waiting for connection before joining room')
             const connectHandler = () => {
               socketInstance.off('connect', connectHandler)
               console.log('📞 [CallPopup] Socket connected, joining call room:', `call-${currentCallId}`)
-              socketInstance.emit('call:joinRoom', { callId: currentCallId }, (response) => {
-                if (response && response.error) {
-                  console.warn('📞 [CallPopup] Failed to join call room:', response.error)
-                  resolve(false)
-                } else {
-                  console.log('📞 [CallPopup] ✅ Successfully joined call room')
-                  resolve(true)
-                }
-              })
+              joinRoomWithTimeout()
             }
             socketInstance.once('connect', connectHandler)
+            
+            // Also set a timeout for connection wait
+            setTimeout(() => {
+              if (!socketInstance.connected) {
+                console.error('📞 [CallPopup] ⏱️ Socket connection timeout')
+                socketInstance.off('connect', connectHandler)
+                resolve(false)
+              }
+            }, 10000) // 10 seconds for connection
           }
         })
       }
@@ -301,7 +339,7 @@ const CallPopup = () => {
             socketId: currentSocket?.id,
             socketConnected: currentSocket?.connected,
             callId: callIdRef.current,
-            socketRooms: currentSocket ? Array.from(currentSocket.rooms) : []
+            roomJoined: roomJoinedRef.current // socket.rooms not available on client
           })
           
           // Don't consume if call is ending or ended
@@ -366,7 +404,10 @@ const CallPopup = () => {
           console.log('📞 [CallPopup] Joining call room before starting call...')
           const roomJoined = await joinCallRoom(socket)
           if (!roomJoined) {
-            console.warn('📞 [CallPopup] Failed to join call room, but continuing with call setup')
+            console.error('📞 [CallPopup] ❌ CRITICAL: Failed to join call room! Cannot proceed with call setup.')
+            setError('Failed to join call room. Please try again.')
+            setStatus('error')
+            return // Don't proceed if room join failed
           } else {
             console.log('📞 [CallPopup] ✅ Successfully joined call room, now starting call')
           }
@@ -446,7 +487,7 @@ const CallPopup = () => {
             socketId: currentSocket?.id,
             socketConnected: currentSocket?.connected,
             callId: callIdRef.current,
-            socketRooms: currentSocket ? Array.from(currentSocket.rooms) : []
+            roomJoined: roomJoinedRef.current // socket.rooms not available on client
           })
           
           // Don't consume if call is ending or ended
@@ -518,7 +559,10 @@ const CallPopup = () => {
         console.log('📞 [CallPopup] Joining call room before starting call...')
         const roomJoined = await joinCallRoom(socket)
         if (!roomJoined) {
-          console.warn('📞 [CallPopup] Failed to join call room, but continuing with call setup')
+          console.error('📞 [CallPopup] ❌ CRITICAL: Failed to join call room! Cannot proceed with call setup.')
+          setError('Failed to join call room. Please try again.')
+          setStatus('error')
+          return // Don't proceed if room join failed
         } else {
           console.log('📞 [CallPopup] ✅ Successfully joined call room, now starting call')
         }
@@ -1464,6 +1508,10 @@ const CallPopup = () => {
   }
 
   const cleanup = () => {
+    console.log('📞 [CallPopup] Cleaning up call resources')
+    isEndingRef.current = true
+    roomJoinedRef.current = false // Reset room join status
+    
     // Stop duration timer
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current)
@@ -1600,7 +1648,8 @@ const CallPopup = () => {
       socket: socketRef.current ? {
         id: socketRef.current.id,
         connected: socketRef.current.connected,
-        rooms: Array.from(socketRef.current.rooms || [])
+        roomJoined: roomJoinedRef.current, // Track room join status (socket.rooms not available on client)
+        // Note: socket.rooms is server-side only, we track join status via roomJoinedRef
       } : null,
       sendTransport: sendTransportRef.current ? {
         id: sendTransportRef.current.id,
@@ -1746,7 +1795,7 @@ const CallPopup = () => {
                   <div className="ml-2 text-slate-600">
                     ID: {socketRef.current.id}<br/>
                     Connected: {socketRef.current.connected ? '✅' : '❌'}<br/>
-                    Rooms: {Array.from(socketRef.current.rooms || []).join(', ') || 'None'}
+                    Room Joined: {roomJoinedRef.current ? '✅ Yes' : '❌ No'}
                   </div>
                 </div>
               )}
