@@ -284,6 +284,11 @@ const CallPopup = () => {
 
         const handleNewProducer = async (data) => {
           console.log('📞 [CallPopup] New producer available:', data)
+          // Don't consume if call is ending or ended
+          if (isEndingRef.current || status === 'ended' || status === 'error') {
+            console.log('📞 [CallPopup] Ignoring new producer - call is ending or ended')
+            return
+          }
           if (data.producerId) {
             if (producerRef.current && producerRef.current.id !== data.producerId) {
               await consumeRemoteAudio(data.producerId)
@@ -369,6 +374,11 @@ const CallPopup = () => {
 
         const handleNewProducer = async (data) => {
           console.log('📞 [CallPopup] New producer available:', data)
+          // Don't consume if call is ending or ended
+          if (isEndingRef.current || status === 'ended' || status === 'error') {
+            console.log('📞 [CallPopup] Ignoring new producer - call is ending or ended')
+            return
+          }
           if (data.producerId) {
             if (producerRef.current && producerRef.current.id !== data.producerId) {
               await consumeRemoteAudio(data.producerId)
@@ -635,6 +645,12 @@ const CallPopup = () => {
 
   const consumeRemoteAudio = async (producerId) => {
     try {
+      // Don't consume if call is ending or ended
+      if (isEndingRef.current || status === 'ended' || status === 'error') {
+        console.log('📞 [CallPopup] Cannot consume - call is ending or ended')
+        return
+      }
+
       // Close existing consumer if we're replacing it (for 1-to-1 calls, there should only be one remote producer)
       if (consumerRef.current) {
         console.log('📞 [CallPopup] Replacing existing consumer with new producer:', producerId)
@@ -676,6 +692,12 @@ const CallPopup = () => {
         })
       })
 
+      // Check if recvTransport is still valid before consuming
+      if (!recvTransportRef.current || recvTransportRef.current.closed) {
+        console.warn('📞 [CallPopup] Receive transport is closed, cannot consume')
+        return
+      }
+
       // Create consumer using mediasoup-client
       const consumerInstance = await recvTransport.consume({
         id: consumer.id,
@@ -695,7 +717,20 @@ const CallPopup = () => {
       
       console.log('📞 [CallPopup] Successfully consuming remote audio from producer:', producerId)
     } catch (error) {
-      console.error('📞 [CallPopup] Error consuming remote audio:', error)
+      // Check if error is due to call being ended or transport/router being closed
+      const errorMessage = error.message || error.toString()
+      const isCallEndedError = 
+        errorMessage.includes('Router not found') ||
+        errorMessage.includes('Transport') && errorMessage.includes('closed') ||
+        errorMessage.includes('call') && errorMessage.includes('ended')
+      
+      if (isCallEndedError) {
+        // Call was likely ended, this is expected - don't log as error
+        console.log('📞 [CallPopup] Cannot consume remote audio - call may have ended:', errorMessage)
+      } else {
+        // Other errors should be logged
+        console.error('📞 [CallPopup] Error consuming remote audio:', error)
+      }
     }
   }
 

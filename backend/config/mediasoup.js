@@ -189,15 +189,42 @@ async function createConsumer(transportId, producerId, rtpCapabilities, callId) 
     throw new Error(`Transport not found: ${transportId}`);
   }
 
+  // Check if transport is closed
+  if (transport.closed) {
+    // Remove closed transport from map
+    transports.delete(transportId);
+    throw new Error(`Transport ${transportId} is closed and cannot be used`);
+  }
+
   const producer = producers.get(producerId);
   if (!producer) {
     throw new Error(`Producer not found: ${producerId}`);
   }
 
   // Get router from transport (transport.router is the router it belongs to)
-  const router = transport.router;
+  let router = transport.router;
+  
+  // If transport.router is null (transport was closed or router was closed),
+  // try to get router from callId as fallback
+  if (!router && callId) {
+    router = routers.get(callId);
+    if (!router) {
+      // Transport exists but router is missing - this indicates the call/router was cleaned up
+      // Remove the stale transport from the map
+      transports.delete(transportId);
+      throw new Error(`Router not found for transport: ${transportId}. The call (${callId}) may have been ended or the router was closed.`);
+    }
+  }
+  
   if (!router) {
-    throw new Error(`Router not found for transport: ${transportId}`);
+    // Remove stale transport from map
+    transports.delete(transportId);
+    throw new Error(`Router not found for transport: ${transportId}. The transport may have been closed or the router was cleaned up.`);
+  }
+
+  // Verify router is not closed
+  if (router.closed) {
+    throw new Error(`Router for call ${callId} is closed and cannot be used`);
   }
 
   if (!router.canConsume({ producerId, rtpCapabilities })) {
@@ -273,19 +300,33 @@ async function closeRouter(callId) {
   const router = routers.get(callId);
   if (router) {
     // Close all transports for this router
+    // Only close transports that belong to this router
+    const transportsToClose = [];
     for (const [transportId, transport] of transports.entries()) {
-      // In a production system, you'd track which transport belongs to which router
-      // For now, we'll close all transports when router closes
-      try {
-        transport.close();
-      } catch (error) {
-        console.error(`Error closing transport ${transportId}:`, error);
+      // Check if transport belongs to this router
+      if (transport.router === router) {
+        transportsToClose.push(transportId);
+      }
+    }
+    
+    // Close transports that belong to this router
+    for (const transportId of transportsToClose) {
+      const transport = transports.get(transportId);
+      if (transport) {
+        try {
+          transport.close();
+          // The transport's 'close' event handler will remove it from the map
+        } catch (error) {
+          console.error(`Error closing transport ${transportId}:`, error);
+          // Manually remove if close failed
+          transports.delete(transportId);
+        }
       }
     }
     
     router.close();
     routers.delete(callId);
-    console.log(`✅ Router closed for callId: ${callId}`);
+    console.log(`✅ Router closed for callId: ${callId}, closed ${transportsToClose.length} transport(s)`);
   }
 }
 
