@@ -596,7 +596,6 @@ const CallPopup = () => {
       // CRITICAL: Ensure we're in the call room before producing audio
       // This prevents race condition where producer event is emitted before room join completes
       console.log('📞 [CallPopup] Verifying call room membership before producing...')
-      const socket = socketRef.current
       if (socket && socket.connected) {
         // Double-check room membership
         const verifyRoomJoin = () => {
