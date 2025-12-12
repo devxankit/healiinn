@@ -282,8 +282,20 @@ const CallPopup = () => {
         isNewSocket = true
         
         // Set up socket event listeners before connect
-        const handleDisconnect = () => {
-          console.log('📞 [CallPopup] Socket disconnected')
+        const handleDisconnect = (reason) => {
+          console.log('📞 [CallPopup] Socket disconnected, reason:', reason)
+          // For P2P, socket disconnect might not be fatal if P2P connection is already established
+          // P2P can work even if signaling socket disconnects after connection is established
+          if (p2pManagerRef.current && p2pManagerRef.current.peerConnection) {
+            const pcState = p2pManagerRef.current.peerConnection.connectionState
+            console.log('📞 [CallPopup] P2P connection state:', pcState)
+            if (pcState === 'connected' || pcState === 'connecting') {
+              console.log('📞 [CallPopup] P2P connection still active, socket disconnect may be non-fatal')
+              // Don't set error - P2P might still work
+              return
+            }
+          }
+          // Only set error if P2P is not active or failed
           setStatus('error')
           setError('Connection lost')
         }
@@ -420,18 +432,45 @@ const CallPopup = () => {
               socket.off('call:ended', handleCallEnded)
               socket.off('call:declined', handleCallDeclined)
               socket.off('mediasoup:newProducer', handleNewProducer)
+              // Also cleanup P2P event handlers
+              socket.off('p2p:offer')
+              socket.off('p2p:answer')
+              socket.off('p2p:iceCandidate')
             }
           }
           
           joinCall()
+        })
+        
+        // Handle socket disconnect more gracefully for P2P
+        socket.on('disconnect', (reason) => {
+          console.log('📞 [CallPopup] Socket disconnected, reason:', reason)
+          // Don't immediately set error status - P2P might still work if it was just a transport issue
+          if (p2pManagerRef.current) {
+            console.log('📞 [CallPopup] P2P manager exists, checking connection state...')
+            // P2P connection might still be active even if socket disconnects
+            // Only set error if P2P connection also fails
+          } else {
+            setStatus('error')
+            setError('Connection lost')
+          }
         })
       } else {
         console.log('📞 [CallPopup] Using existing socket connection')
         socketRef.current = socket
         
         // Set up socket event listeners for existing socket
-        const handleDisconnect = () => {
-          console.log('📞 [CallPopup] Socket disconnected')
+        const handleDisconnect = (reason) => {
+          console.log('📞 [CallPopup] Socket disconnected, reason:', reason)
+          // For P2P, socket disconnect might not be fatal if P2P connection is already established
+          if (p2pManagerRef.current && p2pManagerRef.current.peerConnection) {
+            const pcState = p2pManagerRef.current.peerConnection.connectionState
+            console.log('📞 [CallPopup] P2P connection state:', pcState)
+            if (pcState === 'connected' || pcState === 'connecting') {
+              console.log('📞 [CallPopup] P2P connection still active, socket disconnect may be non-fatal')
+              return // Don't set error if P2P is still working
+            }
+          }
           setStatus('error')
           setError('Connection lost')
         }
@@ -646,8 +685,8 @@ const CallPopup = () => {
           }
         }
         
-        // Set up P2P event handlers
-        socket.on('p2p:offer', async (data) => {
+        // Set up P2P event handlers (store references for cleanup)
+        const p2pOfferHandler = async (data) => {
           if (data.callId === currentCallId && !isInitiator) {
             console.log('🔗 [P2P] Received offer')
             try {
@@ -656,9 +695,9 @@ const CallPopup = () => {
               console.error('🔗 [P2P] Error handling offer:', error)
             }
           }
-        })
+        }
         
-        socket.on('p2p:answer', async (data) => {
+        const p2pAnswerHandler = async (data) => {
           if (data.callId === currentCallId && isInitiator) {
             console.log('🔗 [P2P] Received answer')
             try {
@@ -667,9 +706,9 @@ const CallPopup = () => {
               console.error('🔗 [P2P] Error handling answer:', error)
             }
           }
-        })
+        }
         
-        socket.on('p2p:iceCandidate', async (data) => {
+        const p2pIceCandidateHandler = async (data) => {
           if (data.callId === currentCallId && data.candidate) {
             console.log('🔗 [P2P] Received ICE candidate')
             try {
@@ -678,18 +717,31 @@ const CallPopup = () => {
               console.error('🔗 [P2P] Error handling ICE candidate:', error)
             }
           }
-        })
+        }
+        
+        socket.on('p2p:offer', p2pOfferHandler)
+        socket.on('p2p:answer', p2pAnswerHandler)
+        socket.on('p2p:iceCandidate', p2pIceCandidateHandler)
+        
+        // Store handlers for cleanup
+        socket._p2pHandlers = {
+          offer: p2pOfferHandler,
+          answer: p2pAnswerHandler,
+          iceCandidate: p2pIceCandidateHandler
+        }
         
         // Initialize P2P connection
+        console.log('🔗 [P2P] Starting P2P initialization...')
         const p2pInitialized = await p2pManager.initialize(isInitiator)
         if (!p2pInitialized) {
-          console.error('🔗 [P2P] Failed to initialize P2P connection')
-          setError('Failed to initialize P2P connection')
+          console.error('🔗 [P2P] ❌ Failed to initialize P2P connection')
+          // Check console logs for detailed error - it will show what specifically failed
+          setError('Failed to initialize P2P connection. Check browser console for details. Make sure microphone permission is granted.')
           setStatus('error')
           return
         }
         
-        console.log('🔗 [P2P] ✅ P2P connection initialized')
+        console.log('🔗 [P2P] ✅ P2P connection initialized successfully')
         setStatus('connected')
         if (!callStartTimeRef.current) {
           callStartTimeRef.current = Date.now()

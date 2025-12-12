@@ -999,19 +999,28 @@ const initializeSocket = (server) => {
       try {
         const { callId, offer } = data;
         if (!callId || !offer) {
-          return callback({ error: 'callId and offer are required' });
+          if (typeof callback === 'function') {
+            return callback({ error: 'callId and offer are required' });
+          }
+          return;
         }
 
         // Verify user is part of this call
         const call = await Call.findOne({ callId });
         if (!call) {
-          return callback({ error: 'Call not found' });
+          if (typeof callback === 'function') {
+            return callback({ error: 'Call not found' });
+          }
+          return;
         }
 
         const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
         const isPatient = role === 'patient' && call.patientId.toString() === id;
         if (!isDoctor && !isPatient) {
-          return callback({ error: 'Unauthorized' });
+          if (typeof callback === 'function') {
+            return callback({ error: 'Unauthorized' });
+          }
+          return;
         }
 
         // Forward offer to the other party
@@ -1027,10 +1036,14 @@ const initializeSocket = (server) => {
           fromRole: role
         });
 
-        callback({ success: true });
+        if (typeof callback === 'function') {
+          callback({ success: true });
+        }
       } catch (error) {
         console.error('Error in p2p:offer:', error);
-        callback({ error: error.message || 'Failed to handle offer' });
+        if (typeof callback === 'function') {
+          callback({ error: error.message || 'Failed to handle offer' });
+        }
       }
     });
 
@@ -1039,19 +1052,28 @@ const initializeSocket = (server) => {
       try {
         const { callId, answer } = data;
         if (!callId || !answer) {
-          return callback({ error: 'callId and answer are required' });
+          if (typeof callback === 'function') {
+            return callback({ error: 'callId and answer are required' });
+          }
+          return;
         }
 
         // Verify user is part of this call
         const call = await Call.findOne({ callId });
         if (!call) {
-          return callback({ error: 'Call not found' });
+          if (typeof callback === 'function') {
+            return callback({ error: 'Call not found' });
+          }
+          return;
         }
 
         const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
         const isPatient = role === 'patient' && call.patientId.toString() === id;
         if (!isDoctor && !isPatient) {
-          return callback({ error: 'Unauthorized' });
+          if (typeof callback === 'function') {
+            return callback({ error: 'Unauthorized' });
+          }
+          return;
         }
 
         // Forward answer to the other party
@@ -1067,10 +1089,14 @@ const initializeSocket = (server) => {
           fromRole: role
         });
 
-        callback({ success: true });
+        if (typeof callback === 'function') {
+          callback({ success: true });
+        }
       } catch (error) {
         console.error('Error in p2p:answer:', error);
-        callback({ error: error.message || 'Failed to handle answer' });
+        if (typeof callback === 'function') {
+          callback({ error: error.message || 'Failed to handle answer' });
+        }
       }
     });
 
@@ -1079,19 +1105,28 @@ const initializeSocket = (server) => {
       try {
         const { callId, candidate } = data;
         if (!callId || !candidate) {
-          return callback({ error: 'callId and candidate are required' });
+          if (typeof callback === 'function') {
+            return callback({ error: 'callId and candidate are required' });
+          }
+          return;
         }
 
         // Verify user is part of this call
         const call = await Call.findOne({ callId });
         if (!call) {
-          return callback({ error: 'Call not found' });
+          if (typeof callback === 'function') {
+            return callback({ error: 'Call not found' });
+          }
+          return;
         }
 
         const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
         const isPatient = role === 'patient' && call.patientId.toString() === id;
         if (!isDoctor && !isPatient) {
-          return callback({ error: 'Unauthorized' });
+          if (typeof callback === 'function') {
+            return callback({ error: 'Unauthorized' });
+          }
+          return;
         }
 
         // Forward ICE candidate to the other party
@@ -1107,10 +1142,14 @@ const initializeSocket = (server) => {
           fromRole: role
         });
 
-        callback({ success: true });
+        if (typeof callback === 'function') {
+          callback({ success: true });
+        }
       } catch (error) {
         console.error('Error in p2p:iceCandidate:', error);
-        callback({ error: error.message || 'Failed to handle ICE candidate' });
+        if (typeof callback === 'function') {
+          callback({ error: error.message || 'Failed to handle ICE candidate' });
+        }
       }
     });
 

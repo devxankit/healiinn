@@ -33,30 +33,81 @@ class P2PCallManager {
       this.isInitiator = isInitiator
       console.log('🔗 [P2P] Initializing P2P connection, isInitiator:', isInitiator)
 
+      // Check if WebRTC is supported
+      if (!window.RTCPeerConnection) {
+        console.error('🔗 [P2P] RTCPeerConnection not supported in this browser')
+        throw new Error('WebRTC not supported in this browser')
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('🔗 [P2P] getUserMedia not supported in this browser')
+        throw new Error('getUserMedia not supported in this browser')
+      }
+
       // Create RTCPeerConnection
+      console.log('🔗 [P2P] Creating RTCPeerConnection...')
       this.peerConnection = new RTCPeerConnection({
         iceServers: this.iceServers
       })
+      console.log('🔗 [P2P] ✅ RTCPeerConnection created')
 
       // Set up event handlers
       this.setupEventHandlers()
+      console.log('🔗 [P2P] ✅ Event handlers set up')
 
       // Get local media stream
-      this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      this.localStream.getAudioTracks().forEach(track => {
-        this.peerConnection.addTrack(track, this.localStream)
-      })
+      console.log('🔗 [P2P] Requesting microphone access...')
+      try {
+        this.localStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          } 
+        })
+        console.log('🔗 [P2P] ✅ Microphone access granted')
+        console.log('🔗 [P2P] Local stream tracks:', this.localStream.getAudioTracks().length)
+        
+        this.localStream.getAudioTracks().forEach(track => {
+          console.log('🔗 [P2P] Adding track to peer connection:', track.id)
+          this.peerConnection.addTrack(track, this.localStream)
+        })
 
-      console.log('🔗 [P2P] Local stream added to peer connection')
+        console.log('🔗 [P2P] ✅ Local stream added to peer connection')
+      } catch (mediaError) {
+        console.error('🔗 [P2P] ❌ Failed to get user media:', mediaError)
+        console.error('🔗 [P2P] Error details:', {
+          name: mediaError.name,
+          message: mediaError.message,
+          constraint: mediaError.constraint
+        })
+        throw new Error(`Microphone access denied or unavailable: ${mediaError.message}`)
+      }
 
       // If initiator, create offer
       if (isInitiator) {
-        await this.createOffer()
+        console.log('🔗 [P2P] Creating offer (initiator)...')
+        try {
+          await this.createOffer()
+          console.log('🔗 [P2P] ✅ Offer created and sent')
+        } catch (offerError) {
+          console.error('🔗 [P2P] ❌ Failed to create offer:', offerError)
+          throw new Error(`Failed to create offer: ${offerError.message}`)
+        }
+      } else {
+        console.log('🔗 [P2P] Waiting for offer (non-initiator)...')
       }
 
+      console.log('🔗 [P2P] ✅ P2P connection initialized successfully')
       return true
     } catch (error) {
-      console.error('🔗 [P2P] Error initializing P2P:', error)
+      console.error('🔗 [P2P] ❌ Error initializing P2P:', error)
+      console.error('🔗 [P2P] Error stack:', error.stack)
+      console.error('🔗 [P2P] Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code
+      })
       return false
     }
   }
@@ -66,10 +117,14 @@ class P2PCallManager {
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
         console.log('🔗 [P2P] ICE candidate generated:', event.candidate)
-        this.socket.emit('p2p:iceCandidate', {
-          callId: this.callId,
-          candidate: event.candidate
-        })
+        if (this.socket && this.socket.connected) {
+          this.socket.emit('p2p:iceCandidate', {
+            callId: this.callId,
+            candidate: event.candidate
+          })
+        } else {
+          console.warn('🔗 [P2P] ⚠️ Socket not connected, cannot send ICE candidate')
+        }
       }
     }
 
@@ -106,10 +161,22 @@ class P2PCallManager {
       await this.peerConnection.setLocalDescription(offer)
       
       console.log('🔗 [P2P] Offer created, sending to peer')
+      console.log('🔗 [P2P] Socket state before emitting offer:', {
+        connected: this.socket?.connected,
+        disconnected: this.socket?.disconnected,
+        id: this.socket?.id
+      })
+      
+      if (!this.socket || !this.socket.connected) {
+        console.error('🔗 [P2P] ❌ Socket not connected, cannot send offer!')
+        throw new Error('Socket not connected')
+      }
+      
       this.socket.emit('p2p:offer', {
         callId: this.callId,
         offer: offer
       })
+      console.log('🔗 [P2P] ✅ Offer emitted successfully')
     } catch (error) {
       console.error('🔗 [P2P] Error creating offer:', error)
       throw error
