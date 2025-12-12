@@ -242,6 +242,54 @@ export const rejectPharmacy = async (pharmacyId, reason) => {
 }
 
 /**
+ * Get all nurses with filters
+ */
+export const getNurses = async (filters = {}) => {
+  try {
+    return await apiClient.get('/admin/nurses', filters)
+  } catch (error) {
+    console.error('Error fetching nurses:', error)
+    throw error
+  }
+}
+
+/**
+ * Get nurse by ID
+ */
+export const getNurseById = async (nurseId) => {
+  try {
+    return await apiClient.get(`/admin/nurses/${nurseId}`)
+  } catch (error) {
+    console.error('Error fetching nurse:', error)
+    throw error
+  }
+}
+
+/**
+ * Verify nurse
+ */
+export const verifyNurse = async (nurseId, verificationData = {}) => {
+  try {
+    return await apiClient.patch(`/admin/nurses/${nurseId}/verify`, verificationData)
+  } catch (error) {
+    console.error('Error verifying nurse:', error)
+    throw error
+  }
+}
+
+/**
+ * Reject nurse verification
+ */
+export const rejectNurse = async (nurseId, reason) => {
+  try {
+    return await apiClient.patch(`/admin/nurses/${nurseId}/reject`, { reason })
+  } catch (error) {
+    console.error('Error rejecting nurse:', error)
+    throw error
+  }
+}
+
+/**
  * Get all laboratories with filters
  */
 export const getLaboratories = async (filters = {}) => {
@@ -898,6 +946,10 @@ export default {
   getPharmacyById,
   verifyPharmacy,
   rejectPharmacy,
+  getNurses,
+  getNurseById,
+  verifyNurse,
+  rejectNurse,
   getLaboratories,
   getLaboratoryById,
   verifyLaboratory,
