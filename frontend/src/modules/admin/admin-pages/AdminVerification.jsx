@@ -6,6 +6,7 @@ import {
   IoBusinessOutline,
   IoFlaskOutline,
   IoPeopleOutline,
+  IoHeartOutline,
   IoCheckmarkCircleOutline,
   IoCloseCircleOutline,
   IoTimeOutline,
@@ -22,12 +23,15 @@ import {
   getDoctors,
   getPharmacies,
   getLaboratories,
+  getNurses,
   verifyDoctor,
   rejectDoctor,
   verifyPharmacy,
   rejectPharmacy,
   verifyLaboratory,
   rejectLaboratory,
+  verifyNurse,
+  rejectNurse,
 } from '../admin-services/adminService'
 
 // Helper to transform backend data to frontend format
@@ -209,6 +213,60 @@ const transformVerification = (item, type) => {
       approvedAt: item.approvedAt || null,
       rejectedAt: item.status === 'rejected' ? item.updatedAt : null,
     }
+  } else if (type === 'nurse') {
+    // Build full address string
+    const addressParts = []
+    if (item.address) {
+      const addr = item.address
+      if (addr.line1) addressParts.push(addr.line1)
+      if (addr.city) addressParts.push(addr.city)
+      if (addr.state) addressParts.push(addr.state)
+      if (addr.postalCode) addressParts.push(addr.postalCode)
+      if (addr.country) addressParts.push(addr.country)
+    }
+    const fullAddress = addressParts.join(', ')
+
+    // Build location string (city, state)
+    const location = item.address 
+      ? `${item.address.city || ''}, ${item.address.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '')
+      : ''
+
+    return {
+      id: item._id || item.id,
+      type: 'nurse',
+      name: `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'N/A',
+      firstName: item.firstName || '',
+      lastName: item.lastName || '',
+      email: item.email || '',
+      phone: item.phone || '',
+      gender: item.gender || '',
+      qualification: item.qualification || '',
+      experienceYears: item.experienceYears || null,
+      specialization: item.specialization || '',
+      fees: item.fees || null,
+      registrationNumber: item.registrationNumber || '',
+      registrationCouncilName: item.registrationCouncilName || '',
+      location: location,
+      fullAddress: fullAddress,
+      address: item.address || null,
+      status: item.status || 'pending',
+      submittedAt: item.createdAt || new Date().toISOString(),
+      documents: item.documents 
+        ? Object.keys(item.documents)
+            .filter(key => item.documents[key] && item.documents[key] !== '')
+            .map(key => {
+              // Format document names nicely
+              if (key === 'nursingCertificate') return 'Nursing Certificate'
+              if (key === 'registrationCertificate') return 'Registration Certificate'
+              if (key === 'profileImage') return 'Profile Image'
+              // Capitalize first letter
+              return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()
+            })
+        : [],
+      rejectionReason: item.rejectionReason || '',
+      approvedAt: item.approvedAt || null,
+      rejectedAt: item.status === 'rejected' ? item.updatedAt : null,
+    }
   }
   return null
 }
@@ -234,6 +292,8 @@ const getTypeIcon = (type) => {
       return IoBusinessOutline
     case 'laboratory':
       return IoFlaskOutline
+    case 'nurse':
+      return IoHeartOutline
     default:
       return IoPeopleOutline
   }
@@ -247,6 +307,8 @@ const getTypeColor = (type) => {
       return 'bg-purple-100 text-purple-600'
     case 'laboratory':
       return 'bg-amber-100 text-amber-600'
+    case 'nurse':
+      return 'bg-pink-100 text-pink-600'
     default:
       return 'bg-slate-100 text-slate-600'
   }
@@ -274,11 +336,12 @@ const AdminVerification = () => {
     try {
       setLoading(true)
       
-      // Fetch all doctors, pharmacies, and laboratories (not just pending)
-      const [doctorsResponse, pharmaciesResponse, laboratoriesResponse] = await Promise.allSettled([
+      // Fetch all doctors, pharmacies, laboratories, and nurses (not just pending)
+      const [doctorsResponse, pharmaciesResponse, laboratoriesResponse, nursesResponse] = await Promise.allSettled([
         getDoctors({ limit: 1000 }), // Get all doctors
         getPharmacies({ limit: 1000 }), // Get all pharmacies
         getLaboratories({ limit: 1000 }), // Get all laboratories
+        getNurses({ limit: 1000 }), // Get all nurses
       ])
       
       const allVerifications = []
@@ -311,6 +374,17 @@ const AdminVerification = () => {
         if (Array.isArray(laboratories)) {
           laboratories.forEach(lab => {
             const transformed = transformVerification(lab, 'laboratory')
+            if (transformed) allVerifications.push(transformed)
+          })
+        }
+      }
+      
+      // Transform nurses
+      if (nursesResponse.status === 'fulfilled' && nursesResponse.value?.success) {
+        const nurses = nursesResponse.value.data?.items || nursesResponse.value.data || []
+        if (Array.isArray(nurses)) {
+          nurses.forEach(nurse => {
+            const transformed = transformVerification(nurse, 'nurse')
             if (transformed) allVerifications.push(transformed)
           })
         }
@@ -349,6 +423,8 @@ const AdminVerification = () => {
         response = await verifyPharmacy(id)
       } else if (verification.type === 'laboratory') {
         response = await verifyLaboratory(id)
+      } else if (verification.type === 'nurse') {
+        response = await verifyNurse(id)
       } else {
         throw new Error('Invalid verification type')
       }
@@ -394,6 +470,8 @@ const AdminVerification = () => {
         response = await rejectPharmacy(rejectingVerificationId, rejectionReason.trim())
       } else if (verification.type === 'laboratory') {
         response = await rejectLaboratory(rejectingVerificationId, rejectionReason.trim())
+      } else if (verification.type === 'nurse') {
+        response = await rejectNurse(rejectingVerificationId, rejectionReason.trim())
       } else {
         throw new Error('Invalid verification type')
       }
@@ -445,6 +523,12 @@ const AdminVerification = () => {
       approved: verifications.filter((v) => v.type === 'laboratory' && v.status === 'approved').length,
       rejected: verifications.filter((v) => v.type === 'laboratory' && v.status === 'rejected').length,
     },
+    nurse: {
+      total: verifications.filter((v) => v.type === 'nurse').length,
+      pending: verifications.filter((v) => v.type === 'nurse' && v.status === 'pending').length,
+      approved: verifications.filter((v) => v.type === 'nurse' && v.status === 'approved').length,
+      rejected: verifications.filter((v) => v.type === 'nurse' && v.status === 'rejected').length,
+    },
   }
 
   return (
@@ -453,12 +537,12 @@ const AdminVerification = () => {
       <header className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-2.5">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Verification Management</h1>
-          <p className="mt-0.5 text-sm text-slate-600">Verify doctors, pharmacies, and laboratories</p>
+          <p className="mt-0.5 text-sm text-slate-600">Verify doctors, pharmacies, laboratories, and nurses</p>
         </div>
       </header>
 
       {/* Status Bars by Type */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {/* Doctors Status Bar */}
         <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
@@ -542,6 +626,34 @@ const AdminVerification = () => {
             </div>
           </div>
         </div>
+
+        {/* Nurse Status Bar */}
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-pink-100">
+              <IoHeartOutline className="h-5 w-5 text-pink-600" />
+            </div>
+            <h3 className="text-sm font-semibold text-slate-900">Nurses</h3>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-600">Total</span>
+              <span className="text-sm font-bold text-slate-900">{statusByType.nurse.total}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-amber-600">Pending</span>
+              <span className="text-sm font-semibold text-amber-600">{statusByType.nurse.pending}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-emerald-600">Approved</span>
+              <span className="text-sm font-semibold text-emerald-600">{statusByType.nurse.approved}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-red-600">Rejected</span>
+              <span className="text-sm font-semibold text-red-600">{statusByType.nurse.rejected}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Stats Summary */}
@@ -590,6 +702,7 @@ const AdminVerification = () => {
             <option value="doctor">Doctors</option>
             <option value="pharmacy">Pharmacies</option>
             <option value="laboratory">Laboratories</option>
+            <option value="nurse">Nurses</option>
           </select>
         </div>
         <div className="flex items-center gap-2">
