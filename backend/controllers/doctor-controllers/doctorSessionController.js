@@ -4,7 +4,7 @@ const Doctor = require('../../models/Doctor');
 const Appointment = require('../../models/Appointment');
 const { SESSION_STATUS } = require('../../utils/constants');
 const { getOrCreateSession } = require('../../services/sessionService');
-const { getISTTime, getISTDate, getISTTimeInMinutes } = require('../../utils/timezoneUtils');
+const { getISTTime, getISTDate, getISTTimeInMinutes, parseDateInIST } = require('../../utils/timezoneUtils');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -26,7 +26,8 @@ exports.createSession = asyncHandler(async (req, res) => {
     });
   }
 
-  const sessionDate = new Date(date);
+  // Parse date in IST timezone to ensure consistent date handling regardless of server timezone
+  const sessionDate = parseDateInIST(date);
   sessionDate.setHours(0, 0, 0, 0);
   const sessionEndDate = new Date(sessionDate);
   sessionEndDate.setHours(23, 59, 59, 999);
@@ -85,10 +86,14 @@ exports.getSessions = asyncHandler(async (req, res) => {
   const filter = { doctorId: id };
   if (status) filter.status = status;
   if (date) {
-    const dateObj = new Date(date);
+    // Parse date in IST timezone to ensure consistent date handling regardless of server timezone
+    const dateObj = parseDateInIST(date);
+    dateObj.setHours(0, 0, 0, 0);
+    const dateObjEnd = new Date(dateObj);
+    dateObjEnd.setHours(23, 59, 59, 999);
     filter.date = {
-      $gte: new Date(dateObj.setHours(0, 0, 0, 0)),
-      $lt: new Date(dateObj.setHours(23, 59, 59, 999)),
+      $gte: dateObj,
+      $lt: dateObjEnd,
     };
   }
 
@@ -150,29 +155,10 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
   const now = getISTTime();
   const today = getISTDate();
   
-  // Parse session date - handle various formats
+  // Parse session date in IST timezone to ensure consistent date handling
   let sessionDay;
   try {
-    if (sessionDate instanceof Date) {
-      sessionDay = new Date(sessionDate);
-    } else if (typeof sessionDate === 'string') {
-      // Handle YYYY-MM-DD format
-      if (sessionDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        const [year, month, day] = sessionDate.split('-').map(Number);
-        sessionDay = new Date(year, month - 1, day);
-      } else {
-        sessionDay = new Date(sessionDate);
-      }
-    } else {
-      console.log('⚠️ [Backend] Invalid session date format:', sessionDate, typeof sessionDate);
-      return false;
-    }
-    
-    if (isNaN(sessionDay.getTime())) {
-      console.log('⚠️ [Backend] Invalid session date - NaN:', sessionDate);
-      return false;
-    }
-    
+    sessionDay = parseDateInIST(sessionDate);
     sessionDay.setHours(0, 0, 0, 0);
   } catch (error) {
     console.log('⚠️ [Backend] Error parsing session date:', error, sessionDate);

@@ -3,7 +3,7 @@ const Doctor = require('../models/Doctor');
 const Appointment = require('../models/Appointment');
 const { SESSION_STATUS } = require('../utils/constants');
 const { timeToMinutes, getTimeDifference } = require('./etaService');
-const { getISTTime, getISTDate, getISTTimeInMinutes, getISTHourMinute } = require('../utils/timezoneUtils');
+const { getISTTime, getISTDate, getISTTimeInMinutes, getISTHourMinute, parseDateInIST } = require('../utils/timezoneUtils');
 
 /**
  * Get day name from date
@@ -126,31 +126,16 @@ const getOrCreateSession = async (doctorId, date) => {
     throw new Error('Doctor not found');
   }
 
-  // Handle date - can be Date object or string
+  // Handle date - parse in IST timezone to ensure consistent date handling regardless of server timezone
   let sessionDate;
-  if (date instanceof Date) {
-    sessionDate = new Date(date);
-  } else if (typeof date === 'string') {
-    // If string, parse it (handle both ISO and YYYY-MM-DD formats)
-    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // YYYY-MM-DD format - parse as UTC then convert to local
-      const [year, month, day] = date.split('-').map(Number);
-      // Create date in UTC, then convert to local timezone
-      sessionDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-      // Convert to local timezone for query
-      const localYear = sessionDate.getFullYear();
-      const localMonth = sessionDate.getMonth();
-      const localDay = sessionDate.getDate();
-      sessionDate = new Date(localYear, localMonth, localDay, 0, 0, 0, 0);
+  try {
+    if (date) {
+      sessionDate = parseDateInIST(date);
     } else {
-      sessionDate = new Date(date);
+      sessionDate = getISTDate(); // Use current IST date if no date provided
     }
-  } else {
-    sessionDate = new Date();
-  }
-  
-  if (isNaN(sessionDate.getTime())) {
-    throw new Error(`Invalid date format: ${date}`);
+  } catch (error) {
+    throw new Error(`Invalid date format: ${date} - ${error.message}`);
   }
   
   sessionDate.setHours(0, 0, 0, 0);
