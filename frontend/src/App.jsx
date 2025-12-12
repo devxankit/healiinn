@@ -160,6 +160,8 @@ function PatientRoutes() {
             token ? <ProtectedRoute module="patient"><Navigate to="/patient/dashboard" replace /></ProtectedRoute> : <Navigate to="/patient/login" replace />
           } />
         </Routes>
+        {/* Call Popup - Only for patients */}
+        <CallPopup />
       </main>
     </NotificationProvider>
   )
@@ -250,6 +252,9 @@ function DoctorRoutes() {
       
       {/* Doctor Call Status Indicator */}
       {!isLoginPage && <DoctorCallStatus />}
+      
+      {/* Call Popup - For doctors to join WebRTC */}
+      {!isLoginPage && <CallPopup />}
       
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
         <div className="max-w-7xl mx-auto w-full lg:flex-1">
@@ -1007,8 +1012,6 @@ function App() {
             <Route path="/" element={<DefaultRedirect />} />
           </Routes>
         </div>
-        {/* Global Call Popup - Renders as overlay when active */}
-        <CallPopup />
         <ToastContainer
           position="top-right"
           autoClose={3000}

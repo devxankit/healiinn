@@ -236,6 +236,7 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
     // Declare handlers outside try block so they're accessible in cleanup
     let handleCallInvite = null
     let handleCallError = null
+    let handleCallEnded = null
 
     try {
       socket = initSocket(currentModule)
@@ -355,18 +356,25 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
     // Listen for incoming call invites (for patients)
     if (currentModule === 'patient') {
       handleCallInvite = (data) => {
-        console.log('📞 [NotificationContext] Received call invite:', data)
+        console.log('📞 [NotificationContext] ====== RECEIVED call:invite ======')
+        console.log('📞 [NotificationContext] Event data:', data)
+        console.log('📞 [NotificationContext] Socket connected:', socket?.connected)
+        console.log('📞 [NotificationContext] Socket ID:', socket?.id)
         
         // If patientId is specified in broadcast, check if it matches current user
         // (This handles the fallback broadcast case)
         if (data.patientId) {
           // Get current patient ID from token (we'll need to decode it or get from API)
           // For now, accept all invites - the PatientAppointments component will handle filtering
+          console.log('📞 [NotificationContext] Broadcast invite received with patientId:', data.patientId)
         }
         
-        // Dispatch custom event so PatientAppointments can handle it
+        // Dispatch custom event so IncomingCallNotification can handle it
+        console.log('📞 [NotificationContext] Dispatching call:invite window event')
         window.dispatchEvent(new CustomEvent('call:invite', { detail: data }))
+        
         // Also show a toast notification
+        console.log('📞 [NotificationContext] Showing toast notification')
         toast.info(`${data.doctorName || 'Doctor'} is calling you`, {
           duration: 10000,
         })
@@ -377,8 +385,14 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
         window.dispatchEvent(new CustomEvent('call:error', { detail: data }))
       }
 
+      handleCallEnded = (data) => {
+        console.log('📞 [NotificationContext] Call ended:', data)
+        window.dispatchEvent(new CustomEvent('call:ended', { detail: data }))
+      }
+
       socket.on('call:invite', handleCallInvite)
       socket.on('call:error', handleCallError)
+      socket.on('call:ended', handleCallEnded)
     }
 
       // Fetch initial notifications
@@ -409,6 +423,9 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
           }
           if (handleCallError) {
             socket.off('call:error', handleCallError)
+          }
+          if (handleCallEnded) {
+            socket.off('call:ended', handleCallEnded)
           }
           disconnectSocket()
         } catch (error) {

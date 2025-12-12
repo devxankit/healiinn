@@ -28,6 +28,9 @@ export const CallProvider = ({ children }) => {
     setCallInfo(null)
     setIsMinimized(false)
     localStorage.removeItem('doctorCallMinimized')
+    
+    // Emit window event as fallback for components that might not be listening to context
+    window.dispatchEvent(new CustomEvent('call:forceEnd', { detail: { timestamp: Date.now() } }))
   }, [])
 
   const updateCallStatus = useCallback((status) => {

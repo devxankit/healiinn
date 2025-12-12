@@ -16,7 +16,6 @@ import {
 } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getSocket } from '../../../utils/socketClient'
-import { openCallPopup } from '../../../utils/callService'
 import { useCall } from '../../../contexts/CallContext'
 import {
   IoPeopleOutline,
@@ -256,7 +255,7 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
 }
 
 const DoctorPatients = () => {
-  const { startCall, updateCallStatus, setCallInfoFull } = useCall()
+  const { startCall, updateCallStatus, setCallInfoFull, callInfo: callInfoFull } = useCall()
   console.log('🔵 DoctorPatients component rendering...') // Debug log
   
   const location = useLocation()
@@ -442,10 +441,13 @@ const DoctorPatients = () => {
 
   // Socket listener for real-time queue updates (especially for recall count updates)
   useEffect(() => {
-    const socket = getSocket()
-    if (!socket) return
+    let socket = getSocket()
+    let cleanupFunctions = []
 
-    const handleQueueUpdated = (data) => {
+    const setupQueueListener = (socketInstance) => {
+      if (!socketInstance) return
+
+      const handleQueueUpdated = (data) => {
       if (data?.appointmentId) {
         // Update appointment state when queue is updated (e.g., after recall, skip)
         setAppointments((prev) =>
@@ -493,18 +495,75 @@ const DoctorPatients = () => {
       }
     }
 
-    socket.on('queue:updated', handleQueueUpdated)
+    socketInstance.on('queue:updated', handleQueueUpdated)
+    cleanupFunctions.push(() => {
+      socketInstance.off('queue:updated', handleQueueUpdated)
+    })
+    }
 
-    // Listen for call events
-    const handleCallAccepted = (data) => {
+    // Try to set up listener if socket is available
+    if (socket && socket.connected) {
+      setupQueueListener(socket)
+    } else if (socket) {
+      // Socket exists but not connected yet
+      const connectHandler = () => {
+        console.log('✅ Socket connected in DoctorPatients (queue listener), setting up listener')
+        setupQueueListener(socket)
+        socket.off('connect', connectHandler)
+      }
+      socket.on('connect', connectHandler)
+      cleanupFunctions.push(() => socket.off('connect', connectHandler))
+    } else {
+      // Socket not available, retry after delay
+      console.warn('📞 [DoctorPatients] Socket not available for queue listener, will retry...')
+      const retryTimer = setTimeout(() => {
+        const retrySocket = getSocket()
+        if (retrySocket) {
+          console.log('✅ Socket available on retry in DoctorPatients (queue listener)')
+          if (retrySocket.connected) {
+            setupQueueListener(retrySocket)
+          } else {
+            retrySocket.on('connect', () => {
+              console.log('✅ Socket connected on retry in DoctorPatients (queue listener)')
+              setupQueueListener(retrySocket)
+            })
+          }
+        } else {
+          console.error('❌ Socket still not available after retry in DoctorPatients (queue listener)')
+        }
+      }, 1000)
+      cleanupFunctions.push(() => clearTimeout(retryTimer))
+    }
+
+    return () => {
+      cleanupFunctions.forEach(cleanup => cleanup())
+    }
+  }, [])
+
+  // Socket listener for call events (separate useEffect)
+  useEffect(() => {
+    let socket = getSocket()
+    let cleanupFunctions = []
+
+    const setupListeners = (socketInstance) => {
+      if (!socketInstance) return
+
+      // Listen for call events
+      const handleCallAccepted = (data) => {
+      console.log('📞 [DoctorPatients] ====== call:accepted EVENT RECEIVED ======')
+      console.log('📞 [DoctorPatients] Event data:', data)
+      
       if (data.callId) {
         try {
           // Find the appointment to get patient name
           const appointment = appointments.find(appt => appt.id === data.appointmentId)
           const patientName = appointment?.patientName || 'Patient'
           
-          // Update call status to 'accepted' (patient accepted, but may not have joined yet)
-          updateCallStatus('accepted')
+          // Log patient connection
+          console.log('**************patient connected ***************')
+          
+          // Update call status to 'connecting' (patient accepted, starting WebRTC connection)
+          updateCallStatus('connecting')
           setCallInfoFull((prev) => ({
             ...prev,
             callId: data.callId,
@@ -512,7 +571,10 @@ const DoctorPatients = () => {
             patientName,
           }))
           
-          toast.info('Patient accepted the call, waiting for them to join...')
+          // Start call popup for doctor to join WebRTC
+          startCall(data.callId, patientName)
+          console.log('📞 [DoctorPatients] Patient accepted call, callId:', data.callId)
+          toast.info('Patient accepted the call, connecting...')
         } catch (error) {
           console.error('Error handling call accepted:', error)
           toast.error(error.message || 'Failed to handle call acceptance')
@@ -529,64 +591,66 @@ const DoctorPatients = () => {
       console.log('📞 [DoctorPatients] Current callInfoFull:', callInfoFull)
       console.log('📞 [DoctorPatients] Current appointments count:', appointments.length)
       
-      // Check if this event is for us (if doctorId is provided in fallback broadcast)
-      if (data.doctorId) {
-        // This is a fallback broadcast - we should ignore if it's not for us
-        // We'll handle it in the main flow since we're already filtering by callId
+      if (!data || !data.callId) {
+        console.warn('📞 [DoctorPatients] call:patientJoined event missing callId:', data)
+        return
       }
       
-      if (data && data.callId) {
-        try {
-          console.log('📞 [DoctorPatients] Processing patient joined event for callId:', data.callId)
-          
-          // Check if we're already expecting this call
-          const isExpectedCall = callInfoFull?.callId === data.callId || 
-                                appointments.some(appt => 
-                                  (appt.id === data.appointmentId || appt._id === data.appointmentId) &&
-                                  appt.consultationMode === 'call'
-                                )
-          
-          if (!isExpectedCall && !callInfoFull?.callId) {
-            console.warn('📞 [DoctorPatients] Received call:patientJoined for unexpected call, ignoring')
-            return
-          }
-          
-          // Find the appointment to get patient name
-          const appointment = appointments.find(appt => 
-            appt.id === data.appointmentId || 
-            appt._id === data.appointmentId ||
-            appt._id?.toString() === data.appointmentId?.toString()
-          )
-          const patientName = appointment?.patientName || callInfoFull?.patientName || 'Patient'
-          
-          console.log('📞 [DoctorPatients] Found appointment:', appointment ? 'Yes' : 'No')
-          console.log('📞 [DoctorPatients] Patient name:', patientName)
-          console.log('📞 [DoctorPatients] Matching appointment ID:', appointment?._id || appointment?.id)
-          
-          // Update call status to 'started' and call info
-          updateCallStatus('started')
-          setCallInfoFull((prev) => ({
-            ...prev,
-            callId: data.callId,
-            appointmentId: data.appointmentId,
-            patientName,
-            startTime: new Date().toISOString(),
-          }))
-          
-          console.log('📞 [DoctorPatients] Opening call popup with:', { callId: data.callId, patientName })
-          
-          // Open the full call popup for audio controls
-          openCallPopup(startCall, data.callId, patientName)
-          toast.success('Patient joined the call')
-          
-          console.log('📞 [DoctorPatients] ✅ Successfully processed patient joined event')
-        } catch (error) {
-          console.error('📞 [DoctorPatients] Error processing patient joined:', error)
-          console.error('📞 [DoctorPatients] Error stack:', error.stack)
-          toast.error(error.message || 'Failed to start call')
+      try {
+        console.log('📞 [DoctorPatients] Processing patient joined event for callId:', data.callId)
+        
+        // Check if this event is for us (if doctorId is provided in fallback broadcast)
+        // If doctorId is provided and doesn't match, we can skip (but we'll still process if callId matches)
+        // This allows the event to work even if doctorId filtering isn't perfect
+        
+        // Check if we're already expecting this call
+        // Be more lenient - if we have a callId match OR appointmentId match, process it
+        const callIdMatches = callInfoFull?.callId === data.callId
+        const appointmentMatches = appointments.some(appt => 
+          (appt.id === data.appointmentId || appt._id === data.appointmentId) &&
+          appt.consultationMode === 'call'
+        )
+        const isExpectedCall = callIdMatches || appointmentMatches
+        
+        if (!isExpectedCall && !callInfoFull?.callId) {
+          console.warn('📞 [DoctorPatients] Received call:patientJoined for unexpected call, but processing anyway to avoid missed updates')
+          // Don't return - continue processing to ensure status update happens
         }
-      } else {
-        console.warn('📞 [DoctorPatients] call:patientJoined event missing callId:', data)
+        
+        // Find the appointment to get patient name
+        const appointment = appointments.find(appt => 
+          appt.id === data.appointmentId || 
+          appt._id === data.appointmentId ||
+          appt._id?.toString() === data.appointmentId?.toString()
+        )
+        const patientName = appointment?.patientName || callInfoFull?.patientName || 'Patient'
+        
+        console.log('📞 [DoctorPatients] Found appointment:', appointment ? 'Yes' : 'No')
+        console.log('📞 [DoctorPatients] Patient name:', patientName)
+        console.log('📞 [DoctorPatients] Matching appointment ID:', appointment?._id || appointment?.id)
+        
+        // Update call status to 'started' (patient has fully joined and WebRTC is connected)
+        // This is the critical update - ensure it always happens
+        console.log('📞 [DoctorPatients] Updating call status to "started"')
+        updateCallStatus('started')
+        
+        setCallInfoFull((prev) => ({
+          ...(prev || {}),
+          callId: data.callId,
+          appointmentId: data.appointmentId,
+          patientName,
+          startTime: new Date().toISOString(),
+        }))
+        
+        // CallPopup should already be open from call:accepted event
+        // Just update status and show success message
+        toast.success('Patient joined the call')
+        
+        console.log('📞 [DoctorPatients] ✅ Successfully processed patient joined event - status should now be "started"')
+      } catch (error) {
+        console.error('📞 [DoctorPatients] Error processing patient joined:', error)
+        console.error('📞 [DoctorPatients] Error stack:', error.stack)
+        toast.error(error.message || 'Failed to start call')
       }
     }
 
@@ -597,18 +661,18 @@ const DoctorPatients = () => {
     // Set up listeners with detailed logging
     console.log('📞 [DoctorPatients] Setting up socket listeners for call events')
     console.log('📞 [DoctorPatients] Socket state:', {
-      connected: socket?.connected,
-      id: socket?.id,
+      connected: socketInstance?.connected,
+      id: socketInstance?.id,
       hasListeners: {
-        'call:accepted': socket?.hasListeners?.('call:accepted') || 'unknown',
-        'call:patientJoined': socket?.hasListeners?.('call:patientJoined') || 'unknown',
-        'call:error': socket?.hasListeners?.('call:error') || 'unknown'
+        'call:accepted': socketInstance?.hasListeners?.('call:accepted') || 'unknown',
+        'call:patientJoined': socketInstance?.hasListeners?.('call:patientJoined') || 'unknown',
+        'call:error': socketInstance?.hasListeners?.('call:error') || 'unknown'
       }
     })
     
-    socket.on('call:accepted', handleCallAccepted)
-    socket.on('call:patientJoined', handlePatientJoined)
-    socket.on('call:error', handleCallError)
+    socketInstance.on('call:accepted', handleCallAccepted)
+    socketInstance.on('call:patientJoined', handlePatientJoined)
+    socketInstance.on('call:error', handleCallError)
     
     // Also listen on socket.io any event to debug
     const debugAllEvents = (eventName, ...args) => {
@@ -617,17 +681,55 @@ const DoctorPatients = () => {
         console.log(`📞 [DoctorPatients] Event args:`, args)
       }
     }
-    socket.onAny(debugAllEvents)
+    socketInstance.onAny(debugAllEvents)
+
+    cleanupFunctions.push(() => {
+      console.log('📞 [DoctorPatients] Cleaning up call event socket listeners')
+      socketInstance.off('call:accepted', handleCallAccepted)
+      socketInstance.off('call:patientJoined', handlePatientJoined)
+      socketInstance.off('call:error', handleCallError)
+      socketInstance.offAny(debugAllEvents)
+    })
+    }
+
+    // Try to set up listeners if socket is available
+    if (socket && socket.connected) {
+      setupListeners(socket)
+    } else if (socket) {
+      // Socket exists but not connected yet
+      const connectHandler = () => {
+        console.log('✅ Socket connected in DoctorPatients (call events), setting up listeners')
+        setupListeners(socket)
+        socket.off('connect', connectHandler)
+      }
+      socket.on('connect', connectHandler)
+      cleanupFunctions.push(() => socket.off('connect', connectHandler))
+    } else {
+      // Socket not available, retry after delay
+      console.warn('📞 [DoctorPatients] Socket not available for call events, will retry...')
+      const retryTimer = setTimeout(() => {
+        const retrySocket = getSocket()
+        if (retrySocket) {
+          console.log('✅ Socket available on retry in DoctorPatients (call events)')
+          if (retrySocket.connected) {
+            setupListeners(retrySocket)
+          } else {
+            retrySocket.on('connect', () => {
+              console.log('✅ Socket connected on retry in DoctorPatients (call events), setting up listeners')
+              setupListeners(retrySocket)
+            })
+          }
+        } else {
+          console.error('❌ Socket still not available after retry in DoctorPatients (call events)')
+        }
+      }, 1000)
+      cleanupFunctions.push(() => clearTimeout(retryTimer))
+    }
 
     return () => {
-      console.log('📞 [DoctorPatients] Cleaning up socket listeners')
-      socket.off('queue:updated', handleQueueUpdated)
-      socket.off('call:accepted', handleCallAccepted)
-      socket.off('call:patientJoined', handlePatientJoined)
-      socket.off('call:error', handleCallError)
-      socket.offAny(debugAllEvents)
+      cleanupFunctions.forEach(cleanup => cleanup())
     }
-  }, [toast])
+  }, [toast, appointments, callInfoFull, updateCallStatus, setCallInfoFull, startCall])
 
   // Check session date on mount and clear if not today
   useEffect(() => {

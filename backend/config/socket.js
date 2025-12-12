@@ -256,7 +256,7 @@ const initializeSocket = (server) => {
         const allPatientSockets = await io.in('patients').fetchSockets();
         console.log(`📞 Total patients connected: ${allPatientSockets.length}`);
         
-        // Emit to specific patient room
+        // Emit to specific patient room (primary method)
         io.to(patientRoom).emit('call:invite', {
           callId: call.callId,
           appointmentId,
@@ -265,15 +265,19 @@ const initializeSocket = (server) => {
         
         console.log(`📞 Call invite emitted to patient room: ${patientRoom}`);
         
-        // If no sockets in specific room, also try broadcasting to all patients (fallback for debugging)
+        // ALWAYS also emit to 'patients' room as fallback to ensure delivery
+        // This ensures the event is received even if the patient's socket room assignment is delayed
+        io.to('patients').emit('call:invite', {
+          callId: call.callId,
+          appointmentId,
+          doctorName: user.firstName + ' ' + (user.lastName || ''),
+          patientId: patientIdStr, // Include patientId so frontend can filter
+        });
+        console.log(`📞 Call invite also emitted to 'patients' room as fallback (patientId: ${patientIdStr})`);
+        
+        // Log warning if no sockets in specific room (for debugging)
         if (patientRoomSockets.length === 0) {
-          console.warn(`⚠️ No sockets found in patient room ${patientRoom}, trying broadcast to all patients`);
-          io.to('patients').emit('call:invite', {
-            callId: call.callId,
-            appointmentId,
-            doctorName: user.firstName + ' ' + (user.lastName || ''),
-            patientId: patientIdStr, // Include patientId so frontend can filter
-          });
+          console.warn(`⚠️ No sockets found in patient room ${patientRoom}, but broadcast sent to 'patients' room as fallback`);
         }
 
         socket.emit('call:initiated', { callId: call.callId });
@@ -460,12 +464,24 @@ const initializeSocket = (server) => {
         const io = getIO();
         const doctorIdStrDecline = call.doctorId.toString();
         const doctorRoomDecline = `doctor-${doctorIdStrDecline}`;
-        io.to(doctorRoomDecline).emit('call:declined', { callId });
-        console.log(`📞 [call:decline] Emitted call:declined to doctor: ${doctorIdStrDecline}`);
+        const callRoomDecline = `call-${callId}`;
+        const eventData = { callId };
+        
+        // Emit to call room (primary method - both parties should be in this room)
+        io.to(callRoomDecline).emit('call:declined', eventData);
+        console.log(`📞 [call:decline] ✅ Emitted call:declined to call room: ${callRoomDecline}`);
+        
+        // Emit to specific doctor room (primary method)
+        io.to(doctorRoomDecline).emit('call:declined', eventData);
+        console.log(`📞 [call:decline] ✅ Emitted call:declined to doctor room: ${doctorRoomDecline}`);
+        
+        // Also emit to 'doctors' room as fallback to ensure delivery
+        io.to('doctors').emit('call:declined', { ...eventData, doctorId: doctorIdStrDecline });
+        console.log(`📞 [call:decline] ✅ Also emitted call:declined to 'doctors' room as fallback`);
 
         // Notify patient (the one who declined)
-        socket.emit('call:declined', { callId });
-        console.log(`📞 [call:decline] Emitted call:declined to patient: ${id}`);
+        socket.emit('call:declined', eventData);
+        console.log(`📞 [call:decline] ✅ Emitted call:declined to patient: ${id}`);
 
         // Send callback if provided
         if (typeof callback === 'function') {
@@ -514,12 +530,71 @@ const initializeSocket = (server) => {
 
         // Notify all participants
         const io = getIO();
-        io.to(`call-${callId}`).emit('call:ended', { callId });
+        const eventData = { callId };
+        
+        console.log(`📞 [call:end] ====== EMITTING call:ended EVENT ======`);
+        console.log(`📞 [call:end] Call ID: ${callId}`);
+        console.log(`📞 [call:end] Doctor ID: ${call.doctorId}, Patient ID: ${call.patientId}`);
+        
+        // Emit to call room (primary method - both parties should be in this room)
+        const callRoom = `call-${callId}`;
+        io.to(callRoom).emit('call:ended', eventData);
+        console.log(`📞 [call:end] ✅ Emitted call:ended to call room: ${callRoom}`);
+        
+        // Also emit to specific user rooms as fallback to ensure delivery
+        const doctorIdStr = call.doctorId.toString();
+        const patientIdStr = call.patientId.toString();
+        const doctorRoom = `doctor-${doctorIdStr}`;
+        const patientRoom = `patient-${patientIdStr}`;
+        
+        io.to(doctorRoom).emit('call:ended', eventData);
+        console.log(`📞 [call:end] ✅ Also emitted call:ended to doctor room: ${doctorRoom}`);
+        
+        io.to(patientRoom).emit('call:ended', eventData);
+        console.log(`📞 [call:end] ✅ Also emitted call:ended to patient room: ${patientRoom}`);
+        
+        // Also emit to general role rooms as additional fallback
+        io.to('doctors').emit('call:ended', { ...eventData, doctorId: doctorIdStr });
+        io.to('patients').emit('call:ended', { ...eventData, patientId: patientIdStr });
+        console.log(`📞 [call:end] ✅ Also emitted call:ended to 'doctors' and 'patients' rooms as fallback`);
 
-        socket.emit('call:ended', { callId });
+        // Emit directly to the socket that initiated the end (redundant but ensures delivery)
+        socket.emit('call:ended', eventData);
       } catch (error) {
         console.error('Error in call:end:', error);
         socket.emit('call:error', { message: error.message || 'Failed to end call' });
+      }
+    });
+
+    // Join call room explicitly (for new sockets or late joiners)
+    socket.on('call:joinRoom', async (data, callback) => {
+      try {
+        const { callId } = data;
+        if (!callId) {
+          return callback({ error: 'callId is required' });
+        }
+
+        const call = await Call.findOne({ callId });
+        if (!call) {
+          return callback({ error: 'Call not found' });
+        }
+
+        // Verify user is part of this call
+        const isDoctor = role === 'doctor' && call.doctorId.toString() === id;
+        const isPatient = role === 'patient' && call.patientId.toString() === id;
+
+        if (!isDoctor && !isPatient) {
+          return callback({ error: 'Unauthorized' });
+        }
+
+        // Join call room
+        socket.join(`call-${callId}`);
+        console.log(`📞 [call:joinRoom] ${role} ${id} joined call room: call-${callId}`);
+        
+        callback({ success: true, callId });
+      } catch (error) {
+        console.error('Error in call:joinRoom:', error);
+        callback({ error: error.message || 'Failed to join call room' });
       }
     });
 
@@ -611,26 +686,23 @@ const initializeSocket = (server) => {
         } else {
           console.warn(`📞 [call:joined] ⚠️ WARNING: No doctor sockets found in room ${doctorRoom}!`);
           console.warn(`📞 [call:joined] This means the doctor is not connected or not in the room.`);
-          console.warn(`📞 [call:joined] Trying to emit to 'doctors' room as fallback...`);
-          
-          // Fallback: try emitting to all doctors room
-          io.to('doctors').emit('call:patientJoined', {
-            callId,
-            appointmentId: call.appointmentId,
-            doctorId: doctorIdStr, // Include doctorId so frontend can filter
-          });
-          console.log(`📞 [call:joined] Emitted to 'doctors' room as fallback`);
         }
         
         const eventData = {
           callId,
           appointmentId: call.appointmentId,
+          doctorId: doctorIdStr, // Always include doctorId for filtering
         };
         console.log(`📞 [call:joined] Emitting 'call:patientJoined' with data:`, eventData);
         
-        // Always emit to specific doctor room
+        // Emit to specific doctor room (primary method)
         io.to(doctorRoom).emit('call:patientJoined', eventData);
-        console.log(`📞 [call:joined] ✅ Successfully emitted call:patientJoined to doctor room ${doctorRoom}`);
+        console.log(`📞 [call:joined] ✅ Emitted call:patientJoined to doctor room ${doctorRoom}`);
+        
+        // ALWAYS also emit to 'doctors' room as a fallback to ensure delivery
+        // This ensures the event is received even if the doctor's socket room assignment is delayed
+        io.to('doctors').emit('call:patientJoined', eventData);
+        console.log(`📞 [call:joined] ✅ Also emitted call:patientJoined to 'doctors' room as fallback`);
         
         if (typeof callback === 'function') {
           callback({ success: true, callId });
@@ -761,6 +833,23 @@ const initializeSocket = (server) => {
       }
     });
 
+    // Get existing producers for a call
+    socket.on('mediasoup:getProducers', async (data, callback) => {
+      try {
+        const { callId } = data;
+        if (!callId) {
+          return callback({ error: 'callId is required' });
+        }
+
+        const existingProducers = getProducersForCall(callId);
+        console.log(`📞 [mediasoup:getProducers] Found ${existingProducers.length} existing producers for callId: ${callId}`);
+        callback({ producers: existingProducers });
+      } catch (error) {
+        console.error('Error in mediasoup:getProducers:', error);
+        callback({ error: error.message || 'Failed to get producers' });
+      }
+    });
+
     socket.on('disconnect', async () => {
       console.log(`User disconnected: ${role} - ${id}`);
       
@@ -770,14 +859,20 @@ const initializeSocket = (server) => {
         const callId = room.replace('call-', '');
         try {
           const call = await Call.findOne({ callId });
-          if (call && call.status === 'accepted') {
-            // If call is active, end it
+          if (call && (call.status === 'accepted' || call.status === 'initiated')) {
+            // If call is active or initiated, end it
             await call.endCall();
             await cleanupCall(callId);
             
             // Notify other participant
             const io = getIO();
             io.to(room).emit('call:ended', { callId, reason: 'participant_disconnected' });
+            
+            // Also emit to user rooms as fallback
+            const doctorIdStr = call.doctorId.toString();
+            const patientIdStr = call.patientId.toString();
+            io.to(`doctor-${doctorIdStr}`).emit('call:ended', { callId, reason: 'participant_disconnected' });
+            io.to(`patient-${patientIdStr}`).emit('call:ended', { callId, reason: 'participant_disconnected' });
           }
         } catch (error) {
           console.error(`Error cleaning up call ${callId} on disconnect:`, error);

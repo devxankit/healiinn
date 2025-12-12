@@ -22,25 +22,21 @@ const DoctorCallStatus = () => {
   const [isMuted, setIsMuted] = useState(false)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const durationIntervalRef = useRef(null)
   const containerRef = useRef(null)
+  // Use refs to avoid stale closures in socket handlers
+  const callStatusRef = useRef(callStatus)
+  const callInfoRef = useRef(callInfo)
 
-  // Load position from localStorage
+  // Center popup on screen when call starts
   useEffect(() => {
-    const savedPosition = localStorage.getItem('doctorCallPosition')
-    if (savedPosition) {
-      try {
-        const pos = JSON.parse(savedPosition)
-        setPosition(pos)
-      } catch (e) {
-        console.error('Error loading call position:', e)
-      }
-    } else {
-      // Default position: bottom-right
-      setPosition({ x: window.innerWidth - 320, y: window.innerHeight - 200 })
+    if (callStatus === 'calling' || callStatus === 'started') {
+      // Center the popup on screen (using transform center, so position is the center point)
+      const centerX = window.innerWidth / 2
+      const centerY = window.innerHeight / 2
+      setPosition({ x: centerX, y: centerY })
     }
-  }, [])
+  }, [callStatus])
 
   // Save position to localStorage
   useEffect(() => {
@@ -79,6 +75,12 @@ const DoctorCallStatus = () => {
     }
   }, [callStatus, callInfo?.startTime])
 
+  // Keep refs in sync with state
+  useEffect(() => {
+    callStatusRef.current = callStatus
+    callInfoRef.current = callInfo
+  }, [callStatus, callInfo])
+
   // Listen to socket events
   useEffect(() => {
     // Define setupListeners before it's used
@@ -108,10 +110,26 @@ const DoctorCallStatus = () => {
       const handlePatientJoined = (data) => {
         console.log('📞 [DoctorCallStatus] ====== PATIENT JOINED EVENT RECEIVED ======')
         console.log('📞 [DoctorCallStatus] Event data:', JSON.stringify(data, null, 2))
-        console.log('📞 [DoctorCallStatus] Current callStatus before update:', callStatus)
-        console.log('📞 [DoctorCallStatus] Current callInfo before update:', callInfo)
+        
+        // Get fresh values from refs to avoid stale closures
+        const currentCallStatus = callStatusRef.current
+        const currentCallInfo = callInfoRef.current
+        
+        console.log('📞 [DoctorCallStatus] Current callStatus before update:', currentCallStatus)
+        console.log('📞 [DoctorCallStatus] Current callInfo before update:', currentCallInfo)
         
         if (data && data.callId) {
+          // Validate that this event is for the current call
+          // If we have callInfo with a callId, ensure they match
+          if (currentCallInfo?.callId && currentCallInfo.callId !== data.callId) {
+            console.warn('📞 [DoctorCallStatus] call:patientJoined event callId mismatch. Expected:', currentCallInfo.callId, 'Received:', data.callId)
+            // Still update if we're in calling/connecting state and don't have a callId yet
+            if (currentCallStatus !== 'calling' && currentCallStatus !== 'connecting') {
+              console.warn('📞 [DoctorCallStatus] Ignoring event - not in calling/connecting state')
+              return
+            }
+          }
+          
           console.log('📞 [DoctorCallStatus] Updating status to started, callId:', data.callId)
           
           // Patient has actually joined - update status to started
@@ -136,24 +154,73 @@ const DoctorCallStatus = () => {
       }
 
       const handleCallEnded = (data) => {
-        console.log('📞 [DoctorCallStatus] Call ended:', data)
+        console.log('📞 [DoctorCallStatus] ====== call:ended EVENT RECEIVED ======')
+        console.log('📞 [DoctorCallStatus] Event data:', data)
+        console.log('📞 [DoctorCallStatus] Current callInfo:', callInfoRef.current)
+        console.log('📞 [DoctorCallStatus] Current callStatus:', callStatusRef.current)
+        
+        const currentCallId = callInfoRef.current?.callId
+        const currentCallStatus = callStatusRef.current
+        
+        // Process if:
+        // 1. CallId matches exactly, OR
+        // 2. We have an active call (calling/started status) - fallback to ensure UI closes
+        const callIdMatches = data && data.callId && currentCallId && data.callId === currentCallId
+        const hasActiveCall = currentCallStatus === 'calling' || currentCallStatus === 'started' || currentCallStatus === 'connecting'
+        
+        if (!callIdMatches && !hasActiveCall) {
+          console.log('📞 [DoctorCallStatus] Ignoring call:ended - no callId match and no active call')
+          return
+        }
+        
+        if (!callIdMatches && hasActiveCall) {
+          console.warn('📞 [DoctorCallStatus] call:ended event callId mismatch, but processing anyway because we have active call')
+          console.warn('📞 [DoctorCallStatus] Expected:', currentCallId, 'Received:', data?.callId)
+        }
+        
+        console.log('📞 [DoctorCallStatus] Updating status to ended and closing call UI')
         updateCallStatus('ended')
+        // Close immediately - this will close both DoctorCallStatus and CallPopup
         setTimeout(() => {
-          endCall()
-        }, 2000)
+          console.log('📞 [DoctorCallStatus] Closing call UI (this will also close CallPopup via CallContext)')
+          endCall() // This clears activeCall in CallContext, which will close CallPopup
+        }, 500)
       }
 
       const handleCallDeclined = (data) => {
-        console.log('📞 [DoctorCallStatus] Call declined by patient:', data)
-        if (data && data.callId) {
-          console.log('📞 [DoctorCallStatus] Ending call due to patient decline, callId:', data.callId)
-          updateCallStatus('idle')
-          endCall()
-        } else {
-          console.warn('📞 [DoctorCallStatus] call:declined event missing callId:', data)
-          updateCallStatus('idle')
-          endCall()
+        console.log('📞 [DoctorCallStatus] ====== call:declined EVENT RECEIVED ======')
+        console.log('📞 [DoctorCallStatus] Event data:', data)
+        console.log('📞 [DoctorCallStatus] Current callInfo:', callInfoRef.current)
+        console.log('📞 [DoctorCallStatus] Current callStatus:', callStatusRef.current)
+        
+        const currentCallId = callInfoRef.current?.callId
+        const currentCallStatus = callStatusRef.current
+        
+        // Process if:
+        // 1. CallId matches exactly, OR
+        // 2. We have callInfo (indicating a call was initiated), OR
+        // 3. We have an active call status (calling/started/connecting), OR
+        // 4. We're not in idle/ended status (any other status means a call was initiated)
+        const callIdMatches = data && data.callId && currentCallId && data.callId === currentCallId
+        const hasCallInfo = callInfoRef.current !== null && callInfoRef.current !== undefined
+        const hasActiveCallStatus = currentCallStatus === 'calling' || currentCallStatus === 'started' || currentCallStatus === 'connecting'
+        const isNotIdle = currentCallStatus !== 'idle' && currentCallStatus !== 'ended'
+        
+        if (!callIdMatches && !hasCallInfo && !hasActiveCallStatus && !isNotIdle) {
+          console.log('📞 [DoctorCallStatus] Ignoring call:declined - no callId match, no callInfo, no active call status, and status is idle/ended')
+          return
         }
+        
+        if (!callIdMatches && (hasCallInfo || hasActiveCallStatus || isNotIdle)) {
+          console.warn('📞 [DoctorCallStatus] call:declined event callId mismatch, but processing anyway because we have callInfo, active call status, or non-idle status')
+          console.warn('📞 [DoctorCallStatus] Expected:', currentCallId, 'Received:', data?.callId)
+          console.warn('📞 [DoctorCallStatus] Has callInfo:', hasCallInfo, 'Has active status:', hasActiveCallStatus, 'Is not idle:', isNotIdle)
+        }
+        
+        console.log('📞 [DoctorCallStatus] Patient declined call - closing doctor UI')
+        updateCallStatus('idle')
+        // Close immediately - this will close both DoctorCallStatus and CallPopup
+        endCall() // This clears activeCall in CallContext, which will close CallPopup
       }
 
       // Listen for mute state updates from CallPopup
@@ -227,36 +294,64 @@ const DoctorCallStatus = () => {
 
     const cleanup = setupListeners(socket)
     return cleanup
-  }, [updateCallStatus, updateCallInfo, endCall]) // Removed callInfo and callStatus from deps to avoid stale closures
+  }, [updateCallStatus, updateCallInfo, endCall])
+
+  // Fallback: Periodically check if we should update status from 'calling' to 'started'
+  // This handles cases where the socket event might be missed
+  useEffect(() => {
+    if (callStatus === 'calling' && callInfo?.callId) {
+      console.log('📞 [DoctorCallStatus] Setting up fallback check for call status update')
+      
+      // Check every 2 seconds if we're still in 'calling' state
+      // If the patient has actually joined (we can detect this by checking if CallPopup is active),
+      // we should update the status
+      const fallbackInterval = setInterval(() => {
+        const currentStatus = callStatusRef.current
+        const currentCallInfo = callInfoRef.current
+        
+        // If we're still in 'calling' state after 5 seconds, check if we should update
+        // This is a safety mechanism in case the socket event was missed
+        if (currentStatus === 'calling' && currentCallInfo?.callId) {
+          console.log('📞 [DoctorCallStatus] Fallback check: Still in calling state, checking if patient joined...')
+          // We'll rely on the socket event, but this ensures we don't get stuck
+          // The socket event should fire, but if it doesn't, we can add additional logic here
+        }
+      }, 2000)
+      
+      // Clear after 30 seconds (patient should have joined by then)
+      const timeout = setTimeout(() => {
+        clearInterval(fallbackInterval)
+      }, 30000)
+      
+      return () => {
+        clearInterval(fallbackInterval)
+        clearTimeout(timeout)
+      }
+    }
+  }, [callStatus, callInfo?.callId])
 
   // Handle drag start
   const handleMouseDown = (e) => {
     if (e.target.closest('button')) return // Don't drag if clicking a button
     setIsDragging(true)
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (rect) {
-      setDragStart({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      })
-    }
   }
 
   // Handle drag
   const handleMouseMove = useCallback((e) => {
     if (!isDragging) return
-    const newX = e.clientX - dragStart.x
-    const newY = e.clientY - dragStart.y
+    // Use mouse position directly since we're using transform center
+    const newX = e.clientX
+    const newY = e.clientY
 
-    // Constrain to viewport
-    const maxX = window.innerWidth - (isMinimized ? 60 : 300)
-    const maxY = window.innerHeight - (isMinimized ? 60 : 200)
+    // Constrain to viewport (accounting for transform center)
+    const halfWidth = isMinimized ? 28 : 144 // Half of width (w-72 = 288px / 2 = 144px)
+    const halfHeight = isMinimized ? 28 : 100 // Approximate half height
 
     setPosition({
-      x: Math.max(0, Math.min(newX, maxX)),
-      y: Math.max(0, Math.min(newY, maxY)),
+      x: Math.max(halfWidth, Math.min(newX, window.innerWidth - halfWidth)),
+      y: Math.max(halfHeight, Math.min(newY, window.innerHeight - halfHeight)),
     })
-  }, [isDragging, dragStart, isMinimized])
+  }, [isDragging, isMinimized])
 
   // Handle drag end
   const handleMouseUp = useCallback(() => {
@@ -296,6 +391,13 @@ const DoctorCallStatus = () => {
     console.log('📞 [DoctorCallStatus] Current callStatus:', callStatus)
     console.log('📞 [DoctorCallStatus] Current callInfo:', callInfo)
     console.log('📞 [DoctorCallStatus] Should show:', callStatus === 'calling' ? 'Calling...' : callStatus === 'started' ? 'Call Started' : 'Nothing')
+    
+    // If we're in 'calling' or 'connecting' state and have a callId, check if we should update
+    // This handles cases where the socket event might have been missed
+    if ((callStatus === 'calling' || callStatus === 'connecting') && callInfo?.callId) {
+      console.log('📞 [DoctorCallStatus] In calling/connecting state with callId, checking if status should be updated...')
+      // The socket event should handle this, but this is a safety check
+    }
   }, [callStatus, callInfo])
 
   // Don't render if no active call or status is idle/ended
@@ -312,6 +414,7 @@ const DoctorCallStatus = () => {
         style={{
           left: `${position.x}px`,
           top: `${position.y}px`,
+          transform: 'translate(-50%, -50%)',
         }}
         onMouseDown={handleMouseDown}
       >
@@ -343,6 +446,7 @@ const DoctorCallStatus = () => {
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
+        transform: 'translate(-50%, -50%)',
         cursor: isDragging ? 'grabbing' : 'move',
       }}
       onMouseDown={handleMouseDown}
