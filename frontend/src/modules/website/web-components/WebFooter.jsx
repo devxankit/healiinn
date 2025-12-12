@@ -14,6 +14,7 @@ import {
   FaUserMd,
   FaPills,
   FaFlask,
+  FaHeartbeat,
 } from 'react-icons/fa'
 import healinnLogo from '../../../assets/images/logo.png'
 
@@ -46,6 +47,7 @@ const WebFooter = () => {
     { icon: FaUserMd, label: 'For Doctors', action: () => scrollToSection('#doctors') },
     { icon: FaFlask, label: 'For Laboratories', action: () => scrollToSection('#labs') },
     { icon: FaPills, label: 'For Pharmacy', action: () => scrollToSection('#pharmacy') },
+    { icon: FaHeartbeat, label: 'For Nurses', action: () => scrollToSection('#nurses') },
     { label: 'Join as Provider', action: () => navigate('/onboarding') },
   ]
 
@@ -225,4 +227,5 @@ const WebFooter = () => {
 }
 
 export default WebFooter
+
 
