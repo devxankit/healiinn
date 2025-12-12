@@ -1,6 +1,7 @@
 const Appointment = require('../models/Appointment');
 const Session = require('../models/Session');
 const Doctor = require('../models/Doctor');
+const { getISTTime } = require('../utils/timezoneUtils');
 
 /**
  * Convert 12-hour format to 24-hour format for calculation
@@ -79,9 +80,10 @@ const calculateAppointmentETA = async (appointmentId) => {
   // Calculate patients ahead in queue
   const patientsAhead = Math.max(0, appointment.tokenNumber - session.currentToken - 1);
 
-  // Calculate estimated wait time and call time based on CURRENT TIME
+  // Calculate estimated wait time and call time based on CURRENT TIME (IST)
   // This ensures accurate ETA when doctor starts session late or calls patients
-  const now = new Date();
+  // Use IST time for doctor session operations
+  const now = getISTTime();
   
   // Determine base time for calculation
   // If session is live and patients are being called, use current time
@@ -153,7 +155,8 @@ const calculateQueueETAs = async (sessionId) => {
   // No pause adjustment needed - time continues normally
   const pausedAdjustment = 0;
 
-  const now = new Date();
+  // Use IST time for doctor session operations
+  const now = getISTTime();
   
   // Determine base time for ETA calculation
   // If session is LIVE and patients have been called, use CURRENT TIME as base

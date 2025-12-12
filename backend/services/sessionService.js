@@ -3,6 +3,7 @@ const Doctor = require('../models/Doctor');
 const Appointment = require('../models/Appointment');
 const { SESSION_STATUS } = require('../utils/constants');
 const { timeToMinutes, getTimeDifference } = require('./etaService');
+const { getISTTime, getISTDate, getISTTimeInMinutes, getISTHourMinute } = require('../utils/timezoneUtils');
 
 /**
  * Get day name from date
@@ -397,9 +398,8 @@ const checkSlotAvailability = async (doctorId, date) => {
     const avgConsultation = doctor.averageConsultationMinutes || 20;
     
     // Check if booking is for today (same day)
-    // Reuse parsedDate from above (already declared and set)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Use IST time for doctor session operations
+    const today = getISTDate();
     
     const isSameDay = parsedDate.getTime() === today.getTime();
     
@@ -410,10 +410,9 @@ const checkSlotAvailability = async (doctorId, date) => {
     // Check if session end time has passed - if yes, no new bookings allowed
     // But existing appointments with tokens can continue
     if (isSameDay) {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
-      const currentTimeMinutes = currentHour * 60 + currentMinute;
+      // Use IST time for doctor session operations
+      const { hour: currentHour, minute: currentMinute } = getISTHourMinute();
+      const currentTimeMinutes = getISTTimeInMinutes();
       
       const sessionEndMinutes = timeToMinutes(session.sessionEndTime);
       
@@ -559,7 +558,8 @@ const pauseSession = async (sessionId) => {
   }
 
   session.isPaused = true;
-  session.pausedAt = new Date();
+  // Use IST time for doctor session operations
+  session.pausedAt = getISTTime();
   session.status = SESSION_STATUS.PAUSED;
   await session.save();
 
@@ -583,8 +583,8 @@ const resumeSession = async (sessionId) => {
     throw new Error('Invalid pause state');
   }
 
-  // Calculate pause duration
-  const pauseEndTime = new Date();
+  // Calculate pause duration using IST time
+  const pauseEndTime = getISTTime();
   const pauseDuration = Math.floor((pauseEndTime - new Date(session.pausedAt)) / (1000 * 60));
 
   // Add to pause history
@@ -657,7 +657,8 @@ const callNextPatient = async (sessionId, appointmentId = null) => {
   if (session.status === SESSION_STATUS.SCHEDULED) {
     session.status = SESSION_STATUS.LIVE;
     if (!session.startedAt) {
-      session.startedAt = new Date();
+      // Use IST time for doctor session operations
+      session.startedAt = getISTTime();
     }
   }
 
@@ -693,8 +694,9 @@ const autoEndExpiredSessions = async () => {
     const { createNotification } = require('./notificationService');
     const Appointment = require('../models/Appointment');
     
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Use IST time for doctor session operations
+    const now = getISTTime();
+    const today = getISTDate();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
@@ -732,7 +734,8 @@ const autoEndExpiredSessions = async () => {
       };
       
       const sessionEndMinutes = timeStringToMinutes(session.sessionEndTime);
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      // Use IST time for doctor session operations
+      const currentMinutes = getISTTimeInMinutes();
       
       // Check if session end time has passed
       if (sessionEndMinutes !== null && currentMinutes >= sessionEndMinutes) {
@@ -775,7 +778,8 @@ const autoEndExpiredSessions = async () => {
         
         // No pending appointments - safe to end session
         session.status = SESSION_STATUS.COMPLETED;
-        session.endedAt = new Date();
+        // Use IST time for doctor session operations
+        session.endedAt = getISTTime();
         await session.save();
         
         endedCount++;

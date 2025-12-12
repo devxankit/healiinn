@@ -14,6 +14,7 @@ const {
 const { ROLES } = require('../../utils/constants');
 const { getOrCreateSession, checkSlotAvailability } = require('../../services/sessionService');
 const { calculateAppointmentETA, recalculateSessionETAs } = require('../../services/etaService');
+const { getISTTime, getISTDate, getISTTimeInMinutes, getISTHourMinute } = require('../../utils/timezoneUtils');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -30,7 +31,8 @@ exports.getAppointments = asyncHandler(async (req, res) => {
   const { page, limit, skip } = buildPagination(req);
 
   // Auto-cancel pending appointments older than 30 minutes
-  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  // Use IST time for doctor session operations
+  const thirtyMinutesAgo = new Date(getISTTime().getTime() - 30 * 60 * 1000);
   await Appointment.updateMany(
     {
       patientId: id,
@@ -40,7 +42,7 @@ exports.getAppointments = asyncHandler(async (req, res) => {
     },
     {
       status: 'cancelled',
-      cancelledAt: new Date(),
+      cancelledAt: getISTTime(),
       cancellationReason: 'Payment not completed within 30 minutes',
     }
   );
@@ -238,16 +240,15 @@ exports.createAppointment = asyncHandler(async (req, res) => {
   }
 
   // Check if session end time has passed - if yes, reject new bookings
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Use IST time for doctor session operations
+  const today = getISTDate();
   const isSameDay = parsedAppointmentDate.getTime() === today.getTime();
   
   if (isSameDay) {
     const { timeToMinutes } = require('../../services/etaService');
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentTimeMinutes = currentHour * 60 + currentMinute;
+    // Use IST time for doctor session operations
+    const { hour: currentHour, minute: currentMinute } = getISTHourMinute();
+    const currentTimeMinutes = getISTTimeInMinutes();
     const sessionEndMinutes = timeToMinutes(session.sessionEndTime);
     
     // If session end time has passed, reject new booking
@@ -433,7 +434,8 @@ exports.cancelAppointment = asyncHandler(async (req, res) => {
   }
 
   appointment.status = 'cancelled';
-  appointment.cancelledAt = new Date();
+  // Use IST time for doctor session operations
+  appointment.cancelledAt = getISTTime();
   appointment.cancellationReason = req.body.reason || 'Cancelled by patient';
   await appointment.save();
 
@@ -756,7 +758,8 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
   // If appointment was cancelled, reactivate it; otherwise keep as scheduled
   appointment.status = isCancelled ? 'scheduled' : 'scheduled';
   appointment.queueStatus = null;
-  appointment.rescheduledAt = new Date();
+  // Use IST time for doctor session operations
+  appointment.rescheduledAt = getISTTime();
   appointment.rescheduledBy = 'patient';
   appointment.rescheduleReason = isCancelled 
     ? `Appointment rebooked after cancellation. New date: ${normalizedAppointmentDate.toLocaleDateString('en-US')}`
@@ -1189,7 +1192,8 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
   appointment.paymentStatus = 'paid';
   appointment.paymentId = paymentId;
   appointment.razorpayOrderId = orderId;
-  appointment.paidAt = new Date();
+  // Use IST time for doctor session operations
+  appointment.paidAt = getISTTime();
   appointment.status = 'scheduled'; // Change from pending_payment to scheduled
   await appointment.save();
 
