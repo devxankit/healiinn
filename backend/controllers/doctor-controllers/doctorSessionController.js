@@ -4,7 +4,7 @@ const Doctor = require('../../models/Doctor');
 const Appointment = require('../../models/Appointment');
 const { SESSION_STATUS } = require('../../utils/constants');
 const { getOrCreateSession } = require('../../services/sessionService');
-const { getISTTime, getISTDate, getISTTimeInMinutes, parseDateInIST } = require('../../utils/timezoneUtils');
+const { getISTTime, getISTDate, getISTTimeInMinutes, getISTTimeString, parseDateInIST } = require('../../utils/timezoneUtils');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -191,8 +191,11 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
   
   const isWithin = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
   
+  // Get IST time string for logging
+  const istTimeString = getISTTimeString();
+  
   console.log('🕐 [Backend] Session time check:', {
-    currentTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    currentTime: istTimeString,
     currentMinutes,
     sessionStartTime,
     sessionEndTime,
@@ -249,9 +252,8 @@ exports.updateSession = asyncHandler(async (req, res) => {
     const sessionEnd = sessionEndTime || session.sessionEndTime;
     
     if (!isWithinSessionTime(sessionStart, sessionEnd, session.date)) {
-      // Use IST time for doctor session operations
-      const now = getISTTime();
-      const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+      // Use IST time for doctor session operations - format directly from IST
+      const currentTime = getISTTimeString();
       
       return res.status(400).json({
         success: false,

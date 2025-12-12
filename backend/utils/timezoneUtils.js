@@ -88,6 +88,21 @@ const getISTTimeInMinutes = () => {
 };
 
 /**
+ * Get current time formatted as string in IST (12-hour format with AM/PM)
+ * @returns {string} Current time in IST formatted as "HH:MM AM/PM"
+ */
+const getISTTimeString = () => {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return formatter.format(now);
+};
+
+/**
  * Parse a date string in IST timezone
  * Handles YYYY-MM-DD format and creates a Date object representing that date in IST
  * @param {string|Date} date - Date string (YYYY-MM-DD) or Date object
@@ -167,6 +182,7 @@ module.exports = {
   getISTDate,
   getISTHourMinute,
   getISTTimeInMinutes,
+  getISTTimeString,
   parseDateInIST,
 };
 
