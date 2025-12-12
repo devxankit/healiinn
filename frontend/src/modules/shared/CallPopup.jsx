@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import * as mediasoupClient from 'mediasoup-client'
 import { io } from 'socket.io-client'
-import { IoCallOutline, IoMicOutline, IoMicOffOutline, IoCloseOutline } from 'react-icons/io5'
+import { IoCallOutline, IoMicOutline, IoMicOffOutline, IoCloseOutline, IoRemoveOutline } from 'react-icons/io5'
 import { formatCallDuration, isWebRTCSupported } from '../../utils/callService'
 import { getAuthToken } from '../../utils/apiClient'
 import { useCall } from '../../contexts/CallContext'
@@ -11,7 +11,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
 const SOCKET_URL = API_BASE_URL.replace('/api', '').replace(/\/$/, '')
 
 const CallPopup = () => {
-  const { activeCall, endCall } = useCall()
+  const { activeCall, endCall, isMinimized, minimize, maximize } = useCall()
   const callId = activeCall?.callId
   
   const [status, setStatus] = useState('connecting') // connecting, connected, ended, error
@@ -31,6 +31,8 @@ const CallPopup = () => {
   const remoteAudioRef = useRef(null)
   const callStartTimeRef = useRef(null)
   const durationIntervalRef = useRef(null)
+  const isEndingRef = useRef(false) // Prevent duplicate call end
+  const callIdRef = useRef(callId) // Store callId in ref to avoid stale closures
 
   // Determine module from token
   const getModule = () => {
@@ -39,6 +41,60 @@ const CallPopup = () => {
     if (getAuthToken('patient')) return 'patient'
     return 'patient' // default
   }
+
+  // Store activeCall in ref to avoid stale closures
+  const activeCallRef = useRef(activeCall)
+  
+  // Update activeCall ref when it changes
+  useEffect(() => {
+    activeCallRef.current = activeCall
+  }, [activeCall])
+
+  // Unified handler for call:ended events from any socket
+  const handleCallEndedUnified = useCallback((data) => {
+    const currentCallId = callIdRef.current
+    const currentActiveCall = activeCallRef.current
+    
+    console.log('📞 [CallPopup] ====== call:ended EVENT RECEIVED ======')
+    console.log('📞 [CallPopup] Event data:', data)
+    console.log('📞 [CallPopup] Current callId (from ref):', currentCallId)
+    console.log('📞 [CallPopup] Current activeCall (from ref):', currentActiveCall)
+    console.log('📞 [CallPopup] isEndingRef.current:', isEndingRef.current)
+    
+    // Prevent duplicate processing
+    if (isEndingRef.current) {
+      console.log('📞 [CallPopup] Call already ending, ignoring duplicate call:ended event')
+      return
+    }
+    
+    // Process if:
+    // 1. CallId matches exactly, OR
+    // 2. We have an activeCall (fallback - process even if callId doesn't match)
+    const callIdMatches = data && data.callId && data.callId === currentCallId
+    const hasActiveCall = currentActiveCall && currentActiveCall.callId
+    
+    if (!callIdMatches && !hasActiveCall) {
+      console.log('📞 [CallPopup] Ignoring call:ended - no callId match and no active call')
+      return
+    }
+    
+    if (!callIdMatches && hasActiveCall) {
+      console.warn('📞 [CallPopup] call:ended event callId mismatch, but processing anyway because we have activeCall')
+      console.warn('📞 [CallPopup] Expected:', currentCallId, 'Received:', data?.callId)
+    }
+    
+    console.log('📞 [CallPopup] ✅ Processing call:ended event - ending call')
+    isEndingRef.current = true
+    
+    // End the call (don't emit to server as it's already ended by other party)
+    cleanup()
+    setStatus('ended')
+    setTimeout(() => {
+      console.log('📞 [CallPopup] Closing call UI from call:ended event')
+      endCall()
+      isEndingRef.current = false
+    }, 500)
+  }, [endCall])
 
   useEffect(() => {
     if (!callId) {
@@ -56,13 +112,53 @@ const CallPopup = () => {
     setError(null)
     setCallDuration(0)
     setIsMuted(false)
+    isEndingRef.current = false // Reset ending flag for new call
+    callIdRef.current = callId // Update ref with current callId
+
+    // Set up call:ended listener on shared socket immediately (before socket connects)
+    // This ensures we receive the event even if CallPopup creates a new socket
+    const sharedSocket = getSocket()
+    let sharedSocketCleanup = null
+    
+    if (sharedSocket) {
+      console.log('📞 [CallPopup] Setting up call:ended listener on shared socket')
+      console.log('📞 [CallPopup] Shared socket connected:', sharedSocket.connected)
+      
+      // Use the unified handler
+      sharedSocket.on('call:ended', handleCallEndedUnified)
+      
+      sharedSocketCleanup = () => {
+        sharedSocket.off('call:ended', handleCallEndedUnified)
+      }
+    }
+
+    // Also listen for window-level force end event as fallback
+    const handleForceEnd = () => {
+      console.log('📞 [CallPopup] Received call:forceEnd window event')
+      if (!isEndingRef.current && callIdRef.current) {
+        console.log('📞 [CallPopup] Processing force end event')
+        isEndingRef.current = true
+        cleanup()
+        setStatus('ended')
+        setTimeout(() => {
+          endCall()
+          isEndingRef.current = false
+        }, 500)
+      }
+    }
+    
+    window.addEventListener('call:forceEnd', handleForceEnd)
 
     initializeCall()
 
     return () => {
       cleanup()
+      if (sharedSocketCleanup) {
+        sharedSocketCleanup()
+      }
+      window.removeEventListener('call:forceEnd', handleForceEnd)
     }
-  }, [callId])
+  }, [callId, handleCallEndedUnified, endCall])
 
   // Update remoteParticipant when activeCall changes
   useEffect(() => {
@@ -74,10 +170,56 @@ const CallPopup = () => {
   const initializeCall = async () => {
     try {
       const module = getModule()
+      const currentCallId = callIdRef.current
+      
+      if (!currentCallId) {
+        console.warn('📞 [CallPopup] No callId available, cannot initialize call')
+        return
+      }
       
       // Try to use existing socket first (for patient to ensure same connection)
       let socket = getSocket()
       let isNewSocket = false
+      
+      // Helper function to join call room (returns promise)
+      const joinCallRoom = (socketInstance) => {
+        return new Promise((resolve) => {
+          if (!socketInstance || !currentCallId) {
+            resolve(false)
+            return
+          }
+          
+          if (socketInstance.connected) {
+            console.log('📞 [CallPopup] Joining call room:', `call-${currentCallId}`)
+            socketInstance.emit('call:joinRoom', { callId: currentCallId }, (response) => {
+              if (response && response.error) {
+                console.warn('📞 [CallPopup] Failed to join call room:', response.error)
+                resolve(false)
+              } else {
+                console.log('📞 [CallPopup] ✅ Successfully joined call room')
+                resolve(true)
+              }
+            })
+          } else {
+            // Wait for connection then join
+            console.log('📞 [CallPopup] Socket not connected, waiting for connection before joining room')
+            const connectHandler = () => {
+              socketInstance.off('connect', connectHandler)
+              console.log('📞 [CallPopup] Socket connected, joining call room:', `call-${currentCallId}`)
+              socketInstance.emit('call:joinRoom', { callId: currentCallId }, (response) => {
+                if (response && response.error) {
+                  console.warn('📞 [CallPopup] Failed to join call room:', response.error)
+                  resolve(false)
+                } else {
+                  console.log('📞 [CallPopup] ✅ Successfully joined call room')
+                  resolve(true)
+                }
+              })
+            }
+            socketInstance.once('connect', connectHandler)
+          }
+        })
+      }
       
       if (!socket || !socket.connected) {
         // Fallback to creating new socket if shared socket not available
@@ -109,25 +251,60 @@ const CallPopup = () => {
           setStatus('error')
         }
 
-        const handleCallEnded = () => {
-          handleEndCall()
+      // Use unified handler for call:ended
+      const handleCallEnded = handleCallEndedUnified
+
+        // Handle call declined (patient declined before call started)
+        const handleCallDeclined = (data) => {
+          const currentCallId = callIdRef.current
+          const currentActiveCall = activeCallRef.current
+          
+          console.log('📞 [CallPopup] ====== call:declined EVENT RECEIVED ======')
+          console.log('📞 [CallPopup] Event data:', data)
+          console.log('📞 [CallPopup] Current callId (from ref):', currentCallId)
+          console.log('📞 [CallPopup] Current activeCall (from ref):', currentActiveCall)
+          
+          // Process if we have an active call
+          const callIdMatches = data && data.callId && data.callId === currentCallId
+          const hasActiveCall = currentActiveCall && currentActiveCall.callId
+          
+          if (!callIdMatches && !hasActiveCall) {
+            console.log('📞 [CallPopup] Ignoring call:declined - no callId match and no active call')
+            return
+          }
+          
+          console.log('📞 [CallPopup] ✅ Processing call:declined event - closing call')
+          cleanup()
+          setStatus('ended')
+          setTimeout(() => {
+            console.log('📞 [CallPopup] Closing call UI from call:declined event')
+            endCall()
+          }, 500)
         }
 
         const handleNewProducer = async (data) => {
           console.log('📞 [CallPopup] New producer available:', data)
-          if (data.producerId && !consumerRef.current) {
-            await consumeRemoteAudio(data.producerId)
+          if (data.producerId) {
+            if (producerRef.current && producerRef.current.id !== data.producerId) {
+              await consumeRemoteAudio(data.producerId)
+            } else if (!producerRef.current) {
+              await consumeRemoteAudio(data.producerId)
+            }
           }
         }
 
         socket.on('disconnect', handleDisconnect)
         socket.on('call:error', handleCallError)
         socket.on('call:ended', handleCallEnded)
+        socket.on('call:declined', handleCallDeclined)
         socket.on('mediasoup:newProducer', handleNewProducer)
 
-        socket.on('connect', () => {
+        socket.on('connect', async () => {
           console.log('📞 [CallPopup] Socket connected for call')
           socketRef.current = socket
+          
+          // Join call room BEFORE starting the call
+          await joinCallRoom(socket)
           
           // Store cleanup function after socketRef is set
           if (socketRef.current) {
@@ -135,6 +312,7 @@ const CallPopup = () => {
               socket.off('disconnect', handleDisconnect)
               socket.off('call:error', handleCallError)
               socket.off('call:ended', handleCallEnded)
+              socket.off('call:declined', handleCallDeclined)
               socket.off('mediasoup:newProducer', handleNewProducer)
             }
           }
@@ -158,31 +336,67 @@ const CallPopup = () => {
           setStatus('error')
         }
 
-        const handleCallEnded = () => {
-          handleEndCall()
+      // Use unified handler for call:ended
+      const handleCallEnded = handleCallEndedUnified
+
+        // Handle call declined (patient declined before call started)
+        const handleCallDeclined = (data) => {
+          const currentCallId = callIdRef.current
+          const currentActiveCall = activeCallRef.current
+          
+          console.log('📞 [CallPopup] ====== call:declined EVENT RECEIVED ======')
+          console.log('📞 [CallPopup] Event data:', data)
+          console.log('📞 [CallPopup] Current callId (from ref):', currentCallId)
+          console.log('📞 [CallPopup] Current activeCall (from ref):', currentActiveCall)
+          
+          // Process if we have an active call
+          const callIdMatches = data && data.callId && data.callId === currentCallId
+          const hasActiveCall = currentActiveCall && currentActiveCall.callId
+          
+          if (!callIdMatches && !hasActiveCall) {
+            console.log('📞 [CallPopup] Ignoring call:declined - no callId match and no active call')
+            return
+          }
+          
+          console.log('📞 [CallPopup] ✅ Processing call:declined event - closing call')
+          cleanup()
+          setStatus('ended')
+          setTimeout(() => {
+            console.log('📞 [CallPopup] Closing call UI from call:declined event')
+            endCall()
+          }, 500)
         }
 
         const handleNewProducer = async (data) => {
           console.log('📞 [CallPopup] New producer available:', data)
-          if (data.producerId && !consumerRef.current) {
-            await consumeRemoteAudio(data.producerId)
+          if (data.producerId) {
+            if (producerRef.current && producerRef.current.id !== data.producerId) {
+              await consumeRemoteAudio(data.producerId)
+            } else if (!producerRef.current) {
+              await consumeRemoteAudio(data.producerId)
+            }
           }
         }
 
         socket.on('disconnect', handleDisconnect)
         socket.on('call:error', handleCallError)
         socket.on('call:ended', handleCallEnded)
+        socket.on('call:declined', handleCallDeclined)
         socket.on('mediasoup:newProducer', handleNewProducer)
 
-        // Store cleanup function for listeners (socketRef.current is already set)
+        // Store cleanup function for listeners
         if (socketRef.current) {
           socketRef.current._callPopupCleanup = () => {
             socket.off('disconnect', handleDisconnect)
             socket.off('call:error', handleCallError)
             socket.off('call:ended', handleCallEnded)
+            socket.off('call:declined', handleCallDeclined)
             socket.off('mediasoup:newProducer', handleNewProducer)
           }
         }
+        
+        // Join call room BEFORE starting the call (for existing socket)
+        await joinCallRoom(socket)
         
         // Socket already connected, join call immediately
         joinCall()
@@ -199,9 +413,15 @@ const CallPopup = () => {
       const socket = socketRef.current
       if (!socket) return
 
+      const currentCallId = callIdRef.current // Use ref to get current callId
+      if (!currentCallId) {
+        console.warn('📞 [CallPopup] No callId available, cannot join call')
+        return
+      }
+
       // Get RTP capabilities
       const { rtpCapabilities, iceServers } = await new Promise((resolve, reject) => {
-        socket.emit('mediasoup:getRtpCapabilities', { callId }, (response) => {
+        socket.emit('mediasoup:getRtpCapabilities', { callId: currentCallId }, (response) => {
           if (response.error) {
             reject(new Error(response.error))
           } else {
@@ -217,7 +437,7 @@ const CallPopup = () => {
 
       // Create send transport
       const sendTransportData = await new Promise((resolve, reject) => {
-        socket.emit('mediasoup:createWebRtcTransport', { callId }, (response) => {
+        socket.emit('mediasoup:createWebRtcTransport', { callId: currentCallId }, (response) => {
           if (response.error) {
             reject(new Error(response.error))
           } else {
@@ -273,7 +493,7 @@ const CallPopup = () => {
 
       // Create recv transport
       const recvTransportData = await new Promise((resolve, reject) => {
-        socket.emit('mediasoup:createWebRtcTransport', { callId }, (response) => {
+        socket.emit('mediasoup:createWebRtcTransport', { callId: currentCallId }, (response) => {
           if (response.error) {
             reject(new Error(response.error))
           } else {
@@ -312,6 +532,36 @@ const CallPopup = () => {
       // Get user media and produce
       await produceLocalAudio()
 
+      // Request existing producers for this call (to handle race condition)
+      try {
+        const existingProducersResponse = await new Promise((resolve, reject) => {
+          socket.emit('mediasoup:getProducers', { callId: currentCallId }, (response) => {
+            if (response.error) {
+              reject(new Error(response.error))
+            } else {
+              resolve(response)
+            }
+          })
+        })
+
+        console.log('📞 [CallPopup] Existing producers:', existingProducersResponse.producers)
+        
+        // Consume all existing producers (from other participants who joined earlier)
+        if (existingProducersResponse.producers && existingProducersResponse.producers.length > 0) {
+          for (const producer of existingProducersResponse.producers) {
+            // Only consume if we haven't already consumed this producer
+            // and it's not our own producer
+            if (producer.id && producer.id !== producerRef.current?.id) {
+              console.log('📞 [CallPopup] Consuming existing producer:', producer.id)
+              await consumeRemoteAudio(producer.id)
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('📞 [CallPopup] Error getting existing producers (non-critical):', error)
+        // Don't fail the call if this fails - we'll still listen for new producers
+      }
+
       setStatus('connected')
       callStartTimeRef.current = Date.now()
       startDurationTimer()
@@ -330,7 +580,7 @@ const CallPopup = () => {
             authenticated: !!currentSocket.auth
           })
           
-          currentSocket.emit('call:joined', { callId }, (response) => {
+          currentSocket.emit('call:joined', { callId: currentCallId }, (response) => {
             if (response) {
               console.log('📞 [CallPopup] call:joined acknowledgment:', response)
             }
@@ -339,7 +589,7 @@ const CallPopup = () => {
           console.warn('📞 [CallPopup] Socket not connected, waiting for connection before emitting call:joined')
           const connectHandler = () => {
             console.log('📞 [CallPopup] Socket connected, now emitting call:joined')
-            currentSocket.emit('call:joined', { callId })
+            currentSocket.emit('call:joined', { callId: currentCallId })
             currentSocket.off('connect', connectHandler)
           }
           currentSocket.on('connect', connectHandler)
@@ -385,8 +635,15 @@ const CallPopup = () => {
 
   const consumeRemoteAudio = async (producerId) => {
     try {
+      // Close existing consumer if we're replacing it (for 1-to-1 calls, there should only be one remote producer)
       if (consumerRef.current) {
-        return // Already consuming
+        console.log('📞 [CallPopup] Replacing existing consumer with new producer:', producerId)
+        try {
+          consumerRef.current.close()
+        } catch (error) {
+          console.warn('📞 [CallPopup] Error closing existing consumer:', error)
+        }
+        consumerRef.current = null
       }
 
       const device = deviceRef.current
@@ -394,6 +651,13 @@ const CallPopup = () => {
       const socket = socketRef.current
 
       if (!device || !recvTransport || !socket) {
+        console.warn('📞 [CallPopup] Cannot consume - missing device, transport, or socket')
+        return
+      }
+
+      const currentCallId = callIdRef.current
+      if (!currentCallId) {
+        console.warn('📞 [CallPopup] No callId available, cannot consume')
         return
       }
 
@@ -402,7 +666,7 @@ const CallPopup = () => {
           transportId: recvTransport.id,
           producerId,
           rtpCapabilities: device.rtpCapabilities,
-          callId,
+          callId: currentCallId,
         }, (response) => {
           if (response.error) {
             reject(new Error(response.error))
@@ -428,8 +692,10 @@ const CallPopup = () => {
         remoteAudioRef.current.srcObject = stream
         remoteAudioRef.current.play().catch(err => console.error('Error playing remote audio:', err))
       }
+      
+      console.log('📞 [CallPopup] Successfully consuming remote audio from producer:', producerId)
     } catch (error) {
-      console.error('Error consuming remote audio:', error)
+      console.error('📞 [CallPopup] Error consuming remote audio:', error)
     }
   }
 
@@ -478,21 +744,48 @@ const CallPopup = () => {
     }
   }, [isMuted])
 
-  const handleEndCall = async () => {
+  const handleEndCall = async (emitToServer = true) => {
+    // Prevent duplicate call end
+    if (isEndingRef.current) {
+      console.log('📞 [CallPopup] handleEndCall called but already ending, ignoring')
+      return
+    }
+    isEndingRef.current = true
+
+    // Ensure emitToServer is a boolean (in case event object was passed)
+    const shouldEmitToServer = typeof emitToServer === 'boolean' ? emitToServer : true
+
+    const currentCallId = callIdRef.current // Use ref to get current callId
+    console.log('📞 [CallPopup] ====== ENDING CALL ======')
+    console.log('📞 [CallPopup] callId (from ref):', currentCallId)
+    console.log('📞 [CallPopup] emitToServer:', shouldEmitToServer)
+
     try {
       const socket = socketRef.current
-      if (socket) {
-        socket.emit('call:end', { callId })
+      // Only emit to server if we're the one initiating the end
+      // If emitToServer is false, it means the call was ended by the other party
+      if (socket && shouldEmitToServer && currentCallId) {
+        console.log('📞 [CallPopup] Emitting call:end to server')
+        socket.emit('call:end', { callId: currentCallId }, (response) => {
+          if (response) {
+            console.log('📞 [CallPopup] call:end acknowledgment:', response)
+          }
+        })
+      } else {
+        console.log('📞 [CallPopup] Not emitting call:end to server (call ended by other party)')
       }
     } catch (error) {
-      console.error('Error ending call:', error)
+      console.error('📞 [CallPopup] Error ending call:', error)
     } finally {
+      console.log('📞 [CallPopup] Cleaning up call resources')
       cleanup()
       setStatus('ended')
-      // Close the call UI after showing "ended" state briefly
+      // Close the call UI immediately (reduced from 2000ms to 500ms for faster response)
       setTimeout(() => {
+        console.log('📞 [CallPopup] Closing call UI')
         endCall() // Use context to close call
-      }, 2000)
+        isEndingRef.current = false // Reset for next call
+      }, 500) // Reduced delay for faster UI response
     }
   }
 
@@ -544,7 +837,10 @@ const CallPopup = () => {
       }
 
       try {
-        socketRef.current.emit('call:leave', { callId })
+        const currentCallId = callIdRef.current
+        if (currentCallId) {
+          socketRef.current.emit('call:leave', { callId: currentCallId })
+        }
       } catch (error) {
         console.warn('Error emitting call:leave:', error)
       }
@@ -598,9 +894,44 @@ const CallPopup = () => {
     )
   }
 
+  // Minimized view - floating button (for doctors)
+  if (isMinimized && getModule() === 'doctor') {
+    return (
+      <div className="fixed bottom-6 right-6 z-[10000]">
+        <button
+          onClick={maximize}
+          className="relative flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full shadow-lg hover:bg-blue-700 transition active:scale-95"
+          title="Click to expand call"
+        >
+          {/* Pulsing animation */}
+          <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-75"></div>
+          <IoCallOutline className="text-white text-2xl relative z-10" />
+          
+          {/* Duration badge */}
+          {status === 'connected' && callDuration > 0 && (
+            <span className="absolute -bottom-1 -right-1 bg-green-500 text-white text-xs font-semibold px-1.5 py-0.5 rounded-full">
+              {formatCallDuration(callDuration).split(':')[1]}
+            </span>
+          )}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
+        {/* Minimize button (for doctors) */}
+        {getModule() === 'doctor' && (
+          <button
+            onClick={minimize}
+            className="absolute top-4 right-4 text-slate-500 hover:text-slate-700 rounded p-1 transition"
+            title="Minimize"
+          >
+            <IoRemoveOutline className="text-xl" />
+          </button>
+        )}
+        
         {/* Header */}
         <div className="text-center mb-6">
           <div className="w-20 h-20 bg-slate-200 rounded-full mx-auto mb-4 flex items-center justify-center">
@@ -635,7 +966,7 @@ const CallPopup = () => {
           </button>
 
           <button
-            onClick={handleEndCall}
+            onClick={() => handleEndCall(true)}
             disabled={status === 'ended'}
             className="w-16 h-16 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
             title="End Call"

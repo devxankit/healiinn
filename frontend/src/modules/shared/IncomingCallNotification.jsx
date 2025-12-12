@@ -1,15 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { IoCallOutline } from 'react-icons/io5'
 import { getSocket } from '../../utils/socketClient'
 import { openCallPopup } from '../../utils/callService'
 import { useToast } from '../../contexts/ToastContext'
 import { useCall } from '../../contexts/CallContext'
+import ringtoneSound from '../../assets/sounds/ringtone-030-437513.mp3'
 
 const IncomingCallNotification = () => {
   const [incomingCall, setIncomingCall] = useState(null) // { callId, appointmentId, doctorName }
   const [isProcessing, setIsProcessing] = useState(false)
   const toast = useToast()
   const { startCall } = useCall()
+  // Track ended callIds to prevent showing notifications for already-ended calls
+  const endedCallIdsRef = useRef(new Set())
+  // Audio ref for ringtone
+  const ringtoneRef = useRef(null)
 
   useEffect(() => {
     console.log('📞 [IncomingCallNotification] Component mounted, setting up listeners...')
@@ -33,14 +38,24 @@ const IncomingCallNotification = () => {
       // Listen for incoming call invites via custom event (from NotificationContext)
       const handleCallInviteEvent = (event) => {
         const data = event.detail
-        console.log('📞 [IncomingCallNotification] Received call invite via window event:', data)
+        console.log('📞 [IncomingCallNotification] ====== RECEIVED call:invite VIA WINDOW EVENT ======')
+        console.log('📞 [IncomingCallNotification] Event data:', data)
+        console.log('📞 [IncomingCallNotification] Current incomingCall state:', incomingCall)
+        
+        // Check if this call was already ended before showing notification
+        if (data.callId && endedCallIdsRef.current.has(data.callId)) {
+          console.log('📞 [IncomingCallNotification] Call was already ended, ignoring invite:', data.callId)
+          return
+        }
         
         // Always set incoming call (allow override if new call comes in)
-        setIncomingCall({
+        const newIncomingCall = {
           callId: data.callId,
           appointmentId: data.appointmentId,
           doctorName: data.doctorName || 'Doctor',
-        })
+        }
+        console.log('📞 [IncomingCallNotification] Setting incoming call:', newIncomingCall)
+        setIncomingCall(newIncomingCall)
       }
 
       // Listen for call errors
@@ -54,13 +69,25 @@ const IncomingCallNotification = () => {
 
       // Also listen directly on socket as fallback
       const handleCallInvite = (data) => {
-        console.log('📞 [IncomingCallNotification] Received call invite directly from socket:', data)
+        console.log('📞 [IncomingCallNotification] ====== RECEIVED call:invite DIRECTLY FROM SOCKET ======')
+        console.log('📞 [IncomingCallNotification] Event data:', data)
+        console.log('📞 [IncomingCallNotification] Socket connected:', socketInstance?.connected)
+        console.log('📞 [IncomingCallNotification] Socket ID:', socketInstance?.id)
+        
+        // Check if this call was already ended before showing notification
+        if (data.callId && endedCallIdsRef.current.has(data.callId)) {
+          console.log('📞 [IncomingCallNotification] Call was already ended, ignoring invite:', data.callId)
+          return
+        }
+        
         // Always set incoming call (allow override if new call comes in)
-        setIncomingCall({
+        const newIncomingCall = {
           callId: data.callId,
           appointmentId: data.appointmentId,
           doctorName: data.doctorName || 'Doctor',
-        })
+        }
+        console.log('📞 [IncomingCallNotification] Setting incoming call from socket:', newIncomingCall)
+        setIncomingCall(newIncomingCall)
       }
 
       const handleCallError = (data) => {
@@ -73,19 +100,62 @@ const IncomingCallNotification = () => {
       // Listen for call ended (if doctor ends before patient accepts)
       const handleCallEnded = (data) => {
         console.log('📞 [IncomingCallNotification] Call ended:', data)
+        console.log('📞 [IncomingCallNotification] Current incomingCall state:', incomingCall)
+        
+        // Track ended callId even if we don't have an active incoming call yet
+        // This prevents showing notification if invite arrives after ended event
+        if (data && data.callId) {
+          endedCallIdsRef.current.add(data.callId)
+          console.log('📞 [IncomingCallNotification] Tracked ended callId:', data.callId)
+          
+          // Clean up old ended callIds periodically (keep last 100)
+          if (endedCallIdsRef.current.size > 100) {
+            const callIdsArray = Array.from(endedCallIdsRef.current)
+            // Remove oldest entries (keep last 50)
+            callIdsArray.slice(0, callIdsArray.length - 50).forEach(callId => {
+              endedCallIdsRef.current.delete(callId)
+            })
+            console.log('📞 [IncomingCallNotification] Cleaned up old ended callIds, kept last 50')
+          }
+        }
+        
         setIncomingCall((current) => {
-          if (current && current.callId === data.callId) {
-            toast.info('Call was ended by the doctor')
-            setIsProcessing(false)
-            return null
+          // Close notification if:
+          // 1. CallId matches exactly, OR
+          // 2. We have an incoming call and no callId in data (to handle edge cases), OR
+          // 3. We have an incoming call and it's the only active call (defensive check)
+          if (current) {
+            const callIdMatches = data && data.callId && current.callId === data.callId
+            const shouldClose = callIdMatches || !data?.callId || !current.callId
+            
+            if (shouldClose) {
+              console.log('📞 [IncomingCallNotification] Closing notification - call ended by doctor')
+              // Stop ringtone when call is ended
+              if (ringtoneRef.current) {
+                ringtoneRef.current.pause()
+                ringtoneRef.current.currentTime = 0
+                console.log('📞 [IncomingCallNotification] Ringtone stopped (call ended)')
+              }
+              toast.info('Call was ended by the doctor')
+              setIsProcessing(false)
+              return null
+            }
           }
           return current
         })
       }
 
+      // Listen for call ended via window event (from NotificationContext)
+      const handleCallEndedEvent = (event) => {
+        const data = event.detail
+        console.log('📞 [IncomingCallNotification] Call ended via window event:', data)
+        handleCallEnded(data)
+      }
+
       // Listen to both custom events and socket events
       window.addEventListener('call:invite', handleCallInviteEvent)
       window.addEventListener('call:error', handleCallErrorEvent)
+      window.addEventListener('call:ended', handleCallEndedEvent)
       socketInstance.on('call:invite', handleCallInvite)
       socketInstance.on('call:error', handleCallError)
       socketInstance.on('call:ended', handleCallEnded)
@@ -98,6 +168,7 @@ const IncomingCallNotification = () => {
         socketInstance.off('call:ended', handleCallEnded)
         window.removeEventListener('call:invite', handleCallInviteEvent)
         window.removeEventListener('call:error', handleCallErrorEvent)
+        window.removeEventListener('call:ended', handleCallEndedEvent)
       })
     }
 
@@ -144,8 +215,76 @@ const IncomingCallNotification = () => {
     }
   }, [toast]) // Only depend on toast, not incomingCall to avoid re-setting listeners
 
+  // Periodic cleanup of old ended callIds (every 5 minutes)
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      if (endedCallIdsRef.current.size > 50) {
+        const callIdsArray = Array.from(endedCallIdsRef.current)
+        // Remove oldest entries (keep last 25)
+        callIdsArray.slice(0, callIdsArray.length - 25).forEach(callId => {
+          endedCallIdsRef.current.delete(callId)
+        })
+        console.log('📞 [IncomingCallNotification] Periodic cleanup: removed old ended callIds, kept last 25')
+      }
+    }, 5 * 60 * 1000) // Every 5 minutes
+
+    return () => {
+      clearInterval(cleanupInterval)
+    }
+  }, [])
+
+  // Play ringtone when incoming call is received
+  useEffect(() => {
+    if (incomingCall && !isProcessing) {
+      // Initialize audio if not already done
+      if (!ringtoneRef.current) {
+        ringtoneRef.current = new Audio(ringtoneSound)
+        ringtoneRef.current.loop = true
+        ringtoneRef.current.volume = 0.7 // Set volume to 70%
+      }
+
+      // Play ringtone
+      const playRingtone = async () => {
+        try {
+          ringtoneRef.current.currentTime = 0 // Reset to start
+          await ringtoneRef.current.play()
+          console.log('📞 [IncomingCallNotification] Ringtone started')
+        } catch (error) {
+          console.warn('📞 [IncomingCallNotification] Could not play ringtone:', error)
+          // Some browsers require user interaction before playing audio
+          // This is okay - the notification will still show
+        }
+      }
+
+      playRingtone()
+
+      // Cleanup: stop ringtone when component unmounts or call is cleared
+      return () => {
+        if (ringtoneRef.current) {
+          ringtoneRef.current.pause()
+          ringtoneRef.current.currentTime = 0
+          console.log('📞 [IncomingCallNotification] Ringtone stopped')
+        }
+      }
+    } else {
+      // Stop ringtone if no incoming call
+      if (ringtoneRef.current && !ringtoneRef.current.paused) {
+        ringtoneRef.current.pause()
+        ringtoneRef.current.currentTime = 0
+        console.log('📞 [IncomingCallNotification] Ringtone stopped (no incoming call)')
+      }
+    }
+  }, [incomingCall, isProcessing])
+
   const handleAcceptCall = async () => {
     if (!incomingCall || isProcessing) return
+
+    // Stop ringtone immediately when accepting
+    if (ringtoneRef.current) {
+      ringtoneRef.current.pause()
+      ringtoneRef.current.currentTime = 0
+      console.log('📞 [IncomingCallNotification] Ringtone stopped (call accepted)')
+    }
 
     const socket = getSocket()
     if (!socket || !socket.connected) {
@@ -237,6 +376,13 @@ const IncomingCallNotification = () => {
 
   const handleDeclineCall = () => {
     if (!incomingCall || isProcessing) return
+
+    // Stop ringtone immediately when declining
+    if (ringtoneRef.current) {
+      ringtoneRef.current.pause()
+      ringtoneRef.current.currentTime = 0
+      console.log('📞 [IncomingCallNotification] Ringtone stopped (call declined)')
+    }
 
     const socket = getSocket()
     if (!socket || !socket.connected) {

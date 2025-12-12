@@ -244,8 +244,13 @@ function getProducersForCall(callId) {
   const callProducers = [];
   for (const [producerId, producer] of producers.entries()) {
     // Check if producer's transport belongs to this router
-    // This is a simplified check - in production, you'd track this relationship
-    callProducers.push(producer);
+    // producer.transport.router is the router this producer belongs to
+    if (producer.transport && producer.transport.router === router) {
+      callProducers.push({
+        id: producer.id,
+        kind: producer.kind,
+      });
+    }
   }
   return callProducers;
 }
