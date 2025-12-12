@@ -96,12 +96,26 @@ import LaboratoryFAQ from './modules/laboratory/laboratory-pages/LaboratoryFAQ'
 import LaboratoryHIPAACompliance from './modules/laboratory/laboratory-pages/LaboratoryHIPAACompliance'
 import LaboratoryDataProtection from './modules/laboratory/laboratory-pages/LaboratoryDataProtection'
 import LaboratoryLabAccreditation from './modules/laboratory/laboratory-pages/LaboratoryLabAccreditation'
+import NurseNavbar from './modules/nurse/nurse-components/NurseNavbar'
+import NurseHeader from './modules/nurse/nurse-components/NurseHeader'
+import NurseFooter from './modules/nurse/nurse-components/NurseFooter'
+import NurseDashboard from './modules/nurse/nurse-pages/NurseDashboard'
+import NurseBookings from './modules/nurse/nurse-pages/NurseBookings'
+import NurseTransactions from './modules/nurse/nurse-pages/NurseTransactions'
+import NurseWallet from './modules/nurse/nurse-pages/NurseWallet'
+import NurseWalletBalance from './modules/nurse/nurse-pages/NurseWalletBalance'
+import NurseWalletEarning from './modules/nurse/nurse-pages/NurseWalletEarning'
+import NurseWalletWithdraw from './modules/nurse/nurse-pages/NurseWalletWithdraw'
+import NurseWalletTransaction from './modules/nurse/nurse-pages/NurseWalletTransaction'
+import NurseSupport from './modules/nurse/nurse-pages/NurseSupport'
+import NurseProfile from './modules/nurse/nurse-pages/NurseProfile'
 import AdminNavbar from './modules/admin/admin-components/AdminNavbar'
 import AdminLogin from './modules/admin/admin-pages/AdminLogin'
 import AdminDashboard from './modules/admin/admin-pages/AdminDashboard'
 import AdminUsers from './modules/admin/admin-pages/AdminUsers'
 import AdminDoctors from './modules/admin/admin-pages/AdminDoctors'
 import AdminPharmacies from './modules/admin/admin-pages/AdminPharmacies'
+import AdminNurses from './modules/admin/admin-pages/AdminNurses'
 import AdminLaboratories from './modules/admin/admin-pages/AdminLaboratories'
 import AdminPharmacyMedicines from './modules/admin/admin-pages/AdminPharmacyMedicines'
 import AdminInventory from './modules/admin/admin-pages/AdminInventory'
@@ -192,6 +206,7 @@ function AdminRoutes() {
           <Route path="/users" element={<ProtectedRoute module="admin"><AdminUsers /></ProtectedRoute>} />
           <Route path="/doctors" element={<ProtectedRoute module="admin"><AdminDoctors /></ProtectedRoute>} />
           <Route path="/pharmacies" element={<ProtectedRoute module="admin"><AdminPharmacies /></ProtectedRoute>} />
+          <Route path="/nurses" element={<ProtectedRoute module="admin"><AdminNurses /></ProtectedRoute>} />
           <Route path="/pharmacy-medicines" element={<ProtectedRoute module="admin"><AdminPharmacyMedicines /></ProtectedRoute>} />
           <Route path="/inventory" element={<ProtectedRoute module="admin"><AdminInventory /></ProtectedRoute>} />
           <Route path="/laboratories" element={<ProtectedRoute module="admin"><AdminLaboratories /></ProtectedRoute>} />
@@ -921,6 +936,88 @@ function LaboratoryRoutes() {
   )
 }
 
+function NurseRoutes() {
+  const location = useLocation()
+  const isLoginPage = location.pathname === '/nurse/login' || location.pathname === '/nurse/signup'
+  
+  return (
+    <NotificationProvider module="nurse">
+      {/* Mobile Navbar - Only visible on mobile/tablet */}
+      {!isLoginPage && <NurseNavbar />}
+      
+      {/* Desktop Header - Only visible on desktop */}
+      {!isLoginPage && <NurseHeader />}
+      
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
+        <div className="max-w-7xl mx-auto w-full lg:flex-1">
+          <Routes>
+            <Route
+              path="/"
+              element={<Navigate to="/nurse/dashboard" replace />}
+            />
+            <Route
+              path="/dashboard"
+              element={<NurseDashboard />}
+            />
+            <Route
+              path="/booking"
+              element={<NurseBookings />}
+            />
+            <Route
+              path="/transactions"
+              element={<NurseTransactions />}
+            />
+            <Route
+              path="/wallet"
+              element={<NurseWallet />}
+            />
+            <Route
+              path="/wallet/balance"
+              element={<NurseWalletBalance />}
+            />
+            <Route
+              path="/wallet/earning"
+              element={<NurseWalletEarning />}
+            />
+            <Route
+              path="/wallet/withdraw"
+              element={<NurseWalletWithdraw />}
+            />
+            <Route
+              path="/wallet/transaction"
+              element={<NurseWalletTransaction />}
+            />
+            <Route
+              path="/support"
+              element={<NurseSupport />}
+            />
+            <Route
+              path="/profile"
+              element={<NurseProfile />}
+            />
+            <Route
+              path="/notifications"
+              element={<NotificationsPage />}
+            />
+            <Route
+              path="/login"
+              element={
+                <div className="flex items-center justify-center min-h-screen">
+                  <p className="text-slate-600">Nurse Login - Coming Soon</p>
+                </div>
+              }
+            />
+            <Route path="*" element={<Navigate to="/nurse/dashboard" replace />} />
+          </Routes>
+        </div>
+      </main>
+      
+      {/* Desktop Footer - Only visible on desktop */}
+      {!isLoginPage && <NurseFooter />}
+    </NotificationProvider>
+  )
+}
+
 function WebsiteRoutes() {
   return (
     <>
@@ -980,6 +1077,7 @@ function App() {
 
             {/* Doctor Routes */}
             <Route path="/doctor/*" element={<DoctorRoutes />} />
+            <Route path="/nurse/*" element={<NurseRoutes />} />
 
             {/* Pharmacy Routes */}
             <Route

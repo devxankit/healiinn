@@ -37,17 +37,24 @@ import {
   signupLaboratory,
   storeLaboratoryTokens,
 } from '../../laboratory/laboratory-services/laboratoryService'
+import {
+  requestLoginOtp as requestNurseOtp,
+  loginNurse,
+  signupNurse,
+  storeNurseTokens,
+} from '../../nurse/nurse-services/nurseService'
 
 const DoctorLogin = () => {
   const navigate = useNavigate()
   const toast = useToast()
-  const [selectedModule, setSelectedModule] = useState('doctor') // 'doctor' | 'pharmacy' | 'laboratory'
+  const [selectedModule, setSelectedModule] = useState('doctor') // 'doctor' | 'pharmacy' | 'laboratory' | 'nurse'
   const [mode, setMode] = useState('login') // 'login' | 'signup'
   
   // OTP-based login data states for each module
   const [doctorLoginData, setDoctorLoginData] = useState({ phone: '', otp: '', remember: true })
   const [pharmacyLoginData, setPharmacyLoginData] = useState({ phone: '', otp: '', remember: true })
   const [laboratoryLoginData, setLaboratoryLoginData] = useState({ phone: '', otp: '', remember: true })
+  const [nurseLoginData, setNurseLoginData] = useState({ phone: '', otp: '', remember: true })
   
   // OTP flow states
   const [otpSent, setOtpSent] = useState(false)
@@ -57,13 +64,15 @@ const DoctorLogin = () => {
   
   // Signup step state (applies to all modules)
   const [signupStep, setSignupStep] = useState(1)
-  const totalSignupSteps = 3 // Steps: 1=Basic Info, 2=Professional/Details, 3=Additional Info
+  // Dynamic total steps: 4 for nurse, 3 for others
+  const totalSignupSteps = selectedModule === 'nurse' ? 4 : 3
   
   
   // Refs for module buttons to measure their positions and widths
   const doctorButtonRef = useRef(null)
   const pharmacyButtonRef = useRef(null)
   const laboratoryButtonRef = useRef(null)
+  const nurseButtonRef = useRef(null)
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
   
   // OTP input refs
@@ -158,6 +167,29 @@ const DoctorLogin = () => {
   }
   const [laboratorySignupData, setLaboratorySignupData] = useState(initialLaboratorySignupState)
 
+  // Nurse signup state
+  const initialNurseSignupState = {
+    fullName: '',
+    email: '',
+    phone: '',
+    address: {
+      line1: '',
+      city: '',
+      state: '',
+      postalCode: '',
+    },
+    qualification: '',
+    experienceYears: '',
+    specialization: '',
+    fees: '',
+    registrationNumber: '',
+    registrationCouncilName: '',
+    nursingCertificate: null,
+    registrationCertificate: null,
+    termsAccepted: false,
+  }
+  const [nurseSignupData, setNurseSignupData] = useState(initialNurseSignupState)
+
   const isLogin = mode === 'login'
 
   // Get current login data based on selected module
@@ -165,6 +197,7 @@ const DoctorLogin = () => {
     if (selectedModule === 'doctor') return doctorLoginData
     if (selectedModule === 'pharmacy') return pharmacyLoginData
     if (selectedModule === 'laboratory') return laboratoryLoginData
+    if (selectedModule === 'nurse') return nurseLoginData
     return doctorLoginData // fallback
   }
 
@@ -172,6 +205,7 @@ const DoctorLogin = () => {
     if (selectedModule === 'doctor') setDoctorLoginData(data)
     else if (selectedModule === 'pharmacy') setPharmacyLoginData(data)
     else if (selectedModule === 'laboratory') setLaboratoryLoginData(data)
+    else if (selectedModule === 'nurse') setNurseLoginData(data)
   }
   
   // OTP timer countdown
@@ -193,7 +227,9 @@ const DoctorLogin = () => {
           ? doctorButtonRef
           : selectedModule === 'pharmacy'
             ? pharmacyButtonRef
-            : laboratoryButtonRef
+            : selectedModule === 'laboratory'
+              ? laboratoryButtonRef
+              : nurseButtonRef
 
       const activeButton = activeButtonRef.current
       if (!activeButton) return
@@ -246,6 +282,7 @@ const DoctorLogin = () => {
     if (selectedModule === 'doctor') return doctorSignupData
     if (selectedModule === 'pharmacy') return pharmacySignupData
     if (selectedModule === 'laboratory') return laboratorySignupData
+    if (selectedModule === 'nurse') return nurseSignupData
     return null
   }
   
@@ -272,6 +309,34 @@ const DoctorLogin = () => {
           toast.error('Please fill in all required fields in Step 1')
           return
         }
+      } else if (selectedModule === 'nurse') {
+        if (!currentData.fullName || !currentData.email || !currentData.phone) {
+          toast.error('Please fill in all required fields in Step 1')
+          return
+        }
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(currentData.email.trim())) {
+          toast.error('Please enter a valid email address')
+          return
+        }
+        // Validate phone
+        if (currentData.phone.length !== 10) {
+          toast.error('Please enter a valid 10-digit mobile number')
+          return
+        }
+      }
+    } else if (signupStep === 2 && selectedModule === 'nurse') {
+      // Step 2 validation - Address details
+      if (!currentData.address.line1 || !currentData.address.city || !currentData.address.state || !currentData.address.postalCode) {
+        toast.error('Please fill in all address fields in Step 2')
+        return
+      }
+    } else if (signupStep === 3 && selectedModule === 'nurse') {
+      // Step 3 validation - Professional details
+      if (!currentData.qualification || !currentData.registrationNumber || !currentData.registrationCouncilName) {
+        toast.error('Please fill in all required professional details in Step 3')
+        return
       }
     }
     
@@ -371,6 +436,8 @@ const DoctorLogin = () => {
         response = await requestPharmacyOtp(cleanPhone)
       } else if (selectedModule === 'laboratory') {
         response = await requestLaboratoryOtp(cleanPhone)
+      } else if (selectedModule === 'nurse') {
+        response = await requestNurseOtp(cleanPhone)
       }
       
       if (response && response.success) {
@@ -426,6 +493,7 @@ const DoctorLogin = () => {
         doctor: '/doctor/dashboard',
         pharmacy: '/pharmacy/dashboard',
         laboratory: '/laboratory/dashboard',
+        nurse: '/nurse/dashboard',
       }
 
       let response
@@ -443,6 +511,11 @@ const DoctorLogin = () => {
         response = await loginLaboratory({ phone: loginData.phone, otp: loginData.otp })
         if (response.success && response.data?.tokens) {
           storeLaboratoryTokens(response.data.tokens, loginData.remember)
+        }
+      } else if (selectedModule === 'nurse') {
+        response = await loginNurse({ phone: loginData.phone, otp: loginData.otp })
+        if (response.success && response.data?.tokens) {
+          storeNurseTokens(response.data.tokens, loginData.remember)
         }
       }
 
@@ -960,6 +1033,133 @@ const DoctorLogin = () => {
     }))
   }
 
+  const handleNurseSignupChange = (event) => {
+    const { name, value, type, checked, files } = event.target
+
+    // Handle file uploads
+    if (type === 'file' && files && files.length > 0) {
+      const file = files[0]
+      // Validate file type (PDF or Image)
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please upload a PDF or Image file (JPEG, JPG, PNG)')
+        return
+      }
+      // Validate file size (max 5MB)
+      const maxSize = 5 * 1024 * 1024 // 5MB
+      if (file.size > maxSize) {
+        toast.error('File size should be less than 5MB')
+        return
+      }
+      setNurseSignupData((prev) => ({
+        ...prev,
+        [name]: file,
+      }))
+      return
+    }
+
+    if (name === 'termsAccepted') {
+      setNurseSignupData((prev) => ({
+        ...prev,
+        termsAccepted: checked,
+      }))
+      return
+    }
+
+    if (name.startsWith('address.')) {
+      const key = name.split('.')[1]
+      setNurseSignupData((prev) => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          [key]: value,
+        },
+      }))
+      return
+    }
+
+    // Restrict phone fields to 10 digits only
+    if (name === 'phone') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 10)
+      setNurseSignupData((prev) => ({
+        ...prev,
+        phone: numericValue,
+      }))
+      return
+    }
+
+    // Limit text fields
+    if (name === 'fullName' || name === 'qualification' || name === 'specialization' || name === 'registrationCouncilName') {
+      const limitedValue = value.slice(0, 100)
+      setNurseSignupData((prev) => ({
+        ...prev,
+        [name]: limitedValue,
+      }))
+      return
+    }
+
+    // Limit email
+    if (name === 'email') {
+      const trimmedValue = value.trim().slice(0, 100)
+      setNurseSignupData((prev) => ({
+        ...prev,
+        [name]: trimmedValue,
+      }))
+      return
+    }
+
+    // Limit registration number
+    if (name === 'registrationNumber') {
+      const trimmedValue = value.trim().slice(0, 50)
+      setNurseSignupData((prev) => ({
+        ...prev,
+        [name]: trimmedValue,
+      }))
+      return
+    }
+
+    // Limit postal code
+    if (name === 'postalCode' || name === 'address.postalCode') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 6)
+      setNurseSignupData((prev) => ({
+        ...prev,
+        address: {
+          ...prev.address,
+          postalCode: numericValue,
+        },
+      }))
+      return
+    }
+
+    // Limit experience years
+    if (name === 'experienceYears') {
+      const numericValue = value.replace(/\D/g, '').slice(0, 2)
+      setNurseSignupData((prev) => ({
+        ...prev,
+        [name]: numericValue,
+      }))
+      return
+    }
+
+    // Handle fees - preserve exact value as string to avoid precision loss
+    if (name === 'fees') {
+      // Remove any non-numeric characters except decimal point
+      const cleanedValue = value.replace(/[^\d.]/g, '')
+      // Ensure only one decimal point
+      const parts = cleanedValue.split('.')
+      const finalValue = parts.length > 1 ? parts[0] + '.' + parts.slice(1).join('') : parts[0]
+      setNurseSignupData((prev) => ({
+        ...prev,
+        [name]: finalValue,
+      }))
+      return
+    }
+
+    setNurseSignupData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }))
+  }
 
   const handleLaboratorySignupSubmit = async (event) => {
     event.preventDefault()
@@ -1021,6 +1221,125 @@ const DoctorLogin = () => {
         setMode('login')
       } else {
         toast.error(response.message || 'Signup failed. Please try again.')
+        setIsSubmitting(false)
+      }
+    } catch (error) {
+      console.error('Signup error:', error)
+      toast.error(error.message || 'An error occurred. Please try again.')
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleNurseSignupSubmit = async (event) => {
+    event.preventDefault()
+    if (isSubmitting) return
+
+    if (!nurseSignupData.termsAccepted) {
+      toast.error('Please accept the terms to continue.')
+      return
+    }
+
+    // Validate all required fields
+    if (!nurseSignupData.fullName || !nurseSignupData.email || !nurseSignupData.phone) {
+      toast.error('Please fill in all required fields in Step 1.')
+      return
+    }
+
+    if (!nurseSignupData.address.line1 || !nurseSignupData.address.city || !nurseSignupData.address.state || !nurseSignupData.address.postalCode) {
+      toast.error('Please fill in all address fields in Step 2.')
+      return
+    }
+
+    if (!nurseSignupData.qualification || !nurseSignupData.registrationNumber || !nurseSignupData.registrationCouncilName) {
+      toast.error('Please fill in all required professional details in Step 3.')
+      return
+    }
+
+    // Validate fullName
+    if (nurseSignupData.fullName.trim().length < 2) {
+      toast.error('Full name must be at least 2 characters')
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(nurseSignupData.email.trim())) {
+      toast.error('Please enter a valid email address')
+      return
+    }
+
+    // Validate phone
+    if (nurseSignupData.phone.length !== 10) {
+      toast.error('Please enter a valid 10-digit mobile number')
+      return
+    }
+
+    // Validate postal code
+    if (nurseSignupData.address.postalCode.length !== 6) {
+      toast.error('Please enter a valid 6-digit pincode')
+      return
+    }
+
+    // Validate file uploads
+    if (!nurseSignupData.nursingCertificate) {
+      toast.error('Please upload your Nursing Certificate in Step 4.')
+      return
+    }
+
+    if (!nurseSignupData.registrationCertificate) {
+      toast.error('Please upload your Registration/License Certificate in Step 4.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      // Create FormData for file uploads
+      const formData = new FormData()
+      formData.append('fullName', nurseSignupData.fullName)
+      formData.append('email', nurseSignupData.email)
+      formData.append('phone', nurseSignupData.phone)
+      formData.append('address', JSON.stringify({
+        line1: nurseSignupData.address.line1,
+        city: nurseSignupData.address.city,
+        state: nurseSignupData.address.state,
+        postalCode: nurseSignupData.address.postalCode,
+      }))
+      formData.append('qualification', nurseSignupData.qualification)
+      if (nurseSignupData.experienceYears) {
+        formData.append('experienceYears', Number(nurseSignupData.experienceYears))
+      }
+      if (nurseSignupData.specialization) {
+        formData.append('specialization', nurseSignupData.specialization)
+      }
+      if (nurseSignupData.fees && nurseSignupData.fees !== '') {
+        const feeStr = String(nurseSignupData.fees).trim()
+        const feeNum = parseFloat(feeStr)
+        if (!isNaN(feeNum) && isFinite(feeNum)) {
+          formData.append('fees', feeNum)
+        }
+      }
+      formData.append('registrationNumber', nurseSignupData.registrationNumber)
+      formData.append('registrationCouncilName', nurseSignupData.registrationCouncilName)
+      formData.append('nursingCertificate', nurseSignupData.nursingCertificate)
+      formData.append('registrationCertificate', nurseSignupData.registrationCertificate)
+
+      // Use apiClient.upload for FormData
+      const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${baseURL}/nurses/auth/signup`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success('Registration submitted successfully! Please wait for admin approval.')
+        setNurseSignupData(initialNurseSignupState)
+        setSignupStep(1)
+        setMode('login')
+      } else {
+        toast.error(data.message || 'Signup failed. Please try again.')
         setIsSubmitting(false)
       }
     } catch (error) {
@@ -1166,6 +1485,21 @@ const DoctorLogin = () => {
                   transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                 >
                   Laboratory
+                </motion.button>
+                <motion.button
+                  ref={nurseButtonRef}
+                  type="button"
+                  onClick={() => handleModuleChange('nurse')}
+                  className={`relative z-10 flex-1 rounded-xl py-2 text-xs font-semibold text-center sm:py-2.5 sm:text-sm ${
+                    selectedModule === 'nurse'
+                      ? 'text-white'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                >
+                  Nurse
                 </motion.button>
               </div>
             </div>
@@ -2998,6 +3332,500 @@ const DoctorLogin = () => {
                       <button
                         type="submit"
                         disabled={isSubmitting || !laboratorySignupData.termsAccepted}
+                        className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${
+                          signupStep > 1 ? 'flex-1' : 'w-full'
+                        }`}
+                        style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            Complete Signup
+                            <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                </form>
+
+                <p className="text-center text-sm text-slate-600">
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange('login')}
+                    className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition"
+                  >
+                    Sign in instead
+                  </button>
+                </p>
+              </motion.div>
+            ) : selectedModule === 'nurse' ? (
+              <motion.div
+                key="signup-nurse"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="flex flex-col gap-5 sm:gap-6"
+              >
+                {/* Enhanced Step Indicator */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    {[1, 2, 3, 4].map((step) => (
+                      <div key={step} className="flex items-center">
+                        <div
+                          className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold transition-all duration-300 shadow-sm ${
+                            signupStep === step
+                              ? 'bg-[#11496c] text-white scale-110 shadow-md shadow-[#11496c]/30'
+                              : signupStep > step
+                              ? 'bg-[#11496c] text-white'
+                              : 'bg-slate-200 text-slate-500'
+                          }`}
+                        >
+                          {signupStep > step ? (
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            step
+                          )}
+                        </div>
+                        {step < 4 && (
+                          <div
+                            className={`h-1.5 w-8 sm:w-12 rounded-full transition-all duration-300 ${
+                              signupStep > step ? 'bg-[#11496c]' : 'bg-slate-200'
+                            }`}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-slate-700">
+                      Step {signupStep} of {totalSignupSteps}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {signupStep === 1 && 'Basic Details'}
+                      {signupStep === 2 && 'Address Details'}
+                      {signupStep === 3 && 'Professional Details'}
+                      {signupStep === 4 && 'Document Uploads'}
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleNurseSignupSubmit} className="flex flex-col gap-5 sm:gap-6" encType="multipart/form-data">
+                {/* Step 1: Basic Details */}
+                {signupStep === 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <div className="mb-6 pb-4 border-b border-slate-200">
+                      <h3 className="text-xl font-bold text-slate-900 mb-1">🧑‍⚕️ Basic Details</h3>
+                      <p className="text-xs text-slate-500">Let's start with your essential details</p>
+                    </div>
+                {/* Basic Information */}
+                <section className="grid gap-3 sm:gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-fullName" className="text-sm font-semibold text-slate-700">
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoPersonOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="nurse-fullName"
+                        name="fullName"
+                        type="text"
+                        value={nurseSignupData.fullName}
+                        onChange={handleNurseSignupChange}
+                        required
+                        placeholder="Enter your full name"
+                        minLength={2}
+                        maxLength={100}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-email" className="text-sm font-semibold text-slate-700">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoMailOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="nurse-email"
+                        name="email"
+                        type="email"
+                        value={nurseSignupData.email}
+                        onChange={handleNurseSignupChange}
+                        required
+                        placeholder="you@example.com"
+                        maxLength={100}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-phone" className="text-sm font-semibold text-slate-700">
+                      Mobile Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoCallOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="nurse-phone"
+                        name="phone"
+                        type="tel"
+                        value={nurseSignupData.phone}
+                        onChange={handleNurseSignupChange}
+                        required
+                        placeholder="9876543210"
+                        maxLength={10}
+                        inputMode="numeric"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      />
+                    </div>
+                  </div>
+                </section>
+                  </motion.div>
+                )}
+
+                {/* Step 2: Address Details */}
+                {signupStep === 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <div className="mb-6 pb-4 border-b border-slate-200">
+                      <h3 className="text-xl font-bold text-slate-900 mb-1">📍 Address Details</h3>
+                      <p className="text-xs text-slate-500">Enter your complete address</p>
+                    </div>
+                {/* Address */}
+                <section className="grid gap-3 sm:gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-address.line1" className="text-sm font-semibold text-slate-700">
+                      Complete Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoLocationOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="nurse-address.line1"
+                        name="address.line1"
+                        value={nurseSignupData.address.line1}
+                        onChange={handleNurseSignupChange}
+                        required
+                        placeholder="Street address, building name, etc."
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-address.city" className="text-sm font-semibold text-slate-700">
+                      City <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="nurse-address.city"
+                      name="address.city"
+                      value={nurseSignupData.address.city}
+                      onChange={handleNurseSignupChange}
+                      required
+                      placeholder="Mumbai"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-address.state" className="text-sm font-semibold text-slate-700">
+                      State <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="nurse-address.state"
+                      name="address.state"
+                      value={nurseSignupData.address.state}
+                      onChange={handleNurseSignupChange}
+                      required
+                      placeholder="Maharashtra"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-address.postalCode" className="text-sm font-semibold text-slate-700">
+                      Pincode <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="nurse-address.postalCode"
+                      name="address.postalCode"
+                      type="text"
+                      value={nurseSignupData.address.postalCode}
+                      onChange={handleNurseSignupChange}
+                      required
+                      placeholder="400001"
+                      maxLength={6}
+                      inputMode="numeric"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                    />
+                  </div>
+                </section>
+                  </motion.div>
+                )}
+
+                {/* Step 3: Professional Details */}
+                {signupStep === 3 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <div className="mb-6 pb-4 border-b border-slate-200">
+                      <h3 className="text-xl font-bold text-slate-900 mb-1">🎓 Professional Details</h3>
+                      <p className="text-xs text-slate-500">VERY IMPORTANT for admin verification</p>
+                    </div>
+                {/* Professional Details */}
+                <section className="grid gap-3 sm:gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-qualification" className="text-sm font-semibold text-slate-700">
+                      Qualification <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoSchoolOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="nurse-qualification"
+                        name="qualification"
+                        type="text"
+                        value={nurseSignupData.qualification}
+                        onChange={handleNurseSignupChange}
+                        required
+                        placeholder="GNM, B.Sc Nursing, ANM, D.Pharm, etc."
+                        maxLength={100}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-experienceYears" className="text-sm font-semibold text-slate-700">
+                      Experience (in years)
+                    </label>
+                    <input
+                      id="nurse-experienceYears"
+                      name="experienceYears"
+                      type="number"
+                      value={nurseSignupData.experienceYears}
+                      onChange={handleNurseSignupChange}
+                      min="0"
+                      placeholder="5"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-specialization" className="text-sm font-semibold text-slate-700">
+                      Specialization (if any)
+                    </label>
+                    <input
+                      id="nurse-specialization"
+                      name="specialization"
+                      type="text"
+                      value={nurseSignupData.specialization}
+                      onChange={handleNurseSignupChange}
+                      placeholder="ICU, OT, Emergency, Pediatrics, etc."
+                      maxLength={100}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-fees" className="text-sm font-semibold text-slate-700">
+                      Fees (₹)
+                    </label>
+                    <input
+                      id="nurse-fees"
+                      name="fees"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={nurseSignupData.fees}
+                      onChange={handleNurseSignupChange}
+                      placeholder="500"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-registrationNumber" className="text-sm font-semibold text-slate-700">
+                      Registration Number / License Number <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-3 flex items-center text-[#11496c]">
+                        <IoDocumentTextOutline className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <input
+                        id="nurse-registrationNumber"
+                        name="registrationNumber"
+                        type="text"
+                        value={nurseSignupData.registrationNumber}
+                        onChange={handleNurseSignupChange}
+                        required
+                        placeholder="Enter your registration/license number"
+                        maxLength={50}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 pl-11 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-registrationCouncilName" className="text-sm font-semibold text-slate-700">
+                      Registration Council/Board Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="nurse-registrationCouncilName"
+                      name="registrationCouncilName"
+                      type="text"
+                      value={nurseSignupData.registrationCouncilName}
+                      onChange={handleNurseSignupChange}
+                      required
+                      placeholder="e.g., Indian Nursing Council, State Nursing Council"
+                      maxLength={100}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20"
+                    />
+                  </div>
+                </section>
+                  </motion.div>
+                )}
+
+                {/* Step 4: Document Uploads & Terms */}
+                {signupStep === 4 && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-5"
+                  >
+                    <div className="mb-6 pb-4 border-b border-slate-200">
+                      <h3 className="text-xl font-bold text-slate-900 mb-1">📄 Document Uploads</h3>
+                      <p className="text-xs text-slate-500">Proof Verification - Upload your certificates</p>
+                    </div>
+                {/* Document Uploads */}
+                <section className="grid gap-3 sm:gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-nursingCertificate" className="text-sm font-semibold text-slate-700">
+                      Nursing Certificate Upload (PDF/Image) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="nurse-nursingCertificate"
+                        name="nursingCertificate"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={handleNurseSignupChange}
+                        required
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#11496c] file:text-white hover:file:bg-[#0d3a52]"
+                      />
+                    </div>
+                    {nurseSignupData.nursingCertificate && (
+                      <p className="text-xs text-green-600 mt-1">
+                        ✓ Selected: {nurseSignupData.nursingCertificate.name}
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-500 mt-1">
+                      Accepted formats: PDF, JPEG, JPG, PNG (Max 5MB)
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="nurse-registrationCertificate" className="text-sm font-semibold text-slate-700">
+                      Registration / License Certificate Upload (PDF/Image) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="nurse-registrationCertificate"
+                        name="registrationCertificate"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={handleNurseSignupChange}
+                        required
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#11496c] file:text-white hover:file:bg-[#0d3a52]"
+                      />
+                    </div>
+                    {nurseSignupData.registrationCertificate && (
+                      <p className="text-xs text-green-600 mt-1">
+                        ✓ Selected: {nurseSignupData.registrationCertificate.name}
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-500 mt-1">
+                      Accepted formats: PDF, JPEG, JPG, PNG (Max 5MB)
+                    </p>
+                  </div>
+                </section>
+
+                {/* Terms */}
+                <label className="flex items-start gap-3 rounded-xl bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    name="termsAccepted"
+                    checked={nurseSignupData.termsAccepted}
+                    onChange={handleNurseSignupChange}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                  />
+                  <span>
+                    I have read and agree to Healiinn's{' '}
+                    <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                      terms of service
+                    </Link>{' '}
+                    and{' '}
+                    <Link to="/privacy" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
+                      privacy policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+                  </motion.div>
+                )}
+
+                {/* Navigation Buttons */}
+                <div className="flex flex-col gap-3 mt-8">
+                  <div className="flex gap-3">
+                    {signupStep > 1 && (
+                      <button
+                        type="button"
+                        onClick={handlePreviousStep}
+                        className="flex h-12 flex-1 items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 transition hover:bg-slate-50 hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+                      >
+                        Previous
+                      </button>
+                    )}
+                    {signupStep < totalSignupSteps ? (
+                      <button
+                        type="button"
+                        onClick={handleNextStep}
+                        className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 ${
+                          signupStep > 1 ? 'flex-1' : 'w-full'
+                        }`}
+                        style={{ boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.25)' }}
+                      >
+                        Next
+                        <IoArrowForwardOutline className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !nurseSignupData.termsAccepted}
                         className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-[#11496c] text-base font-semibold text-white shadow-md shadow-[rgba(17,73,108,0.25)] transition hover:bg-[#0d3a52] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${
                           signupStep > 1 ? 'flex-1' : 'w-full'
                         }`}

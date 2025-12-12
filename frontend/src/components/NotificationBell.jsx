@@ -13,6 +13,7 @@ const NotificationBell = ({ className = '' }) => {
     if (path.startsWith('/doctor')) return 'doctor'
     if (path.startsWith('/pharmacy')) return 'pharmacy'
     if (path.startsWith('/laboratory')) return 'laboratory'
+    if (path.startsWith('/nurse')) return 'nurse'
     if (path.startsWith('/admin')) return 'admin'
     return 'patient'
   }

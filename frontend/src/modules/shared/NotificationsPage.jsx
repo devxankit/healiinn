@@ -30,6 +30,7 @@ const NotificationsPage = () => {
     if (path.startsWith('/doctor')) return 'doctor'
     if (path.startsWith('/pharmacy')) return 'pharmacy'
     if (path.startsWith('/laboratory')) return 'laboratory'
+    if (path.startsWith('/nurse')) return 'nurse'
     if (path.startsWith('/admin')) return 'admin'
     return 'patient'
   }, [location.pathname])
@@ -41,6 +42,7 @@ const NotificationsPage = () => {
       doctor: 'doctors',
       pharmacy: 'pharmacy',
       laboratory: 'laboratory',
+      nurse: 'nurses',
       admin: 'admin',
     }
     return modulePathMap[currentModule] || currentModule

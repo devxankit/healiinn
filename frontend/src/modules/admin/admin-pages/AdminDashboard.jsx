@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { getAuthToken } from '../../../utils/apiClient'
-import { getDashboardStats, getDashboardChartData, getUsers, getDoctors, getPharmacies, getLaboratories, getAdminAppointments, getAdminRequests, getRecentActivities } from '../admin-services/adminService'
+import { getDashboardStats, getDashboardChartData, getUsers, getDoctors, getPharmacies, getLaboratories, getNurses, getAdminAppointments, getAdminRequests, getRecentActivities } from '../admin-services/adminService'
 import { useToast } from '../../../contexts/ToastContext'
 import {
   IoPeopleOutline,
@@ -24,6 +24,7 @@ import {
   IoMailOutline,
   IoCallOutline,
   IoBagHandleOutline,
+  IoHeartOutline,
 } from 'react-icons/io5'
 
 const defaultStats = {
@@ -31,6 +32,7 @@ const defaultStats = {
   totalDoctors: 0,
   totalPharmacies: 0,
   totalLaboratories: 0,
+  totalNurses: 0,
   totalOrders: 0,
   totalRevenue: 0,
   pendingVerifications: 0,
@@ -497,11 +499,12 @@ const AdminDashboard = () => {
 
         // If dashboard endpoint doesn't exist, fetch from individual endpoints
         if (!dashboardData) {
-          const [usersResponse, doctorsResponse, pharmaciesResponse, laboratoriesResponse, verificationsResponse] = await Promise.allSettled([
+          const [usersResponse, doctorsResponse, pharmaciesResponse, laboratoriesResponse, nursesResponse, verificationsResponse] = await Promise.allSettled([
             getUsers({ limit: 1 }),
             getDoctors({ limit: 1 }),
             getPharmacies({ limit: 1 }),
             getLaboratories({ limit: 1 }),
+            getNurses({ limit: 1 }),
           ])
 
           // Extract total from pagination or items array
@@ -519,6 +522,10 @@ const AdminDashboard = () => {
           
           const totalLaboratories = laboratoriesResponse.status === 'fulfilled' && laboratoriesResponse.value?.success
             ? (laboratoriesResponse.value.data?.pagination?.total || laboratoriesResponse.value.data?.items?.length || 0)
+            : 0
+          
+          const totalNurses = nursesResponse.status === 'fulfilled' && nursesResponse.value?.success
+            ? (nursesResponse.value.data?.pagination?.total || nursesResponse.value.data?.items?.length || 0)
             : 0
           
           // Get pending verifications count from all providers
@@ -541,12 +548,19 @@ const AdminDashboard = () => {
               pendingVerifications += laboratories.filter(l => l.status === 'pending').length
             }
           }
+          if (nursesResponse.status === 'fulfilled' && nursesResponse.value?.success) {
+            const nurses = nursesResponse.value.data?.items || nursesResponse.value.data || []
+            if (Array.isArray(nurses)) {
+              pendingVerifications += nurses.filter(n => n.status === 'pending').length
+            }
+          }
 
           setStats({
             totalUsers,
             totalDoctors,
             totalPharmacies,
             totalLaboratories,
+            totalNurses,
             totalOrders: dashboardData?.totalOrders || 0,
             totalRevenue: dashboardData?.totalRevenue || 0,
             pendingVerifications,
@@ -562,6 +576,7 @@ const AdminDashboard = () => {
             totalDoctors: dashboardData.totalDoctors || 0,
             totalPharmacies: dashboardData.totalPharmacies || 0,
             totalLaboratories: dashboardData.totalLaboratories || 0,
+            totalNurses: dashboardData.totalNurses || 0,
             totalOrders: dashboardData.totalOrders || 0,
             totalRevenue: dashboardData.totalRevenue || 0,
             pendingVerifications: dashboardData.pendingVerifications || 0,
@@ -1131,17 +1146,17 @@ const AdminDashboard = () => {
   return (
     <>
       <section className="flex flex-col gap-3 sm:gap-4 pb-20 pt-0 bg-white">
-        {/* Stats Cards Grid */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
+        {/* Stats Cards Grid - First Row (Same Height as Second Row) */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-2 md:grid-cols-3 lg:grid-cols-5">
           {/* Total Patients */}
           <article
             onClick={() => navigate('/admin/users')}
             className="relative overflow-hidden rounded-xl border border-[rgba(17,73,108,0.2)] bg-white p-3 sm:p-4 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
           >
-            <div className="flex items-start justify-between mb-1.5">
+            <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-0.5">Total Patients</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-0.5">Total Patients</p>
+                <p className="text-base sm:text-lg font-bold text-slate-900 leading-none">
                   {isLoadingStats ? '...' : stats.totalUsers.toLocaleString()}
                 </p>
               </div>
@@ -1149,15 +1164,15 @@ const AdminDashboard = () => {
                 <IoPeopleOutline className="text-base sm:text-lg" aria-hidden="true" />
               </div>
             </div>
-            <div className="flex items-center gap-1 text-[9px] sm:text-[10px] flex-wrap">
+            <div className="flex items-center gap-1 text-[8px] sm:text-[9px] flex-wrap">
               {usersChange >= 0 ? (
                 <>
-                  <IoTrendingUpOutline className="h-3 w-3 text-emerald-600" />
+                  <IoTrendingUpOutline className="h-2.5 w-2.5 text-emerald-600" />
                   <span className="text-emerald-600 font-semibold">+{usersChange.toFixed(1)}%</span>
                 </>
               ) : (
                 <>
-                  <IoTrendingDownOutline className="h-3 w-3 text-red-600" />
+                  <IoTrendingDownOutline className="h-2.5 w-2.5 text-red-600" />
                   <span className="text-red-600 font-semibold">{usersChange.toFixed(1)}%</span>
                 </>
               )}
@@ -1172,8 +1187,8 @@ const AdminDashboard = () => {
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1">Total Doctors</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-0.5">Total Doctors</p>
+                <p className="text-base sm:text-lg font-bold text-slate-900 leading-none">
                   {isLoadingStats ? '...' : stats.totalDoctors}
                 </p>
               </div>
@@ -1181,7 +1196,7 @@ const AdminDashboard = () => {
                 <IoMedicalOutline className="text-base sm:text-lg" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Active doctors</p>
+            <p className="text-[8px] sm:text-[9px] text-slate-600 leading-tight">Active doctors</p>
           </article>
 
           {/* Total Pharmacies */}
@@ -1191,8 +1206,8 @@ const AdminDashboard = () => {
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Pharmacies</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-0.5">Pharmacies</p>
+                <p className="text-base sm:text-lg font-bold text-slate-900 leading-none">
                   {isLoadingStats ? '...' : stats.totalPharmacies}
                 </p>
               </div>
@@ -1200,7 +1215,7 @@ const AdminDashboard = () => {
                 <IoBusinessOutline className="text-base sm:text-lg" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Registered</p>
+            <p className="text-[8px] sm:text-[9px] text-slate-600 leading-tight">Registered</p>
           </article>
 
           {/* Total Laboratories */}
@@ -1210,8 +1225,8 @@ const AdminDashboard = () => {
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-amber-700 leading-tight mb-1">Laboratories</p>
-                <p className="text-lg sm:text-xl font-bold text-slate-900 leading-none">
+                <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-amber-700 leading-tight mb-0.5">Laboratories</p>
+                <p className="text-base sm:text-lg font-bold text-slate-900 leading-none">
                   {isLoadingStats ? '...' : stats.totalLaboratories}
                 </p>
               </div>
@@ -1219,8 +1234,31 @@ const AdminDashboard = () => {
                 <IoFlaskOutline className="text-base sm:text-lg" aria-hidden="true" />
               </div>
             </div>
-            <p className="text-[9px] sm:text-[10px] text-slate-600 leading-tight">Active labs</p>
+            <p className="text-[8px] sm:text-[9px] text-slate-600 leading-tight">Active labs</p>
           </article>
+
+          {/* Total Nurses */}
+          <article
+            onClick={() => navigate('/admin/nurses')}
+            className="relative overflow-hidden rounded-xl border border-pink-100 bg-white p-3 sm:p-4 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-pink-700 leading-tight mb-0.5">Nurses</p>
+                <p className="text-base sm:text-lg font-bold text-slate-900 leading-none">
+                  {isLoadingStats ? '...' : stats.totalNurses}
+                </p>
+              </div>
+              <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-pink-500 text-white shrink-0">
+                <IoHeartOutline className="text-base sm:text-lg" aria-hidden="true" />
+              </div>
+            </div>
+            <p className="text-[8px] sm:text-[9px] text-slate-600 leading-tight">Registered</p>
+          </article>
+        </div>
+
+        {/* Stats Cards Grid - Second Row (Larger Cards - Unchanged) */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
 
           {/* Orders */}
           <article
