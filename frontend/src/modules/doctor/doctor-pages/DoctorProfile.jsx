@@ -1846,10 +1846,9 @@ const DoctorProfile = () => {
                           <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Update Signature
                           </p>
-                          <div className="flex flex-row gap-2">
                             <label 
                               htmlFor="gallery-input-signature-update"
-                              className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-slate-50 hover:text-[#11496c] cursor-pointer shadow-sm"
+                            className="w-full flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-slate-50 hover:text-[#11496c] cursor-pointer shadow-sm"
                             >
                               <IoImageOutline className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
                               Upload from Gallery
@@ -1861,22 +1860,6 @@ const DoctorProfile = () => {
                                 id="gallery-input-signature-update"
                               />
                             </label>
-                            <label 
-                              htmlFor="camera-input-signature-update"
-                              className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-[#11496c] bg-[#11496c] px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-white transition hover:bg-[#0d3a52] hover:border-[#0d3a52] cursor-pointer shadow-sm"
-                            >
-                              <IoCameraOutline className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-                              Capture from Camera
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                onChange={handleSignatureUpload}
-                                className="hidden"
-                                id="camera-input-signature-update"
-                              />
-                            </label>
-                          </div>
                           <button
                             type="button"
                             onClick={handleRemoveSignature}
@@ -1907,10 +1890,9 @@ const DoctorProfile = () => {
                           <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Choose Upload Method
                           </p>
-                          <div className="flex flex-row gap-2">
                             <label 
                               htmlFor="gallery-input-signature-empty"
-                              className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-center transition hover:border-[#11496c] hover:bg-slate-50 cursor-pointer shadow-sm"
+                            className="w-full flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-center transition hover:border-[#11496c] hover:bg-slate-50 cursor-pointer shadow-sm"
                             >
                               <IoImageOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600 shrink-0" />
                               <span className="text-xs sm:text-sm font-semibold text-slate-700">Upload from Gallery</span>
@@ -1922,22 +1904,6 @@ const DoctorProfile = () => {
                                 id="gallery-input-signature-empty"
                               />
                             </label>
-                            <label 
-                              htmlFor="camera-input-signature-empty"
-                              className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-[#11496c] bg-[#11496c] px-2 sm:px-3 py-2 text-center transition hover:bg-[#0d3a52] hover:border-[#0d3a52] cursor-pointer shadow-sm"
-                            >
-                              <IoCameraOutline className="h-4 w-4 sm:h-5 sm:w-5 text-white shrink-0" />
-                              <span className="text-xs sm:text-sm font-semibold text-white">Capture from Camera</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                onChange={handleSignatureUpload}
-                                className="hidden"
-                                id="camera-input-signature-empty"
-                              />
-                            </label>
-                          </div>
                         </div>
                       )}
                     </div>

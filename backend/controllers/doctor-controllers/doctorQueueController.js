@@ -253,10 +253,34 @@ exports.skipPatient = asyncHandler(async (req, res) => {
 
   const originalTokenNumber = appointment.tokenNumber;
 
+  // Get ALL completed appointments to ensure we NEVER reuse their token numbers
+  // CRITICAL: Completed appointments' token numbers must NEVER be reused
+  const completedAppointments = await Appointment.find({
+    sessionId: session._id,
+    status: 'completed',
+    tokenNumber: { $ne: null },
+  }).select('tokenNumber');
+
+  const completedTokenNumbers = new Set(completedAppointments.map(apt => apt.tokenNumber));
+
+  // Get ALL cancelled appointments to ensure we NEVER reuse their token numbers
+  // CRITICAL: Cancelled appointments' token numbers must NEVER be reused
+  const cancelledAppointments = await Appointment.find({
+    sessionId: session._id,
+    status: { $in: ['cancelled', 'cancelled_by_session'] },
+    tokenNumber: { $ne: null },
+  }).select('tokenNumber');
+
+  const cancelledTokenNumbers = new Set(cancelledAppointments.map(apt => apt.tokenNumber));
+
+  // Create combined set of protected tokens that should NEVER be reused
+  // These tokens belong to completed or cancelled appointments and must remain untouched
+  const protectedTokenNumbers = new Set([...completedTokenNumbers, ...cancelledTokenNumbers]);
+
   // Get ALL active appointments (excluding skipped, no-show, completed, cancelled, cancelled_by_session)
   // CRITICAL: Cancelled/no-show appointments must be completely excluded from token number calculations
-  // We want to reuse available tokens, not create new ones
-  // IMPORTANT: Exclude cancelled_by_session and no-show appointments completely from token calculations
+  // IMPORTANT: Completed appointments are excluded from active list, but we track their token numbers separately
+  // We want to reuse available tokens, but NEVER reuse completed appointment tokens
   const activeAppointments = await Appointment.find({
     sessionId: session._id,
     status: { $nin: ['completed', 'cancelled', 'cancelled_by_session'] },
@@ -317,25 +341,62 @@ exports.skipPatient = asyncHandler(async (req, res) => {
     lastSkippedTokenNumber = 0;
   }
   
-  // Get active appointments that need to shift down (those after original position)
+  // Get ALL active appointments that need to shift down (those after original position)
+  // IMPORTANT: We need to shift ALL active appointments that come after the skipped patient,
+  // not just those up to lastActiveTokenNumber. This ensures proper queue reorganization.
   // Use safe list to ensure cancelled appointments are never included
   const activeAppointmentsToShift = safeActiveAppointments.filter(
-    apt => apt.tokenNumber > originalTokenNumber && apt.tokenNumber <= lastActiveTokenNumber
-  );
+    apt => apt.tokenNumber > originalTokenNumber
+  ).sort((a, b) => a.tokenNumber - b.tokenNumber); // Sort by token number to shift in order
 
   // Calculate the target token number for the new skipped patient
-  // After shifting active appointments down, the new last active token will be: lastActiveTokenNumber - activeShiftedCount
-  // Previously skipped patients count: safeSkippedAppointments.length
-  // New skipped patient should go to: (newLastActiveToken) + (previouslySkippedCount) + 1
-  // This ensures each skip goes to the end, and multiple skips stack correctly
-  // IMPORTANT: Using safe lists ensures cancelled/no-show appointments are never included in calculations
+  // SIMPLIFIED: Find MAX token from ALL appointments (active + skipped + completed, excluding cancelled)
+  // Skipped patient goes to this MAX token position (no new tokens created)
+  // If MAX is protected, find last non-protected token
+  const allAppointmentsForMaxToken = await Appointment.find({
+    sessionId: session._id,
+    tokenNumber: { $ne: null },
+    status: { $ne: 'cancelled' }, // Exclude cancelled, but include completed
+  }).select('tokenNumber');
+
+  const maxTokenFromAll = allAppointmentsForMaxToken.length > 0
+    ? Math.max(...allAppointmentsForMaxToken.map(apt => apt.tokenNumber))
+    : 0;
   
-  const activeShiftedCount = activeAppointmentsToShift.length;
+  // Start with MAX token as target
+  let targetTokenNumber = maxTokenFromAll;
+  
+  // If MAX token is protected (completed/cancelled), find the last non-protected token
+  // Work backwards from max to find the last available position
+  while (protectedTokenNumbers.has(targetTokenNumber) && targetTokenNumber > originalTokenNumber) {
+    targetTokenNumber--;
+  }
+  
+  // Safety: If we went below skipped patient's token, use skipped patient's token as minimum
+  if (targetTokenNumber < originalTokenNumber) {
+    targetTokenNumber = originalTokenNumber;
+  }
+  
+  // Final check: Ensure target is not protected
+  while (protectedTokenNumbers.has(targetTokenNumber) && targetTokenNumber <= maxTokenFromAll) {
+    targetTokenNumber++;
+    // If we exceed max, we've run out of non-protected tokens - use max itself
+    if (targetTokenNumber > maxTokenFromAll) {
+      targetTokenNumber = maxTokenFromAll;
+      break;
+    }
+  }
+  
+  // Calculate how many appointments will actually shift (for logging/debugging)
+  const appointmentsThatWillShift = activeAppointmentsToShift.filter(apt => {
+    const targetToken = apt.tokenNumber - 1;
+    // Will shift if target is not protected (or is the skipped patient's token which becomes available)
+    return !protectedTokenNumbers.has(targetToken) || targetToken === originalTokenNumber;
+  });
+  
+  const activeShiftedCount = appointmentsThatWillShift.length;
   const newLastActiveToken = lastActiveTokenNumber - activeShiftedCount;
   const previouslySkippedCount = safeSkippedAppointments.length;
-  
-  // The new skipped patient should go to the position after all active and previously skipped patients
-  const targetTokenNumber = newLastActiveToken + previouslySkippedCount + 1;
   
   console.log(`🔢 Skip token calculation:`, {
     originalTokenNumber,
@@ -520,12 +581,132 @@ exports.skipPatient = asyncHandler(async (req, res) => {
 
   // If the skipped patient is not already at the absolute last position, we need to shift
   if (originalTokenNumber < targetTokenNumber) {
-    // Step 1: Shift active appointments DOWN by 1 (in reverse order to avoid conflicts)
-    // Only shift active appointments that are between original and last active
+    // Step 1: Shift ALL active appointments DOWN by 1 position (in reverse order to avoid conflicts)
+    // CRITICAL: We shift sequentially, but NEVER reuse completed appointment token numbers
+    // The skipped patient's token becomes available, so appointments shift down to fill the gap
     // Also recalculate their appointment times based on new token number
-    for (let i = activeAppointmentsToShift.length - 1; i >= 0; i--) {
-      const apt = activeAppointmentsToShift[i];
+    // IMPORTANT: Track tokens being assigned AND tokens being vacated during shift to prevent duplicates
+    const tokensBeingAssigned = new Set();
+    const tokensBeingVacated = new Set(); // Tokens that will become available when appointments shift
+    
+    // Get all existing token numbers from database to check for conflicts
+    // This includes all appointments (active, skipped, completed) except cancelled
+    // CRITICAL: Exclude appointments that are being shifted, as their tokens will change
+    const appointmentsBeingShiftedIds = new Set(activeAppointmentsToShift.map(apt => apt._id.toString()));
+    
+    const allExistingAppointments = await Appointment.find({
+      sessionId: session._id,
+      tokenNumber: { $ne: null },
+      status: { $ne: 'cancelled' },
+      _id: { $ne: appointment._id }, // Exclude the skipped appointment
+    }).select('tokenNumber _id');
+    
+    // Filter out appointments that are being shifted (their tokens will change, so don't count current tokens as conflicts)
+    const existingTokenNumbers = new Set(
+      allExistingAppointments
+        .filter(apt => !appointmentsBeingShiftedIds.has(apt._id.toString()))
+        .map(apt => apt.tokenNumber)
+    );
+    
+    // Track which tokens will be vacated (freed up) by the shift operation
+    // When appointment at token N shifts to N-1, token N becomes available
+    activeAppointmentsToShift.forEach(apt => {
+      tokensBeingVacated.add(apt.tokenNumber); // This token will be freed when apt shifts
+    });
+    // Also, skipped patient's token becomes available
+    tokensBeingVacated.add(originalTokenNumber);
+    
+    // Create a map to track which appointments are currently at which tokens (for conflict detection)
+    // This helps us check if the target token is occupied by another appointment in the shift list
+    const currentTokenToAppointmentMap = new Map(); // Maps: currentToken -> appointmentId
+    activeAppointmentsToShift.forEach(apt => {
+      currentTokenToAppointmentMap.set(apt.tokenNumber, apt._id.toString());
+    });
+    
+    // CRITICAL: Process in forward order (lowest token first) to ensure sequential shifts
+    // This ensures token 2 shifts to 1 before token 3 tries to shift to 2
+    const sortedAppointmentsToShift = [...activeAppointmentsToShift].sort((a, b) => a.tokenNumber - b.tokenNumber);
+    
+    for (const apt of sortedAppointmentsToShift) {
+      // Shift exactly by 1 position: token N → N-1
       const newTokenNumber = apt.tokenNumber - 1;
+      
+      // CRITICAL: Only shift if ALL conditions are met:
+      // 1. Target token is not protected (completed/cancelled)
+      // 2. Target token doesn't conflict with another appointment being shifted to same token
+      // 3. Target token is not occupied by an appointment that's NOT being shifted (unless it's the skipped patient's token)
+      // 4. Target token is >= skipped patient's token (don't go above skipped patient)
+      // 5. Target token is >= 1
+      
+      // Check 1: Protected token check
+      if (protectedTokenNumbers.has(newTokenNumber) && newTokenNumber !== originalTokenNumber) {
+        // Target token is protected, can't shift here - keep at current position
+        console.log(`⚠️ Cannot shift appointment ${apt._id} from token ${apt.tokenNumber} to ${newTokenNumber}: token is protected (completed/cancelled)`);
+        continue;
+      }
+      
+      // Check 2: Conflict with tokens already being assigned in this batch
+      // Since we process in forward order (lowest token first), if a token is already assigned,
+      // it means a lower token appointment already took it - this is a duplicate conflict
+      if (tokensBeingAssigned.has(newTokenNumber)) {
+        // Another appointment is already being assigned this token - skip this shift to prevent duplicate
+        console.log(`⚠️ Cannot shift appointment ${apt._id} from token ${apt.tokenNumber} to ${newTokenNumber}: token already being assigned to another appointment`);
+        continue;
+      }
+      
+      // Check 2b: Check if target token is currently occupied by another appointment in the shift list
+      // Since we process in forward order, if an appointment at target token is also shifting,
+      // it should have already shifted (if it could). If it's still there, it means it couldn't shift,
+      // so this token is still occupied
+      const appointmentAtTargetToken = currentTokenToAppointmentMap.get(newTokenNumber);
+      if (appointmentAtTargetToken && appointmentAtTargetToken !== apt._id.toString()) {
+        // Another appointment in the shift list is currently at this token
+        // Check if it already shifted (should be in tokensBeingAssigned if it did)
+        const conflictingApt = sortedAppointmentsToShift.find(a => a._id.toString() === appointmentAtTargetToken);
+        if (conflictingApt) {
+          const conflictingNewToken = conflictingApt.tokenNumber - 1;
+          // If conflicting appointment is before us in the sorted list and hasn't shifted yet, it's a conflict
+          // (It should have shifted already if it could)
+          if (conflictingApt.tokenNumber < apt.tokenNumber && !tokensBeingAssigned.has(conflictingNewToken)) {
+            // Conflicting appointment is before us and hasn't shifted - token is still occupied
+            console.log(`⚠️ Cannot shift appointment ${apt._id} from token ${apt.tokenNumber} to ${newTokenNumber}: appointment ${appointmentAtTargetToken} at this token hasn't shifted yet`);
+            continue;
+          }
+          // If conflicting appointment already shifted or is after us, target becomes available - OK to proceed
+        }
+      }
+      
+      // Check 3: Conflict with existing appointments that are NOT being shifted
+      // IMPORTANT: If the target token is being vacated (freed up) by another shift, it's available
+      // If it's the skipped patient's token, it's available
+      // Otherwise, if it exists in database and is NOT being vacated, it's a conflict
+      if (existingTokenNumbers.has(newTokenNumber) && 
+          newTokenNumber !== originalTokenNumber && 
+          !tokensBeingVacated.has(newTokenNumber)) {
+        // Token already exists in database and is NOT being freed - skip this shift
+        console.log(`⚠️ Cannot shift appointment ${apt._id} from token ${apt.tokenNumber} to ${newTokenNumber}: token already exists and is not being vacated`);
+        continue;
+      }
+      
+      // Check 4: Don't go above skipped patient's token
+      if (newTokenNumber < originalTokenNumber) {
+        // Would go above skipped patient - skip this shift
+        console.log(`⚠️ Cannot shift appointment ${apt._id} from token ${apt.tokenNumber} to ${newTokenNumber}: would go above skipped patient's token ${originalTokenNumber}`);
+        continue;
+      }
+      
+      // Check 5: Don't go below 1
+      if (newTokenNumber < 1) {
+        console.error(`❌ Cannot shift appointment ${apt._id} from token ${apt.tokenNumber} to ${newTokenNumber}: would go below token 1`);
+        continue;
+      }
+      
+      // Mark this token as being assigned
+      tokensBeingAssigned.add(newTokenNumber);
+      // Also add to existing set to prevent conflicts in subsequent iterations
+      existingTokenNumbers.add(newTokenNumber);
+      // Remove from vacated set since we're now using it
+      tokensBeingVacated.delete(newTokenNumber);
       
       // Calculate new time for the shifted active appointment
       let timeUpdate = {};
@@ -543,24 +724,54 @@ exports.skipPatient = asyncHandler(async (req, res) => {
     }
 
     // Step 2: Reorganize all previously skipped patients to sequential positions after active appointments
-    // After active appointments shift down, we need to place skipped patients sequentially
-    // Logic: After active shift, last active token = lastActiveTokenNumber - activeShiftedCount
+    // After active appointments shift up, we need to place skipped patients sequentially
+    // CRITICAL: NEVER reuse protected token numbers (completed/cancelled)
+    // Logic: After active shift, last active token = newLastActiveToken
     // Previously skipped count = safeSkippedAppointments.length
     // New skipped will be at: targetTokenNumber (calculated above)
     // Previously skipped should be at: (newLastActiveToken + 1), (newLastActiveToken + 2), ..., (targetTokenNumber - 1)
     // IMPORTANT: Use safeSkippedAppointments to ensure cancelled appointments are never included
+    // IMPORTANT: Skip over any token numbers that belong to protected appointments (completed/cancelled)
     
     // Sort skipped appointments by their current token number to maintain order
     const sortedSkipped = [...safeSkippedAppointments].sort((a, b) => a.tokenNumber - b.tokenNumber);
     
-    sortedSkipped.forEach((skippedApt, index) => {
-      // Calculate new token: sequentially after active appointments
-      // First skipped gets (newLastActiveToken + 1), second gets (newLastActiveToken + 2), etc.
-      // Last skipped gets (targetTokenNumber - 1), so new skipped can be at targetTokenNumber
-      const newTokenNumber = newLastActiveToken + 1 + index;
+    // Track tokens being assigned to skipped appointments to prevent duplicates
+    const skippedTokensBeingAssigned = new Set();
+    
+    // Place previously skipped appointments sequentially after active appointments
+    // Start from newLastActiveToken + 1 and increment, skipping protected tokens and conflicts
+    let nextAvailableToken = newLastActiveToken + 1;
+    
+    sortedSkipped.forEach((skippedApt) => {
+      // Find next available token that:
+      // 1. Is not protected (completed/cancelled)
+      // 2. Doesn't conflict with active appointments being shifted
+      // 3. Doesn't conflict with other skipped appointments being reorganized
+      // 4. Doesn't conflict with existing appointments in database
+      // 5. Is less than targetTokenNumber (before the new skipped patient)
       
-      // Only update if token actually changed and it's within valid range (must be less than targetTokenNumber)
-      if (skippedApt.tokenNumber !== newTokenNumber && newTokenNumber < targetTokenNumber) {
+      while (
+        nextAvailableToken < targetTokenNumber &&
+        (
+          protectedTokenNumbers.has(nextAvailableToken) ||
+          tokensBeingAssigned.has(nextAvailableToken) ||
+          skippedTokensBeingAssigned.has(nextAvailableToken) ||
+          (existingTokenNumbers.has(nextAvailableToken) && nextAvailableToken !== originalTokenNumber)
+        )
+      ) {
+        nextAvailableToken++;
+      }
+      
+      // Only update if we found a valid token and it's different from current
+      if (nextAvailableToken < targetTokenNumber && skippedApt.tokenNumber !== nextAvailableToken) {
+        const newTokenNumber = nextAvailableToken;
+        
+        // Mark this token as being assigned
+        skippedTokensBeingAssigned.add(newTokenNumber);
+        existingTokenNumbers.add(newTokenNumber);
+        
+        // Calculate new time for the reorganized skipped appointment
         let timeUpdate = {};
         if (doctor && session.sessionStartTime) {
           const calculatedTime = calculateTimeFromToken(newTokenNumber, session.sessionStartTime, doctor.averageConsultationMinutes || 20);
@@ -573,21 +784,80 @@ exports.skipPatient = asyncHandler(async (req, res) => {
             { $set: { tokenNumber: newTokenNumber, ...timeUpdate } }
           )
         );
+        
+        // Move to next token for next skipped appointment
+        nextAvailableToken++;
+      } else if (nextAvailableToken >= targetTokenNumber) {
+        // No more available tokens before target - keep current token
+        console.log(`⚠️ No available token for skipped appointment ${skippedApt._id} before target ${targetTokenNumber}, keeping current token ${skippedApt.tokenNumber}`);
       }
     });
     
     // Step 3: Assign the new skipped patient to the absolute last position
-    appointment.tokenNumber = targetTokenNumber;
+    // CRITICAL: Ensure targetTokenNumber is not a protected token (completed/cancelled)
+    // If it is protected, find the last non-protected token (work backwards, no new tokens)
+    let finalTargetToken = targetTokenNumber;
+    
+    // If target is protected, find last non-protected token by working backwards
+    if (protectedTokenNumbers.has(finalTargetToken)) {
+      let candidateToken = finalTargetToken - 1;
+      while (candidateToken > originalTokenNumber && protectedTokenNumbers.has(candidateToken)) {
+        candidateToken--;
+      }
+      
+      // If we found a non-protected token above skipped patient, use it
+      if (candidateToken >= originalTokenNumber && !protectedTokenNumbers.has(candidateToken)) {
+        finalTargetToken = candidateToken;
+        console.log(`⚠️ Target token ${targetTokenNumber} is protected, using last non-protected token ${finalTargetToken} instead`);
+      } else {
+        // All tokens are protected - use original token (shouldn't happen, but safety)
+        finalTargetToken = originalTokenNumber;
+        console.log(`⚠️ All tokens are protected, keeping skipped patient at original token ${originalTokenNumber}`);
+      }
+    }
+    
+    appointment.tokenNumber = finalTargetToken;
   } else if (originalTokenNumber === targetTokenNumber) {
     // Patient is already at the absolute last position
     // This means they are already skipped and at last position
     // No need to reorganize other appointments, just ensure time is correct
-    appointment.tokenNumber = targetTokenNumber;
+    // Still check if target token is protected (shouldn't happen, but safety check)
+    let finalTargetToken = targetTokenNumber;
+    
+    // If target is protected, find last non-protected token (work backwards, no new tokens)
+    if (protectedTokenNumbers.has(finalTargetToken)) {
+      let candidateToken = finalTargetToken - 1;
+      while (candidateToken > 0 && protectedTokenNumbers.has(candidateToken)) {
+        candidateToken--;
+      }
+      if (candidateToken > 0 && !protectedTokenNumbers.has(candidateToken)) {
+        finalTargetToken = candidateToken;
+        console.log(`⚠️ Target token ${targetTokenNumber} is protected, using last non-protected token ${finalTargetToken} instead`);
+      }
+    }
+    
+    appointment.tokenNumber = finalTargetToken;
   } else {
     // Patient is beyond target position (shouldn't happen, but handle it)
     // This case handles if somehow the patient is already beyond the last position
-    // Just assign them to the target token number
-    appointment.tokenNumber = targetTokenNumber;
+    // Just assign them to the target token number, but check for protected tokens
+    let finalTargetToken = targetTokenNumber;
+    
+    // If target is protected, find last non-protected token (work backwards, no new tokens)
+    if (protectedTokenNumbers.has(finalTargetToken)) {
+      let candidateToken = finalTargetToken - 1;
+      while (candidateToken > originalTokenNumber && protectedTokenNumbers.has(candidateToken)) {
+        candidateToken--;
+      }
+      if (candidateToken >= originalTokenNumber && !protectedTokenNumbers.has(candidateToken)) {
+        finalTargetToken = candidateToken;
+        console.log(`⚠️ Target token ${targetTokenNumber} is protected, using last non-protected token ${finalTargetToken} instead`);
+      } else {
+        finalTargetToken = originalTokenNumber;
+      }
+    }
+    
+    appointment.tokenNumber = finalTargetToken;
   }
   
   appointment.queueStatus = 'skipped';
@@ -644,6 +914,85 @@ exports.skipPatient = asyncHandler(async (req, res) => {
   // Then execute other updates (shifting other appointments)
   await Promise.all(updatePromises);
   
+  // CRITICAL: Enhanced validation to ensure no duplicate tokens exist after skip operation
+  // This ensures data integrity and prevents token conflicts
+  const allAppointmentsAfterSkip = await Appointment.find({
+    sessionId: session._id,
+    tokenNumber: { $ne: null },
+  }).select('tokenNumber _id status queueStatus paymentStatus');
+  
+  const tokenCounts = {};
+  const duplicateTokens = [];
+  const protectedTokensFound = [];
+  
+  allAppointmentsAfterSkip.forEach(apt => {
+    const token = apt.tokenNumber;
+    
+    // Check if protected token is being reused (should never happen)
+    if (protectedTokenNumbers.has(token) && 
+        apt.status !== 'completed' && 
+        apt.status !== 'cancelled' && 
+        apt.status !== 'cancelled_by_session') {
+      protectedTokensFound.push({
+        tokenNumber: token,
+        appointmentId: apt._id.toString(),
+        status: apt.status,
+        queueStatus: apt.queueStatus,
+      });
+    }
+    
+    // Count token usage
+    if (!tokenCounts[token]) {
+      tokenCounts[token] = [];
+    }
+    tokenCounts[token].push({
+      appointmentId: apt._id.toString(),
+      status: apt.status,
+      queueStatus: apt.queueStatus,
+      paymentStatus: apt.paymentStatus,
+    });
+  });
+  
+  // Find duplicates
+  Object.keys(tokenCounts).forEach(token => {
+    if (tokenCounts[token].length > 1) {
+      duplicateTokens.push({
+        tokenNumber: parseInt(token),
+        appointments: tokenCounts[token],
+      });
+    }
+  });
+  
+  // Log validation results
+  if (duplicateTokens.length > 0) {
+    console.error('❌ CRITICAL: DUPLICATE TOKENS DETECTED AFTER SKIP OPERATION:', {
+      duplicateCount: duplicateTokens.length,
+      duplicates: duplicateTokens,
+      skippedAppointmentId: appointment._id.toString(),
+      originalTokenNumber,
+      finalTokenNumber: appointment.tokenNumber,
+    });
+    // Log detailed information for debugging
+    duplicateTokens.forEach(dup => {
+      console.error(`  Token ${dup.tokenNumber} is assigned to ${dup.appointments.length} appointments:`, dup.appointments);
+    });
+    // Note: We don't throw an error here to avoid breaking the user experience
+    // But we log it so it can be investigated and fixed
+  }
+  
+  if (protectedTokensFound.length > 0) {
+    console.error('❌ CRITICAL: PROTECTED TOKENS BEING REUSED AFTER SKIP OPERATION:', {
+      protectedCount: protectedTokensFound.length,
+      violations: protectedTokensFound,
+      skippedAppointmentId: appointment._id.toString(),
+    });
+  }
+  
+  if (duplicateTokens.length === 0 && protectedTokensFound.length === 0) {
+    console.log('✅ Token validation passed: No duplicate tokens or protected token reuse found after skip operation');
+  }
+  
+  
   // Reload the appointment to ensure we have the latest data
   const updatedAppointment = await Appointment.findById(appointment._id);
   const finalTokenNumber = updatedAppointment.tokenNumber;
@@ -654,6 +1003,7 @@ exports.skipPatient = asyncHandler(async (req, res) => {
     finalTokenNumber,
     finalTime,
     tokenNumberMatches: finalTokenNumber === targetTokenNumber,
+    duplicateTokensFound: duplicateTokens.length > 0,
   });
 
   // Update session current token if needed

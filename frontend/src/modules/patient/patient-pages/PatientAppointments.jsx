@@ -500,18 +500,24 @@ const PatientAppointments = () => {
       return []
     }
     
+    // Filter out appointments with pending payment status - these should not be shown to patients
+    const validAppointments = appointments.filter(apt => {
+      // Don't show appointments with pending payment status (payment failed or not completed)
+      return apt.paymentStatus !== 'pending'
+    })
+    
     if (filter === 'all') {
-      return appointments
+      return validAppointments
     } else if (filter === 'rescheduled') {
-      return appointments.filter(apt => apt.isRescheduled)
+      return validAppointments.filter(apt => apt.isRescheduled)
     } else if (filter === 'scheduled') {
-      return appointments.filter(apt => {
+      return validAppointments.filter(apt => {
         const displayStatus = mapBackendStatusToDisplay(apt.status)
         // Show scheduled appointments but exclude rescheduled ones
         return (displayStatus === 'scheduled' || apt.status === 'upcoming') && !apt.isRescheduled
       })
     } else {
-      return appointments.filter(apt => {
+      return validAppointments.filter(apt => {
         const displayStatus = mapBackendStatusToDisplay(apt.status)
         return displayStatus === filter
       })

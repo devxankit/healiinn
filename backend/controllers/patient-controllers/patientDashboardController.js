@@ -6,6 +6,7 @@ const LabReport = require('../../models/LabReport');
 const Transaction = require('../../models/Transaction');
 const Request = require('../../models/Request');
 const Session = require('../../models/Session');
+const Doctor = require('../../models/Doctor');
 const { calculateQueueETAs } = require('../../services/etaService');
 
 // GET /api/patients/dashboard
@@ -143,13 +144,76 @@ exports.getDashboard = asyncHandler(async (req, res) => {
         
         // Calculate next token number if slots available
         if (todaySession.currentToken < todaySession.maxTokens) {
-          nextToken = todaySession.currentToken + 1;
+          // CRITICAL: Calculate nextToken the same way as in booking flow
+          // Use MAX token number (excluding cancelled) + 1, then skip cancelled tokens
+          // This ensures the displayed token matches what patient will actually get
+          const Appointment = require('../../models/Appointment');
           
-          // Calculate ETA for next patient
-          const etas = await calculateQueueETAs(todaySession._id);
-          const nextPatient = etas.find(e => e.patientsAhead === 0);
-          if (nextPatient) {
-            eta = `${nextPatient.estimatedWaitMinutes} min`;
+          // Find MAX token from all non-cancelled paid appointments
+          const maxTokenResult = await Appointment.aggregate([
+            {
+              $match: {
+                sessionId: todaySession._id,
+                paymentStatus: 'paid',
+                tokenNumber: { $ne: null },
+                status: { $nin: ['cancelled', 'cancelled_by_session'] },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                maxToken: { $max: '$tokenNumber' },
+              },
+            },
+          ]);
+          
+          const maxTokenNumber = maxTokenResult.length > 0 && maxTokenResult[0].maxToken ? maxTokenResult[0].maxToken : 0;
+          let calculatedNextToken = maxTokenNumber + 1;
+          
+          // Get all cancelled token numbers to skip them
+          const cancelledAppointments = await Appointment.find({
+            sessionId: todaySession._id,
+            status: { $in: ['cancelled', 'cancelled_by_session'] },
+            tokenNumber: { $ne: null },
+          }).select('tokenNumber');
+          
+          const cancelledTokenNumbers = new Set(cancelledAppointments.map(apt => apt.tokenNumber));
+          
+          // Skip cancelled tokens
+          while (cancelledTokenNumbers.has(calculatedNextToken) && calculatedNextToken <= todaySession.maxTokens) {
+            calculatedNextToken++;
+          }
+          
+          // Ensure we don't exceed maxTokens
+          if (calculatedNextToken <= todaySession.maxTokens) {
+            nextToken = calculatedNextToken;
+            
+            // Calculate actual appointment time for the NEW booking (nextToken)
+            // Formula: sessionStartTime + (nextToken - 1) × avgConsultation
+            // This shows the time when the patient will be called based on their token number
+            const { timeToMinutes } = require('../../services/etaService');
+            const doctor = await Doctor.findById(todaySession.doctorId).select('averageConsultationMinutes');
+            const avgConsultation = doctor?.averageConsultationMinutes || 20;
+            
+            // Calculate time for this token based on session start time
+            const sessionStartMinutes = timeToMinutes(todaySession.sessionStartTime);
+            const tokenTimeMinutes = sessionStartMinutes + (nextToken - 1) * avgConsultation;
+            const tokenHour = Math.floor(tokenTimeMinutes / 60);
+            const tokenMin = tokenTimeMinutes % 60;
+            
+            // Convert to 12-hour format
+            let displayHour = tokenHour;
+            let period = 'AM';
+            if (tokenHour >= 12) {
+              period = 'PM';
+              if (tokenHour > 12) {
+                displayHour = tokenHour - 12;
+              }
+            } else if (tokenHour === 0) {
+              displayHour = 12;
+            }
+            
+            eta = `${displayHour}:${tokenMin.toString().padStart(2, '0')} ${period}`;
           }
         }
       }

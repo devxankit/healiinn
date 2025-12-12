@@ -484,28 +484,80 @@ const checkSlotAvailability = async (doctorId, date) => {
     }
     
     // Get actual booked appointments count (not just currentToken)
-    // Exclude pending payment appointments to match the display filter
-    // Only count appointments that are actually confirmed (paid)
+    // Count ALL appointments with token numbers assigned (including called, in-consultation, completed, etc.)
+    // This ensures accurate token calculation even when patients are in consultation or completed
+    // IMPORTANT: Completed appointments also have token numbers, so they must be counted
+    // Only cancelled appointments should be excluded as they don't occupy token slots
     const Appointment = require('../models/Appointment');
     const actualBookedCount = await Appointment.countDocuments({
       sessionId: session._id,
-      status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
-      paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
+      paymentStatus: 'paid', // Only count paid appointments
+      tokenNumber: { $ne: null }, // Only count appointments that have token numbers assigned
+      status: { 
+        $ne: 'cancelled' // Only exclude cancelled appointments (include completed, scheduled, called, in-consultation, etc.)
+      },
     });
     
     // Use actual booked count instead of currentToken for accurate slot calculation
-    // currentToken might be incorrect if appointments were cancelled or deleted
+    // This count includes all appointments with tokens: scheduled, confirmed, called, in-consultation, in_progress, waiting, completed
     const bookedSlots = actualBookedCount;
     
     // For same-day bookings, adjust available slots calculation
     const availableSlots = isSameDay && pastSlotsCount > 0
       ? Math.max(0, effectiveMaxTokens - Math.max(0, bookedSlots - pastSlotsCount))
       : Math.max(0, session.maxTokens - bookedSlots);
+    
+    // CRITICAL: Calculate nextToken the same way as in booking flow
+    // Use MAX token number (excluding cancelled) + 1, then skip cancelled tokens
+    // This ensures the displayed token matches what patient will actually get
+    let nextToken = null;
+    if (availableSlots > 0) {
+      // Find MAX token from all non-cancelled paid appointments
+      const maxTokenResult = await Appointment.aggregate([
+        {
+          $match: {
+            sessionId: session._id,
+            paymentStatus: 'paid',
+            tokenNumber: { $ne: null },
+            status: { $nin: ['cancelled', 'cancelled_by_session'] },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            maxToken: { $max: '$tokenNumber' },
+          },
+        },
+      ]);
+      
+      const maxTokenNumber = maxTokenResult.length > 0 && maxTokenResult[0].maxToken ? maxTokenResult[0].maxToken : 0;
+      let calculatedNextToken = maxTokenNumber + 1;
+      
+      // Get all cancelled token numbers to skip them
+      const cancelledAppointments = await Appointment.find({
+        sessionId: session._id,
+        status: { $in: ['cancelled', 'cancelled_by_session'] },
+        tokenNumber: { $ne: null },
+      }).select('tokenNumber');
+      
+      const cancelledTokenNumbers = new Set(cancelledAppointments.map(apt => apt.tokenNumber));
+      
+      // Skip cancelled tokens
+      while (cancelledTokenNumbers.has(calculatedNextToken) && calculatedNextToken <= session.maxTokens) {
+        calculatedNextToken++;
+      }
+      
+      // Ensure we don't exceed maxTokens
+      if (calculatedNextToken <= session.maxTokens) {
+        nextToken = calculatedNextToken;
+      }
+    }
 
     // Debug log to verify calculation
     console.log(`📊 Slot Availability for ${date}:`, {
       doctorId,
       sessionId: session._id,
+      sessionStatus: session.status,
       sessionStartTime: session.sessionStartTime,
       sessionEndTime: session.sessionEndTime,
       maxTokens: session.maxTokens,
@@ -513,11 +565,13 @@ const checkSlotAvailability = async (doctorId, date) => {
       actualBookedCount,
       bookedSlots,
       availableSlots,
+      nextToken,
       isSameDay,
       pastSlotsCount,
       effectiveMaxTokens: isSameDay ? effectiveMaxTokens : session.maxTokens,
       effectiveStartTime: isSameDay && pastSlotsCount > 0 ? effectiveStartTime : session.sessionStartTime,
       avgConsultationMinutes: avgConsultation,
+      calculation: `availableSlots = ${isSameDay && pastSlotsCount > 0 ? `Math.max(0, ${effectiveMaxTokens} - Math.max(0, ${bookedSlots} - ${pastSlotsCount}))` : `Math.max(0, ${session.maxTokens} - ${bookedSlots})`} = ${availableSlots}`,
     });
 
     return {
@@ -525,6 +579,7 @@ const checkSlotAvailability = async (doctorId, date) => {
       totalSlots: isSameDay && pastSlotsCount > 0 ? effectiveMaxTokens : session.maxTokens,
       bookedSlots,
       availableSlots,
+      nextToken, // CRITICAL: Next token number that will be assigned (excluding cancelled tokens)
       sessionId: session._id,
       sessionStartTime: isSameDay && pastSlotsCount > 0 ? effectiveStartTime : session.sessionStartTime,
       sessionEndTime: session.sessionEndTime,

@@ -630,7 +630,7 @@ const PatientDoctorDetails = () => {
               available: !isCancelled && !isCompleted && response.data.available, // Not available if cancelled or completed
               maxTokens: response.data.totalSlots || 0,
               currentBookings: response.data.bookedSlots || 0,
-              nextToken: !isCancelled && !isCompleted && response.data.availableSlots > 0 ? (response.data.bookedSlots || 0) + 1 : null,
+              nextToken: !isCancelled && !isCompleted && response.data.availableSlots > 0 ? (response.data.nextToken || null) : null,
               sessionId: response.data.sessionId,
               isCancelled: isCancelled, // Store cancelled flag
               isCompleted: isCompleted, // Store completed flag

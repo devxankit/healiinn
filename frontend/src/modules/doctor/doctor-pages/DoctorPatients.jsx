@@ -2419,18 +2419,6 @@ const DoctorPatients = () => {
                         )
                       })()}
                       
-                      {/* History button for completed appointments */}
-                      {appointment.status === 'completed' && (
-                        <button
-                          type="button"
-                          onClick={() => handleViewHistory(appointment)}
-                          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
-                        >
-                          <IoDocumentTextOutline className="h-3.5 w-3.5" />
-                          History
-                        </button>
-                      )}
-                      
                       {/* History button for no-show appointments */}
                       {appointment.status === 'no-show' && (
                         <button

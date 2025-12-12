@@ -29,21 +29,35 @@ exports.getAppointments = asyncHandler(async (req, res) => {
   const { status, date, doctor } = req.query;
   const { page, limit, skip } = buildPagination(req);
 
-  // Auto-cancel pending appointments older than 30 minutes
+  // Auto-delete pending appointments older than 30 minutes (payment not completed)
   const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-  await Appointment.updateMany(
-    {
+  const pendingAppointmentsToDelete = await Appointment.find({
       patientId: id,
       paymentStatus: 'pending',
-      status: { $in: ['scheduled', 'confirmed'] },
+    status: { $in: ['pending_payment', 'scheduled', 'confirmed'] },
       createdAt: { $lt: thirtyMinutesAgo },
-    },
-    {
-      status: 'cancelled',
-      cancelledAt: new Date(),
-      cancellationReason: 'Payment not completed within 30 minutes',
+  });
+
+  // Remove these appointments from sessions before deleting
+  for (const appointment of pendingAppointmentsToDelete) {
+    if (appointment.sessionId) {
+      const session = await Session.findById(appointment.sessionId);
+      if (session) {
+        session.appointments = session.appointments.filter(
+          (apptId) => apptId.toString() !== appointment._id.toString()
+        );
+        await session.save();
+      }
     }
-  );
+  }
+
+  // Delete old pending payment appointments
+  await Appointment.deleteMany({
+    patientId: id,
+    paymentStatus: 'pending',
+    status: { $in: ['pending_payment', 'scheduled', 'confirmed'] },
+    createdAt: { $lt: thirtyMinutesAgo },
+  });
 
   const filter = { patientId: id };
   
@@ -60,9 +74,9 @@ exports.getAppointments = asyncHandler(async (req, res) => {
       filter.status = { $in: ['scheduled', 'confirmed'] };
       filter.paymentStatus = { $ne: 'pending' }; // Exclude pending payment appointments
     } else if (status === 'cancelled') {
-      // Show cancelled appointments (include both paid and pending payment cancelled appointments)
+      // Show cancelled appointments (only show cancelled appointments that were paid, not pending payment ones)
       filter.status = 'cancelled';
-      // Don't filter by paymentStatus for cancelled - show all cancelled appointments
+      filter.paymentStatus = { $ne: 'pending' }; // Don't show cancelled appointments with pending payment
     } else {
       filter.status = status;
       // For other statuses, exclude pending payment appointments
@@ -71,9 +85,9 @@ exports.getAppointments = asyncHandler(async (req, res) => {
       }
     }
   } else {
-    // By default, include all appointments (including cancelled and pending payment)
-    // Show all appointments so user can see pending payment appointments and complete payment
-    // No filter needed - show everything
+    // By default, exclude pending payment appointments - only show appointments where payment is completed or refunded
+    // Don't show appointments with pending payment status
+    filter.paymentStatus = { $ne: 'pending' };
   }
   
   if (date) {
@@ -263,22 +277,28 @@ exports.createAppointment = asyncHandler(async (req, res) => {
     }
   }
 
-  // Check slot availability based on paid appointments only
+  // Check slot availability based on paid appointments with token numbers
+  // Count ALL appointments that have been assigned tokens (including called, in-consultation, completed, etc.)
   // Token number will be assigned only after payment success
-  const paidAppointmentsCount = await Appointment.countDocuments({
+  // IMPORTANT: Completed appointments also have token numbers, so they must be counted
+  // Only cancelled appointments should be excluded as they don't occupy token slots
+  const paidAppointmentsWithTokens = await Appointment.countDocuments({
     sessionId: session._id,
-    status: { $in: ['scheduled', 'confirmed'] },
     paymentStatus: 'paid', // Only count paid appointments
+    tokenNumber: { $ne: null }, // Only count appointments that have token numbers assigned
+    status: { 
+      $ne: 'cancelled' // Only exclude cancelled appointments (include completed, scheduled, called, in-consultation, etc.)
+    },
   });
 
-  // Check if slots are available (based on paid appointments)
-  if (paidAppointmentsCount >= session.maxTokens) {
+  // Check if slots are available (based on paid appointments with tokens)
+  if (paidAppointmentsWithTokens >= session.maxTokens) {
     return res.status(400).json({
       success: false,
       message: 'No available slots for this session. All slots are booked.',
       data: {
         totalSlots: session.maxTokens,
-        bookedSlots: paidAppointmentsCount,
+        bookedSlots: paidAppointmentsWithTokens,
         availableSlots: 0,
       },
     });
@@ -432,6 +452,30 @@ exports.cancelAppointment = asyncHandler(async (req, res) => {
     });
   }
 
+  // If payment is pending, DELETE the appointment instead of cancelling
+  // This ensures failed payment appointments are not stored in the database
+  if (appointment.paymentStatus === 'pending') {
+    // Remove from session before deleting
+    if (appointment.sessionId) {
+      const session = await Session.findById(appointment.sessionId);
+      if (session) {
+        session.appointments = session.appointments.filter(
+          apptId => apptId.toString() !== appointment._id.toString()
+        );
+        await session.save();
+      }
+    }
+
+    // Delete the appointment
+    await Appointment.findByIdAndDelete(appointment._id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Appointment deleted successfully',
+    });
+  }
+
+  // For paid appointments, cancel normally (don't delete)
   appointment.status = 'cancelled';
   appointment.cancelledAt = new Date();
   appointment.cancellationReason = req.body.reason || 'Cancelled by patient';
@@ -450,6 +494,7 @@ exports.cancelAppointment = asyncHandler(async (req, res) => {
       const actualBookedCount = await Appointment.countDocuments({
         sessionId: session._id,
         status: { $in: ['scheduled', 'confirmed', 'in_progress'] },
+        paymentStatus: 'paid', // Only count paid appointments
       });
       session.currentToken = Math.max(0, actualBookedCount);
       await session.save();
@@ -640,11 +685,27 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Check if new session has available slots
-  if (newSession.currentToken >= newSession.maxTokens) {
+  // Check if new session has available slots - count appointments with token numbers
+  // IMPORTANT: Completed appointments also have token numbers, so they must be counted
+  // Only cancelled appointments should be excluded as they don't occupy token slots
+  const paidAppointmentsWithTokensCount = await Appointment.countDocuments({
+    sessionId: newSession._id,
+    paymentStatus: 'paid', // Only count paid appointments
+    tokenNumber: { $ne: null }, // Only count appointments that have token numbers assigned
+    status: { 
+      $ne: 'cancelled' // Only exclude cancelled appointments (include completed, scheduled, called, in-consultation, etc.)
+    },
+  });
+
+  if (paidAppointmentsWithTokensCount >= newSession.maxTokens) {
     return res.status(400).json({
       success: false,
       message: 'No available slots for the new date. All slots are booked.',
+      data: {
+        totalSlots: newSession.maxTokens,
+        bookedSlots: paidAppointmentsWithTokensCount,
+        availableSlots: 0,
+      },
     });
   }
 
@@ -696,8 +757,80 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
     }
   }
 
-  // Assign new token number
-  const newTokenNumber = newSession.currentToken + 1;
+  // Assign new token number - use MAX token number to handle gaps that may occur due to skipping/reorganization
+  // This ensures we don't assign duplicate tokens even if patients are in consultation or completed
+  // IMPORTANT: Completed appointments also have token numbers, so they must be counted
+  // CRITICAL: Only cancelled appointments should be excluded as they don't occupy token slots
+  // We exclude both 'cancelled' and 'cancelled_by_session' statuses
+  const maxTokenResult = await Appointment.aggregate([
+    {
+      $match: {
+        sessionId: newSession._id,
+        paymentStatus: 'paid',
+        tokenNumber: { $ne: null },
+        status: { $nin: ['cancelled', 'cancelled_by_session'] }, // Exclude all cancelled appointments
+        _id: { $ne: appointment._id }, // Exclude current appointment being rescheduled
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        maxToken: { $max: '$tokenNumber' },
+      },
+    },
+  ]);
+
+  // Get max token number (default to 0 if no appointments exist)
+  const maxTokenNumber = maxTokenResult.length > 0 && maxTokenResult[0].maxToken ? maxTokenResult[0].maxToken : 0;
+  let newTokenNumber = maxTokenNumber + 1;
+
+  // CRITICAL: Get all cancelled appointment token numbers to ensure we NEVER reuse them
+  // Cancelled appointments' token numbers should NOT be reused - skip them completely
+  const cancelledAppointments = await Appointment.find({
+    sessionId: newSession._id,
+    status: { $in: ['cancelled', 'cancelled_by_session'] },
+    tokenNumber: { $ne: null },
+  }).select('tokenNumber');
+  
+  const cancelledTokenNumbers = new Set(cancelledAppointments.map(apt => apt.tokenNumber));
+  
+  // IMPORTANT: Double-check that the token number doesn't already exist AND is not a cancelled token
+  // This prevents duplicate token assignment and ensures cancelled tokens are never reused
+  let tokenExists = true;
+  let attempts = 0;
+  const maxAttempts = 10; // Safety limit to prevent infinite loop
+  
+  while (tokenExists && attempts < maxAttempts) {
+    // Check if token is a cancelled token - if yes, skip it
+    if (cancelledTokenNumbers.has(newTokenNumber)) {
+      console.log(`⚠️ Token ${newTokenNumber} belongs to a cancelled appointment (reschedule), skipping to ${newTokenNumber + 1}`);
+      newTokenNumber++;
+      attempts++;
+      continue;
+    }
+    
+    // Check if token already exists (excluding cancelled appointments)
+    const existingAppointment = await Appointment.findOne({
+      sessionId: newSession._id,
+      tokenNumber: newTokenNumber,
+      status: { $nin: ['cancelled', 'cancelled_by_session'] }, // CRITICAL: Exclude all cancelled appointments
+      _id: { $ne: appointment._id }, // Exclude current appointment being rescheduled
+    });
+    
+    if (!existingAppointment) {
+      tokenExists = false;
+    } else {
+      // Token already exists (and is not cancelled), try next number
+      newTokenNumber++;
+      attempts++;
+      console.log(`⚠️ Token ${newTokenNumber - 1} already exists in reschedule (non-cancelled), trying ${newTokenNumber}`);
+    }
+  }
+  
+  if (attempts >= maxAttempts) {
+    // Fallback: use MAX + 1 even if it might conflict (shouldn't happen in normal flow)
+    console.error(`⚠️ Could not find unique token after ${maxAttempts} attempts in reschedule, using ${newTokenNumber}`);
+  }
 
   // Get doctor to calculate time based on average consultation minutes
   const doctor = await Doctor.findById(appointment.doctorId);
@@ -798,7 +931,9 @@ exports.rescheduleAppointment = asyncHandler(async (req, res) => {
   });
 
   // Update new session
-  newSession.currentToken = newTokenNumber;
+  // Update session currentToken to track the highest token number assigned
+  // Use Math.max to ensure it doesn't go backwards
+  newSession.currentToken = Math.max(newSession.currentToken || 0, newTokenNumber);
   // Add appointment to new session's appointments array if not already present
   if (!newSession.appointments.includes(appointment._id)) {
     newSession.appointments.push(appointment._id);
@@ -1024,13 +1159,7 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
       },
     });
 
-    // Cancel appointment
-    appointment.status = 'cancelled';
-    appointment.cancelledBy = 'system';
-    appointment.cancellationReason = 'Payment verification failed - Invalid signature';
-    await appointment.save();
-
-    // Remove from session
+    // Remove from session before deleting
     const session = await Session.findById(appointment.sessionId);
     if (session) {
       session.appointments = session.appointments.filter(
@@ -1039,9 +1168,12 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
       await session.save();
     }
 
+    // Delete appointment since payment failed - don't store failed payment appointments
+    await Appointment.findByIdAndDelete(appointment._id);
+
     return res.status(400).json({
       success: false,
-      message: 'Invalid payment signature. Appointment has been cancelled.',
+      message: 'Invalid payment signature. Please try booking again.',
     });
   }
 
@@ -1069,13 +1201,7 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
       },
     });
 
-    // Cancel appointment
-    appointment.status = 'cancelled';
-    appointment.cancelledBy = 'system';
-    appointment.cancellationReason = 'Payment verification failed - Payment not successful';
-    await appointment.save();
-
-    // Remove from session
+    // Remove from session before deleting
     const session = await Session.findById(appointment.sessionId);
     if (session) {
       session.appointments = session.appointments.filter(
@@ -1084,9 +1210,12 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
       await session.save();
     }
 
+    // Delete appointment since payment failed - don't store failed payment appointments
+    await Appointment.findByIdAndDelete(appointment._id);
+
     return res.status(400).json({
       success: false,
-      message: 'Payment not successful. Appointment has been cancelled.',
+      message: 'Payment not successful. Please try booking again.',
     });
   }
 
@@ -1101,15 +1230,81 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Count only paid appointments for token calculation
-  const paidAppointmentsCount = await Appointment.countDocuments({
-    sessionId: session._id,
-    status: { $in: ['scheduled', 'confirmed', 'pending_payment'] },
-    paymentStatus: 'paid', // Only count paid appointments
-    _id: { $ne: appointment._id }, // Exclude current appointment
-  });
+  // Find the MAX token number from ALL paid appointments that have been assigned token numbers
+  // This includes appointments that are: scheduled, confirmed, called, in-consultation, in_progress, completed
+  // IMPORTANT: We use MAX token number instead of COUNT to handle gaps in token numbers
+  // If tokens 1, 2, 4 exist (3 is missing due to skip/reorganization), we should assign token 5, not token 4
+  // CRITICAL: Only cancelled appointments should be excluded as they don't occupy token slots
+  // We exclude both 'cancelled' and 'cancelled_by_session' statuses
+  const maxTokenResult = await Appointment.aggregate([
+    {
+      $match: {
+        sessionId: session._id,
+        paymentStatus: 'paid',
+        tokenNumber: { $ne: null },
+        status: { $nin: ['cancelled', 'cancelled_by_session'] }, // Exclude all cancelled appointments
+        _id: { $ne: appointment._id }, // Exclude current appointment
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        maxToken: { $max: '$tokenNumber' },
+      },
+    },
+  ]);
 
-  const newTokenNumber = paidAppointmentsCount + 1;
+  // Get max token number (default to 0 if no appointments exist)
+  const maxTokenNumber = maxTokenResult.length > 0 && maxTokenResult[0].maxToken ? maxTokenResult[0].maxToken : 0;
+  let newTokenNumber = maxTokenNumber + 1;
+
+  // CRITICAL: Get all cancelled appointment token numbers to ensure we NEVER reuse them
+  // Cancelled appointments' token numbers should NOT be reused - skip them completely
+  const cancelledAppointments = await Appointment.find({
+    sessionId: session._id,
+    status: { $in: ['cancelled', 'cancelled_by_session'] },
+    tokenNumber: { $ne: null },
+  }).select('tokenNumber');
+  
+  const cancelledTokenNumbers = new Set(cancelledAppointments.map(apt => apt.tokenNumber));
+  
+  // IMPORTANT: Double-check that the token number doesn't already exist AND is not a cancelled token
+  // This prevents duplicate token assignment and ensures cancelled tokens are never reused
+  let tokenExists = true;
+  let attempts = 0;
+  const maxAttempts = 10; // Safety limit to prevent infinite loop
+  
+  while (tokenExists && attempts < maxAttempts) {
+    // Check if token is a cancelled token - if yes, skip it
+    if (cancelledTokenNumbers.has(newTokenNumber)) {
+      console.log(`⚠️ Token ${newTokenNumber} belongs to a cancelled appointment, skipping to ${newTokenNumber + 1}`);
+      newTokenNumber++;
+      attempts++;
+      continue;
+    }
+    
+    // Check if token already exists (excluding cancelled appointments)
+    const existingAppointment = await Appointment.findOne({
+      sessionId: session._id,
+      tokenNumber: newTokenNumber,
+      status: { $nin: ['cancelled', 'cancelled_by_session'] }, // CRITICAL: Exclude all cancelled appointments
+      _id: { $ne: appointment._id }, // Exclude current appointment
+    });
+    
+    if (!existingAppointment) {
+      tokenExists = false;
+    } else {
+      // Token already exists (and is not cancelled), try next number
+      newTokenNumber++;
+      attempts++;
+      console.log(`⚠️ Token ${newTokenNumber - 1} already exists (non-cancelled), trying ${newTokenNumber}`);
+    }
+  }
+  
+  if (attempts >= maxAttempts) {
+    // Fallback: use MAX + 1 even if it might conflict (shouldn't happen in normal flow)
+    console.error(`⚠️ Could not find unique token after ${maxAttempts} attempts, using ${newTokenNumber}`);
+  }
 
   // Check if token exceeds max tokens
   if (newTokenNumber > session.maxTokens) {
