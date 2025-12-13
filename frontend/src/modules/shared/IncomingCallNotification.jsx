@@ -355,12 +355,30 @@ const IncomingCallNotification = () => {
         }
         socket.off('call:accepted', acceptedHandler)
         socket.off('call:error', errorHandler)
+        socket.off('call:ended', endedHandler)
         toast.error(data.message || 'Failed to accept call')
         setIncomingCall(null)
         setIsProcessing(false)
       }
 
+      // Listen for call:ended in case doctor ends call while patient is accepting
+      const endedHandler = (data) => {
+        console.log('📞 [IncomingCallNotification] Call ended while accepting:', data)
+        if (data && data.callId === currentCallId) {
+          if (timeoutId) {
+            clearTimeout(timeoutId)
+          }
+          socket.off('call:accepted', acceptedHandler)
+          socket.off('call:error', errorHandler)
+          socket.off('call:ended', endedHandler)
+          toast.info('Call was ended by the doctor')
+          setIncomingCall(null)
+          setIsProcessing(false)
+        }
+      }
+
       socket.once('call:error', errorHandler)
+      socket.once('call:ended', endedHandler)
 
       // Emit call:accept event (backend doesn't use callback, so we just emit)
       socket.emit('call:accept', { callId: currentCallId })

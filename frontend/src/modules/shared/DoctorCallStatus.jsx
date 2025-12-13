@@ -451,10 +451,42 @@ const DoctorCallStatus = () => {
     }
     
     const socket = getSocket()
-    if (socket && callInfo?.callId) {
-      socket.emit('call:end', { callId: callInfo.callId })
+    if (!socket || !callInfo?.callId) {
+      // If no socket or callId, just close the UI
+      console.warn('📞 [DoctorCallStatus] No socket or callId, closing UI directly')
+      endCall()
+      return
     }
-    endCall()
+
+    const currentCallId = callInfo.callId
+    console.log('📞 [DoctorCallStatus] Emitting call:end for callId:', currentCallId)
+
+    // Emit call:end to server
+    // The handleCallEnded listener in useEffect will handle the UI cleanup when call:ended arrives
+    socket.emit('call:end', { callId: currentCallId }, (response) => {
+      if (response && response.error) {
+        console.error('📞 [DoctorCallStatus] Error ending call:', response.error)
+        // If there's an error, close UI immediately
+        endCall()
+      } else {
+        // Success - wait for call:ended event to arrive
+        // The handleCallEnded in useEffect will handle cleanup
+        console.log('📞 [DoctorCallStatus] call:end emitted, waiting for call:ended event...')
+        
+        // Set up timeout as fallback in case call:ended doesn't arrive
+        const timeoutId = setTimeout(() => {
+          console.warn('📞 [DoctorCallStatus] call:ended event timeout, closing UI anyway')
+          endCall()
+        }, 5000) // 5 second timeout
+
+        // Store timeout ID so we can clear it if call:ended arrives
+        // The handleCallEnded in useEffect will handle the actual cleanup
+        // We just need to ensure we don't wait forever
+        socket.once('call:ended', () => {
+          clearTimeout(timeoutId)
+        })
+      }
+    })
   }
 
   // Debug: Log current status and force re-render check
