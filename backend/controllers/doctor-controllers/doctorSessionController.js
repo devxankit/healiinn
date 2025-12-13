@@ -127,13 +127,12 @@ const timeStringToMinutes = (timeStr) => {
     return null;
   }
   
-  // Trim whitespace and ensure it's a string
+  // Trim whitespace and convert to string
   timeStr = String(timeStr).trim();
   
   // Handle 12-hour format (e.g., "2:30 PM", "12:00 AM", "5:00 PM", "10:00 AM", "10:00:00 AM")
   // Match with optional space between time and AM/PM, optional seconds, case insensitive
-  // Also handle formats like "5:00PM" (no space) or "10:00 AM" (with space)
-  const amPmMatch = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  const amPmMatch = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)\s*$/i);
   if (amPmMatch) {
     let hours = parseInt(amPmMatch[1], 10);
     const minutes = parseInt(amPmMatch[2], 10);
@@ -157,7 +156,7 @@ const timeStringToMinutes = (timeStr) => {
   }
   
   // Handle 24-hour format (e.g., "14:30", "00:00", "10:00", "17:00")
-  const time24Match = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/); // Optional seconds
+  const time24Match = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*$/);
   if (time24Match) {
     const hours = parseInt(time24Match[1], 10);
     const minutes = parseInt(time24Match[2], 10);
@@ -172,30 +171,12 @@ const timeStringToMinutes = (timeStr) => {
   }
   
   // If no match, log error and return null
-  console.log('⚠️ [Backend] Failed to parse time string:', timeStr, '(type:', typeof timeStr, ')');
+  console.log('⚠️ [Backend] Failed to parse time string:', timeStr, '(type:', typeof timeStr, 'length:', timeStr.length, ')');
   return null;
-};
-
-// Helper function to format minutes to 12-hour time string for display
-const formatMinutesTo12Hour = (minutes) => {
-  if (minutes === null || minutes === undefined || isNaN(minutes)) {
-    return 'Invalid Time';
-  }
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const hours12 = hours % 12 || 12;
-  return `${hours12}:${String(mins).padStart(2, '0')} ${period}`;
 };
 
 // Helper function to check if current time is within session time
 const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
-  console.log('🔍 [Backend] isWithinSessionTime called with:', {
-    sessionStartTime: String(sessionStartTime),
-    sessionEndTime: String(sessionEndTime),
-    sessionDate,
-  });
-
   if (!sessionStartTime || !sessionEndTime || !sessionDate) {
     console.log('⚠️ [Backend] Missing session time data:', { sessionStartTime, sessionEndTime, sessionDate });
     return false;
@@ -211,42 +192,49 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
     todayComponents = getISTDateComponents();
     sessionComponents = parseDateInISTComponents(sessionDate);
   } catch (error) {
-    console.log('⚠️ [Backend] Error parsing session date:', error, sessionDate);
+    console.log('⚠️ [Backend] Error parsing session date:', error, sessionDate, typeof sessionDate);
     return false;
   }
   
   // Check if it's the same day by comparing date components directly
   // This avoids timezone issues with Date object comparisons
+  const todayStr = `${todayComponents.year}-${String(todayComponents.month + 1).padStart(2, '0')}-${String(todayComponents.day).padStart(2, '0')}`;
+  const sessionStr = `${sessionComponents.year}-${String(sessionComponents.month + 1).padStart(2, '0')}-${String(sessionComponents.day).padStart(2, '0')}`;
+  
   if (todayComponents.year !== sessionComponents.year || 
       todayComponents.month !== sessionComponents.month || 
       todayComponents.day !== sessionComponents.day) {
     console.log('⚠️ [Backend] Session date mismatch:', {
-      today: `${todayComponents.year}-${String(todayComponents.month + 1).padStart(2, '0')}-${String(todayComponents.day).padStart(2, '0')}`,
-      sessionDay: `${sessionComponents.year}-${String(sessionComponents.month + 1).padStart(2, '0')}-${String(sessionComponents.day).padStart(2, '0')}`,
+      today: todayStr,
+      sessionDay: sessionStr,
+      todayComponents,
+      sessionComponents,
+      sessionDateType: typeof sessionDate,
+      sessionDateValue: sessionDate instanceof Date ? sessionDate.toISOString() : sessionDate,
     });
     return false;
   }
   
   // Use IST time for comparison
   const currentMinutes = getISTTimeInMinutes();
-  const startMinutes = timeStringToMinutes(String(sessionStartTime).trim());
-  const endMinutes = timeStringToMinutes(String(sessionEndTime).trim());
+  const startMinutes = timeStringToMinutes(sessionStartTime);
+  const endMinutes = timeStringToMinutes(sessionEndTime);
   
   // Validate all time values
   if (currentMinutes === null || currentMinutes === undefined || isNaN(currentMinutes)) {
-    console.log('⚠️ [Backend] Invalid current time:', currentMinutes);
+    console.log('⚠️ [Backend] Invalid current time:', { currentMinutes, type: typeof currentMinutes });
     return false;
   }
   
   if (startMinutes === null || endMinutes === null) {
-    console.log('❌ [Backend] Failed to parse session times:', { 
-      sessionStartTime: String(sessionStartTime),
-      sessionEndTime: String(sessionEndTime),
+    console.log('⚠️ [Backend] Failed to parse session times:', { 
+      sessionStartTime, 
+      sessionStartTimeType: typeof sessionStartTime,
+      sessionEndTime, 
+      sessionEndTimeType: typeof sessionEndTime,
       startMinutes, 
       endMinutes,
-      currentMinutes,
-      sessionStartTimeType: typeof sessionStartTime,
-      sessionEndTimeType: typeof sessionEndTime,
+      currentMinutes 
     });
     return false;
   }
@@ -254,10 +242,12 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
   // Ensure all values are valid numbers
   if (isNaN(startMinutes) || isNaN(endMinutes)) {
     console.log('⚠️ [Backend] Session times are not valid numbers:', { 
-      sessionStartTime: String(sessionStartTime),
-      sessionEndTime: String(sessionEndTime),
+      sessionStartTime, 
+      sessionEndTime, 
       startMinutes, 
-      endMinutes 
+      endMinutes,
+      startMinutesType: typeof startMinutes,
+      endMinutesType: typeof endMinutes,
     });
     return false;
   }
@@ -267,38 +257,34 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
   // Get IST time string for logging
   const istTimeString = getISTTimeString();
   
-  // Format session times for display (convert to 12-hour format if needed)
-  const displayStartTime = formatMinutesTo12Hour(startMinutes);
-  const displayEndTime = formatMinutesTo12Hour(endMinutes);
-  
   console.log('🕐 [Backend] Session time check:', {
     currentTime: istTimeString,
     currentMinutes,
-    sessionStartTimeRaw: String(sessionStartTime),
-    sessionEndTimeRaw: String(sessionEndTime),
-    sessionStartTimeDisplay: displayStartTime,
-    sessionEndTimeDisplay: displayEndTime,
+    sessionStartTime,
+    sessionStartTimeType: typeof sessionStartTime,
+    sessionEndTime,
+    sessionEndTimeType: typeof sessionEndTime,
     startMinutes,
     endMinutes,
     isWithin,
     comparison: `${currentMinutes} >= ${startMinutes} && ${currentMinutes} <= ${endMinutes}`,
-    evaluation: `${currentMinutes >= startMinutes} && ${currentMinutes <= endMinutes}`,
+    dateMatch: true,
+    todayDate: todayStr,
+    sessionDate: sessionStr,
   });
   
   if (!isWithin) {
-    const reason = currentMinutes < startMinutes 
-      ? `Current time (${istTimeString} = ${currentMinutes} min) is before session start (${displayStartTime} = ${startMinutes} min)`
-      : `Current time (${istTimeString} = ${currentMinutes} min) is after session end (${displayEndTime} = ${endMinutes} min)`;
     console.log('❌ [Backend] Time validation failed:', {
-      reason,
+      reason: currentMinutes < startMinutes 
+        ? `Current time (${currentMinutes} min = ${istTimeString}) is before session start (${startMinutes} min = ${sessionStartTime})`
+        : `Current time (${currentMinutes} min = ${istTimeString}) is after session end (${endMinutes} min = ${sessionEndTime})`,
       currentMinutes,
       startMinutes,
       endMinutes,
-      differenceFromStart: currentMinutes - startMinutes,
-      differenceFromEnd: currentMinutes - endMinutes,
+      difference: currentMinutes < startMinutes 
+        ? `${startMinutes - currentMinutes} minutes before start`
+        : `${currentMinutes - endMinutes} minutes after end`,
     });
-  } else {
-    console.log('✅ [Backend] Time validation passed - session can be started');
   }
   
   return isWithin;
@@ -345,19 +331,15 @@ exports.updateSession = asyncHandler(async (req, res) => {
   // Validate time before starting session
   if (status === SESSION_STATUS.LIVE) {
     // Check if current time is within session time
-    const sessionStart = String(sessionStartTime || session.sessionStartTime || '').trim();
-    const sessionEnd = String(sessionEndTime || session.sessionEndTime || '').trim();
+    const sessionStart = sessionStartTime || session.sessionStartTime;
+    const sessionEnd = sessionEndTime || session.sessionEndTime;
     
-    console.log('🔍 [Backend] Validating session start time:', {
-      status,
-      sessionStart,
-      sessionEnd,
-      sessionDate: session.date,
-      sessionStartTimeFromBody: sessionStartTime,
-      sessionEndTimeFromBody: sessionEndTime,
-      sessionStartTimeFromDB: session.sessionStartTime,
-      sessionEndTimeFromDB: session.sessionEndTime,
-    });
+    // Get date info for better error messages
+    const todayComponents = getISTDateComponents();
+    const sessionComponents = parseDateInISTComponents(session.date);
+    const isToday = todayComponents.year === sessionComponents.year && 
+                    todayComponents.month === sessionComponents.month && 
+                    todayComponents.day === sessionComponents.day;
     
     if (!isWithinSessionTime(sessionStart, sessionEnd, session.date)) {
       // Use IST time for doctor session operations - format directly from IST
@@ -366,23 +348,23 @@ exports.updateSession = asyncHandler(async (req, res) => {
       const startMinutes = timeStringToMinutes(sessionStart);
       const endMinutes = timeStringToMinutes(sessionEnd);
       
-      // Format times for display (ensure they're in 12-hour format for error message)
-      const displayStartTime = startMinutes !== null ? formatMinutesTo12Hour(startMinutes) : sessionStart;
-      const displayEndTime = endMinutes !== null ? formatMinutesTo12Hour(endMinutes) : sessionEnd;
-      
-      const errorMessage = `Session can only be started during scheduled time (${displayStartTime} - ${displayEndTime}). Current time: ${currentTime}`;
-      
-      console.log('❌ [Backend] Session start validation failed:', {
-        errorMessage,
-        currentTime,
-        currentMinutes,
-        displayStartTime,
-        displayEndTime,
-        startMinutes,
-        endMinutes,
-        sessionStart,
-        sessionEnd,
-      });
+      // Provide more specific error message
+      let errorMessage;
+      if (!isToday) {
+        const todayStr = `${todayComponents.year}-${String(todayComponents.month + 1).padStart(2, '0')}-${String(todayComponents.day).padStart(2, '0')}`;
+        const sessionStr = `${sessionComponents.year}-${String(sessionComponents.month + 1).padStart(2, '0')}-${String(sessionComponents.day).padStart(2, '0')}`;
+        errorMessage = `Session can only be started on the scheduled date. Today: ${todayStr}, Session date: ${sessionStr}`;
+      } else if (currentMinutes !== null && startMinutes !== null && endMinutes !== null) {
+        if (currentMinutes < startMinutes) {
+          errorMessage = `Session can only be started at or after ${sessionStart}. Current time: ${currentTime}`;
+        } else if (currentMinutes > endMinutes) {
+          errorMessage = `Session can only be started before ${sessionEnd}. Current time: ${currentTime}`;
+        } else {
+          errorMessage = `Session can only be started during scheduled time (${sessionStart} - ${sessionEnd}). Current time: ${currentTime}`;
+        }
+      } else {
+        errorMessage = `Session can only be started during scheduled time (${sessionStart} - ${sessionEnd}). Current time: ${currentTime}`;
+      }
       
       return res.status(400).json({
         success: false,
@@ -390,23 +372,17 @@ exports.updateSession = asyncHandler(async (req, res) => {
         data: {
           sessionStartTime: sessionStart,
           sessionEndTime: sessionEnd,
-          sessionStartTimeDisplay: displayStartTime,
-          sessionEndTimeDisplay: displayEndTime,
           currentTime: currentTime,
           currentMinutes: currentMinutes,
           startMinutes: startMinutes,
           endMinutes: endMinutes,
+          isToday: isToday,
+          todayDate: `${todayComponents.year}-${String(todayComponents.month + 1).padStart(2, '0')}-${String(todayComponents.day).padStart(2, '0')}`,
+          sessionDate: `${sessionComponents.year}-${String(sessionComponents.month + 1).padStart(2, '0')}-${String(sessionComponents.day).padStart(2, '0')}`,
           isWithinTime: false,
           comparison: currentMinutes !== null && startMinutes !== null && endMinutes !== null 
             ? `${currentMinutes} >= ${startMinutes} && ${currentMinutes} <= ${endMinutes} = ${currentMinutes >= startMinutes && currentMinutes <= endMinutes}`
             : 'Could not parse times for comparison',
-          debug: {
-            rawSessionStart: sessionStart,
-            rawSessionEnd: sessionEnd,
-            parsedStartMinutes: startMinutes,
-            parsedEndMinutes: endMinutes,
-            currentISTMinutes: currentMinutes,
-          },
         },
       });
     }
