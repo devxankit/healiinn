@@ -4,7 +4,7 @@ import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import { getDoctorProfile, updateDoctorProfile, getSupportHistory, uploadProfileImage, uploadSignature } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
-import Cropper from 'react-easy-crop'
+
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -48,103 +48,54 @@ const normalizeImageUrl = (url) => {
   return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
 }
 
-// Utility function to create cropped image blob
-const createImage = (url) =>
-  new Promise((resolve, reject) => {
-    const image = new Image()
-    image.addEventListener('load', () => resolve(image))
-    image.addEventListener('error', (error) => reject(error))
-    image.src = url
-  })
 
-const getCroppedImg = async (imageSrc, pixelCrop) => {
-  const image = await createImage(imageSrc)
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
-
-  if (!ctx) {
-    throw new Error('No 2d context')
-  }
-
-  const maxSize = Math.max(image.width, image.height)
-  const safeArea = 2 * ((maxSize / 2) * Math.sqrt(2))
-
-  canvas.width = safeArea
-  canvas.height = safeArea
-
-  ctx.translate(safeArea / 2, safeArea / 2)
-  ctx.translate(-safeArea / 2, -safeArea / 2)
-
-  ctx.drawImage(
-    image,
-    safeArea / 2 - image.width * 0.5,
-    safeArea / 2 - image.height * 0.5
-  )
-
-  const data = ctx.getImageData(0, 0, safeArea, safeArea)
-
-  canvas.width = pixelCrop.width
-  canvas.height = pixelCrop.height
-
-  ctx.putImageData(
-    data,
-    Math.round(0 - safeArea / 2 + image.width * 0.5 - pixelCrop.x),
-    Math.round(0 - safeArea / 2 + image.height * 0.5 - pixelCrop.y)
-  )
-
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      resolve(blob)
-    }, 'image/jpeg', 0.95)
-  })
-}
 
 // Utility function to convert 24-hour time to 12-hour format with AM/PM
 const formatTimeTo12Hour = (time24) => {
   if (!time24) return '';
-  
+
   // If already in 12-hour format (contains AM/PM), return as is
   if (time24.toString().includes('AM') || time24.toString().includes('PM')) {
     return time24;
   }
-  
+
   // Handle time format like "17:00" or "17:00:00"
   const timeStr = time24.toString().trim();
   const [hours, minutes] = timeStr.split(':').map(Number);
-  
+
   if (isNaN(hours) || isNaN(minutes)) return time24;
-  
+
   const period = hours >= 12 ? 'PM' : 'AM';
   const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
   const minutesStr = minutes.toString().padStart(2, '0');
-  
+
   return `${hours12}:${minutesStr} ${period}`;
 };
 
 // Utility function to convert 12-hour format to 24-hour format for time inputs
 const convert12HourTo24Hour = (time12) => {
   if (!time12) return '';
-  
+
   // If already in 24-hour format (no AM/PM), return as is
   if (!time12.toString().includes('AM') && !time12.toString().includes('PM')) {
     return time12;
   }
-  
+
   const timeStr = time12.toString().trim();
   const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  
+
   if (!match) return time12;
-  
+
   let hours = parseInt(match[1], 10);
   const minutes = match[2];
   const period = match[3].toUpperCase();
-  
+
   if (period === 'PM' && hours !== 12) {
     hours += 12;
   } else if (period === 'AM' && hours === 12) {
     hours = 0;
   }
-  
+
   return `${hours.toString().padStart(2, '0')}:${minutes}`;
 };
 
@@ -152,7 +103,7 @@ const DoctorProfile = () => {
   const location = useLocation()
   const toast = useToast()
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
-  
+
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -160,14 +111,9 @@ const DoctorProfile = () => {
   const languageInputRef = useRef(null)
   // Store stable averageConsultationMinutes value to prevent it from changing unexpectedly
   const [stableAverageConsultationMinutes, setStableAverageConsultationMinutes] = useState(20)
-  
-  // Image crop states
-  const [showCropModal, setShowCropModal] = useState(false)
-  const [imageToCrop, setImageToCrop] = useState(null)
-  const [crop, setCrop] = useState({ x: 0, y: 0 })
-  const [zoom, setZoom] = useState(1)
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
-  
+
+
+
   // Initialize with empty/default data
   const [formData, setFormData] = useState({
     firstName: '',
@@ -220,7 +166,7 @@ const DoctorProfile = () => {
 
       try {
         setIsLoading(true)
-        
+
         // Try to load from cache first for faster initial render
         const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
         const cachedProfile = JSON.parse(storage.getItem('doctorProfile') || '{}')
@@ -241,7 +187,7 @@ const DoctorProfile = () => {
             consultationFee: cachedProfile.consultationFee || 0,
             education: Array.isArray(cachedProfile.education) ? cachedProfile.education : [],
             languages: Array.isArray(cachedProfile.languages) ? cachedProfile.languages : [],
-            consultationModes: Array.isArray(cachedProfile.consultationModes) 
+            consultationModes: Array.isArray(cachedProfile.consultationModes)
               ? cachedProfile.consultationModes.map(mode => mode === 'video' ? 'call' : mode)
               : [],
             clinicDetails: cachedProfile.clinicDetails || {
@@ -279,7 +225,7 @@ const DoctorProfile = () => {
         const response = await getDoctorProfile()
         if (response.success && response.data) {
           const doctor = response.data.doctor || response.data
-          
+
           // Transform backend data to frontend format
           const transformedData = {
             firstName: doctor.firstName || '',
@@ -296,7 +242,7 @@ const DoctorProfile = () => {
             consultationFee: doctor.consultationFee || 0,
             education: Array.isArray(doctor.education) ? doctor.education : [],
             languages: Array.isArray(doctor.languages) ? doctor.languages : [],
-            consultationModes: Array.isArray(doctor.consultationModes) 
+            consultationModes: Array.isArray(doctor.consultationModes)
               ? doctor.consultationModes.map(mode => mode === 'video' ? 'call' : mode)
               : [],
             clinicDetails: doctor.clinicDetails || {
@@ -311,13 +257,13 @@ const DoctorProfile = () => {
               },
             },
             availableTimings: Array.isArray(doctor.availableTimings) ? doctor.availableTimings : [],
-            availability: Array.isArray(doctor.availability) 
+            availability: Array.isArray(doctor.availability)
               ? doctor.availability.map(avail => ({
-                  ...avail,
-                  // Convert 12-hour format from database to 24-hour format for time inputs
-                  startTime: convert12HourTo24Hour(avail.startTime),
-                  endTime: convert12HourTo24Hour(avail.endTime),
-                }))
+                ...avail,
+                // Convert 12-hour format from database to 24-hour format for time inputs
+                startTime: convert12HourTo24Hour(avail.startTime),
+                endTime: convert12HourTo24Hour(avail.endTime),
+              }))
               : [],
             averageConsultationMinutes: doctor.averageConsultationMinutes || 20,
             documents: doctor.documents || {},
@@ -332,11 +278,11 @@ const DoctorProfile = () => {
             rating: doctor.rating || 0,
             isActive: doctor.isActive !== undefined ? doctor.isActive : true,
           }
-          
+
           setFormData(transformedData)
           // Store stable value from backend
           setStableAverageConsultationMinutes(doctor.averageConsultationMinutes || 20)
-          
+
           // Update cache
           const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
           storage.setItem('doctorProfile', JSON.stringify(doctor))
@@ -454,7 +400,7 @@ const DoctorProfile = () => {
       toast.warning('Please select an image file')
       return
     }
-    
+
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.warning('Image size should be less than 5MB')
@@ -464,7 +410,7 @@ const DoctorProfile = () => {
     try {
       toast.info('Uploading image...')
       const response = await uploadProfileImage(file)
-      
+
       if (response.success && response.data?.url) {
         const imageUrl = normalizeImageUrl(response.data.url)
         setFormData((prev) => ({
@@ -488,70 +434,18 @@ const DoctorProfile = () => {
       toast.warning('Please select an image file')
       return
     }
-    
+
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.warning('Image size should be less than 5MB')
       return
     }
 
-    // Read file and show crop modal
-    const reader = new FileReader()
-    reader.onload = () => {
-      setImageToCrop(reader.result)
-      setShowCropModal(true)
-      setCrop({ x: 0, y: 0 })
-      setZoom(1)
-    }
-    reader.onerror = () => {
-      toast.error('Failed to read image file')
-    }
-    reader.readAsDataURL(file)
-    
-    // Reset file input
-    event.target.value = ''
-  }
-
-  const onCropComplete = (croppedArea, croppedAreaPixels) => {
-    setCroppedAreaPixels(croppedAreaPixels)
-  }
-
-  const handleCropCancel = () => {
-    setShowCropModal(false)
-    setImageToCrop(null)
-    setCrop({ x: 0, y: 0 })
-    setZoom(1)
-    setCroppedAreaPixels(null)
-  }
-
-  const handleCropDone = async () => {
-    if (!imageToCrop || !croppedAreaPixels) {
-      toast.warning('Please adjust the crop area')
-      return
-    }
-
     try {
-      toast.info('Processing image...')
-      
-      // Create cropped image blob
-      const croppedImageBlob = await getCroppedImg(imageToCrop, croppedAreaPixels)
-      
-      // Create a File object from the blob
-      const croppedFile = new File([croppedImageBlob], 'signature.jpg', {
-        type: 'image/jpeg',
-      })
-
-      // Close crop modal
-      setShowCropModal(false)
-      setImageToCrop(null)
-      setCrop({ x: 0, y: 0 })
-      setZoom(1)
-      setCroppedAreaPixels(null)
-
-      // Upload the cropped image
+      // Upload the image directly
       toast.info('Uploading signature...')
-      const response = await uploadSignature(croppedFile)
-      
+      const response = await uploadSignature(file)
+
       if (response.success && response.data?.url) {
         const imageUrl = normalizeImageUrl(response.data.url)
         setFormData((prev) => ({
@@ -564,11 +458,12 @@ const DoctorProfile = () => {
         toast.success('Signature uploaded successfully!')
       }
     } catch (error) {
-      console.error('Error cropping/uploading signature:', error)
-      toast.error(error.message || 'Failed to process signature')
-      setShowCropModal(false)
-      setImageToCrop(null)
+      console.error('Error uploading signature:', error)
+      toast.error(error.message || 'Failed to upload signature')
     }
+
+    // Reset file input
+    event.target.value = ''
   }
 
   const handleRemoveSignature = () => {
@@ -584,15 +479,15 @@ const DoctorProfile = () => {
   // Helper function to convert 24-hour format to 12-hour format for storage
   const convertTo12HourForStorage = (time24) => {
     if (!time24) return ''
-    
+
     // Handle both "HH:MM" and "HH:MM:SS" formats
     const [hours, minutes] = time24.split(':').map(Number)
     if (isNaN(hours) || isNaN(minutes)) return time24
-    
+
     const period = hours >= 12 ? 'PM' : 'AM'
     const hours12 = hours % 12 || 12 // Convert 0 to 12 for 12 AM
     const minutesStr = minutes.toString().padStart(2, '0')
-    
+
     return `${hours12}:${minutesStr} ${period}`
   }
 
@@ -605,14 +500,14 @@ const DoctorProfile = () => {
 
     try {
       setIsSaving(true)
-      
+
       // Convert availability times from 24-hour to 12-hour format before saving
       const availability12Hour = formData.availability.map(avail => ({
         ...avail,
         startTime: convertTo12HourForStorage(avail.startTime),
         endTime: convertTo12HourForStorage(avail.endTime),
       }))
-      
+
       // Prepare data for backend (match backend expected format)
       const updateData = {
         firstName: formData.firstName,
@@ -629,7 +524,7 @@ const DoctorProfile = () => {
         consultationFee: formData.consultationFee,
         education: formData.education,
         languages: formData.languages,
-        consultationModes: Array.isArray(formData.consultationModes) 
+        consultationModes: Array.isArray(formData.consultationModes)
           ? formData.consultationModes.map(mode => mode === 'video' ? 'call' : mode)
           : formData.consultationModes,
         clinicDetails: formData.clinicDetails,
@@ -642,21 +537,21 @@ const DoctorProfile = () => {
       }
 
       const response = await updateDoctorProfile(updateData)
-      
+
       if (response.success) {
         // Update cache
         const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
         const savedDoctor = response.data?.doctor || response.data
         storage.setItem('doctorProfile', JSON.stringify(savedDoctor))
         storage.setItem('doctorProfileActive', JSON.stringify(formData.isActive))
-        
+
         // Update stable value with saved value
         if (savedDoctor?.averageConsultationMinutes !== undefined) {
           setStableAverageConsultationMinutes(savedDoctor.averageConsultationMinutes)
         } else if (formData.averageConsultationMinutes !== undefined) {
           setStableAverageConsultationMinutes(formData.averageConsultationMinutes)
         }
-        
+
         toast.success('Profile updated successfully!')
         setIsEditing(false)
         setActiveSection(null)
@@ -675,17 +570,17 @@ const DoctorProfile = () => {
     const newActiveStatus = !formData.isActive
     const updatedFormData = { ...formData, isActive: newActiveStatus }
     setFormData(updatedFormData)
-    
+
     try {
       // Update backend immediately
       const response = await updateDoctorProfile({ isActive: newActiveStatus })
-      
+
       if (response.success) {
         // Update cache
         const storage = localStorage.getItem('doctorAuthToken') ? localStorage : sessionStorage
         storage.setItem('doctorProfile', JSON.stringify(response.data?.doctor || response.data || updatedFormData))
         storage.setItem('doctorProfileActive', JSON.stringify(newActiveStatus))
-        
+
         if (newActiveStatus) {
           toast.success('Your profile is now active and visible to patients.')
         } else {
@@ -799,11 +694,10 @@ const DoctorProfile = () => {
                 <button
                   type="button"
                   onClick={handleToggleActive}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${
-                    formData.isActive
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${formData.isActive
                       ? 'bg-emerald-500/95 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
                       : 'bg-slate-500/95 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
-                  }`}
+                    }`}
                 >
                   {formData.isActive ? (
                     <>
@@ -856,14 +750,14 @@ const DoctorProfile = () => {
                 {/* Name */}
                 <div className="text-center">
                   <h1 className="text-xl font-bold text-white mb-1.5">
-                    {formData.firstName || formData.lastName 
+                    {formData.firstName || formData.lastName
                       ? `${formData.firstName || ''} ${formData.lastName || ''}`.trim()
                       : 'Doctor'}
                   </h1>
                   <p className="text-sm text-white/90 mb-3">
                     {formData.email}
                   </p>
-                  
+
                   {/* Specialization & Rating */}
                   <div className="flex flex-col items-center gap-2 mb-3">
                     {formData.specialization && (
@@ -978,11 +872,10 @@ const DoctorProfile = () => {
                 <button
                   type="button"
                   onClick={handleToggleActive}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${
-                    formData.isActive
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${formData.isActive
                       ? 'bg-emerald-500/95 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
                       : 'bg-slate-500/95 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
-                  }`}
+                    }`}
                 >
                   {formData.isActive ? (
                     <>
@@ -1034,7 +927,7 @@ const DoctorProfile = () => {
 
                 {/* Name - Centered */}
                 <h1 className="text-xl sm:text-2xl font-bold text-white text-center">
-                  {formData.firstName || formData.lastName 
+                  {formData.firstName || formData.lastName
                     ? `${formData.firstName || ''} ${formData.lastName || ''}`.trim()
                     : 'Doctor'}
                 </h1>
@@ -1835,16 +1728,16 @@ const DoctorProfile = () => {
                             value={formData.averageConsultationMinutes ?? ''}
                             onChange={(e) => {
                               const inputValue = e.target.value
-                              
+
                               // Allow empty input while typing
                               if (inputValue === '') {
                                 handleInputChange('averageConsultationMinutes', '')
                                 return
                               }
-                              
+
                               // Parse the number
                               const numValue = parseInt(inputValue, 10)
-                              
+
                               // If it's a valid number and within range
                               if (!isNaN(numValue) && numValue >= 0 && numValue <= 60) {
                                 handleInputChange('averageConsultationMinutes', numValue)
@@ -1907,13 +1800,12 @@ const DoctorProfile = () => {
                       <IoShieldCheckmarkOutline className="h-4 w-4 text-[#11496c] shrink-0" />
                       <span className="text-xs font-semibold text-slate-900">Verification Status</span>
                     </div>
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                      formData.status === 'approved' 
-                        ? 'bg-emerald-100 text-emerald-700' 
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${formData.status === 'approved'
+                        ? 'bg-emerald-100 text-emerald-700'
                         : formData.status === 'pending'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}>
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}>
                       {formData.status ? formData.status.charAt(0).toUpperCase() + formData.status.slice(1) : 'Not Verified'}
                     </span>
                   </div>
@@ -1959,27 +1851,27 @@ const DoctorProfile = () => {
                           )}
                         </div>
                       </div>
-                      
+
                       {/* Edit Options */}
                       {isEditing && (
                         <div className="space-y-2">
                           <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Update Signature
                           </p>
-                            <label 
-                              htmlFor="gallery-input-signature-update"
+                          <label
+                            htmlFor="gallery-input-signature-update"
                             className="w-full flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-slate-50 hover:text-[#11496c] cursor-pointer shadow-sm"
-                            >
-                              <IoImageOutline className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-                              Upload from Gallery
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleSignatureUpload}
-                                className="hidden"
-                                id="gallery-input-signature-update"
-                              />
-                            </label>
+                          >
+                            <IoImageOutline className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                            Upload from Gallery
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleSignatureUpload}
+                              className="hidden"
+                              id="gallery-input-signature-update"
+                            />
+                          </label>
                           <button
                             type="button"
                             onClick={handleRemoveSignature}
@@ -2003,27 +1895,27 @@ const DoctorProfile = () => {
                           Upload your digital signature image
                         </p>
                       </div>
-                      
+
                       {/* Upload Options */}
                       {isEditing && (
                         <div className="space-y-2">
                           <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Choose Upload Method
                           </p>
-                            <label 
-                              htmlFor="gallery-input-signature-empty"
+                          <label
+                            htmlFor="gallery-input-signature-empty"
                             className="w-full flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-center transition hover:border-[#11496c] hover:bg-slate-50 cursor-pointer shadow-sm"
-                            >
-                              <IoImageOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600 shrink-0" />
-                              <span className="text-xs sm:text-sm font-semibold text-slate-700">Upload from Gallery</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleSignatureUpload}
-                                className="hidden"
-                                id="gallery-input-signature-empty"
-                              />
-                            </label>
+                          >
+                            <IoImageOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600 shrink-0" />
+                            <span className="text-xs sm:text-sm font-semibold text-slate-700">Upload from Gallery</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleSignatureUpload}
+                              className="hidden"
+                              id="gallery-input-signature-empty"
+                            />
+                          </label>
                         </div>
                       )}
                     </div>
@@ -2065,83 +1957,7 @@ const DoctorProfile = () => {
         </div>
       </section>
 
-      {/* Image Crop Modal */}
-      {showCropModal && imageToCrop && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="relative w-full max-w-2xl mx-4 bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 bg-slate-50">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900">Crop Signature Image</h3>
-              <button
-                onClick={handleCropCancel}
-                className="p-2 hover:bg-slate-200 rounded-lg transition"
-                aria-label="Close"
-              >
-                <IoCloseOutline className="h-5 w-5 sm:h-6 sm:w-6 text-slate-600" />
-              </button>
-            </div>
 
-            {/* Cropper Container */}
-            <div className="relative w-full" style={{ height: '400px', background: '#000' }}>
-              <Cropper
-                image={imageToCrop}
-                crop={crop}
-                zoom={zoom}
-                aspect={undefined}
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onCropComplete={onCropComplete}
-                style={{
-                  containerStyle: {
-                    width: '100%',
-                    height: '100%',
-                    position: 'relative',
-                  },
-                }}
-              />
-            </div>
-
-            {/* Zoom Control */}
-            <div className="px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-200">
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs sm:text-sm font-medium text-slate-700 min-w-[60px]">Zoom:</span>
-                  <input
-                    type="range"
-                    value={zoom}
-                    min={1}
-                    max={3}
-                    step={0.1}
-                    onChange={(e) => setZoom(parseFloat(e.target.value))}
-                    className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#11496c]"
-                  />
-                  <span className="text-xs sm:text-sm text-slate-600 min-w-[40px] text-right">
-                    {zoom.toFixed(1)}x
-                  </span>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                  <button
-                    onClick={handleCropCancel}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 rounded-lg border border-slate-300 bg-white text-slate-700 font-semibold text-sm sm:text-base hover:bg-slate-50 transition active:scale-95"
-                  >
-                    <IoCloseOutline className="h-4 w-4 sm:h-5 sm:w-5" />
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCropDone}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 rounded-lg bg-[#11496c] text-white font-semibold text-sm sm:text-base hover:bg-[#0d3a52] transition active:scale-95 shadow-md"
-                  >
-                    <IoCheckmarkCircleOutline className="h-4 w-4 sm:h-5 sm:w-5" />
-                    Done
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }
@@ -2151,13 +1967,13 @@ const SupportHistory = ({ role }) => {
   const [supportRequests, setSupportRequests] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const toast = useToast()
-  
+
   useEffect(() => {
     const fetchSupportHistory = async () => {
       try {
         setIsLoading(true)
         const response = await getSupportHistory()
-        
+
         // Handle different response structures
         let tickets = []
         if (Array.isArray(response)) {
@@ -2178,7 +1994,7 @@ const SupportHistory = ({ role }) => {
         } else if (response && response.data && Array.isArray(response.data)) {
           tickets = response.data
         }
-        
+
         // Transform tickets to match component structure
         const transformedTickets = tickets.map(ticket => ({
           id: ticket._id || ticket.id,
@@ -2192,7 +2008,7 @@ const SupportHistory = ({ role }) => {
           adminNote: ticket.adminNote || ticket.response || ticket.adminResponse || '',
           priority: ticket.priority || 'medium',
         }))
-        
+
         setSupportRequests(Array.isArray(transformedTickets) ? transformedTickets : [])
       } catch (error) {
         console.error('Error fetching support history:', error)
