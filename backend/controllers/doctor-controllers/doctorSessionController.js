@@ -4,7 +4,7 @@ const Doctor = require('../../models/Doctor');
 const Appointment = require('../../models/Appointment');
 const { SESSION_STATUS } = require('../../utils/constants');
 const { getOrCreateSession } = require('../../services/sessionService');
-const { getISTTime, getISTDate, getISTTimeInMinutes } = require('../../utils/timezoneUtils');
+const { getISTTime, getISTDate, getISTDateComponents, getISTTimeInMinutes, getISTTimeString, parseDateInIST, parseDateInISTComponents } = require('../../utils/timezoneUtils');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -26,7 +26,8 @@ exports.createSession = asyncHandler(async (req, res) => {
     });
   }
 
-  const sessionDate = new Date(date);
+  // Parse date in IST timezone to ensure consistent date handling regardless of server timezone
+  const sessionDate = parseDateInIST(date);
   sessionDate.setHours(0, 0, 0, 0);
   const sessionEndDate = new Date(sessionDate);
   sessionEndDate.setHours(23, 59, 59, 999);
@@ -85,10 +86,14 @@ exports.getSessions = asyncHandler(async (req, res) => {
   const filter = { doctorId: id };
   if (status) filter.status = status;
   if (date) {
-    const dateObj = new Date(date);
+    // Parse date in IST timezone to ensure consistent date handling regardless of server timezone
+    const dateObj = parseDateInIST(date);
+    dateObj.setHours(0, 0, 0, 0);
+    const dateObjEnd = new Date(dateObj);
+    dateObjEnd.setHours(23, 59, 59, 999);
     filter.date = {
-      $gte: new Date(dateObj.setHours(0, 0, 0, 0)),
-      $lt: new Date(dateObj.setHours(23, 59, 59, 999)),
+      $gte: dateObj,
+      $lt: dateObjEnd,
     };
   }
 
@@ -119,24 +124,38 @@ exports.getSessions = asyncHandler(async (req, res) => {
 const timeStringToMinutes = (timeStr) => {
   if (!timeStr) return null;
   
-  // Handle 12-hour format (e.g., "2:30 PM")
-  if (timeStr.includes('AM') || timeStr.includes('PM')) {
-    const [timePart, period] = timeStr.split(/\s*(AM|PM)/i);
-    const [hours, minutes] = timePart.split(':').map(Number);
-    let totalMinutes = hours * 60 + (minutes || 0);
+  // Trim whitespace
+  timeStr = String(timeStr).trim();
+  
+  // Handle 12-hour format (e.g., "2:30 PM", "12:00 AM", "5:00 PM")
+  const amPmMatch = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (amPmMatch) {
+    let hours = parseInt(amPmMatch[1], 10);
+    const minutes = parseInt(amPmMatch[2], 10);
+    const period = amPmMatch[3].toUpperCase();
     
-    if (period.toUpperCase() === 'PM' && hours !== 12) {
-      totalMinutes += 12 * 60; // Add 12 hours for PM
-    } else if (period.toUpperCase() === 'AM' && hours === 12) {
-      totalMinutes -= 12 * 60; // Subtract 12 hours for 12 AM
+    // Convert to 24-hour format
+    if (period === 'AM' && hours === 12) {
+      hours = 0; // 12:00 AM = 0:00 (midnight)
+    } else if (period === 'PM' && hours !== 12) {
+      hours += 12; // 1:00 PM = 13:00, etc.
     }
+    // 12:00 PM stays as 12 (noon)
     
-    return totalMinutes;
+    return hours * 60 + minutes;
   }
   
-  // Handle 24-hour format (e.g., "14:30")
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + (minutes || 0);
+  // Handle 24-hour format (e.g., "14:30", "00:00")
+  const time24Match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (time24Match) {
+    const hours = parseInt(time24Match[1], 10);
+    const minutes = parseInt(time24Match[2], 10);
+    return hours * 60 + minutes;
+  }
+  
+  // If no match, log error and return null
+  console.log('⚠️ [Backend] Failed to parse time string:', timeStr);
+  return null;
 };
 
 // Helper function to check if current time is within session time
@@ -148,42 +167,26 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
   
   // Use IST time for doctor session operations
   const now = getISTTime();
-  const today = getISTDate();
   
-  // Parse session date - handle various formats
-  let sessionDay;
+  // Get IST date components for comparison (avoid timezone issues with Date objects)
+  let todayComponents;
+  let sessionComponents;
   try {
-    if (sessionDate instanceof Date) {
-      sessionDay = new Date(sessionDate);
-    } else if (typeof sessionDate === 'string') {
-      // Handle YYYY-MM-DD format
-      if (sessionDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        const [year, month, day] = sessionDate.split('-').map(Number);
-        sessionDay = new Date(year, month - 1, day);
-      } else {
-        sessionDay = new Date(sessionDate);
-      }
-    } else {
-      console.log('⚠️ [Backend] Invalid session date format:', sessionDate, typeof sessionDate);
-      return false;
-    }
-    
-    if (isNaN(sessionDay.getTime())) {
-      console.log('⚠️ [Backend] Invalid session date - NaN:', sessionDate);
-      return false;
-    }
-    
-    sessionDay.setHours(0, 0, 0, 0);
+    todayComponents = getISTDateComponents();
+    sessionComponents = parseDateInISTComponents(sessionDate);
   } catch (error) {
     console.log('⚠️ [Backend] Error parsing session date:', error, sessionDate);
     return false;
   }
   
-  // Check if it's the same day
-  if (today.getTime() !== sessionDay.getTime()) {
+  // Check if it's the same day by comparing date components directly
+  // This avoids timezone issues with Date object comparisons
+  if (todayComponents.year !== sessionComponents.year || 
+      todayComponents.month !== sessionComponents.month || 
+      todayComponents.day !== sessionComponents.day) {
     console.log('⚠️ [Backend] Session date mismatch:', {
-      today: today.toISOString().split('T')[0],
-      sessionDay: sessionDay.toISOString().split('T')[0],
+      today: `${todayComponents.year}-${String(todayComponents.month + 1).padStart(2, '0')}-${String(todayComponents.day).padStart(2, '0')}`,
+      sessionDay: `${sessionComponents.year}-${String(sessionComponents.month + 1).padStart(2, '0')}-${String(sessionComponents.day).padStart(2, '0')}`,
     });
     return false;
   }
@@ -205,15 +208,27 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
   
   const isWithin = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
   
+  // Get IST time string for logging
+  const istTimeString = getISTTimeString();
+  
   console.log('🕐 [Backend] Session time check:', {
-    currentTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    currentTime: istTimeString,
     currentMinutes,
     sessionStartTime,
     sessionEndTime,
     startMinutes,
     endMinutes,
     isWithin,
+    comparison: `${currentMinutes} >= ${startMinutes} && ${currentMinutes} <= ${endMinutes}`,
   });
+  
+  if (!isWithin) {
+    console.log('❌ [Backend] Time validation failed:', {
+      reason: currentMinutes < startMinutes 
+        ? `Current time (${currentMinutes} min = ${istTimeString}) is before session start (${startMinutes} min = ${sessionStartTime})`
+        : `Current time (${currentMinutes} min = ${istTimeString}) is after session end (${endMinutes} min = ${sessionEndTime})`,
+    });
+  }
   
   return isWithin;
 };
@@ -263,9 +278,8 @@ exports.updateSession = asyncHandler(async (req, res) => {
     const sessionEnd = sessionEndTime || session.sessionEndTime;
     
     if (!isWithinSessionTime(sessionStart, sessionEnd, session.date)) {
-      // Use IST time for doctor session operations
-      const now = getISTTime();
-      const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+      // Use IST time for doctor session operations - format directly from IST
+      const currentTime = getISTTimeString();
       
       return res.status(400).json({
         success: false,

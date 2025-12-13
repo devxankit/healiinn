@@ -7,8 +7,8 @@ import {
   IoCallOutline,
   IoPersonAddOutline,
 } from 'react-icons/io5'
-import { FaUserMd, FaPills, FaFlask } from 'react-icons/fa'
-import healinnLogo from '../../../assets/images/logo.png'
+import { FaUserMd, FaPills, FaFlask, FaHeartbeat } from 'react-icons/fa'
+import healinnLogo from '../../../assets/images/logo2.png'
 
 const WebNavbar = () => {
   const [scrollY, setScrollY] = useState(0)
@@ -60,6 +60,7 @@ const WebNavbar = () => {
     { label: 'For Doctors', to: '#doctors', icon: FaUserMd },
     { label: 'For Labs', to: '#labs', icon: FaFlask },
     { label: 'For Pharmacy', to: '#pharmacy', icon: FaPills },
+    { label: 'For Nurses', to: '#nurses', icon: FaHeartbeat },
     { label: 'Contact', to: '#contact', icon: IoCallOutline },
   ]
 
@@ -102,7 +103,7 @@ const WebNavbar = () => {
             <img
               src={healinnLogo}
               alt="Healiinn"
-              className="h-8 md:h-10 w-auto object-contain"
+              className="h-13 md:h-13 w-auto object-contain"
               loading="eager"
             />
           </div>

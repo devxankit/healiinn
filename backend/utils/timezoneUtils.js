@@ -67,6 +67,20 @@ const getISTDate = () => {
 };
 
 /**
+ * Get IST date components for comparison (year, month, day)
+ * Returns plain numbers without creating Date objects to avoid timezone issues
+ * @returns {Object} Object with year, month (0-11), day properties
+ */
+const getISTDateComponents = () => {
+  const components = getISTComponents();
+  return {
+    year: components.year,
+    month: components.month,
+    day: components.day,
+  };
+};
+
+/**
  * Get current hour and minute in IST
  * @returns {Object} Object with hour and minute properties
  */
@@ -87,10 +101,158 @@ const getISTTimeInMinutes = () => {
   return components.hour * 60 + components.minute;
 };
 
+/**
+ * Get current time formatted as string in IST (12-hour format with AM/PM)
+ * @returns {string} Current time in IST formatted as "HH:MM AM/PM"
+ */
+const getISTTimeString = () => {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return formatter.format(now);
+};
+
+/**
+ * Parse date and return IST date components for comparison
+ * @param {string|Date} date - Date string (YYYY-MM-DD) or Date object
+ * @returns {Object} Object with year, month (0-11), day properties
+ */
+const parseDateInISTComponents = (date) => {
+  if (!date) {
+    return getISTDateComponents();
+  }
+
+  if (date instanceof Date) {
+    // Convert Date to IST components
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    
+    const parts = formatter.formatToParts(date);
+    const components = {};
+    parts.forEach(part => {
+      components[part.type] = part.value;
+    });
+    
+    return {
+      year: parseInt(components.year),
+      month: parseInt(components.month) - 1,
+      day: parseInt(components.day),
+    };
+  }
+
+  if (typeof date === 'string') {
+    // Handle YYYY-MM-DD format
+    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = date.split('-').map(Number);
+      return {
+        year,
+        month: month - 1,
+        day,
+      };
+    } else {
+      // For other formats, parse normally and convert to IST
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) {
+        throw new Error(`Invalid date format: ${date}`);
+      }
+      return parseDateInISTComponents(parsedDate); // Recursive call with Date object
+    }
+  }
+
+  throw new Error(`Invalid date type: ${typeof date}`);
+};
+
+/**
+ * Parse a date string in IST timezone
+ * Handles YYYY-MM-DD format and creates a Date object representing that date in IST
+ * @param {string|Date} date - Date string (YYYY-MM-DD) or Date object
+ * @returns {Date} Date object representing the date in IST (time set to 00:00:00)
+ */
+const parseDateInIST = (date) => {
+  if (!date) {
+    return getISTDate(); // Return current IST date if no date provided
+  }
+
+  if (date instanceof Date) {
+    // If it's already a Date object, convert it to IST representation
+    // Get the date components in IST timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    
+    const parts = formatter.formatToParts(date);
+    const components = {};
+    parts.forEach(part => {
+      components[part.type] = part.value;
+    });
+    
+    return new Date(
+      parseInt(components.year),
+      parseInt(components.month) - 1,
+      parseInt(components.day),
+      0, 0, 0, 0
+    );
+  }
+
+  if (typeof date === 'string') {
+    // Handle YYYY-MM-DD format - parse directly as IST date
+    if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = date.split('-').map(Number);
+      // Create date representing YYYY-MM-DD at 00:00:00 in IST
+      // We create a UTC date and then interpret it in IST context
+      // To get accurate IST representation, we use a date in IST timezone
+      return new Date(year, month - 1, day, 0, 0, 0, 0);
+    } else {
+      // For other formats, parse normally and convert to IST
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) {
+        throw new Error(`Invalid date format: ${date}`);
+      }
+      // Convert to IST representation
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      
+      const parts = formatter.formatToParts(parsedDate);
+      const components = {};
+      parts.forEach(part => {
+        components[part.type] = part.value;
+      });
+      
+      return new Date(
+        parseInt(components.year),
+        parseInt(components.month) - 1,
+        parseInt(components.day),
+        0, 0, 0, 0
+      );
+    }
+  }
+
+  throw new Error(`Invalid date type: ${typeof date}`);
+};
+
 module.exports = {
   getISTTime,
   getISTDate,
+  getISTDateComponents,
   getISTHourMinute,
   getISTTimeInMinutes,
+  getISTTimeString,
+  parseDateInIST,
+  parseDateInISTComponents,
 };
 

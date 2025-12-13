@@ -18,6 +18,7 @@ import {
   IoChevronDownOutline,
   IoWalletOutline,
   IoNotificationsOutline,
+  IoHomeOutline,
 } from 'react-icons/io5'
 import {
   FaUserMd,
@@ -48,6 +49,7 @@ import heroImage from '../../../assets/images/img1.png'
 import featuresImage from '../../../assets/images/img5.png'
 import doctorImage from '../../../assets/images/img2.png'
 import pharmacyImage from '../../../assets/images/img3.png'
+import nurseImage from '../../../assets/images/img6.png'
 import healinnLogo from '../../../assets/images/logo.png'
 
 const Home = () => {
@@ -808,6 +810,151 @@ const Home = () => {
               className="px-8 py-4 bg-purple-600 text-white rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 mx-auto"
             >
               <span>Join as Pharmacy</span>
+              <IoArrowForwardOutline className="text-xl" />
+            </button>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* For Nurses Section */}
+      <section
+        id="nurses"
+        className="py-20 md:py-32 text-white relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(to bottom right, #11496c, #0d3a54)',
+        }}
+      >
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl" />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16"
+          >
+            <div className="inline-flex items-center justify-center p-3 bg-white/20 rounded-full mb-6">
+              <FaHeartbeat className="text-4xl" />
+            </div>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
+              Join Healiinn as a Nurse
+            </h2>
+            <p className="text-xl text-white/90 max-w-2xl mx-auto">
+              Provide quality home care services and expand your nursing practice. Manage bookings, patients, and earnings all in one platform.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true, margin: '-100px' }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center"
+          >
+            {/* Left Side - Image */}
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: '-100px' }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="flex items-center justify-center lg:justify-start order-2 lg:order-1"
+            >
+              <img
+                src={nurseImage}
+                alt="Nurse Services"
+                className="w-full max-w-md lg:max-w-lg h-auto object-contain"
+              />
+            </motion.div>
+
+            {/* Right Side - Cards */}
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: '-100px' }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="order-1 lg:order-2"
+            >
+              <motion.div
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                viewport={{ once: true, margin: '-50px' }}
+                transition={{ duration: 0.5, delay: 0.5 }}
+                className="grid grid-cols-1 md:grid-cols-2 gap-3"
+              >
+                {[
+                  {
+                    icon: IoHomeOutline,
+                    title: 'Home Care Services',
+                    description: 'Provide quality nursing care at patients\' homes. Flexible scheduling and patient management tools.',
+                  },
+                  {
+                    icon: IoCalendarOutline,
+                    title: 'Flexible Schedule',
+                    description: 'Set your own availability and manage bookings efficiently. Work on your own terms.',
+                  },
+                  {
+                    icon: IoPeopleOutline,
+                    title: 'Patient Management',
+                    description: 'Access complete patient history and care records. Provide better continuity of care.',
+                  },
+                  {
+                    icon: IoShieldCheckmarkOutline,
+                    title: 'Secure Platform',
+                    description: 'HIPAA-compliant platform with encrypted patient data. Focus on providing quality care.',
+                  },
+                  {
+                    icon: IoWalletOutline,
+                    title: 'Easy Payments',
+                    description: 'Get paid securely and on time. Track your earnings and withdraw funds directly to your bank account.',
+                  },
+                  {
+                    icon: FaChartLine,
+                    title: 'Professional Growth',
+                    description: 'Build your reputation with verified reviews and expand your nursing practice online.',
+                  },
+                ].map((benefit) => (
+                  <div
+                    key={benefit.title}
+                    className="group relative bg-white/10 backdrop-blur-sm rounded-lg p-3 shadow-md border border-white/20 overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-xl cursor-pointer"
+                  >
+                    {/* Subtle gradient overlay */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-white/10 to-transparent" />
+                    
+                    {/* Subtle corner accent */}
+                    <div className="absolute top-0 right-0 w-12 h-12 opacity-0 group-hover:opacity-20 transition-opacity duration-300 bg-white/30 rounded-bl-full" />
+
+                    <div className="relative z-10">
+                      <benefit.icon className="text-2xl text-white mb-2 transition-transform duration-300 group-hover:scale-110" />
+                      <h3 className="text-sm font-bold text-white mb-1.5 transition-colors duration-300 group-hover:text-white">{benefit.title}</h3>
+                      <p className="text-xs text-white/80 leading-relaxed transition-transform duration-200 group-hover:translate-x-0.5">{benefit.description}</p>
+                    </div>
+
+                    {/* Subtle bottom accent line */}
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/50" />
+                  </div>
+                ))}
+              </motion.div>
+            </motion.div>
+          </motion.div>
+          
+          <div className="mb-12" />
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-50px' }}
+            transition={{ duration: 0.6, delay: 0.6 }}
+            className="text-center"
+          >
+            <button
+              onClick={() => navigate('/onboarding')}
+              className="px-8 py-4 bg-white text-[#11496c] rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 mx-auto"
+            >
+              <span>Join as Nurse</span>
               <IoArrowForwardOutline className="text-xl" />
             </button>
           </motion.div>

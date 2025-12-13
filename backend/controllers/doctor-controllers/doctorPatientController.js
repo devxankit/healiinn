@@ -4,6 +4,7 @@ const Appointment = require('../../models/Appointment');
 const Patient = require('../../models/Patient');
 const Consultation = require('../../models/Consultation');
 const Prescription = require('../../models/Prescription');
+const { getISTDate, parseDateInIST } = require('../../utils/timezoneUtils');
 
 // Helper functions
 const buildPagination = (req) => {
@@ -18,22 +19,21 @@ exports.getPatientQueue = asyncHandler(async (req, res) => {
   const { id } = req.auth;
   const { date } = req.query;
 
-  // Handle date properly - can be query param or default to today
+  // Handle date properly - parse in IST timezone to ensure consistent date handling regardless of server timezone
   let sessionDate;
-  if (date) {
-    // If date is provided as query param (YYYY-MM-DD format)
-    if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // Parse as UTC to avoid timezone issues
-      const [year, month, day] = date.split('-').map(Number);
-      sessionDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  try {
+    if (date) {
+      sessionDate = parseDateInIST(date);
     } else {
-      sessionDate = new Date(date);
+      sessionDate = getISTDate(); // Use current IST date if no date provided
     }
-  } else {
-    sessionDate = new Date();
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid date format: ${date}`,
+    });
   }
   
-  // Set to start of day in local timezone for query
   sessionDate.setHours(0, 0, 0, 0);
   const sessionEndDate = new Date(sessionDate);
   sessionEndDate.setHours(23, 59, 59, 999);
