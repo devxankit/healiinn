@@ -17,7 +17,7 @@ const doctorSchema = new mongoose.Schema(
     education: [{ institution: String, degree: String, year: Number }],
     qualification: { type: String, trim: true },
     languages: [{ type: String, trim: true }],
-    consultationModes: [{ type: String, enum: ['in_person', 'video', 'audio', 'chat'] }],
+    consultationModes: [{ type: String, enum: ['in_person', 'call', 'audio', 'chat'] }],
     clinicDetails: {
       name: { type: String, trim: true },
       address: {

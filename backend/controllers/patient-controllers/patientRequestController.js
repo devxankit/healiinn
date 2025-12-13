@@ -1,7 +1,9 @@
 const asyncHandler = require('../../middleware/asyncHandler');
+const mongoose = require('mongoose');
 const Request = require('../../models/Request');
 const Prescription = require('../../models/Prescription');
 const Patient = require('../../models/Patient');
+const Order = require('../../models/Order');
 const { createOrder } = require('../../services/paymentService');
 const { getIO } = require('../../config/socket');
 const { notifyAdminsOfPendingSignup } = require('../../services/adminNotificationService');
@@ -138,7 +140,23 @@ exports.getRequests = asyncHandler(async (req, res) => {
 
   const [requests, total] = await Promise.all([
     Request.find(filter)
-      .populate('prescriptionId')
+      .populate({
+        path: 'prescriptionId',
+        populate: [
+          {
+            path: 'doctorId',
+            select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+          },
+          {
+            path: 'patientId',
+            select: 'firstName lastName dateOfBirth gender phone email address',
+          },
+          {
+            path: 'consultationId',
+            select: 'consultationDate diagnosis symptoms investigations advice followUpDate',
+          },
+        ],
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -162,13 +180,29 @@ exports.getRequests = asyncHandler(async (req, res) => {
 // GET /api/patients/requests/:id
 exports.getRequestById = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { requestId } = req.params;
+  const requestId = req.params.id; // Route parameter is :id
 
   const request = await Request.findOne({
     _id: requestId,
     patientId: id,
   })
-    .populate('prescriptionId')
+    .populate({
+      path: 'prescriptionId',
+      populate: [
+        {
+          path: 'doctorId',
+          select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+        },
+        {
+          path: 'patientId',
+          select: 'firstName lastName dateOfBirth gender phone email address',
+        },
+        {
+          path: 'consultationId',
+          select: 'consultationDate diagnosis symptoms investigations advice followUpDate',
+        },
+      ],
+    })
     .populate('orders');
 
   if (!request) {
@@ -187,7 +221,7 @@ exports.getRequestById = asyncHandler(async (req, res) => {
 // POST /api/patients/requests/:id/payment/order - Create payment order for request
 exports.createRequestPaymentOrder = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { requestId } = req.params;
+  const requestId = req.params.id; // Route parameter is :id
 
   const request = await Request.findOne({
     _id: requestId,
@@ -239,6 +273,7 @@ exports.createRequestPaymentOrder = asyncHandler(async (req, res) => {
       currency: order.currency,
       requestId: request._id,
       totalAmount: totalAmount,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID || '', // Return Razorpay key ID for frontend
     },
   });
 });
@@ -246,7 +281,7 @@ exports.createRequestPaymentOrder = asyncHandler(async (req, res) => {
 // POST /api/patients/requests/:id/payment
 exports.confirmPayment = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { requestId } = req.params;
+  const requestId = req.params.id; // Route parameter is :id
   const { paymentId, paymentMethod, orderId, signature } = req.body;
 
   const request = await Request.findOne({
@@ -411,10 +446,28 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
   }
 
   // Group tests by lab and distribute money
-  if (request.adminResponse.tests && request.adminResponse.tests.length > 0) {
+  // Check both 'tests' and 'investigations' for backward compatibility
+  const labTests = request.adminResponse.tests || request.adminResponse.investigations || [];
+  if (labTests.length > 0) {
     const labGroups = {};
-    request.adminResponse.tests.forEach((test) => {
-      const labId = test.labId?.toString() || test.labId;
+    labTests.forEach((test) => {
+      // Handle both test formats: 
+      // 1. {labId, name, price} - from investigations array
+      // 2. {labId, test: {name, price}} - from selectedTestsFromLab
+      // 3. {name, price} - without labId (use first lab from adminResponse.labs)
+      let labId = test.labId?.toString() || test.labId;
+      
+      // If no labId in test, try to get from adminResponse.labs (first lab)
+      if (!labId && request.adminResponse.labs && request.adminResponse.labs.length > 0) {
+        labId = request.adminResponse.labs[0].id?.toString() || request.adminResponse.labs[0]._id?.toString();
+      }
+      
+      if (!labId) {
+        // If still no labId, skip this test
+        console.warn('Test missing labId:', test);
+        return;
+      }
+      
       if (!labGroups[labId]) {
         labGroups[labId] = [];
       }
@@ -423,7 +476,11 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
 
     for (const [labId, tests] of Object.entries(labGroups)) {
       // Calculate lab's total amount
-      const labTotal = tests.reduce((sum, test) => sum + test.price, 0);
+      // Handle both test formats: {price} or investigations format
+      const labTotal = tests.reduce((sum, test) => {
+        const testPrice = test.price || test.test?.price || 0;
+        return sum + Number(testPrice);
+      }, 0);
 
       // Calculate laboratory earning after commission using .env config
       const { calculateProviderEarning } = require('../../utils/commissionConfig');
@@ -509,6 +566,79 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
       razorpayPaymentId: paymentId || null,
     },
   });
+
+  // Create orders for pharmacies and labs (so revenue reports can pick them up)
+  const ordersCreated = []
+  const addOrderIfNeeded = async ({ providerId, providerType, items, totalAmount }) => {
+    if (!providerId || !totalAmount) return null
+    if (!mongoose.Types.ObjectId.isValid(providerId)) return null
+    const providerObjectId = mongoose.Types.ObjectId(providerId)
+    const existing = await Order.findOne({
+      requestId: request._id,
+      providerId: providerObjectId,
+      providerType,
+    })
+    if (existing) return existing
+    const newOrder = await Order.create({
+      patientId: request.patientId,
+      providerId: providerObjectId,
+      providerType,
+      requestId: request._id,
+      items,
+      totalAmount,
+      status: 'ready',
+      paymentStatus: 'paid',
+      paymentMethod: paymentMethod || 'razorpay',
+      paymentId: paymentId || null,
+    })
+    ordersCreated.push(newOrder._id)
+    return newOrder
+  }
+
+  const pharmacyGroups = {}
+  ;(request.adminResponse?.medicines || []).forEach((med) => {
+    const pharmId = med.pharmacyId
+    if (!pharmId) return
+    if (!pharmacyGroups[pharmId]) {
+      pharmacyGroups[pharmId] = []
+    }
+    pharmacyGroups[pharmId].push(med)
+  })
+  for (const [pharmacyId, meds] of Object.entries(pharmacyGroups)) {
+    const items = meds.map(med => ({
+      name: med.name,
+      quantity: med.quantity || 1,
+      price: med.price || 0,
+      total: ((med.price || 0) * (med.quantity || 1)),
+    }))
+    const totalAmount = items.reduce((s, item) => s + (item.total || 0), 0)
+    await addOrderIfNeeded({ providerId: pharmacyId, providerType: 'pharmacy', items, totalAmount })
+  }
+
+  const labGroups = {}
+  labTests.forEach((test) => {
+    const labId = test.labId
+    if (!labId) return
+    if (!labGroups[labId]) {
+      labGroups[labId] = []
+    }
+    labGroups[labId].push(test)
+  })
+  for (const [labId, tests] of Object.entries(labGroups)) {
+    const items = tests.map(test => ({
+      name: test.test?.name || test.name || test.testName || 'Investigation',
+      quantity: test.quantity || 1,
+      price: test.price || test.test?.price || 0,
+      total: (test.price || test.test?.price || 0) * (test.quantity || 1),
+    }))
+    const totalAmount = items.reduce((s, item) => s + (item.total || 0), 0)
+    await addOrderIfNeeded({ providerId: labId, providerType: 'laboratory', items, totalAmount })
+  }
+
+  if (ordersCreated.length > 0) {
+    request.orders = Array.from(new Set([...(request.orders || []), ...ordersCreated]))
+    await request.save()
+  }
 
   // Create admin transaction (payment goes to admin wallet)
   await Transaction.create({
@@ -616,7 +746,7 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
 // DELETE /api/patients/requests/:id
 exports.cancelRequest = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { requestId } = req.params;
+  const requestId = req.params.id; // Route parameter is :id
 
   const request = await Request.findOne({
     _id: requestId,

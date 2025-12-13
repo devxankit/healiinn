@@ -202,6 +202,18 @@ const AdminRevenue = () => {
   const toast = useToast()
   const [selectedPeriod, setSelectedPeriod] = useState('month')
   const [loading, setLoading] = useState(true)
+
+  const formatText = (value) => {
+    if (!value) return '—'
+    if (typeof value === 'string') return value
+    if (Array.isArray(value)) return value.filter(Boolean).join(', ')
+    if (typeof value === 'object') {
+      const addr = [value.line1, value.line2, value.city, value.state, value.postalCode || value.pincode, value.country]
+      const joined = addr.filter(Boolean).join(', ')
+      if (joined) return joined
+    }
+    return String(value)
+  }
   
   // Empty data structure - will be populated from backend
   const [revenueData, setRevenueData] = useState({
@@ -685,10 +697,10 @@ const AdminRevenue = () => {
                       </span>
                     </td>
                     <td className="py-3 px-2 text-sm text-slate-700">
-                      {transaction.provider}
+                      {formatText(transaction.provider)}
                     </td>
                     <td className="py-3 px-2 text-sm text-slate-700">
-                      {transaction.patient}
+                      {formatText(transaction.patient)}
                     </td>
                     <td className="py-3 px-2 text-sm font-semibold text-slate-900 text-right">
                       {formatCurrency(transaction.gbv)}

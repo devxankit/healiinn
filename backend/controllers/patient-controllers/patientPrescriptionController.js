@@ -21,7 +21,14 @@ exports.getPrescriptions = asyncHandler(async (req, res) => {
 
   const [prescriptions, total] = await Promise.all([
     Prescription.find(filter)
-      .populate('doctorId', 'firstName lastName specialization profileImage')
+      .populate({
+        path: 'doctorId',
+        select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+      })
+      .populate({
+        path: 'patientId',
+        select: 'firstName lastName dateOfBirth gender phone email address',
+      })
       .populate('consultationId', 'consultationDate diagnosis symptoms investigations advice followUpDate')
       .sort({ createdAt: -1 })
       .skip(skip)

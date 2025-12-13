@@ -24,8 +24,24 @@ exports.getRequests = asyncHandler(async (req, res) => {
 
   const [requests, total] = await Promise.all([
     Request.find(filter)
-      .populate('patientId', 'firstName lastName phone email')
-      .populate('prescriptionId')
+      .populate('patientId', 'firstName lastName phone email address')
+      .populate({
+        path: 'prescriptionId',
+        populate: [
+          {
+            path: 'doctorId',
+            select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+          },
+          {
+            path: 'patientId',
+            select: 'firstName lastName dateOfBirth gender phone email address',
+          },
+          {
+            path: 'consultationId',
+            select: 'consultationDate diagnosis symptoms investigations advice followUpDate',
+          },
+        ],
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -52,7 +68,23 @@ exports.getRequestById = asyncHandler(async (req, res) => {
 
   const request = await Request.findById(requestId)
     .populate('patientId')
-    .populate('prescriptionId')
+    .populate({
+      path: 'prescriptionId',
+      populate: [
+        {
+          path: 'doctorId',
+          select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+        },
+        {
+          path: 'patientId',
+          select: 'firstName lastName dateOfBirth gender phone email address',
+        },
+        {
+          path: 'consultationId',
+          select: 'consultationDate diagnosis symptoms investigations advice followUpDate',
+        },
+      ],
+    })
     .populate('orders');
 
   if (!request) {
@@ -152,12 +184,30 @@ exports.respondToRequest = asyncHandler(async (req, res) => {
   const Patient = require('../../models/Patient');
   const patient = await Patient.findById(request.patientId);
 
+  // Get populated request for notifications and socket events
+  const populatedRequest = await Request.findById(request._id)
+    .populate('patientId', 'firstName lastName phone')
+    .populate({
+      path: 'prescriptionId',
+      populate: [
+        {
+          path: 'doctorId',
+          select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+        },
+        {
+          path: 'patientId',
+          select: 'firstName lastName dateOfBirth gender phone email address',
+        },
+        {
+          path: 'consultationId',
+          select: 'consultationDate diagnosis symptoms investigations advice followUpDate',
+        },
+      ],
+    });
+
   // Emit real-time event
   try {
     const io = getIO();
-    const populatedRequest = await Request.findById(request._id)
-      .populate('patientId', 'firstName lastName phone')
-      .populate('prescriptionId');
 
     io.to(`patient-${request.patientId}`).emit('request:responded', {
       request: populatedRequest,
@@ -188,9 +238,6 @@ exports.respondToRequest = asyncHandler(async (req, res) => {
     const { createRequestNotification } = require('../../services/notificationService');
     const Pharmacy = require('../../models/Pharmacy');
     const Laboratory = require('../../models/Laboratory');
-    const populatedRequest = await Request.findById(request._id)
-      .populate('patientId', 'firstName lastName phone')
-      .populate('prescriptionId');
 
     // Notify patient
     await createRequestNotification({

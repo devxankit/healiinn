@@ -174,7 +174,7 @@ const seedDoctorData = async () => {
           { institution: 'AIIMS Delhi', degree: 'MD Cardiology', year: 2010 },
         ],
         languages: ['Hindi', 'English'],
-        consultationModes: ['in_person', 'video'],
+        consultationModes: ['in_person', 'call'],
         clinicDetails: {
           name: 'Heart Care Clinic',
           address: {
@@ -224,7 +224,7 @@ const seedDoctorData = async () => {
           { institution: 'AIIMS Delhi', degree: 'MD Dermatology', year: 2015 },
         ],
         languages: ['Hindi', 'English', 'Kannada'],
-        consultationModes: ['in_person', 'video', 'chat'],
+        consultationModes: ['in_person', 'call', 'chat'],
         clinicDetails: {
           name: 'Skin Care Clinic',
           address: {
@@ -273,7 +273,7 @@ const seedDoctorData = async () => {
           { institution: 'AIIMS Delhi', degree: 'MD Pediatrics', year: 2013 },
         ],
         languages: ['Hindi', 'English', 'Kannada'],
-        consultationModes: ['in_person', 'video'],
+        consultationModes: ['in_person', 'call'],
         clinicDetails: {
           name: 'Kids Care Clinic',
           address: {
@@ -323,7 +323,7 @@ const seedDoctorData = async () => {
           { institution: 'AIIMS Delhi', degree: 'MD Gynecology', year: 2007 },
         ],
         languages: ['Hindi', 'English', 'Telugu'],
-        consultationModes: ['in_person', 'video'],
+        consultationModes: ['in_person', 'call'],
         clinicDetails: {
           name: 'Women\'s Health Clinic',
           address: {
@@ -372,7 +372,7 @@ const seedDoctorData = async () => {
           { institution: 'AIIMS Delhi', degree: 'MD General Medicine', year: 2005 },
         ],
         languages: ['Hindi', 'English'],
-        consultationModes: ['in_person', 'video', 'audio'],
+        consultationModes: ['in_person', 'call', 'audio'],
         clinicDetails: {
           name: 'General Medicine Clinic',
           address: {
@@ -423,7 +423,7 @@ const seedDoctorData = async () => {
           { institution: 'AIIMS Delhi', degree: 'MS Orthopedics', year: 2011 },
         ],
         languages: ['Hindi', 'English'],
-        consultationModes: ['in_person', 'video'],
+        consultationModes: ['in_person', 'call'],
         clinicDetails: {
           name: 'Bone & Joint Clinic',
           address: {
@@ -469,7 +469,7 @@ const seedDoctorData = async () => {
           { institution: 'AIIMS Delhi', degree: 'MD Neurology', year: 2009 },
         ],
         languages: ['Hindi', 'English', 'Tamil'],
-        consultationModes: ['in_person', 'video'],
+        consultationModes: ['in_person', 'call'],
         clinicDetails: {
           name: 'Neuro Care Clinic',
           address: {

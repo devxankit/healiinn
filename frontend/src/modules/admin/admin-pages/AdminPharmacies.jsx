@@ -482,27 +482,27 @@ const AdminPharmacies = () => {
                           <IoEyeOutline className="h-3.5 w-3.5" />
                           View
                         </button>
-                        {pharmacy.status === 'pending' && (
+                      {pharmacy.status === 'pending' && (
                           <>
-                            <button
-                              type="button"
-                              onClick={() => handleApprove(pharmacy.id)}
-                              disabled={processingId === pharmacy.id}
-                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
-                            >
-                              {processingId === pharmacy.id ? 'Processing...' : 'Approve'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRejectClick(pharmacy.id)}
-                              disabled={processingId === pharmacy.id}
-                              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
-                            >
-                              Reject
-                            </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApprove(pharmacy.id)}
+                            disabled={processingId === pharmacy.id}
+                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
+                          >
+                            {processingId === pharmacy.id ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRejectClick(pharmacy.id)}
+                            disabled={processingId === pharmacy.id}
+                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
+                          >
+                            Reject
+                          </button>
                           </>
                         )}
-                      </div>
+                        </div>
                       {pharmacy.status === 'rejected' && pharmacy.rejectionReason && (
                         <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-2 max-w-xs">
                           <p className="text-xs font-semibold text-red-700 mb-1">Rejection Reason:</p>

@@ -15,10 +15,11 @@ import {
   IoTimeOutline,
   IoDownloadOutline,
 } from 'react-icons/io5'
-import { 
-  getPatientRequests, 
-  confirmRequestPayment, 
-  cancelPatientRequest 
+import {
+  getPatientRequests,
+  confirmRequestPayment,
+  cancelPatientRequest,
+  createRequestPaymentOrder
 } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
 
@@ -63,16 +64,16 @@ const PatientRequests = () => {
         setLoading(true)
         setError(null)
         const response = await getPatientRequests()
-        
+
         if (response.success && response.data) {
-          const requestsData = Array.isArray(response.data) 
-            ? response.data 
+          const requestsData = Array.isArray(response.data)
+            ? response.data
             : response.data.items || []
-          
+
           const transformed = requestsData.map(request => {
             const isLab = request.type === 'book_test_visit' || request.type === 'lab'
             const isPharmacy = request.type === 'order_medicine' || request.type === 'pharmacy'
-            
+
             // Group medicines by pharmacy
             const medicinesByPharmacy = {}
             if (request.adminResponse?.medicines && Array.isArray(request.adminResponse.medicines)) {
@@ -94,7 +95,7 @@ const PatientRequests = () => {
                 })
               })
             }
-            
+
             // Group tests by lab
             const testsByLab = {}
             if (request.adminResponse?.tests && Array.isArray(request.adminResponse.tests)) {
@@ -113,15 +114,15 @@ const PatientRequests = () => {
                 })
               })
             }
-            
+
             return {
               id: request._id || request.id,
               _id: request._id || request.id,
               type: isLab ? 'lab' : isPharmacy ? 'pharmacy' : request.type,
-              providerName: isLab 
+              providerName: isLab
                 ? (request.adminResponse?.lab?.labName || request.adminResponse?.labs?.[0]?.labName || 'Laboratory')
                 : (request.adminResponse?.pharmacy?.pharmacyName || request.adminResponse?.pharmacies?.[0]?.pharmacyName || 'Pharmacy'),
-              providerId: isLab 
+              providerId: isLab
                 ? (request.adminResponse?.lab?.labId || request.adminResponse?.labs?.[0]?.labId)
                 : (request.adminResponse?.pharmacy?.pharmacyId || request.adminResponse?.pharmacies?.[0]?.pharmacyId),
               testName: request.adminResponse?.lab?.testName || request.adminResponse?.tests?.[0]?.testName || 'Lab Test',
@@ -132,6 +133,11 @@ const PatientRequests = () => {
               totalAmount: request.adminResponse?.totalAmount || request.totalAmount || null,
               message: request.adminResponse?.message || request.message || null,
               prescriptionId: request.prescriptionId?._id || request.prescriptionId || null,
+              visitType: request.visitType || null,
+              // Store lab info for conditional display
+              labInfo: isLab && request.adminResponse?.labs && request.adminResponse.labs.length > 0
+                ? request.adminResponse.labs[0]
+                : (isLab && request.adminResponse?.lab ? request.adminResponse.lab : null),
               // Grouped data
               medicinesByPharmacy: Object.values(medicinesByPharmacy),
               testsByLab: Object.values(testsByLab),
@@ -152,14 +158,27 @@ const PatientRequests = () => {
                 responseTime: request.adminResponse.responseTime || request.createdAt,
               } : null,
               doctor: request.prescriptionId?.doctorId ? {
-                name: request.prescriptionId.doctorId.name || 'Dr. Unknown',
-                specialty: request.prescriptionId.doctorId.specialty || '',
+                name: (() => {
+                  const doctorId = request.prescriptionId.doctorId
+                  if (doctorId.firstName && doctorId.lastName) {
+                    return `Dr. ${doctorId.firstName} ${doctorId.lastName}`
+                  } else if (doctorId.firstName) {
+                    return `Dr. ${doctorId.firstName}`
+                  } else if (doctorId.lastName) {
+                    return `Dr. ${doctorId.lastName}`
+                  } else if (doctorId.name) {
+                    return doctorId.name.startsWith('Dr.') ? doctorId.name : `Dr. ${doctorId.name}`
+                  } else {
+                    return 'Dr. Unknown'
+                  }
+                })(),
+                specialty: request.prescriptionId.doctorId.specialization || request.prescriptionId.doctorId.specialty || '',
                 phone: request.prescriptionId.doctorId.phone || '',
               } : null,
               originalData: request,
             }
           })
-          
+
           // Sort by date (newest first)
           transformed.sort((a, b) => new Date(b.requestDate || b.createdAt || 0) - new Date(a.requestDate || a.createdAt || 0))
           setRequests(transformed)
@@ -186,14 +205,14 @@ const PatientRequests = () => {
     try {
       const response = await getPatientRequests()
       if (response.success && response.data) {
-        const requestsData = Array.isArray(response.data) 
-          ? response.data 
+        const requestsData = Array.isArray(response.data)
+          ? response.data
           : response.data.items || []
-        
+
         const transformed = requestsData.map(request => {
           const isLab = request.type === 'book_test_visit' || request.type === 'lab'
           const isPharmacy = request.type === 'order_medicine' || request.type === 'pharmacy'
-          
+
           // Group medicines by pharmacy
           const medicinesByPharmacy = {}
           if (request.adminResponse?.medicines && Array.isArray(request.adminResponse.medicines)) {
@@ -215,7 +234,7 @@ const PatientRequests = () => {
               })
             })
           }
-          
+
           // Group tests by lab
           const testsByLab = {}
           if (request.adminResponse?.tests && Array.isArray(request.adminResponse.tests)) {
@@ -234,15 +253,15 @@ const PatientRequests = () => {
               })
             })
           }
-          
+
           return {
             id: request._id || request.id,
             _id: request._id || request.id,
             type: isLab ? 'lab' : isPharmacy ? 'pharmacy' : request.type,
-            providerName: isLab 
+            providerName: isLab
               ? (request.adminResponse?.lab?.labName || request.adminResponse?.labs?.[0]?.labName || 'Laboratory')
               : (request.adminResponse?.pharmacy?.pharmacyName || request.adminResponse?.pharmacies?.[0]?.pharmacyName || 'Pharmacy'),
-            providerId: isLab 
+            providerId: isLab
               ? (request.adminResponse?.lab?.labId || request.adminResponse?.labs?.[0]?.labId)
               : (request.adminResponse?.pharmacy?.pharmacyId || request.adminResponse?.pharmacies?.[0]?.pharmacyId),
             testName: request.adminResponse?.lab?.testName || request.adminResponse?.tests?.[0]?.testName || 'Lab Test',
@@ -253,6 +272,11 @@ const PatientRequests = () => {
             totalAmount: request.adminResponse?.totalAmount || request.totalAmount || null,
             message: request.adminResponse?.message || request.message || null,
             prescriptionId: request.prescriptionId?._id || request.prescriptionId || null,
+            visitType: request.visitType || null,
+            // Store lab info for conditional display
+            labInfo: isLab && request.adminResponse?.labs && request.adminResponse.labs.length > 0
+              ? request.adminResponse.labs[0]
+              : (isLab && request.adminResponse?.lab ? request.adminResponse.lab : null),
             // Grouped data
             medicinesByPharmacy: Object.values(medicinesByPharmacy),
             testsByLab: Object.values(testsByLab),
@@ -280,7 +304,7 @@ const PatientRequests = () => {
             originalData: request,
           }
         })
-        
+
         transformed.sort((a, b) => new Date(b.requestDate || b.createdAt || 0) - new Date(a.requestDate || a.createdAt || 0))
         setRequests(transformed)
       }
@@ -472,7 +496,7 @@ const PatientRequests = () => {
 </body>
 </html>
     `
-    
+
     // Create blob URL for PDF
     const blob = new Blob([receiptContent], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
@@ -514,32 +538,93 @@ const PatientRequests = () => {
     if (!selectedRequest) return
 
     setIsProcessing(true)
-    
+
     try {
       const requestId = selectedRequest._id || selectedRequest.id
+
+      // Step 1: Create payment order
+      const paymentOrderResponse = await createRequestPaymentOrder(requestId)
       
-      // For now, we'll use a simple payment confirmation
-      // In production, integrate with Razorpay or other payment gateway
-      const paymentData = {
-        paymentMethod: paymentMethod, // 'card', 'upi', 'wallet'
-        // For Razorpay integration, you would include:
-        // paymentId, orderId, signature
+      if (!paymentOrderResponse.success) {
+        toast.error(paymentOrderResponse.message || 'Failed to create payment order. Please try again.')
+        setIsProcessing(false)
+        return
       }
 
-      const response = await confirmRequestPayment(requestId, paymentData)
-      
-      if (response.success) {
-        toast.success(`Payment successful! Your ${selectedRequest.type === 'lab' ? 'test' : 'medicine'} order has been confirmed.`)
+      const { orderId, amount, currency, razorpayKeyId } = paymentOrderResponse.data
+
+      // Step 2: Initialize Razorpay payment
+      if (!window.Razorpay) {
+        toast.error('Payment gateway not loaded. Please refresh the page and try again.')
+        setIsProcessing(false)
+        return
+      }
+
+      if (!razorpayKeyId) {
+        toast.error('Payment gateway not configured. Please contact support.')
+        setIsProcessing(false)
+        return
+      }
+
+      const requestType = selectedRequest.type === 'book_test_visit' || selectedRequest.type === 'lab' ? 'lab test' : 'medicine'
+      const requestDescription = selectedRequest.type === 'book_test_visit' || selectedRequest.type === 'lab' 
+        ? 'Lab Test Payment' 
+        : 'Medicine Order Payment'
+
+      const options = {
+        key: razorpayKeyId, // Use key ID from backend response
+        amount: Math.round(amount * 100), // Convert to paise
+        currency: currency || 'INR',
+        name: 'Healiinn',
+        description: requestDescription,
+        order_id: orderId,
+        handler: async (response) => {
+          try {
+            setIsProcessing(true) // Keep loading state during verification
+            // Step 3: Verify payment
+            const verifyResponse = await confirmRequestPayment(requestId, {
+              paymentId: response.razorpay_payment_id,
+              orderId: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              paymentMethod: 'razorpay',
+            })
+
+            if (verifyResponse.success) {
+              toast.success(`Payment successful! Your ${requestType} order has been confirmed.`)
         handleClosePaymentModal()
         // Refetch requests to get updated status
         await refetchRequests()
       } else {
-        toast.error(response.message || 'Payment failed. Please try again.')
+              toast.error(verifyResponse.message || 'Payment verification failed.')
+            }
+          } catch (error) {
+            console.error('Error verifying payment:', error)
+            toast.error(error.message || 'Error verifying payment. Please contact support.')
+          } finally {
+            setIsProcessing(false)
+          }
+        },
+        prefill: {
+          name: selectedRequest.patientName || '',
+          email: selectedRequest.patientEmail || '',
+          contact: selectedRequest.patientPhone || '',
+        },
+        theme: {
+          color: '#11496c',
+        },
+        modal: {
+          ondismiss: () => {
+            console.log('Payment modal closed')
+            setIsProcessing(false)
+          },
+        },
       }
+
+      const razorpay = new window.Razorpay(options)
+      razorpay.open()
     } catch (error) {
       console.error('Error processing payment:', error)
       toast.error(error.message || 'Error processing payment. Please try again.')
-    } finally {
       setIsProcessing(false)
     }
   }
@@ -559,7 +644,7 @@ const PatientRequests = () => {
     try {
       const requestId = request._id || request.id
       const response = await cancelPatientRequest(requestId)
-      
+
       if (response.success) {
         toast.success(`Request cancelled successfully. Cancellation notification sent to ${request.providerName || 'provider'}.`)
         // Refetch requests to get updated status
@@ -640,261 +725,241 @@ const PatientRequests = () => {
         ) : (
           <div className="space-y-4">
             {requests.map((request) => (
-            <article
-              key={request.id}
-              className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
-            >
-              {/* Main Content */}
-              <div className="p-3">
-                <div className="flex items-start gap-2.5">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                    request.type === 'lab' 
-                      ? 'text-white shadow-md' 
-                      : 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-orange-300/50 text-white shadow-md'
-                  }`}
-                  style={request.type === 'lab' ? { 
-                    background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
-                    boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.2)'
-                  } : {}}>
-                    {request.type === 'lab' ? (
-                      <IoFlaskOutline className="h-5 w-5" />
-                    ) : (
-                      <IoBagHandleOutline className="h-5 w-5" />
-                    )}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    {/* Title and Status */}
-                    <div className="mb-2">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="flex-1 min-w-0 text-sm font-bold text-slate-900 leading-tight pr-2 line-clamp-1">
-                          Healiinn
-                        </h3>
-                        <div className="shrink-0">
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${getStatusColor(request.status)}`}>
-                            {getStatusIcon(request.status)}
-                            <span>{getStatusLabel(request.status)}</span>
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-[9px] text-slate-500">
-                        {formatDate(request.requestDate)}
-                      </p>
+              <article
+                key={request.id}
+                className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
+              >
+                {/* Main Content */}
+                <div className="p-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${request.type === 'lab'
+                        ? 'text-white shadow-md'
+                        : 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-orange-300/50 text-white shadow-md'
+                      }`}
+                      style={request.type === 'lab' ? {
+                        background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
+                        boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.2)'
+                      } : {}}>
+                      {request.type === 'lab' ? (
+                        <IoFlaskOutline className="h-5 w-5" />
+                      ) : (
+                        <IoBagHandleOutline className="h-5 w-5" />
+                      )}
                     </div>
-                  </div>
-                </div>
 
-                {/* Medicines Grouped by Pharmacy - Only show for pharmacy requests */}
-                {request.type !== 'lab' && request.type !== 'book_test_visit' && request.medicinesByPharmacy && request.medicinesByPharmacy.length > 0 && (
-                  <div className="mt-2 space-y-2">
-                    {request.medicinesByPharmacy.map((pharmacyGroup, pharmIdx) => (
-                      <div key={pharmIdx} className="rounded-lg border border-blue-200 bg-blue-50 p-2">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <IoBagHandleOutline className="h-3 w-3 text-blue-600 shrink-0" />
-                          <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">{pharmacyGroup.pharmacyName}</h4>
-                        </div>
-                        <div className="space-y-1 max-h-24 overflow-y-auto">
-                          {pharmacyGroup.medicines.map((med, idx) => (
-                            <div key={idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-blue-100">
-                              <div className="flex-1 min-w-0">
-                                <span className="font-semibold text-slate-900">{med.name}</span>
-                                {med.dosage && <span className="text-slate-600 ml-1">({med.dosage})</span>}
-                                {med.quantity > 1 && <span className="text-slate-500 ml-1">x{med.quantity}</span>}
-                              </div>
-                              {med.total > 0 && (
-                                <span className="font-semibold text-blue-700 shrink-0 ml-2">₹{med.total.toFixed(2)}</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-1.5 pt-1.5 border-t border-blue-200 flex items-center justify-between text-[9px]">
-                          <span className="font-semibold text-slate-700">Subtotal:</span>
-                          <span className="font-bold text-blue-700">₹{pharmacyGroup.medicines.reduce((sum, m) => sum + (m.total || 0), 0).toFixed(2)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Total Amount - Only show for pharmacy requests with medicines and amount > 0 */}
-                {request.type !== 'lab' && request.type !== 'book_test_visit' && request.totalAmount && request.totalAmount > 0 && request.adminMedicines && request.adminMedicines.length > 0 && (
-                  <div className="mt-2 flex items-center justify-between rounded-lg border border-[#11496c] bg-[rgba(17,73,108,0.05)] px-2 py-1.5">
-                    <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wide">Total Amount:</span>
-                    <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
-                  </div>
-                )}
-
-                {/* Lab Information and Tests - Only for lab requests */}
-                {(request.type === 'lab' || request.type === 'book_test_visit') && request.totalAmount && request.totalAmount > 0 && (
-                  <>
-                    {/* Lab Name and Address */}
-                    {request.providerName && (
-                      <div className="mt-2 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
-                          <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Laboratory</h4>
-                        </div>
-                        <div className="space-y-1 text-[9px]">
-                          <div className="font-semibold text-slate-900">
-                            {request.providerName}
+                    <div className="flex-1 min-w-0">
+                      {/* Title and Status */}
+                      <div className="mb-2">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h3 className="flex-1 min-w-0 text-sm font-bold text-slate-900 leading-tight pr-2 line-clamp-1">
+                            Healiinn
+                          </h3>
+                          <div className="shrink-0">
+                            <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${getStatusColor(request.status)}`}>
+                              {getStatusIcon(request.status)}
+                              <span>{getStatusLabel(request.status)}</span>
+                            </span>
                           </div>
-                          {request.providerResponse?.labs && Array.isArray(request.providerResponse.labs) && request.providerResponse.labs.length > 0 && (
-                            <div className="space-y-1">
-                              {request.providerResponse.labs.map((lab, idx) => (
-                                <div key={idx} className="bg-white rounded px-1.5 py-1 border border-[rgba(17,73,108,0.1)]">
-                                  <div className="font-semibold text-slate-900">{lab.name || lab.labName}</div>
-                                  {lab.address && (
-                                    <div className="flex items-start gap-1 mt-0.5 text-slate-600">
-                                      <IoLocationOutline className="h-2.5 w-2.5 shrink-0 mt-0.5" />
-                                      <span className="leading-tight">{lab.address}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          {request.adminResponse?.labs && Array.isArray(request.adminResponse.labs) && request.adminResponse.labs.length > 0 && (
-                            <div className="space-y-1">
-                              {request.adminResponse.labs.map((lab, idx) => (
-                                <div key={idx} className="bg-white rounded px-1.5 py-1 border border-[rgba(17,73,108,0.1)]">
-                                  <div className="font-semibold text-slate-900">{lab.name || lab.labName}</div>
-                                  {lab.address && (
-                                    <div className="flex items-start gap-1 mt-0.5 text-slate-600">
-                                      <IoLocationOutline className="h-2.5 w-2.5 shrink-0 mt-0.5" />
-                                      <span className="leading-tight">{lab.address}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
-                      </div>
-                    )}
-
-                    {/* Tests Grouped by Lab */}
-                    {request.testsByLab && request.testsByLab.length > 0 && (
-                      <div className="mt-2 space-y-2">
-                        {request.testsByLab.map((labGroup, labIdx) => (
-                          <div key={labIdx} className="rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
-                              <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">{labGroup.labName}</h4>
-                            </div>
-                            <div className="space-y-1 max-h-32 overflow-y-auto">
-                              {labGroup.tests.map((test, idx) => (
-                                <div key={idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-[rgba(17,73,108,0.1)]">
-                                  <div className="flex-1 min-w-0">
-                                    <span className="font-semibold text-slate-900">{test.testName}</span>
-                                  </div>
-                                  {test.price > 0 && (
-                                    <span className="font-semibold text-[#11496c] shrink-0 ml-2">₹{Number(test.price).toFixed(2)}</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                            <div className="mt-1.5 pt-1.5 border-t border-[rgba(17,73,108,0.2)] flex items-center justify-between text-[9px]">
-                              <span className="font-semibold text-slate-700">Subtotal:</span>
-                              <span className="font-bold text-[#11496c]">₹{labGroup.tests.reduce((sum, t) => sum + (t.price || 0), 0).toFixed(2)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Total Amount for Lab Requests */}
-                    <div className="mt-2 flex items-center justify-between rounded-lg border border-[#11496c] bg-[rgba(17,73,108,0.05)] px-2 py-1.5">
-                      <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wide">Total Amount:</span>
-                      <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
-                    </div>
-                  </>
-                )}
-
-                {/* Cancellation Reason - Show when cancelled */}
-                {request.status === 'cancelled' && request.cancelReason && (
-                  <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2">
-                    <div className="flex items-start gap-1.5">
-                      <IoCloseCircleOutline className="h-3 w-3 text-red-600 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-[9px] font-semibold text-red-900 mb-0.5">Cancellation Reason:</p>
-                        <p className="text-[9px] font-medium text-red-800 leading-tight">
-                          {request.cancelReason}
+                        <p className="text-[9px] text-slate-500">
+                          {formatDate(request.requestDate)}
                         </p>
                       </div>
                     </div>
                   </div>
-                )}
 
-                {/* Waiting Message - Only for pharmacy requests, not lab */}
-                {request.type !== 'lab' && request.type !== 'book_test_visit' && (!request.adminMedicines || request.adminMedicines.length === 0) && request.status === 'accepted' && request.status !== 'cancelled' && (
-                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
-                    <div className="flex items-center gap-1.5">
-                      <IoTimeOutline className="h-3 w-3 text-amber-600 shrink-0" />
-                      <p className="text-[9px] font-medium text-amber-900 leading-tight">
-                        Waiting for medicine details...
+                  {/* Medicines Grouped by Pharmacy - Only show for pharmacy requests, HIDE pharmacy name */}
+                  {request.type !== 'lab' && request.type !== 'book_test_visit' && request.medicinesByPharmacy && request.medicinesByPharmacy.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {request.medicinesByPharmacy.map((pharmacyGroup, pharmIdx) => (
+                        <div key={pharmIdx} className="rounded-lg border border-blue-200 bg-blue-50 p-2">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <IoBagHandleOutline className="h-3 w-3 text-blue-600 shrink-0" />
+                            <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Medicines</h4>
+                          </div>
+                          <div className="space-y-1 max-h-24 overflow-y-auto">
+                            {pharmacyGroup.medicines.map((med, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-blue-100">
+                                <div className="flex-1 min-w-0">
+                                  <span className="font-semibold text-slate-900">{med.name}</span>
+                                  {med.dosage && <span className="text-slate-600 ml-1">({med.dosage})</span>}
+                                  {med.quantity > 1 && <span className="text-slate-500 ml-1">x{med.quantity}</span>}
+                                </div>
+                                {med.total > 0 && (
+                                  <span className="font-semibold text-blue-700 shrink-0 ml-2">₹{med.total.toFixed(2)}</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-1.5 pt-1.5 border-t border-blue-200 flex items-center justify-between text-[9px]">
+                            <span className="font-semibold text-slate-700">Subtotal:</span>
+                            <span className="font-bold text-blue-700">₹{pharmacyGroup.medicines.reduce((sum, m) => sum + (m.total || 0), 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Total Amount - Only show for pharmacy requests with medicines and amount > 0 */}
+                  {request.type !== 'lab' && request.type !== 'book_test_visit' && request.totalAmount && request.totalAmount > 0 && request.adminMedicines && request.adminMedicines.length > 0 && (
+                    <div className="mt-2 flex items-center justify-between rounded-lg border border-[#11496c] bg-[rgba(17,73,108,0.05)] px-2 py-1.5">
+                      <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wide">Total Amount:</span>
+                      <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
+                    </div>
+                  )}
+
+                  {/* Lab Information and Tests - Only for lab requests */}
+                  {(request.type === 'lab' || request.type === 'book_test_visit') && request.totalAmount && request.totalAmount > 0 && (
+                    <>
+                      {/* Lab Name and Address - Only show when visitType === 'lab' */}
+                      {request.visitType === 'lab' && (request.labInfo || request.providerName) && (
+                        <div className="mt-2 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
+                            <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Laboratory</h4>
+                          </div>
+                          <div className="space-y-1 text-[9px]">
+                            <div className="font-semibold text-slate-900">
+                              {request.labInfo?.labName || request.labInfo?.name || request.providerName}
+                            </div>
+                            {request.labInfo?.address && (
+                              <div className="flex items-start gap-1 mt-0.5 text-slate-600">
+                                <IoLocationOutline className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                                <span className="leading-tight">
+                                  {typeof request.labInfo.address === 'object'
+                                    ? `${request.labInfo.address.line1 || ''}${request.labInfo.address.line1 && request.labInfo.address.city ? ', ' : ''}${request.labInfo.address.city || ''}${request.labInfo.address.city && request.labInfo.address.state ? ', ' : ''}${request.labInfo.address.state || ''}${request.labInfo.address.postalCode ? ` ${request.labInfo.address.postalCode}` : ''}`.trim()
+                                    : request.labInfo.address
+                                  }
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tests Grouped by Lab - Hide lab name for patient */}
+                      {request.testsByLab && request.testsByLab.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          {request.testsByLab.map((labGroup, labIdx) => (
+                            <div key={labIdx} className="rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
+                                <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Tests</h4>
+                              </div>
+                              <div className="space-y-1 max-h-32 overflow-y-auto">
+                                {labGroup.tests.map((test, idx) => (
+                                  <div key={idx} className="flex items-center justify-between text-[9px] bg-white rounded px-1.5 py-0.5 border border-[rgba(17,73,108,0.1)]">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="font-semibold text-slate-900">{test.testName}</span>
+                                    </div>
+                                    {test.price > 0 && (
+                                      <span className="font-semibold text-[#11496c] shrink-0 ml-2">₹{Number(test.price).toFixed(2)}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="mt-1.5 pt-1.5 border-t border-[rgba(17,73,108,0.2)] flex items-center justify-between text-[9px]">
+                                <span className="font-semibold text-slate-700">Subtotal:</span>
+                                <span className="font-bold text-[#11496c]">₹{labGroup.tests.reduce((sum, t) => sum + (t.price || 0), 0).toFixed(2)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Total Amount for Lab Requests */}
+                      <div className="mt-2 flex items-center justify-between rounded-lg border border-[#11496c] bg-[rgba(17,73,108,0.05)] px-2 py-1.5">
+                        <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-wide">Total Amount:</span>
+                        <span className="text-sm font-bold text-[#11496c]">{formatCurrency(request.totalAmount)}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Cancellation Reason - Show when cancelled */}
+                  {request.status === 'cancelled' && request.cancelReason && (
+                    <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2">
+                      <div className="flex items-start gap-1.5">
+                        <IoCloseCircleOutline className="h-3 w-3 text-red-600 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-[9px] font-semibold text-red-900 mb-0.5">Cancellation Reason:</p>
+                          <p className="text-[9px] font-medium text-red-800 leading-tight">
+                            {request.cancelReason}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Waiting Message - Only for pharmacy requests, not lab */}
+                  {request.type !== 'lab' && request.type !== 'book_test_visit' && (!request.adminMedicines || request.adminMedicines.length === 0) && request.status === 'accepted' && request.status !== 'cancelled' && (
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                      <div className="flex items-center gap-1.5">
+                        <IoTimeOutline className="h-3 w-3 text-amber-600 shrink-0" />
+                        <p className="text-[9px] font-medium text-amber-900 leading-tight">
+                          Waiting for medicine details...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Waiting Message for Lab Requests */}
+                  {(request.type === 'lab' || request.type === 'book_test_visit') && (!request.totalAmount || request.totalAmount === 0) && request.status === 'accepted' && request.status !== 'cancelled' && (
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                      <div className="flex items-center gap-1.5">
+                        <IoTimeOutline className="h-3 w-3 text-amber-600 shrink-0" />
+                        <p className="text-[9px] font-medium text-amber-900 leading-tight">
+                          Waiting for test details...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Doctor Information */}
+                  {request.doctor && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[9px] text-slate-500 px-0.5">
+                      <IoDocumentTextOutline className="h-2.5 w-2.5 shrink-0" />
+                      <span className="leading-tight">Prescribed by: <span className="font-medium text-slate-700">{request.doctor.name}</span> ({request.doctor.specialty})</span>
+                    </div>
+                  )}
+
+                  {/* Confirmed Status - Compact */}
+                  {request.status === 'confirmed' && (
+                    <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 p-2">
+                      <IoCheckmarkCircleOutline className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                      <p className="text-[10px] font-semibold text-emerald-900 leading-tight">
+                        Booking confirmed! {request.type === 'lab' ? 'Test' : 'Medicine'} will be delivered as scheduled.
                       </p>
                     </div>
-                  </div>
-                )}
-
-                {/* Waiting Message for Lab Requests */}
-                {(request.type === 'lab' || request.type === 'book_test_visit') && (!request.totalAmount || request.totalAmount === 0) && request.status === 'accepted' && request.status !== 'cancelled' && (
-                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
-                    <div className="flex items-center gap-1.5">
-                      <IoTimeOutline className="h-3 w-3 text-amber-600 shrink-0" />
-                      <p className="text-[9px] font-medium text-amber-900 leading-tight">
-                        Waiting for test details...
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Doctor Information */}
-                {request.doctor && (
-                  <div className="mt-2 flex items-center gap-1.5 text-[9px] text-slate-500 px-0.5">
-                    <IoDocumentTextOutline className="h-2.5 w-2.5 shrink-0" />
-                    <span className="leading-tight">Prescribed by: <span className="font-medium text-slate-700">{request.doctor.name}</span> ({request.doctor.specialty})</span>
-                  </div>
-                )}
-
-                {/* Confirmed Status - Compact */}
-                {request.status === 'confirmed' && (
-                  <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 p-2">
-                    <IoCheckmarkCircleOutline className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                    <p className="text-[10px] font-semibold text-emerald-900 leading-tight">
-                      Booking confirmed! {request.type === 'lab' ? 'Test' : 'Medicine'} will be delivered as scheduled.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons - Show for pharmacy when medicines available, or for lab when amount available */}
-              {request.status === 'accepted' && (
-                (request.type !== 'lab' && request.type !== 'book_test_visit' && request.adminMedicines && request.adminMedicines.length > 0 && request.totalAmount && request.totalAmount > 0) ||
-                ((request.type === 'lab' || request.type === 'book_test_visit') && request.totalAmount && request.totalAmount > 0)
-              ) && (
-                <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-2">
-                  <button
-                    type="button"
-                    onClick={() => handlePayClick(request)}
-                    disabled={isProcessing}
-                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-[#11496c] px-2 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <IoCardOutline className="h-3 w-3 shrink-0" />
-                    Pay & Confirm
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCancelRequest(request)}
-                    disabled={isProcessing}
-                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-red-600 px-2 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(220,38,38,0.3)] transition-all hover:bg-red-700 hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <IoCloseCircleOutline className="h-3 w-3 shrink-0" />
-                    Cancel
-                  </button>
+                  )}
                 </div>
-              )}
-            </article>
+
+                {/* Action Buttons - Show for pharmacy when medicines available, or for lab when amount available */}
+                {request.status === 'accepted' && (
+                  (request.type !== 'lab' && request.type !== 'book_test_visit' && request.adminMedicines && request.adminMedicines.length > 0 && request.totalAmount && request.totalAmount > 0) ||
+                  ((request.type === 'lab' || request.type === 'book_test_visit') && request.totalAmount && request.totalAmount > 0)
+                ) && (
+                    <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-2">
+                      <button
+                        type="button"
+                        onClick={() => handlePayClick(request)}
+                        disabled={isProcessing}
+                        className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-[#11496c] px-2 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <IoCardOutline className="h-3 w-3 shrink-0" />
+                        Pay & Confirm
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCancelRequest(request)}
+                        disabled={isProcessing}
+                        className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-red-600 px-2 py-1.5 text-[10px] font-semibold text-white shadow-sm shadow-[rgba(220,38,38,0.3)] transition-all hover:bg-red-700 hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <IoCloseCircleOutline className="h-3 w-3 shrink-0" />
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+              </article>
             ))}
           </div>
         )}
@@ -987,43 +1052,9 @@ const PatientRequests = () => {
               </div>
 
               <div className="mt-4">
-                <label className="mb-2 block text-sm font-semibold text-slate-900">Payment Method</label>
-                <div className="space-y-2">
-                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="card"
-                      checked={paymentMethod === 'card'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="h-4 w-4 text-[#11496c]"
-                    />
-                    <IoCardOutline className="h-5 w-5 text-slate-600" />
-                    <span className="flex-1 text-sm font-medium text-slate-900">Credit/Debit Card</span>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="upi"
-                      checked={paymentMethod === 'upi'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="h-4 w-4 text-[#11496c]"
-                    />
-                    <span className="flex-1 text-sm font-medium text-slate-900">UPI</span>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="wallet"
-                      checked={paymentMethod === 'wallet'}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="h-4 w-4 text-[#11496c]"
-                    />
-                    <span className="flex-1 text-sm font-medium text-slate-900">Wallet</span>
-                  </label>
-                </div>
+                <p className="text-xs text-slate-600 text-center">
+                  You will be redirected to Razorpay secure payment gateway to complete your payment.
+                </p>
               </div>
             </div>
 

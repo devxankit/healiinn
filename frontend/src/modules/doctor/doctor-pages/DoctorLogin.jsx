@@ -1970,13 +1970,13 @@ const DoctorLogin = () => {
                       <input
                         type="checkbox"
                         name="consultationModes"
-                        value="video"
-                        checked={doctorSignupData.consultationModes.includes('video')}
+                        value="call"
+                        checked={doctorSignupData.consultationModes.includes('call')}
                         onChange={handleDoctorSignupChange}
                         className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
                       />
-                      <IoVideocamOutline className="h-5 w-5 text-slate-600" />
-                      <span className="text-sm text-slate-700 capitalize">Video Call</span>
+                      <IoCallOutline className="h-5 w-5 text-slate-600" />
+                      <span className="text-sm text-slate-700 capitalize">Call</span>
                     </label>
                   </div>
                 </section>

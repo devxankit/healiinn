@@ -816,7 +816,7 @@ const PatientDoctorDetails = () => {
     } else if (bookingStep === 2) {
       // Validate that in-person appointments are not selected after session end time
       if (selectedDate && appointmentType === 'in_person' && isSessionEndedForDate(selectedDate)) {
-        toast.error('In-person appointments cannot be booked after session time ends. Please select Call or Video Call.')
+        toast.error('In-person appointments cannot be booked after session time ends. Please select Call.')
         return
       }
       setBookingStep(3)
@@ -903,7 +903,7 @@ const PatientDoctorDetails = () => {
       if (appointmentType === 'follow_up') {
         mappedAppointmentType = 'Follow-up'
       } else {
-        mappedAppointmentType = 'New' // Both 'in_person' and 'video_call' map to 'New'
+        mappedAppointmentType = 'New' // Both 'in_person' and 'call' map to 'New'
       }
 
       // Prepare appointment data for API
@@ -913,7 +913,7 @@ const PatientDoctorDetails = () => {
         time: '10:00 AM', // Backend will calculate based on token number
         reason: reason || 'Consultation',
         appointmentType: mappedAppointmentType, // Use mapped value
-        consultationMode: appointmentType || 'in_person', // Send consultation mode (in_person, video_call, or call)
+        consultationMode: appointmentType || 'in_person', // Send consultation mode (in_person or call)
       }
 
       // Step 1: Book appointment first (creates appointment with paymentStatus: 'pending')
@@ -1661,7 +1661,7 @@ const PatientDoctorDetails = () => {
                                 if (!sessionEnded) {
                                   setAppointmentType('in_person')
                                 } else {
-                                  toast.warning('In-person appointments cannot be booked after session time ends. Please select Call or Video Call.')
+                                  toast.warning('In-person appointments cannot be booked after session time ends. Please select Call.')
                                 }
                               }}
                               disabled={sessionEnded}
@@ -1672,7 +1672,7 @@ const PatientDoctorDetails = () => {
                                   ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                                   : 'border-slate-200 bg-white hover:border-slate-300'
                               }`}
-                              title={sessionEnded ? 'In-person appointments cannot be booked after session time ends. Please select Call or Video Call.' : ''}
+                              title={sessionEnded ? 'In-person appointments cannot be booked after session time ends. Please select Call.' : ''}
                             >
                               <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
                                 sessionEnded
@@ -1701,29 +1701,13 @@ const PatientDoctorDetails = () => {
                               </div>
                               <span className="text-xs font-semibold text-slate-900">Call</span>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setAppointmentType('video_call')}
-                              className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
-                                appointmentType === 'video_call'
-                                  ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                                  : 'border-slate-200 bg-white hover:border-slate-300'
-                              }`}
-                            >
-                              <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                                appointmentType === 'video_call' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
-                              }`}>
-                                <IoVideocamOutline className="h-4 w-4" />
-                              </div>
-                              <span className="text-xs font-semibold text-slate-900">Video Call</span>
-                            </button>
                           </div>
                         )
                       })()}
                       {selectedDate && isSessionEndedForDate(selectedDate) && (
                         <p className="mt-2 text-xs text-amber-600">
                           <IoInformationCircleOutline className="inline h-3 w-3 mr-1" />
-                          Session time has ended. In-person appointments are not available. Call and Video Call appointments can still be booked.
+                          Session time has ended. In-person appointments are not available. Call appointments can still be booked.
                         </p>
                       )}
                     </div>
@@ -1904,7 +1888,7 @@ const PatientDoctorDetails = () => {
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-600">Type</span>
                             <span className="text-sm font-semibold text-slate-900">
-                              {appointmentType === 'video_call' ? 'Video Call' : appointmentType === 'call' ? 'Call' : 'In-Person'}
+                              {appointmentType === 'call' ? 'Call' : 'In-Person'}
                             </span>
                           </div>
                           {reason && (

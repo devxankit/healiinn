@@ -327,6 +327,11 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     isInteger: finalConsultationFee !== undefined ? Number.isInteger(finalConsultationFee) : 'N/A',
   });
 
+  // Migrate legacy 'video' consultation mode to 'call'
+  const migratedConsultationModes = Array.isArray(consultationModes)
+    ? consultationModes.map(mode => mode === 'video' ? 'call' : mode)
+    : consultationModes;
+
   const doctor = await Doctor.create({
     firstName: resolvedName.firstName,
     lastName: resolvedName.lastName || '',
@@ -338,7 +343,7 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     experienceYears: experienceYears ?? experience,
     education,
     languages,
-    consultationModes,
+    consultationModes: migratedConsultationModes,
     clinicDetails: finalClinicDetails,
     bio,
     documents,
@@ -497,6 +502,11 @@ exports.updateDoctorProfile = asyncHandler(async (req, res) => {
 
   if (updates.availableTimings !== undefined && !Array.isArray(updates.availableTimings)) {
     updates.availableTimings = [updates.availableTimings];
+  }
+
+  // Migrate legacy 'video' consultation mode to 'call'
+  if (updates.consultationModes !== undefined && Array.isArray(updates.consultationModes)) {
+    updates.consultationModes = updates.consultationModes.map(mode => mode === 'video' ? 'call' : mode);
   }
 
   if (updates.clinicAddress !== undefined || updates.clinicName !== undefined) {

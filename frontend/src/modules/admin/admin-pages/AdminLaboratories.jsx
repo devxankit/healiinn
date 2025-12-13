@@ -464,27 +464,27 @@ const AdminLaboratories = () => {
                           <IoEyeOutline className="h-3.5 w-3.5" />
                           View
                         </button>
-                        {lab.status === 'pending' && (
+                      {lab.status === 'pending' && (
                           <>
-                            <button
-                              type="button"
-                              onClick={() => handleApprove(lab.id)}
-                              disabled={processingId === lab.id}
-                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
-                            >
-                              {processingId === lab.id ? 'Processing...' : 'Approve'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRejectClick(lab.id)}
-                              disabled={processingId === lab.id}
-                              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
-                            >
-                              Reject
-                            </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApprove(lab.id)}
+                            disabled={processingId === lab.id}
+                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
+                          >
+                            {processingId === lab.id ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRejectClick(lab.id)}
+                            disabled={processingId === lab.id}
+                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
+                          >
+                            Reject
+                          </button>
                           </>
                         )}
-                      </div>
+                        </div>
                       {lab.status === 'rejected' && lab.rejectionReason && (
                         <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-2 max-w-xs">
                           <p className="text-xs font-semibold text-red-700 mb-1">Rejection Reason:</p>

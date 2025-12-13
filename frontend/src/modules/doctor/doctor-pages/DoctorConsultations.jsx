@@ -2359,206 +2359,246 @@ const DoctorConsultations = () => {
     const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
     let yPos = margin
 
-    // Header Section - Healiinn (Above Clinic Name)
+    // Header Section - Healiinn (Above Clinic Name) - Reduced size to match patient view
     doc.setTextColor(...tealColor)
-    doc.setFontSize(24)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 8
-    
-    // Clinic Name in Teal (Below Healiinn)
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
+    doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
+    yPos += 6
+    
+    // Clinic Name in Teal (Below Healiinn) - Reduced size
+    doc.setFontSize(18)
+    doc.setFont('helvetica', 'bold')
     doc.text(doctorInfo.clinicName || 'Medical Clinic', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 7
+    yPos += 5
 
-    // Clinic Address (Centered)
-    doc.setFontSize(9)
+    // Clinic Address (Centered) - Convert object to string if needed
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(0, 0, 0)
-    const addressLines = doc.splitTextToSize(doctorInfo.clinicAddress || 'Address not provided', pageWidth - 2 * margin)
+    let clinicAddressRaw = doctorInfo.clinicAddress
+    let clinicAddress = 'Address not provided'
+    
+    if (clinicAddressRaw) {
+      if (typeof clinicAddressRaw === 'string') {
+        clinicAddress = clinicAddressRaw
+      } else if (typeof clinicAddressRaw === 'object' && clinicAddressRaw !== null) {
+        // Convert address object to string
+        const addressParts = []
+        if (clinicAddressRaw.line1) addressParts.push(clinicAddressRaw.line1)
+        if (clinicAddressRaw.line2) addressParts.push(clinicAddressRaw.line2)
+        if (clinicAddressRaw.city) addressParts.push(clinicAddressRaw.city)
+        if (clinicAddressRaw.state) addressParts.push(clinicAddressRaw.state)
+        if (clinicAddressRaw.postalCode || clinicAddressRaw.pincode) {
+          addressParts.push(clinicAddressRaw.postalCode || clinicAddressRaw.pincode)
+        }
+        if (clinicAddressRaw.country) addressParts.push(clinicAddressRaw.country)
+        clinicAddress = addressParts.join(', ').trim() || 'Address not provided'
+      }
+    }
+    
+    const addressLines = doc.splitTextToSize(clinicAddress, pageWidth - 2 * margin)
     addressLines.forEach((line) => {
       doc.text(line, pageWidth / 2, yPos, { align: 'center' })
-      yPos += 4
+      yPos += 3
     })
 
-    // Contact Information (Left: Phone, Right: Email)
+    // Contact Information (Left: Phone, Right: Email) - Compact
     yPos += 1
-    doc.setFontSize(8)
+    doc.setFontSize(7)
     const contactY = yPos
     // Phone icon and number (left)
     doc.setFillColor(200, 0, 0) // Red circle for phone
-    doc.circle(margin + 2, contactY - 1, 1.5, 'F')
+    doc.circle(margin + 2, contactY - 1, 1.2, 'F')
     doc.setTextColor(0, 0, 0)
-    doc.text(doctorInfo.phone || 'N/A', margin + 6, contactY)
+    doc.text(doctorInfo.phone || 'N/A', margin + 5, contactY)
     
     // Email icon and address (right)
     doc.setFillColor(100, 100, 100) // Gray circle for email
-    doc.circle(pageWidth - margin - 2, contactY - 1, 1.5, 'F')
+    doc.circle(pageWidth - margin - 2, contactY - 1, 1.2, 'F')
     doc.text(doctorInfo.email || 'N/A', pageWidth - margin, contactY, { align: 'right' })
-    yPos += 5
+    yPos += 4
 
     // Teal horizontal line separator
     doc.setDrawColor(...tealColor)
     doc.setLineWidth(0.5)
     doc.line(margin, yPos, pageWidth - margin, yPos)
-    yPos += 8
+    yPos += 6
 
-    // Doctor Information (Left) and Patient Information (Right)
+    // Doctor Information (Left) and Patient Information (Right) - Compact
     const infoStartY = yPos
-    doc.setFontSize(10)
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
     doc.text('Doctor Information', margin, infoStartY)
     doc.text('Patient Information', pageWidth - margin, infoStartY, { align: 'right' })
     
-    yPos = infoStartY + 6
-    doc.setFontSize(8)
+    yPos = infoStartY + 5
+    doc.setFontSize(7)
     doc.setFont('helvetica', 'normal')
     
     // Doctor Info (Left)
     doc.text(`Name: ${doctorInfo.name}`, margin, yPos)
-    doc.text(`Specialty: ${doctorInfo.specialization || 'General Physician'}`, margin, yPos + 4)
+    doc.text(`Specialty: ${doctorInfo.specialization || 'General Physician'}`, margin, yPos + 3)
     const currentDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-    doc.text(`Date: ${currentDate}`, margin, yPos + 8)
+    doc.text(`Date: ${currentDate}`, margin, yPos + 6)
 
-    // Patient Info (Right)
+    // Patient Info (Right) - Compact with proper data extraction
     let patientYPos = yPos
-    doc.text(`Name: ${prescriptionData.patientName}`, pageWidth - margin, patientYPos, { align: 'right' })
-    patientYPos += 4
-    doc.text(`Age: ${selectedConsultation?.age || 'N/A'} years`, pageWidth - margin, patientYPos, { align: 'right' })
-    patientYPos += 4
-    doc.text(`Gender: ${selectedConsultation?.gender || 'N/A'}`, pageWidth - margin, patientYPos, { align: 'right' })
-    patientYPos += 4
+    // Get patient data from prescription or consultation
+    const patient = prescriptionData.patient || prescriptionData.originalData?.patientId || selectedConsultation?.patientId
+    const patientName = prescriptionData.patientName || (patient?.firstName && patient?.lastName 
+      ? `${patient.firstName} ${patient.lastName}` 
+      : patient?.name || 'N/A')
+    doc.text(`Name: ${patientName}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 3
     
-    // Add patient phone and address if available
-    if (prescriptionData.patientPhone || selectedConsultation?.patientPhone) {
-      doc.text(`Phone: ${prescriptionData.patientPhone || selectedConsultation?.patientPhone || 'N/A'}`, pageWidth - margin, patientYPos, { align: 'right' })
-      patientYPos += 4
-    }
-    if (prescriptionData.patientAddress || selectedConsultation?.patientAddress) {
-      let addressText = '';
-      const address = prescriptionData.patientAddress || selectedConsultation?.patientAddress;
-      
-      if (typeof address === 'string') {
-        addressText = address;
-      } else if (typeof address === 'object' && address !== null) {
-        // Build address string from object
-        const addressParts = [];
-        if (address.line1) addressParts.push(address.line1);
-        if (address.line2) addressParts.push(address.line2);
-        if (address.city) addressParts.push(address.city);
-        if (address.state) addressParts.push(address.state);
-        if (address.pincode || address.postalCode) {
-          addressParts.push(address.pincode || address.postalCode);
+    const patientAge = prescriptionData.age || selectedConsultation?.age || patient?.age || (patient?.dateOfBirth 
+      ? Math.floor((new Date() - new Date(patient.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000))
+      : null)
+    doc.text(`Age: ${patientAge ? `${patientAge} years` : 'N/A'}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 3
+    
+    const patientGender = prescriptionData.gender || selectedConsultation?.gender || patient?.gender || 'N/A'
+    doc.text(`Gender: ${patientGender}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 3
+    
+    const patientPhone = prescriptionData.patientPhone || selectedConsultation?.patientPhone || patient?.phone || 'N/A'
+    doc.text(`Phone: ${patientPhone}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 3
+    
+    // Patient Address - Always show if available
+    const patientAddress = prescriptionData.patientAddress || selectedConsultation?.patientAddress || patient?.address
+    if (patientAddress) {
+      let addressText = ''
+      if (typeof patientAddress === 'string') {
+        addressText = patientAddress
+      } else if (typeof patientAddress === 'object' && patientAddress !== null) {
+        const addressParts = []
+        if (patientAddress.line1) addressParts.push(patientAddress.line1)
+        if (patientAddress.line2) addressParts.push(patientAddress.line2)
+        if (patientAddress.city) addressParts.push(patientAddress.city)
+        if (patientAddress.state) addressParts.push(patientAddress.state)
+        if (patientAddress.pincode || patientAddress.postalCode) {
+          addressParts.push(patientAddress.pincode || patientAddress.postalCode)
         }
-        addressText = addressParts.join(', ').trim();
-      } else {
-        addressText = 'N/A';
+        if (patientAddress.country) addressParts.push(patientAddress.country)
+        addressText = addressParts.join(', ').trim()
       }
       
-      if (addressText && addressText !== '[object Object]' && addressText !== 'N/A') {
-      const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin)
-      addressLines.forEach((line, index) => {
-        doc.text(line, pageWidth - margin, patientYPos + (index * 4), { align: 'right' })
-      })
-      patientYPos += (addressLines.length - 1) * 4
+      if (addressText && addressText !== '[object Object]') {
+        const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin - 5)
+        addressLines.forEach((line, index) => {
+          doc.text(line, pageWidth - margin, patientYPos + (index * 3), { align: 'right' })
+        })
+        patientYPos += (addressLines.length - 1) * 3
       }
     }
 
     // Set yPos to the maximum of doctor info end or patient info end
-    yPos = Math.max(yPos + 12, patientYPos) + 3
+    yPos = Math.max(yPos + 9, patientYPos) + 2
 
-    // Diagnosis Section with Light Blue Background Box
-    doc.setFontSize(10)
+    // Diagnosis Section with Light Blue Background Box - Compact
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
     doc.text('Diagnosis', margin, yPos)
-    yPos += 6
+    yPos += 5
     
-    // Light blue rounded box for diagnosis
-    const diagnosisHeight = 8
+    // Light blue rounded box for diagnosis - Smaller height
+    const diagnosisHeight = 6
     doc.setFillColor(...lightBlueColor)
-    doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, diagnosisHeight, 2, 2, 'F')
-    doc.setFontSize(9)
+    doc.roundedRect(margin, yPos - 2, pageWidth - 2 * margin, diagnosisHeight, 2, 2, 'F')
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(0, 0, 0)
     const diagnosisText = prescriptionData.diagnosis || 'N/A'
-    doc.text(diagnosisText, margin + 4, yPos + 2)
-    yPos += diagnosisHeight + 4
+    doc.text(diagnosisText, margin + 3, yPos + 1)
+    yPos += diagnosisHeight + 3
 
-    // Symptoms Section with Green Bullet Points
+    // Symptoms Section with Green Bullet Points - Compact
     if (prescriptionData.symptoms) {
-      doc.setFontSize(10)
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       doc.text('Symptoms', margin, yPos)
-      yPos += 6
-      doc.setFontSize(8)
+      yPos += 5
+      doc.setFontSize(7)
       doc.setFont('helvetica', 'normal')
-      const symptomLines = prescriptionData.symptoms.split('\n').filter(line => line.trim())
+      const symptomLines = typeof prescriptionData.symptoms === 'string' 
+        ? prescriptionData.symptoms.split('\n').filter(line => line.trim())
+        : Array.isArray(prescriptionData.symptoms)
+        ? prescriptionData.symptoms.filter(s => s && s.trim())
+        : [String(prescriptionData.symptoms)]
+      
       symptomLines.forEach((symptom) => {
+        // Check if we're getting too close to bottom - stop if needed
+        if (yPos > pageHeight - 60) return
+        
         // Green bullet point
         doc.setFillColor(34, 197, 94) // Green color
-        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.circle(margin + 1.2, yPos - 0.8, 1, 'F')
         doc.setTextColor(0, 0, 0)
-        doc.text(symptom.trim(), margin + 5, yPos)
-        yPos += 4
+        const symptomText = typeof symptom === 'string' ? symptom.trim() : String(symptom)
+        doc.text(symptomText, margin + 4, yPos)
+        yPos += 3
       })
-      yPos += 2
+      yPos += 1
     }
 
-    // Medications Section with Numbered Cards (Light Gray Background)
+    // Medications Section with Numbered Cards (Light Gray Background) - Compact
     if (prescriptionData.medications && prescriptionData.medications.length > 0) {
-      doc.setFontSize(10)
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       doc.text('Medications', margin, yPos)
-      yPos += 6
+      yPos += 5
       
       prescriptionData.medications.forEach((med, idx) => {
-        // Check if we need a new page (with more space check)
-        if (yPos > pageHeight - 50) {
-          doc.addPage()
-          yPos = margin
-        }
-        
-        // Medication card with light gray background
-        const cardHeight = 22
+        // NO PAGE BREAKS - Force everything to fit on one page
+        // Make medication cards more compact
+        const cardHeight = 18
         doc.setFillColor(...lightGrayColor)
-        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
+        doc.roundedRect(margin, yPos - 2, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
         
-        // Numbered square in teal (top-right corner)
-        const numberSize = 8
-        const numberX = pageWidth - margin - numberSize - 3
+        // Numbered square in teal (top-right corner) - Smaller
+        const numberSize = 6
+        const numberX = pageWidth - margin - numberSize - 2
         const numberY = yPos - 1
         doc.setFillColor(...tealColor)
         doc.roundedRect(numberX, numberY, numberSize, numberSize, 1, 1, 'F')
         doc.setTextColor(255, 255, 255)
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'bold')
-        doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 1, { align: 'center' })
-        
-        // Medication name (bold, top)
-        doc.setTextColor(0, 0, 0)
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.text(med.name, margin + 4, yPos + 3)
-        
-        // Medication details in 2 columns (left and right)
         doc.setFontSize(7)
+        doc.setFont('helvetica', 'bold')
+        doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 0.5, { align: 'center' })
+        
+        // Medication name (bold, top) - Smaller font
+        doc.setTextColor(0, 0, 0)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.text(med.name, margin + 3, yPos + 2)
+        
+        // Medication details in 2 columns (left and right) - Smaller font
+        doc.setFontSize(6.5)
         doc.setFont('helvetica', 'normal')
-        const leftColX = margin + 4
-        const rightColX = margin + (pageWidth - 2 * margin) / 2 + 5
-        const startY = yPos + 7
+        const leftColX = margin + 3
+        const rightColX = margin + (pageWidth - 2 * margin) / 2 + 3
+        const startY = yPos + 6
         
         // Left column
-        doc.text(`Dosage: ${med.dosage}`, leftColX, startY)
-        doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 4)
+        doc.text(`Dosage: ${med.dosage || 'N/A'}`, leftColX, startY)
+        doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 3)
         
         // Right column
-        doc.text(`Frequency: ${med.frequency}`, rightColX, startY)
+        doc.text(`Frequency: ${med.frequency || 'N/A'}`, rightColX, startY)
         if (med.instructions) {
-          doc.text(`Instructions: ${med.instructions}`, rightColX, startY + 4)
+          const instructionText = doc.splitTextToSize(`Instructions: ${med.instructions}`, (pageWidth - 2 * margin) / 2 - 5)
+          instructionText.forEach((line, i) => {
+            if (i === 0) {
+              doc.text(line, rightColX, startY + 3)
+            } else {
+              doc.text(line, rightColX, startY + 3 + (i * 3))
+            }
+          })
         }
         
-        yPos += cardHeight + 4
+        yPos += cardHeight + 2
       })
       yPos += 2
     }
@@ -2649,11 +2689,26 @@ const DoctorConsultations = () => {
     const signatureX = pageWidth - margin - 55
     const signatureY = yPos
     
+    // Get digital signature from prescription data or doctorInfo - handle both object and string formats
+    const digitalSignatureRaw = prescriptionData.doctor?.digitalSignature || prescriptionData.originalData?.doctorId?.digitalSignature || doctorInfo.digitalSignature
+    let signatureImageUrl = ''
+    
+    // Extract imageUrl from signature object or use string directly
+    if (digitalSignatureRaw) {
+      if (typeof digitalSignatureRaw === 'string') {
+        signatureImageUrl = digitalSignatureRaw.trim()
+      } else if (typeof digitalSignatureRaw === 'object' && digitalSignatureRaw !== null) {
+        signatureImageUrl = digitalSignatureRaw.imageUrl || digitalSignatureRaw.url || ''
+      }
+    }
+    
     // Add digital signature image if available
-    if (doctorInfo.digitalSignature && doctorInfo.digitalSignature.trim() !== '') {
+    if (signatureImageUrl && signatureImageUrl !== '') {
       try {
-        let imageData = doctorInfo.digitalSignature.trim()
+        let imageData = signatureImageUrl
         let imageFormat = 'PNG'
+        
+        // Determine image format from data URL or file extension
         if (imageData.includes('data:image/jpeg') || imageData.includes('data:image/jpg')) {
           imageFormat = 'JPEG'
         } else if (imageData.includes('data:image/png')) {
@@ -2663,8 +2718,25 @@ const DoctorConsultations = () => {
           if (match) {
             imageFormat = match[1].toUpperCase()
           }
+        } else if (imageData.toLowerCase().endsWith('.jpg') || imageData.toLowerCase().endsWith('.jpeg')) {
+          imageFormat = 'JPEG'
+        } else if (imageData.toLowerCase().endsWith('.png')) {
+          imageFormat = 'PNG'
         }
-        doc.addImage(imageData, imageFormat, signatureX, signatureY - 18, 50, 20)
+        
+        // Calculate signature image dimensions - compact size for prescription
+        // Standard signature size: width 50, height 18 (in jsPDF points)
+        // This ensures signature is small and properly fits in the document
+        const signatureWidth = 50  // Compact width
+        const signatureHeight = 18  // Compact height (changed from 20 to match patient view)
+        
+        // Position signature image above the signature line
+        // Position it 18 points above the signature line (standard spacing)
+        const signatureImageY = signatureY - signatureHeight
+        
+        // Add signature image with compact dimensions, properly positioned
+        doc.addImage(imageData, imageFormat, signatureX, signatureImageY, signatureWidth, signatureHeight, undefined, 'FAST')
+        console.log('Signature image added successfully with size:', signatureWidth, 'x', signatureHeight)
       } catch (error) {
         console.error('Error adding signature image to PDF:', error)
         doc.setDrawColor(0, 0, 0)
@@ -2677,14 +2749,18 @@ const DoctorConsultations = () => {
       doc.line(signatureX, signatureY, signatureX + 50, signatureY)
     }
     
-    // Doctor name and designation below signature
+    // Doctor name and designation below signature - Adjust position based on whether signature image is present
+    const hasSignatureImage = signatureImageUrl && signatureImageUrl !== ''
+    const textYPos = hasSignatureImage ? signatureY + 6 : signatureY + 8
+    const centerX = signatureX + 25  // Center of signature area (50/2 = 25)
+    
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(0, 0, 0)
-    doc.text(doctorInfo.name, signatureX + 25, signatureY + 8, { align: 'center' })
+    doc.text(doctorInfo.name, centerX, textYPos, { align: 'center' })
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
-    doc.text(doctorInfo.specialization || 'General Physician', signatureX + 25, signatureY + 12, { align: 'center' })
+    doc.text(doctorInfo.specialization || 'General Physician', centerX, textYPos + 4, { align: 'center' })
 
     // Disclaimer at bottom center
     const disclaimerY = pageHeight - 6
@@ -4387,7 +4463,7 @@ const DoctorConsultations = () => {
                   <div className="space-y-4 lg:space-y-3">
                     {viewingPrescription ? (
                       /* Full Page View Prescription */
-                      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 100px)' }}>
+                      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 120px)', height: 'calc(100vh - 120px)' }}>
                         {/* Header */}
                         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-4 py-3 lg:py-2.5 flex-shrink-0">
                           <div className="flex items-center gap-3">
@@ -4403,7 +4479,7 @@ const DoctorConsultations = () => {
                         </div>
                         
                         {/* Content - Scrollable */}
-                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 sm:space-y-4">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 sm:space-y-4 pb-6" style={{ minHeight: 0 }}>
                           {/* Patient Info */}
                           <div className="flex items-center gap-4 pb-4 border-b border-slate-200">
                             <div className="h-14 w-14 rounded-lg bg-[#11496c] flex items-center justify-center shrink-0 shadow-sm">
@@ -4455,7 +4531,7 @@ const DoctorConsultations = () => {
                                         {med.duration && <span>Duration: {med.duration}</span>}
                                       </div>
                                       {med.instructions && (
-                                        <p className="text-xs text-emerald-600 mt-1 line-clamp-2">{med.instructions}</p>
+                                        <p className="text-xs text-emerald-600 mt-1 whitespace-pre-wrap break-words">{med.instructions}</p>
                                       )}
                                     </div>
                                   </div>
@@ -4477,7 +4553,7 @@ const DoctorConsultations = () => {
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-semibold text-[#0a2d3f]">{inv.name || inv.testName}</p>
                                       {inv.notes && (
-                                        <p className="text-xs text-[#11496c] mt-1 line-clamp-2">{inv.notes}</p>
+                                        <p className="text-xs text-[#11496c] mt-1">{inv.notes}</p>
                                       )}
                                     </div>
                                   </div>
@@ -4507,10 +4583,13 @@ const DoctorConsultations = () => {
                               </p>
                             </div>
                           )}
+                          
+                          {/* Extra padding at bottom to ensure all content is visible above footer */}
+                          <div className="h-6"></div>
                         </div>
 
                         {/* Footer Actions - Sticky */}
-                        <div className="sticky bottom-0 flex gap-3 border-t border-slate-200 bg-white p-3 sm:p-4 flex-shrink-0 shadow-sm">
+                        <div className="sticky bottom-0 z-10 flex gap-3 border-t border-slate-200 bg-white p-3 sm:p-4 flex-shrink-0 shadow-lg">
                           <button
                             type="button"
                             onClick={() => setViewingPrescription(null)}
@@ -5175,7 +5254,6 @@ const DoctorConsultations = () => {
                                 </p>
                                 <p className="text-[10px] sm:text-xs text-slate-600 mt-0.5">
                                   {medicine.manufacturer && `${medicine.manufacturer}`}
-                                  {medicine.pharmacyName && ` • ${medicine.pharmacyName}`}
                                 </p>
                               </div>
                               <IoMedicalOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] ml-2 shrink-0" />
@@ -5317,7 +5395,6 @@ const DoctorConsultations = () => {
                                 <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{test.name}</p>
                                 <p className="text-[10px] sm:text-xs text-slate-600 mt-0.5">
                                   {test.category && `${test.category}`}
-                                  {test.labName && ` • ${test.labName}`}
                                 </p>
                               </div>
                               <IoFlaskOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] ml-2 shrink-0" />

@@ -70,7 +70,7 @@ const transformVerification = (item, type) => {
     const consultationModesList = item.consultationModes && Array.isArray(item.consultationModes) && item.consultationModes.length > 0
       ? item.consultationModes.map(mode => {
           if (mode === 'in_person') return 'In Person'
-          if (mode === 'video') return 'Video Call'
+          if (mode === 'call') return 'Call'
           if (mode === 'audio') return 'Audio Call'
           if (mode === 'chat') return 'Chat'
           return mode

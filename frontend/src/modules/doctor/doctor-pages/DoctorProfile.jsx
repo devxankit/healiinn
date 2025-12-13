@@ -4,6 +4,7 @@ import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import { getDoctorProfile, updateDoctorProfile, getSupportHistory, uploadProfileImage, uploadSignature } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
+import Cropper from 'react-easy-crop'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -45,6 +46,57 @@ const normalizeImageUrl = (url) => {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
   const baseUrl = apiBaseUrl.replace('/api', '')
   return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+}
+
+// Utility function to create cropped image blob
+const createImage = (url) =>
+  new Promise((resolve, reject) => {
+    const image = new Image()
+    image.addEventListener('load', () => resolve(image))
+    image.addEventListener('error', (error) => reject(error))
+    image.src = url
+  })
+
+const getCroppedImg = async (imageSrc, pixelCrop) => {
+  const image = await createImage(imageSrc)
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+
+  if (!ctx) {
+    throw new Error('No 2d context')
+  }
+
+  const maxSize = Math.max(image.width, image.height)
+  const safeArea = 2 * ((maxSize / 2) * Math.sqrt(2))
+
+  canvas.width = safeArea
+  canvas.height = safeArea
+
+  ctx.translate(safeArea / 2, safeArea / 2)
+  ctx.translate(-safeArea / 2, -safeArea / 2)
+
+  ctx.drawImage(
+    image,
+    safeArea / 2 - image.width * 0.5,
+    safeArea / 2 - image.height * 0.5
+  )
+
+  const data = ctx.getImageData(0, 0, safeArea, safeArea)
+
+  canvas.width = pixelCrop.width
+  canvas.height = pixelCrop.height
+
+  ctx.putImageData(
+    data,
+    Math.round(0 - safeArea / 2 + image.width * 0.5 - pixelCrop.x),
+    Math.round(0 - safeArea / 2 + image.height * 0.5 - pixelCrop.y)
+  )
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      resolve(blob)
+    }, 'image/jpeg', 0.95)
+  })
 }
 
 // Utility function to convert 24-hour time to 12-hour format with AM/PM
@@ -108,6 +160,13 @@ const DoctorProfile = () => {
   const languageInputRef = useRef(null)
   // Store stable averageConsultationMinutes value to prevent it from changing unexpectedly
   const [stableAverageConsultationMinutes, setStableAverageConsultationMinutes] = useState(20)
+  
+  // Image crop states
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [imageToCrop, setImageToCrop] = useState(null)
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
   
   // Initialize with empty/default data
   const [formData, setFormData] = useState({
@@ -182,7 +241,9 @@ const DoctorProfile = () => {
             consultationFee: cachedProfile.consultationFee || 0,
             education: Array.isArray(cachedProfile.education) ? cachedProfile.education : [],
             languages: Array.isArray(cachedProfile.languages) ? cachedProfile.languages : [],
-            consultationModes: Array.isArray(cachedProfile.consultationModes) ? cachedProfile.consultationModes : [],
+            consultationModes: Array.isArray(cachedProfile.consultationModes) 
+              ? cachedProfile.consultationModes.map(mode => mode === 'video' ? 'call' : mode)
+              : [],
             clinicDetails: cachedProfile.clinicDetails || {
               name: '',
               address: {
@@ -235,7 +296,9 @@ const DoctorProfile = () => {
             consultationFee: doctor.consultationFee || 0,
             education: Array.isArray(doctor.education) ? doctor.education : [],
             languages: Array.isArray(doctor.languages) ? doctor.languages : [],
-            consultationModes: Array.isArray(doctor.consultationModes) ? doctor.consultationModes : [],
+            consultationModes: Array.isArray(doctor.consultationModes) 
+              ? doctor.consultationModes.map(mode => mode === 'video' ? 'call' : mode)
+              : [],
             clinicDetails: doctor.clinicDetails || {
               name: '',
               address: {
@@ -432,9 +495,62 @@ const DoctorProfile = () => {
       return
     }
 
+    // Read file and show crop modal
+    const reader = new FileReader()
+    reader.onload = () => {
+      setImageToCrop(reader.result)
+      setShowCropModal(true)
+      setCrop({ x: 0, y: 0 })
+      setZoom(1)
+    }
+    reader.onerror = () => {
+      toast.error('Failed to read image file')
+    }
+    reader.readAsDataURL(file)
+    
+    // Reset file input
+    event.target.value = ''
+  }
+
+  const onCropComplete = (croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels)
+  }
+
+  const handleCropCancel = () => {
+    setShowCropModal(false)
+    setImageToCrop(null)
+    setCrop({ x: 0, y: 0 })
+    setZoom(1)
+    setCroppedAreaPixels(null)
+  }
+
+  const handleCropDone = async () => {
+    if (!imageToCrop || !croppedAreaPixels) {
+      toast.warning('Please adjust the crop area')
+      return
+    }
+
     try {
+      toast.info('Processing image...')
+      
+      // Create cropped image blob
+      const croppedImageBlob = await getCroppedImg(imageToCrop, croppedAreaPixels)
+      
+      // Create a File object from the blob
+      const croppedFile = new File([croppedImageBlob], 'signature.jpg', {
+        type: 'image/jpeg',
+      })
+
+      // Close crop modal
+      setShowCropModal(false)
+      setImageToCrop(null)
+      setCrop({ x: 0, y: 0 })
+      setZoom(1)
+      setCroppedAreaPixels(null)
+
+      // Upload the cropped image
       toast.info('Uploading signature...')
-      const response = await uploadSignature(file)
+      const response = await uploadSignature(croppedFile)
       
       if (response.success && response.data?.url) {
         const imageUrl = normalizeImageUrl(response.data.url)
@@ -448,8 +564,10 @@ const DoctorProfile = () => {
         toast.success('Signature uploaded successfully!')
       }
     } catch (error) {
-      console.error('Error uploading signature:', error)
-      toast.error(error.message || 'Failed to upload signature')
+      console.error('Error cropping/uploading signature:', error)
+      toast.error(error.message || 'Failed to process signature')
+      setShowCropModal(false)
+      setImageToCrop(null)
     }
   }
 
@@ -511,7 +629,9 @@ const DoctorProfile = () => {
         consultationFee: formData.consultationFee,
         education: formData.education,
         languages: formData.languages,
-        consultationModes: formData.consultationModes,
+        consultationModes: Array.isArray(formData.consultationModes) 
+          ? formData.consultationModes.map(mode => mode === 'video' ? 'call' : mode)
+          : formData.consultationModes,
         clinicDetails: formData.clinicDetails,
         availableTimings: formData.availableTimings,
         availability: availability12Hour, // Use converted 12-hour format
@@ -1413,12 +1533,12 @@ const DoctorProfile = () => {
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={formData.consultationModes?.includes('video') || false}
+                                checked={formData.consultationModes?.includes('call') || false}
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    handleArrayAdd('consultationModes', 'video')
+                                    handleArrayAdd('consultationModes', 'call')
                                   } else {
-                                    const index = formData.consultationModes?.indexOf('video')
+                                    const index = formData.consultationModes?.indexOf('call')
                                     if (index !== undefined && index !== -1) {
                                       handleArrayRemove('consultationModes', index)
                                     }
@@ -1426,9 +1546,9 @@ const DoctorProfile = () => {
                                 }}
                                 className="h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] shrink-0"
                               />
-                              <IoVideocamOutline className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                              <IoCallOutline className="h-3.5 w-3.5 text-slate-600 shrink-0" />
                               <span className="text-xs font-medium text-slate-900 capitalize">
-                                Video Call
+                                Call
                               </span>
                             </label>
                           </div>
@@ -1442,12 +1562,12 @@ const DoctorProfile = () => {
                                 >
                                   {mode === 'in_person' ? (
                                     <IoPersonOutline className="h-2.5 w-2.5 shrink-0" />
-                                  ) : mode === 'video' ? (
-                                    <IoVideocamOutline className="h-2.5 w-2.5 shrink-0" />
+                                  ) : mode === 'call' ? (
+                                    <IoCallOutline className="h-2.5 w-2.5 shrink-0" />
                                   ) : (
                                     <IoPersonOutline className="h-2.5 w-2.5 shrink-0" />
                                   )}
-                                  {mode === 'in_person' ? 'In Person' : mode === 'video' ? 'Video Call' : mode.replace('_', ' ')}
+                                  {mode === 'in_person' ? 'In Person' : mode === 'call' ? 'Call' : mode.replace('_', ' ')}
                                 </span>
                               ))
                             ) : (
@@ -1944,6 +2064,84 @@ const DoctorProfile = () => {
           </div>
         </div>
       </section>
+
+      {/* Image Crop Modal */}
+      {showCropModal && imageToCrop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="relative w-full max-w-2xl mx-4 bg-white rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 bg-slate-50">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">Crop Signature Image</h3>
+              <button
+                onClick={handleCropCancel}
+                className="p-2 hover:bg-slate-200 rounded-lg transition"
+                aria-label="Close"
+              >
+                <IoCloseOutline className="h-5 w-5 sm:h-6 sm:w-6 text-slate-600" />
+              </button>
+            </div>
+
+            {/* Cropper Container */}
+            <div className="relative w-full" style={{ height: '400px', background: '#000' }}>
+              <Cropper
+                image={imageToCrop}
+                crop={crop}
+                zoom={zoom}
+                aspect={undefined}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+                style={{
+                  containerStyle: {
+                    width: '100%',
+                    height: '100%',
+                    position: 'relative',
+                  },
+                }}
+              />
+            </div>
+
+            {/* Zoom Control */}
+            <div className="px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-200">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs sm:text-sm font-medium text-slate-700 min-w-[60px]">Zoom:</span>
+                  <input
+                    type="range"
+                    value={zoom}
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    onChange={(e) => setZoom(parseFloat(e.target.value))}
+                    className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#11496c]"
+                  />
+                  <span className="text-xs sm:text-sm text-slate-600 min-w-[40px] text-right">
+                    {zoom.toFixed(1)}x
+                  </span>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                  <button
+                    onClick={handleCropCancel}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 rounded-lg border border-slate-300 bg-white text-slate-700 font-semibold text-sm sm:text-base hover:bg-slate-50 transition active:scale-95"
+                  >
+                    <IoCloseOutline className="h-4 w-4 sm:h-5 sm:w-5" />
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCropDone}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 rounded-lg bg-[#11496c] text-white font-semibold text-sm sm:text-base hover:bg-[#0d3a52] transition active:scale-95 shadow-md"
+                  >
+                    <IoCheckmarkCircleOutline className="h-4 w-4 sm:h-5 sm:w-5" />
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

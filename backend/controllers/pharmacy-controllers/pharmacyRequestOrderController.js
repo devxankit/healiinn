@@ -29,7 +29,23 @@ exports.getRequestOrders = asyncHandler(async (req, res) => {
   const [requests, total] = await Promise.all([
     Request.find(filter)
       .populate('patientId', 'firstName lastName phone address')
-      .populate('prescriptionId')
+      .populate({
+        path: 'prescriptionId',
+        populate: [
+          {
+            path: 'doctorId',
+            select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+          },
+          {
+            path: 'patientId',
+            select: 'firstName lastName dateOfBirth gender phone email address',
+          },
+          {
+            path: 'consultationId',
+            select: 'consultationDate diagnosis symptoms investigations advice followUpDate',
+          },
+        ],
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -61,7 +77,23 @@ exports.getRequestOrderById = asyncHandler(async (req, res) => {
     'adminResponse.medicines.pharmacyId': id,
   })
     .populate('patientId')
-    .populate('prescriptionId')
+    .populate({
+      path: 'prescriptionId',
+      populate: [
+        {
+          path: 'doctorId',
+          select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+        },
+        {
+          path: 'patientId',
+          select: 'firstName lastName dateOfBirth gender phone email address',
+        },
+        {
+          path: 'consultationId',
+          select: 'consultationDate diagnosis symptoms investigations advice followUpDate',
+        },
+      ],
+    })
     .populate('orders');
 
   if (!request) {
@@ -139,6 +171,12 @@ exports.confirmRequestOrder = asyncHandler(async (req, res) => {
   order.status = 'accepted';
   await order.save();
 
+  // Get pharmacy and patient data for notifications
+  const Pharmacy = require('../../models/Pharmacy');
+  const Patient = require('../../models/Patient');
+  const pharmacy = await Pharmacy.findById(id);
+  const patient = await Patient.findById(request.patientId);
+
   // Emit real-time event
   try {
     const io = getIO();
@@ -148,6 +186,53 @@ exports.confirmRequestOrder = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error('Socket.IO error:', error);
+  }
+
+  // Create in-app and email notifications
+  try {
+    const { createRequestNotification, createOrderNotification } = require('../../services/notificationService');
+    const populatedRequest = await Request.findById(request._id)
+      .populate('patientId', 'firstName lastName phone email')
+      .populate({
+        path: 'prescriptionId',
+        populate: [
+          {
+            path: 'doctorId',
+            select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+          },
+          {
+            path: 'patientId',
+            select: 'firstName lastName dateOfBirth gender phone email address',
+          },
+          {
+            path: 'consultationId',
+            select: 'consultationDate diagnosis symptoms investigations advice followUpDate',
+          },
+        ],
+      });
+
+    // Notify patient that request was confirmed by pharmacy
+    await createRequestNotification({
+      userId: request.patientId,
+      userType: 'patient',
+      request: populatedRequest,
+      eventType: 'confirmed',
+      pharmacy,
+    }).catch((error) => console.error('Error creating patient request confirmation notification:', error));
+
+    // Also create order notification for patient
+    const populatedOrder = await Order.findById(order._id)
+      .populate('patientId', 'firstName lastName phone email');
+    await createOrderNotification({
+      userId: request.patientId,
+      userType: 'patient',
+      order: populatedOrder,
+      eventType: 'confirmed',
+      pharmacy,
+      patient,
+    }).catch((error) => console.error('Error creating patient order confirmation notification:', error));
+  } catch (error) {
+    console.error('Error creating notifications:', error);
   }
 
   return res.status(200).json({

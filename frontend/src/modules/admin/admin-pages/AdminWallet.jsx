@@ -1031,9 +1031,9 @@ const AdminWallet = () => {
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <header className="mb-4 flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">All Providers Wallet Details</h2>
-                <p className="mt-1 text-xs text-slate-600">View earnings and balances for all providers</p>
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">All Providers Wallet Details</h2>
+              <p className="mt-1 text-xs text-slate-600">View earnings and balances for all providers</p>
               </div>
               {/* Period Filter for Provider Cards */}
               <div className="flex items-center gap-2">

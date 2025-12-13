@@ -186,13 +186,21 @@ exports.createConsultation = asyncHandler(async (req, res) => {
 
 // PATCH /api/doctors/consultations/:id
 exports.updateConsultation = asyncHandler(async (req, res) => {
-  const { id } = req.auth;
-  const { consultationId } = req.params;
+  const { id: doctorId } = req.auth;
+  const { id: consultationId } = req.params; // Route parameter is :id, not :consultationId
   const updateData = req.body;
+
+  // Validate consultationId is a valid MongoDB ObjectId
+  if (!consultationId || !consultationId.match(/^[0-9a-fA-F]{24}$/)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid consultation ID format',
+    });
+  }
 
   const consultation = await Consultation.findOne({
     _id: consultationId,
-    doctorId: id,
+    doctorId: doctorId,
   });
 
   if (!consultation) {
@@ -202,10 +210,12 @@ exports.updateConsultation = asyncHandler(async (req, res) => {
     });
   }
 
-  if (consultation.status === 'completed' || consultation.status === 'cancelled') {
+  // Allow updates to completed consultations (for prescription edits, diagnosis updates, etc.)
+  // But prevent updates to cancelled consultations
+  if (consultation.status === 'cancelled') {
     return res.status(400).json({
       success: false,
-      message: 'Cannot update completed or cancelled consultation',
+      message: 'Cannot update cancelled consultation',
     });
   }
 
@@ -271,16 +281,24 @@ exports.updateConsultation = asyncHandler(async (req, res) => {
 
 // GET /api/doctors/consultations/:id
 exports.getConsultationById = asyncHandler(async (req, res) => {
-  const { id } = req.auth;
-  const { consultationId } = req.params;
+  const { id: doctorId } = req.auth;
+  const { id: consultationId } = req.params; // Route parameter is :id, not :consultationId
 
   const LabReport = require('../../models/LabReport');
 
   const Patient = require('../../models/Patient');
   
+  // Validate consultationId is a valid MongoDB ObjectId
+  if (!consultationId || !consultationId.match(/^[0-9a-fA-F]{24}$/)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid consultation ID format',
+    });
+  }
+  
   const consultation = await Consultation.findOne({
     _id: consultationId,
-    doctorId: id,
+    doctorId: doctorId,
   })
     .populate({
       path: 'patientId',

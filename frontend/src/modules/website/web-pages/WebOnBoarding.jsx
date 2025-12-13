@@ -1675,7 +1675,7 @@ const WebOnBoarding = () => {
                     Consultation Modes
                   </label>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {['in_person', 'video', 'audio', 'chat'].map((mode) => (
+                    {['in_person', 'call', 'audio', 'chat'].map((mode) => (
                       <label key={mode} className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-3 cursor-pointer hover:bg-white/10 transition">
                         <input
                           type="checkbox"

@@ -124,12 +124,49 @@ const PatientPrescriptions = () => {
             id: presc._id || presc.id,
             _id: presc._id || presc.id,
             doctor: presc.doctorId ? {
-              name: presc.doctorId.firstName && presc.doctorId.lastName
-                ? `Dr. ${presc.doctorId.firstName} ${presc.doctorId.lastName}`
-                : presc.doctorId.name || 'Dr. Unknown',
+              name: (() => {
+                // Build doctor name from firstName and lastName
+                if (presc.doctorId.firstName && presc.doctorId.lastName) {
+                  return `Dr. ${presc.doctorId.firstName} ${presc.doctorId.lastName}`
+                } else if (presc.doctorId.firstName) {
+                  return `Dr. ${presc.doctorId.firstName}`
+                } else if (presc.doctorId.lastName) {
+                  return `Dr. ${presc.doctorId.lastName}`
+                } else if (presc.doctorId.name) {
+                  return presc.doctorId.name.startsWith('Dr.') ? presc.doctorId.name : `Dr. ${presc.doctorId.name}`
+                } else {
+                  // Last resort: check originalData or use fallback
+                  return presc.originalData?.doctorId?.firstName || presc.originalData?.doctorId?.lastName
+                    ? `Dr. ${presc.originalData.doctorId.firstName || ''} ${presc.originalData.doctorId.lastName || ''}`.trim()
+                    : 'Dr. Unknown'
+                }
+              })(),
               specialty: presc.doctorId.specialization || presc.doctorId.specialty || '',
-              image: presc.doctorId.profileImage || presc.doctorId.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(presc.doctorId.firstName || 'Doctor')}&background=11496c&color=fff&size=128&bold=true`,
-            } : presc.doctor || {},
+              phone: presc.doctorId.phone || '',
+              email: presc.doctorId.email || '',
+              clinicName: presc.doctorId.clinicDetails?.name || presc.doctorId.clinicDetails?.clinicName || '',
+              clinicAddress: presc.doctorId.clinicDetails?.address || null,
+              digitalSignature: presc.doctorId.digitalSignature || null,
+              image: presc.doctorId.profileImage || presc.doctorId.image || (() => {
+                const firstName = presc.doctorId.firstName || ''
+                const lastName = presc.doctorId.lastName || ''
+                const name = firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName || 'Doctor'
+                return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=11496c&color=fff&size=128&bold=true`
+              })(),
+            } : (presc.doctor || {}),
+            patient: presc.patientId ? {
+              name: presc.patientId.firstName && presc.patientId.lastName
+                ? `${presc.patientId.firstName} ${presc.patientId.lastName}`
+                : presc.patientId.name || 'N/A',
+              dateOfBirth: presc.patientId.dateOfBirth || null,
+              age: presc.patientId.dateOfBirth
+                ? Math.floor((new Date() - new Date(presc.patientId.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000))
+                : null,
+              gender: presc.patientId.gender || 'N/A',
+              phone: presc.patientId.phone || 'N/A',
+              email: presc.patientId.email || '',
+              address: presc.patientId.address || null,
+            } : null,
             issuedAt: presc.createdAt ? new Date(presc.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             status: presc.status || 'active',
             // Get diagnosis, symptoms, investigations from consultationId if available
@@ -193,6 +230,29 @@ const PatientPrescriptions = () => {
     setShareSearchTerm('')
   }
 
+  // Helper function to convert image URL to base64
+  const urlToBase64 = (url) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas')
+          canvas.width = img.width
+          canvas.height = img.height
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0)
+          const dataURL = canvas.toDataURL('image/png')
+          resolve(dataURL)
+        } catch (error) {
+          reject(error)
+        }
+      }
+      img.onerror = reject
+      img.src = url
+    })
+  }
+
   const generatePDF = (prescriptionData) => {
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
@@ -205,96 +265,117 @@ const PatientPrescriptions = () => {
     const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
     let yPos = margin
 
-    // Header Section - Healiinn (Above Clinic Name)
+    // Header Section - Healiinn (Above Clinic Name) - Reduced size
     doc.setTextColor(...tealColor)
-    doc.setFontSize(24)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
-    yPos += 8
-    
-    // Clinic Name in Teal (Below Healiinn)
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
-    const clinicName = prescriptionData.doctor?.clinicName || prescriptionData.originalData?.doctorId?.clinicDetails?.clinicName || 'Super Clinic'
+    doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
+    yPos += 6
+    
+    // Clinic Name in Teal (Below Healiinn) - Reduced size
+    doc.setFontSize(18)
+    doc.setFont('helvetica', 'bold')
+    const clinicName = prescriptionData.doctor?.clinicName || prescriptionData.originalData?.doctorId?.clinicDetails?.name || prescriptionData.originalData?.doctorId?.clinicDetails?.clinicName || 'Super Clinic'
     doc.text(clinicName, pageWidth / 2, yPos, { align: 'center' })
-    yPos += 7
+    yPos += 5
 
-    // Clinic Address (Centered)
-    doc.setFontSize(9)
+    // Clinic Address (Centered) - Reduced spacing - Convert object to string
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(0, 0, 0)
-    const clinicAddress = prescriptionData.doctor?.clinicAddress || prescriptionData.originalData?.doctorId?.clinicDetails?.address || 'Address not provided'
+    let clinicAddressRaw = prescriptionData.doctor?.clinicAddress || prescriptionData.originalData?.doctorId?.clinicDetails?.address
+    let clinicAddress = 'Address not provided'
+    
+    if (clinicAddressRaw) {
+      if (typeof clinicAddressRaw === 'string') {
+        clinicAddress = clinicAddressRaw
+      } else if (typeof clinicAddressRaw === 'object' && clinicAddressRaw !== null) {
+        // Convert address object to string
+        const addressParts = []
+        if (clinicAddressRaw.line1) addressParts.push(clinicAddressRaw.line1)
+        if (clinicAddressRaw.line2) addressParts.push(clinicAddressRaw.line2)
+        if (clinicAddressRaw.city) addressParts.push(clinicAddressRaw.city)
+        if (clinicAddressRaw.state) addressParts.push(clinicAddressRaw.state)
+        if (clinicAddressRaw.postalCode || clinicAddressRaw.pincode) {
+          addressParts.push(clinicAddressRaw.postalCode || clinicAddressRaw.pincode)
+        }
+        if (clinicAddressRaw.country) addressParts.push(clinicAddressRaw.country)
+        clinicAddress = addressParts.join(', ').trim() || 'Address not provided'
+      }
+    }
+    
     const addressLines = doc.splitTextToSize(clinicAddress, pageWidth - 2 * margin)
     addressLines.forEach((line) => {
       doc.text(line, pageWidth / 2, yPos, { align: 'center' })
-      yPos += 4
+      yPos += 3
     })
 
-    // Contact Information (Left: Phone, Right: Email)
+    // Contact Information (Left: Phone, Right: Email) - Compact
     yPos += 1
-    doc.setFontSize(8)
+    doc.setFontSize(7)
     const contactY = yPos
     // Phone icon and number (left)
     doc.setFillColor(200, 0, 0) // Red circle for phone
-    doc.circle(margin + 2, contactY - 1, 1.5, 'F')
+    doc.circle(margin + 2, contactY - 1, 1.2, 'F')
     doc.setTextColor(0, 0, 0)
     const phone = prescriptionData.doctor?.phone || prescriptionData.originalData?.doctorId?.phone || 'N/A'
-    doc.text(phone, margin + 6, contactY)
+    doc.text(phone, margin + 5, contactY)
     
     // Email icon and address (right)
     doc.setFillColor(100, 100, 100) // Gray circle for email
-    doc.circle(pageWidth - margin - 2, contactY - 1, 1.5, 'F')
+    doc.circle(pageWidth - margin - 2, contactY - 1, 1.2, 'F')
     const email = prescriptionData.doctor?.email || prescriptionData.originalData?.doctorId?.email || 'N/A'
     doc.text(email, pageWidth - margin, contactY, { align: 'right' })
-    yPos += 5
+    yPos += 4
 
     // Teal horizontal line separator
     doc.setDrawColor(...tealColor)
     doc.setLineWidth(0.5)
     doc.line(margin, yPos, pageWidth - margin, yPos)
-    yPos += 8
+    yPos += 6
 
-    // Doctor Information (Left) and Patient Information (Right)
+    // Doctor Information (Left) and Patient Information (Right) - Compact
     const infoStartY = yPos
-    doc.setFontSize(10)
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
     doc.text('Doctor Information', margin, infoStartY)
     doc.text('Patient Information', pageWidth - margin, infoStartY, { align: 'right' })
     
-    yPos = infoStartY + 6
-    doc.setFontSize(8)
+    yPos = infoStartY + 5
+    doc.setFontSize(7)
     doc.setFont('helvetica', 'normal')
     
     // Doctor Info (Left)
     doc.text(`Name: ${prescriptionData.doctor.name}`, margin, yPos)
-    doc.text(`Specialty: ${prescriptionData.doctor.specialty}`, margin, yPos + 4)
+    doc.text(`Specialty: ${prescriptionData.doctor.specialty}`, margin, yPos + 3)
     const issuedDate = formatDate(prescriptionData.issuedAt)
-    doc.text(`Date: ${issuedDate}`, margin, yPos + 8)
+    doc.text(`Date: ${issuedDate}`, margin, yPos + 6)
 
-    // Patient Info (Right) - Get from prescriptionData or originalData
+    // Patient Info (Right) - Get from prescriptionData.patient first, then originalData
     let patientYPos = yPos
-    const patientName = prescriptionData.patientName || prescriptionData.originalData?.patientId?.firstName && prescriptionData.originalData?.patientId?.lastName
-      ? `${prescriptionData.originalData.patientId.firstName} ${prescriptionData.originalData.patientId.lastName}`
-      : prescriptionData.originalData?.patientId?.name || 'N/A'
+    const patient = prescriptionData.patient || prescriptionData.originalData?.patientId
+    const patientName = patient?.name || (patient?.firstName && patient?.lastName 
+      ? `${patient.firstName} ${patient.lastName}` 
+      : 'N/A')
     doc.text(`Name: ${patientName}`, pageWidth - margin, patientYPos, { align: 'right' })
-    patientYPos += 4
+    patientYPos += 3
     
-    const patientAge = prescriptionData.originalData?.patientId?.age || prescriptionData.originalData?.patientId?.dateOfBirth 
-      ? (new Date().getFullYear() - new Date(prescriptionData.originalData.patientId.dateOfBirth).getFullYear())
-      : 'N/A'
-    doc.text(`Age: ${patientAge} years`, pageWidth - margin, patientYPos, { align: 'right' })
-    patientYPos += 4
+    const patientAge = patient?.age || (patient?.dateOfBirth 
+      ? Math.floor((new Date() - new Date(patient.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000))
+      : null)
+    doc.text(`Age: ${patientAge ? `${patientAge} years` : 'N/A'}`, pageWidth - margin, patientYPos, { align: 'right' })
+    patientYPos += 3
     
-    const patientGender = prescriptionData.originalData?.patientId?.gender || 'N/A'
+    const patientGender = patient?.gender || 'N/A'
     doc.text(`Gender: ${patientGender}`, pageWidth - margin, patientYPos, { align: 'right' })
-    patientYPos += 4
+    patientYPos += 3
     
-    const patientPhone = prescriptionData.originalData?.patientId?.phone || 'N/A'
+    const patientPhone = patient?.phone || 'N/A'
     doc.text(`Phone: ${patientPhone}`, pageWidth - margin, patientYPos, { align: 'right' })
-    patientYPos += 4
+    patientYPos += 3
     
-    // Patient Address
-    const patientAddress = prescriptionData.originalData?.patientId?.address
+    // Patient Address - Always show if available
+    const patientAddress = patient?.address
     if (patientAddress) {
       let addressText = ''
       if (typeof patientAddress === 'string') {
@@ -308,45 +389,46 @@ const PatientPrescriptions = () => {
         if (patientAddress.pincode || patientAddress.postalCode) {
           addressParts.push(patientAddress.pincode || patientAddress.postalCode)
         }
+        if (patientAddress.country) addressParts.push(patientAddress.country)
         addressText = addressParts.join(', ').trim()
       }
       
       if (addressText && addressText !== '[object Object]') {
-        const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin)
+        const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin - 5)
         addressLines.forEach((line, index) => {
-          doc.text(line, pageWidth - margin, patientYPos + (index * 4), { align: 'right' })
+          doc.text(line, pageWidth - margin, patientYPos + (index * 3), { align: 'right' })
         })
-        patientYPos += (addressLines.length - 1) * 4
+        patientYPos += (addressLines.length - 1) * 3
       }
     }
 
     // Set yPos to the maximum of doctor info end or patient info end
-    yPos = Math.max(yPos + 12, patientYPos) + 3
+    yPos = Math.max(yPos + 9, patientYPos) + 2
 
-    // Diagnosis Section with Light Blue Background Box
-    doc.setFontSize(10)
+    // Diagnosis Section with Light Blue Background Box - Compact
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
     doc.text('Diagnosis', margin, yPos)
-    yPos += 6
+    yPos += 5
     
-    // Light blue rounded box for diagnosis
-    const diagnosisHeight = 8
+    // Light blue rounded box for diagnosis - Smaller height
+    const diagnosisHeight = 6
     doc.setFillColor(...lightBlueColor)
-    doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, diagnosisHeight, 2, 2, 'F')
-    doc.setFontSize(9)
+    doc.roundedRect(margin, yPos - 2, pageWidth - 2 * margin, diagnosisHeight, 2, 2, 'F')
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(0, 0, 0)
     const diagnosisText = prescriptionData.diagnosis || 'N/A'
-    doc.text(diagnosisText, margin + 4, yPos + 2)
-    yPos += diagnosisHeight + 4
+    doc.text(diagnosisText, margin + 3, yPos + 1)
+    yPos += diagnosisHeight + 3
 
-    // Symptoms Section with Green Bullet Points
+    // Symptoms Section with Green Bullet Points - Compact
     if (prescriptionData.symptoms) {
-      doc.setFontSize(10)
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       doc.text('Symptoms', margin, yPos)
-      yPos += 6
-      doc.setFontSize(8)
+      yPos += 5
+      doc.setFontSize(7)
       doc.setFont('helvetica', 'normal')
       const symptomLines = typeof prescriptionData.symptoms === 'string' 
         ? prescriptionData.symptoms.split('\n').filter(line => line.trim())
@@ -355,88 +437,90 @@ const PatientPrescriptions = () => {
         : [String(prescriptionData.symptoms)]
       
       symptomLines.forEach((symptom) => {
+        // Check if we're getting too close to bottom - stop if needed
+        if (yPos > pageHeight - 60) return
+        
         // Green bullet point
         doc.setFillColor(34, 197, 94) // Green color
-        doc.circle(margin + 1.5, yPos - 1, 1.2, 'F')
+        doc.circle(margin + 1.2, yPos - 0.8, 1, 'F')
         doc.setTextColor(0, 0, 0)
         const symptomText = typeof symptom === 'string' ? symptom.trim() : String(symptom)
-        doc.text(symptomText, margin + 5, yPos)
-        yPos += 4
+        doc.text(symptomText, margin + 4, yPos)
+        yPos += 3
       })
-      yPos += 2
+      yPos += 1
     }
 
-    // Medications Section with Numbered Cards (Light Gray Background)
+    // Medications Section with Numbered Cards (Light Gray Background) - Compact
     if (prescriptionData.medications && prescriptionData.medications.length > 0) {
-      doc.setFontSize(10)
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       doc.text('Medications', margin, yPos)
-      yPos += 6
+      yPos += 5
       
       prescriptionData.medications.forEach((med, idx) => {
-        // Check if we need a new page (with more space check)
-        if (yPos > pageHeight - 50) {
-          doc.addPage()
-          yPos = margin
-        }
-        
-        // Medication card with light gray background
-        const cardHeight = 22
+        // NO PAGE BREAKS - Force everything to fit on one page
+        // Make medication cards more compact
+        const cardHeight = 18
         doc.setFillColor(...lightGrayColor)
-        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
+        doc.roundedRect(margin, yPos - 2, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
         
-        // Numbered square in teal (top-right corner)
-        const numberSize = 8
-        const numberX = pageWidth - margin - numberSize - 3
+        // Numbered square in teal (top-right corner) - Smaller
+        const numberSize = 6
+        const numberX = pageWidth - margin - numberSize - 2
         const numberY = yPos - 1
         doc.setFillColor(...tealColor)
         doc.roundedRect(numberX, numberY, numberSize, numberSize, 1, 1, 'F')
         doc.setTextColor(255, 255, 255)
-        doc.setFontSize(8)
-        doc.setFont('helvetica', 'bold')
-        doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 1, { align: 'center' })
-        
-        // Medication name (bold, top)
-        doc.setTextColor(0, 0, 0)
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.text(med.name, margin + 4, yPos + 3)
-        
-        // Medication details in 2 columns (left and right)
         doc.setFontSize(7)
+        doc.setFont('helvetica', 'bold')
+        doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 0.5, { align: 'center' })
+        
+        // Medication name (bold, top) - Smaller font
+        doc.setTextColor(0, 0, 0)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.text(med.name, margin + 3, yPos + 2)
+        
+        // Medication details in 2 columns (left and right) - Smaller font
+        doc.setFontSize(6.5)
         doc.setFont('helvetica', 'normal')
-        const leftColX = margin + 4
-        const rightColX = margin + (pageWidth - 2 * margin) / 2 + 5
-        const startY = yPos + 7
+        const leftColX = margin + 3
+        const rightColX = margin + (pageWidth - 2 * margin) / 2 + 3
+        const startY = yPos + 6
         
         // Left column
         doc.text(`Dosage: ${med.dosage || 'N/A'}`, leftColX, startY)
-        doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 4)
+        doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 3)
         
         // Right column
         doc.text(`Frequency: ${med.frequency || 'N/A'}`, rightColX, startY)
         if (med.instructions) {
-          doc.text(`Instructions: ${med.instructions}`, rightColX, startY + 4)
+          const instructionText = doc.splitTextToSize(`Instructions: ${med.instructions}`, (pageWidth - 2 * margin) / 2 - 5)
+          instructionText.forEach((line, i) => {
+            if (i === 0) {
+              doc.text(line, rightColX, startY + 3)
+            } else {
+              doc.text(line, rightColX, startY + 3 + (i * 3))
+            }
+          })
         }
         
-        yPos += cardHeight + 4
+        yPos += cardHeight + 2
       })
-      yPos += 2
+      yPos += 1
     }
 
-    // Recommended Tests Section (Light Purple Boxes)
+    // Recommended Tests Section (Light Purple Boxes) - Compact
     if (prescriptionData.investigations && prescriptionData.investigations.length > 0) {
-      doc.setFontSize(10)
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       doc.text('Recommended Tests', margin, yPos)
-      yPos += 6
+      yPos += 5
       
       prescriptionData.investigations.forEach((inv) => {
-        // Check if we need a new page
-        if (yPos > pageHeight - 30) {
-          doc.addPage()
-          yPos = margin
-        }
+        // NO PAGE BREAKS - Stop if getting too close to bottom
+        if (yPos > pageHeight - 50) return
         
         // Handle both frontend format (name) and backend format (testName)
         const invName = inv.name || inv.testName || 'Investigation'
@@ -446,104 +530,207 @@ const PatientPrescriptions = () => {
         const invNameStr = typeof invName === 'string' ? invName : String(invName || 'Investigation')
         const invNotesStr = typeof invNotes === 'string' ? invNotes : String(invNotes || '')
         
-        // Light purple box for each test
-        const testBoxHeight = invNotesStr ? 14 : 9
+        // Light purple box for each test - Smaller height
+        const testBoxHeight = invNotesStr ? 10 : 7
         doc.setFillColor(...lightPurpleColor)
-        doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
+        doc.roundedRect(margin, yPos - 2, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
         
-        doc.setFontSize(8)
+        doc.setFontSize(7)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(0, 0, 0)
-        doc.text(invNameStr, margin + 4, yPos + 2)
+        doc.text(invNameStr, margin + 3, yPos + 1.5)
         
         if (invNotesStr) {
-          doc.setFontSize(7)
+          doc.setFontSize(6.5)
           doc.setFont('helvetica', 'normal')
           doc.setTextColor(80, 80, 80)
-          doc.text(invNotesStr, margin + 4, yPos + 8)
+          doc.text(invNotesStr, margin + 3, yPos + 6)
         }
         
-        yPos += testBoxHeight + 3
+        yPos += testBoxHeight + 2
       })
-      yPos += 2
+      yPos += 1
     }
 
-    // Medical Advice Section - Dark text like medications
+    // Medical Advice Section - Compact - Always show if available
     if (prescriptionData.advice) {
-      doc.setFontSize(10)
+      // Check if we have space, if not, adjust yPos
+      if (yPos > pageHeight - 50) {
+        yPos = pageHeight - 50
+      }
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
       doc.text('Medical Advice', margin, yPos)
-      yPos += 6
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(0, 0, 0) // Dark black color like medications
-      const adviceLines = prescriptionData.advice.split('\n').filter(line => line.trim())
+      yPos += 5
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(0, 0, 0)
+      const adviceText = typeof prescriptionData.advice === 'string' ? prescriptionData.advice : String(prescriptionData.advice || '')
+      const adviceLines = doc.splitTextToSize(adviceText, pageWidth - 2 * margin)
       adviceLines.forEach((advice) => {
+        if (yPos > pageHeight - 45) return
         doc.text(advice.trim(), margin, yPos)
-        yPos += 4
+        yPos += 3
       })
-      yPos += 2
+      yPos += 1
     }
 
-    // Follow-up Appointment (Light Yellow Box)
-    if (prescriptionData.followUpAt || prescriptionData.followUpDate) {
-      const followUpHeight = 12
+    // Follow-up Appointment (Light Yellow Box) - Compact
+    if ((prescriptionData.followUpAt || prescriptionData.followUpDate) && yPos < pageHeight - 35) {
+      const followUpHeight = 9
       doc.setFillColor(...lightYellowColor)
-      doc.roundedRect(margin, yPos - 3, pageWidth - 2 * margin, followUpHeight, 2, 2, 'F')
+      doc.roundedRect(margin, yPos - 2, pageWidth - 2 * margin, followUpHeight, 2, 2, 'F')
       
       // Calendar icon (small square)
       doc.setFillColor(255, 200, 0)
-      doc.roundedRect(margin + 2, yPos + 1, 3, 3, 0.5, 0.5, 'F')
+      doc.roundedRect(margin + 2, yPos + 0.5, 2.5, 2.5, 0.5, 0.5, 'F')
       
-      doc.setFontSize(9)
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(0, 0, 0)
-      doc.text('Follow-up Appointment', margin + 7, yPos + 3)
+      doc.text('Follow-up Appointment', margin + 6, yPos + 2)
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
+      doc.setFontSize(7)
       const followUpDateValue = prescriptionData.followUpAt || prescriptionData.followUpDate
       const followUpDate = new Date(followUpDateValue).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-      doc.text(followUpDate, margin + 7, yPos + 8)
-      yPos += followUpHeight + 5
+      doc.text(followUpDate, margin + 6, yPos + 6)
+      yPos += followUpHeight + 3
     }
 
-    // Footer with Doctor Signature (Right side)
-    // Calculate space needed for signature - ensure everything fits on one page
+    // Footer with Doctor Signature (Right side) - Fixed position
+    // Ensure signature is always visible at the bottom
     const signatureSpace = 30
     const minYPos = pageHeight - signatureSpace - 5
     if (yPos < minYPos) {
       yPos = minYPos
     }
 
-    // Doctor Signature (Right side)
-    const signatureX = pageWidth - margin - 55
+    // Doctor Signature (Right side) - Compact and properly positioned
+    const signatureAreaWidth = 50  // Standard signature width
+    const signatureX = pageWidth - margin - 55  // Position from right margin (55 = area width + spacing)
     const signatureY = yPos
     
-    // Draw a line for signature
-    doc.setDrawColor(0, 0, 0)
-    doc.setLineWidth(0.5)
-    doc.line(signatureX, signatureY, signatureX + 50, signatureY)
+    // Get digital signature from prescription data - handle both object and string formats
+    const digitalSignatureRaw = prescriptionData.doctor?.digitalSignature || prescriptionData.originalData?.doctorId?.digitalSignature
+    let signatureImageUrl = ''
+    
+    // Extract imageUrl from signature object or use string directly
+    if (digitalSignatureRaw) {
+      if (typeof digitalSignatureRaw === 'string') {
+        signatureImageUrl = digitalSignatureRaw.trim()
+      } else if (typeof digitalSignatureRaw === 'object' && digitalSignatureRaw !== null) {
+        signatureImageUrl = digitalSignatureRaw.imageUrl || digitalSignatureRaw.url || ''
+      }
+    }
+    
+    // Add digital signature image if available
+    if (signatureImageUrl && signatureImageUrl !== '') {
+      try {
+        let imageData = signatureImageUrl
+        let imageFormat = 'PNG'
+        
+        // Determine image format from data URL or file extension
+        if (imageData.includes('data:image/jpeg') || imageData.includes('data:image/jpg')) {
+          imageFormat = 'JPEG'
+        } else if (imageData.includes('data:image/png')) {
+          imageFormat = 'PNG'
+        } else if (imageData.includes('data:image/')) {
+          const match = imageData.match(/data:image\/(\w+);/)
+          if (match) {
+            imageFormat = match[1].toUpperCase()
+          }
+        } else if (imageData.toLowerCase().endsWith('.jpg') || imageData.toLowerCase().endsWith('.jpeg')) {
+          imageFormat = 'JPEG'
+        } else if (imageData.toLowerCase().endsWith('.png')) {
+          imageFormat = 'PNG'
+        }
+        
+        // Calculate signature image dimensions - compact size for prescription
+        // Standard signature size: width 50, height 18 (in jsPDF points)
+        // This ensures signature is small and properly fits in the document
+        const signatureWidth = 50  // Compact width
+        const signatureHeight = 18  // Compact height
+        
+        // Position signature image above the signature line
+        // Position it 18 points above the signature line (standard spacing)
+        const signatureImageY = signatureY - signatureHeight
+        
+        // Add signature image with compact dimensions, properly positioned
+        doc.addImage(imageData, imageFormat, signatureX, signatureImageY, signatureWidth, signatureHeight, undefined, 'FAST')
+        console.log('Signature image added successfully with size:', signatureWidth, 'x', signatureHeight)
+      } catch (error) {
+        console.error('Error adding signature image to PDF:', error)
+        // Fallback to line if image fails
+        doc.setDrawColor(0, 0, 0)
+        doc.setLineWidth(0.5)
+        doc.line(signatureX, signatureY, signatureX + 50, signatureY)
+      }
+    } else {
+      // Draw a line for signature if no image available
+      doc.setDrawColor(0, 0, 0)
+      doc.setLineWidth(0.5)
+      doc.line(signatureX, signatureY, signatureX + 50, signatureY)
+    }
     
     // Doctor name and designation below signature (centered under signature area)
+    // Adjust position based on whether signature image is present
+    // signatureImageUrl is already declared above, check if it has a value
+    const hasSignatureImage = signatureImageUrl && signatureImageUrl !== ''
+    
+    // Position text appropriately - if image exists, position below it, otherwise below line
+    const textYPos = hasSignatureImage ? signatureY + 6 : signatureY + 8
+    const centerX = signatureX + 25  // Center of signature area (50/2 = 25)
+    
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(0, 0, 0)
-    doc.text(prescriptionData.doctor.name, signatureX + 25, signatureY + 8, { align: 'center' })
+    const doctorName = prescriptionData.doctor?.name || 'Dr. Unknown'
+    doc.text(doctorName, centerX, textYPos, { align: 'center' })
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
-    doc.text(prescriptionData.doctor.specialty, signatureX + 25, signatureY + 12, { align: 'center' })
+    const doctorSpecialty = prescriptionData.doctor?.specialty || ''
+    doc.text(doctorSpecialty, centerX, textYPos + 4, { align: 'center' })
 
     // Disclaimer at bottom center
-    const disclaimerY = pageHeight - 6
-    doc.setFontSize(6)
+    const disclaimerY = pageHeight - 4
+    doc.setFontSize(5.5)
     doc.setTextColor(100, 100, 100)
     doc.text('This is a digitally generated prescription. For any queries, please contact the clinic.', pageWidth / 2, disclaimerY, { align: 'center' })
 
     return doc
   }
 
-  const handleDownloadPDF = (prescription) => {
+  const handleDownloadPDF = async (prescription) => {
     try {
+      // If signature is a URL (not base64), convert it to base64 first
+      const digitalSignatureRaw = prescription.doctor?.digitalSignature || prescription.originalData?.doctorId?.digitalSignature
+      let signatureImageUrl = ''
+      
+      if (digitalSignatureRaw) {
+        if (typeof digitalSignatureRaw === 'string') {
+          signatureImageUrl = digitalSignatureRaw.trim()
+        } else if (typeof digitalSignatureRaw === 'object' && digitalSignatureRaw !== null) {
+          signatureImageUrl = digitalSignatureRaw.imageUrl || digitalSignatureRaw.url || ''
+        }
+      }
+      
+      // If signature is a URL (not base64), convert to base64
+      if (signatureImageUrl && !signatureImageUrl.startsWith('data:image/')) {
+        try {
+          const base64Signature = await urlToBase64(signatureImageUrl)
+          // Update prescription data with base64 signature
+          prescription = {
+            ...prescription,
+            doctor: {
+              ...prescription.doctor,
+              digitalSignature: base64Signature
+            }
+          }
+        } catch (error) {
+          console.warn('Could not convert signature URL to base64, will try direct URL:', error)
+        }
+      }
+      
       const doc = generatePDF(prescription)
       const fileName = `Prescription_${prescription.doctor.name.replace(/\s+/g, '_')}_${prescription.issuedAt}.pdf`
       doc.save(fileName)
@@ -553,8 +740,37 @@ const PatientPrescriptions = () => {
     }
   }
 
-  const handleViewPDF = (prescription) => {
+  const handleViewPDF = async (prescription) => {
     try {
+      // If signature is a URL (not base64), convert it to base64 first
+      const digitalSignatureRaw = prescription.doctor?.digitalSignature || prescription.originalData?.doctorId?.digitalSignature
+      let signatureImageUrl = ''
+      
+      if (digitalSignatureRaw) {
+        if (typeof digitalSignatureRaw === 'string') {
+          signatureImageUrl = digitalSignatureRaw.trim()
+        } else if (typeof digitalSignatureRaw === 'object' && digitalSignatureRaw !== null) {
+          signatureImageUrl = digitalSignatureRaw.imageUrl || digitalSignatureRaw.url || ''
+        }
+      }
+      
+      // If signature is a URL (not base64), convert to base64
+      if (signatureImageUrl && !signatureImageUrl.startsWith('data:image/')) {
+        try {
+          const base64Signature = await urlToBase64(signatureImageUrl)
+          // Update prescription data with base64 signature
+          prescription = {
+            ...prescription,
+            doctor: {
+              ...prescription.doctor,
+              digitalSignature: base64Signature
+            }
+          }
+        } catch (error) {
+          console.warn('Could not convert signature URL to base64, will try direct URL:', error)
+        }
+      }
+      
       const doc = generatePDF(prescription)
       // Generate PDF blob and open in new window
       const pdfBlob = doc.output('blob')
