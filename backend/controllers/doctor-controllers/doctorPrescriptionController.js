@@ -66,10 +66,10 @@ exports.createPrescription = asyncHandler(async (req, res) => {
   const doctor = await Doctor.findById(id);
   const patientId = consultationObj.patientId?._id || consultationObj.patientId || consultationDoc?.patientId;
   const patient = await Patient.findById(patientId);
-  
+
   const diagnosis = consultationObj.diagnosis || '';
   const symptoms = consultationObj.symptoms || '';
-  
+
   // Transform investigations from backend format (testName) to frontend format (name) for PDF
   let investigations = [];
   if (consultationObj.investigations && Array.isArray(consultationObj.investigations) && consultationObj.investigations.length > 0) {
@@ -83,14 +83,14 @@ exports.createPrescription = asyncHandler(async (req, res) => {
       };
     });
   }
-  
+
   // Debug logging
   console.log('🔍 Consultation ID:', consultationId);
   console.log('🔍 Consultation investigations (raw):', JSON.stringify(consultationObj.investigations, null, 2));
   console.log('🔍 Transformed investigations for PDF:', JSON.stringify(investigations, null, 2));
   console.log('🔍 Diagnosis:', diagnosis);
   console.log('🔍 Symptoms:', symptoms);
-  
+
   const advice = consultationObj.advice || notes || '';
 
   // Create prescription
@@ -110,10 +110,10 @@ exports.createPrescription = asyncHandler(async (req, res) => {
   try {
     // Ensure investigations is an array
     const investigationsArray = Array.isArray(investigations) ? investigations : (investigations ? [investigations] : []);
-    
+
     const pdfBuffer = await generatePrescriptionPDF(
-      { 
-        ...prescriptionData, 
+      {
+        ...prescriptionData,
         createdAt: prescription.createdAt,
         diagnosis: diagnosis,
         symptoms: symptoms,
@@ -197,6 +197,116 @@ exports.createPrescription = asyncHandler(async (req, res) => {
   return res.status(201).json({
     success: true,
     message: 'Prescription created successfully',
+    data: await Prescription.findById(prescription._id)
+      .populate('patientId', 'firstName lastName phone email profileImage dateOfBirth gender address')
+      .populate('consultationId', 'diagnosis symptoms investigations advice followUpDate consultationDate'),
+  });
+});
+
+// PUT /api/doctors/prescriptions/:id
+exports.updatePrescription = asyncHandler(async (req, res) => {
+  const { id } = req.auth;
+  const { prescriptionId } = req.params; // Note: route uses :id, so this might be req.params.id
+  const { medications, notes, expiryDate } = req.body;
+
+  // Use req.params.id as per standard express routing if not explicitly named differently in route
+  const targetId = req.params.id || prescriptionId;
+
+  let prescription = await Prescription.findOne({
+    _id: targetId,
+    doctorId: id,
+  });
+
+  if (!prescription) {
+    return res.status(404).json({
+      success: false,
+      message: 'Prescription not found',
+    });
+  }
+
+  // Update fields
+  if (medications) prescription.medications = medications;
+  if (notes !== undefined) prescription.notes = notes;
+  if (expiryDate) prescription.expiryDate = new Date(expiryDate);
+
+  await prescription.save();
+
+  // Fetch fully populated data for PDF generation
+  // We need specific fields from consultation for the PDF
+  const populatedPrescription = await Prescription.findById(prescription._id)
+    .populate({
+      path: 'consultationId',
+      populate: { path: 'patientId' } // Deep populate if needed, though usually patientId is on prescription too
+    })
+    .populate('patientId')
+    .populate('doctorId');
+
+  const consultationObj = populatedPrescription.consultationId;
+  const doctor = await Doctor.findById(id);
+  const patient = populatedPrescription.patientId;
+
+  if (consultationObj && doctor && patient) {
+    // Re-prepare data for PDF
+    const diagnosis = consultationObj.diagnosis || '';
+    const symptoms = consultationObj.symptoms || '';
+    const advice = prescription.notes || consultationObj.advice || ''; // specific notes override advice if present or exist alongside? In create it was `advice || notes`. Let's stick to what's in database: `prescription.notes`
+
+    // Transform investigations from consultation
+    let investigations = [];
+    if (consultationObj.investigations && Array.isArray(consultationObj.investigations) && consultationObj.investigations.length > 0) {
+      investigations = consultationObj.investigations.map(inv => {
+        const invObj = inv.toObject ? inv.toObject() : (typeof inv === 'object' ? inv : {});
+        return {
+          name: invObj.testName || invObj.name || 'Investigation',
+          testName: invObj.testName || invObj.name || 'Investigation',
+          notes: invObj.notes || ''
+        };
+      });
+    }
+
+    try {
+      const investigationsArray = Array.isArray(investigations) ? investigations : (investigations ? [investigations] : []);
+
+      const pdfBuffer = await generatePrescriptionPDF(
+        {
+          ...prescription.toObject(),
+          createdAt: prescription.createdAt,
+          diagnosis: diagnosis,
+          symptoms: symptoms,
+          investigations: investigationsArray,
+          advice: advice,
+          followUpDate: consultationObj.followUpDate || prescription.expiryDate,
+          consultationId: consultationObj // Pass full object for fallback
+        },
+        doctor.toObject(),
+        patient.toObject()
+      );
+
+      const pdfUrl = await uploadPrescriptionPDF(pdfBuffer, 'healiinn/prescriptions', `prescription_${prescription._id}_v${Date.now()}`);
+      prescription.pdfFileUrl = pdfUrl;
+      await prescription.save();
+
+    } catch (error) {
+      console.error('PDF regeneration error:', error);
+      // We don't fail the request if PDF fails, but we log it
+    }
+  }
+
+  // Emit real-time event
+  try {
+    const io = getIO();
+    // Assuming patientId matches the one in consultation/prescription
+    io.to(`patient-${prescription.patientId._id || prescription.patientId}`).emit('prescription:updated', {
+      prescription: await Prescription.findById(prescription._id)
+        .populate('doctorId', 'firstName lastName'),
+    });
+  } catch (error) {
+    console.error('Socket.IO error:', error);
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Prescription updated successfully',
     data: await Prescription.findById(prescription._id)
       .populate('patientId', 'firstName lastName phone email profileImage dateOfBirth gender address')
       .populate('consultationId', 'diagnosis symptoms investigations advice followUpDate consultationDate'),
