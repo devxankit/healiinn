@@ -643,11 +643,11 @@ const PharmacyPrescriptions = () => {
           onClick={() => setSelectedPrescription(null)}
         >
           <div
-            className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white shadow-2xl animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300"
+            className="relative w-full max-w-2xl max-h-[90vh] rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white shadow-2xl animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50/50 backdrop-blur-sm px-4 sm:px-6 py-3 sm:py-4 shadow-sm">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50/50 backdrop-blur-sm px-4 sm:px-6 py-3 sm:py-4 shadow-sm flex-shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setSelectedPrescription(null)}
@@ -674,8 +674,8 @@ const PharmacyPrescriptions = () => {
             </div>
           </div>
 
-            {/* Prescription Content */}
-            <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
+            {/* Prescription Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5">
               {/* Clinic Information */}
               <div className="relative overflow-hidden rounded-2xl border border-teal-200/60 bg-gradient-to-br from-teal-50/80 via-white to-teal-50/40 p-4 sm:p-5 shadow-sm">
                 <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-teal-200/20 blur-2xl" />
@@ -762,61 +762,74 @@ const PharmacyPrescriptions = () => {
               )}
 
               {/* Medications */}
-              <div>
-                <h4 className="text-sm sm:text-base font-bold text-slate-900 mb-3 sm:mb-4">Medications</h4>
-                <div className="space-y-3 sm:space-y-4">
-                  {selectedPrescription.medications.map((med) => (
-                    <div
-                      key={med.id}
-                      className="group relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-4 sm:p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:border-[rgba(17,73,108,0.2)]"
-                    >
-                      <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-emerald-100/30 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <span className="absolute right-3 top-3 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-100 to-emerald-200 text-xs sm:text-sm font-bold text-emerald-700 shadow-sm">
-                        {med.id}
-                      </span>
-                      <h5 className="pr-10 sm:pr-12 text-base sm:text-lg font-bold text-slate-900 mb-3">
-                        {med.name} {med.strength}
-                      </h5>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-sm text-slate-700">
-                        <div>
-                          <span className="font-semibold text-slate-600">Dosage:</span>
-                          <p className="text-slate-900">{med.dosage}</p>
-                        </div>
-                        <div>
-                          <span className="font-semibold text-slate-600">Frequency:</span>
-                          <p className="text-slate-900">{med.frequency}</p>
-                        </div>
-                        <div>
-                          <span className="font-semibold text-slate-600">Duration:</span>
-                          <p className="text-slate-900">{med.duration}</p>
-                        </div>
-                        <div className="sm:col-span-2">
-                          <span className="font-semibold text-slate-600">Instructions:</span>
-                          <p className="text-slate-900">{med.instructions}</p>
+              {selectedPrescription.medications && selectedPrescription.medications.length > 0 && (
+                <div>
+                  <h4 className="text-sm sm:text-base font-bold text-slate-900 mb-2 sm:mb-3">Medications</h4>
+                  <div className="space-y-2">
+                    {selectedPrescription.medications.map((med, idx) => (
+                      <div
+                        key={med.id || idx}
+                        className="group relative overflow-hidden rounded-lg border border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-2.5 sm:p-3 shadow-sm transition-all duration-300 hover:shadow-md hover:border-[rgba(17,73,108,0.2)]"
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-emerald-100 to-emerald-200 text-xs font-bold text-emerald-700 shadow-sm">
+                            {idx + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <h5 className="text-sm sm:text-base font-bold text-slate-900 mb-1.5">
+                              {med.name} {med.dosage && `(${med.dosage})`}
+                            </h5>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-700">
+                              {med.dosage && (
+                                <div>
+                                  <span className="font-semibold text-slate-600">Dosage:</span>
+                                  <p className="text-slate-900">{med.dosage}</p>
+                                </div>
+                              )}
+                              {med.frequency && (
+                                <div>
+                                  <span className="font-semibold text-slate-600">Frequency:</span>
+                                  <p className="text-slate-900">{med.frequency}</p>
+                                </div>
+                              )}
+                              {med.duration && (
+                                <div>
+                                  <span className="font-semibold text-slate-600">Duration:</span>
+                                  <p className="text-slate-900">{med.duration}</p>
+                                </div>
+                              )}
+                              {med.instructions && (
+                                <div className="col-span-2 sm:col-span-1">
+                                  <span className="font-semibold text-slate-600">Instructions:</span>
+                                  <p className="text-slate-900 line-clamp-2">{med.instructions}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Recommended Tests */}
               {selectedPrescription.recommendedTests && selectedPrescription.recommendedTests.length > 0 && (
                 <div>
-                  <h4 className="text-sm sm:text-base font-bold text-slate-900 mb-3 sm:mb-4">Recommended Tests</h4>
-                  <div className="space-y-2 sm:space-y-3">
+                  <h4 className="text-sm sm:text-base font-bold text-slate-900 mb-2 sm:mb-3">Recommended Tests</h4>
+                  <div className="space-y-2">
                     {selectedPrescription.recommendedTests.map((test, idx) => (
                       <div
                         key={idx}
-                        className="group flex items-start justify-between rounded-xl border border-purple-200/60 bg-gradient-to-r from-purple-50/80 to-purple-50/40 p-3 sm:p-4 shadow-sm transition-all duration-300 hover:shadow-md hover:border-purple-300"
+                        className="group flex items-start gap-2.5 rounded-lg border border-purple-200/60 bg-gradient-to-r from-purple-50/80 to-purple-50/40 p-2.5 sm:p-3 shadow-sm transition-all duration-300 hover:shadow-md hover:border-purple-300"
                       >
-                        <div className="flex-1">
-                          <p className="text-sm sm:text-base font-semibold text-slate-900">{test.name}</p>
-                          {test.instructions && (
-                            <p className="mt-1.5 text-xs sm:text-sm text-slate-600">{test.instructions}</p>
+                        <IoFlaskOutline className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-purple-600 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm sm:text-base font-semibold text-slate-900">{test.name || test.testName}</p>
+                          {(test.instructions || test.notes) && (
+                            <p className="mt-1 text-xs sm:text-sm text-slate-600 line-clamp-2">{test.instructions || test.notes}</p>
                           )}
                         </div>
-                        <IoFlaskOutline className="h-5 w-5 sm:h-6 sm:w-6 shrink-0 text-purple-600 transition-transform group-hover:scale-110" />
                       </div>
                     ))}
                   </div>
@@ -850,17 +863,18 @@ const PharmacyPrescriptions = () => {
                 </div>
               )}
 
-              {/* Action Buttons - At Bottom */}
-              <div className="flex flex-row gap-2 sm:gap-3 border-t border-slate-200 pt-4 sm:pt-5 mt-4 sm:mt-5">
-                <button
-                  type="button"
-                  onClick={() => handleDownloadPDF(selectedPrescription)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                >
-                  <IoDownloadOutline className="h-4 w-4" />
-                  Download PDF
-                </button>
-              </div>
+            </div>
+
+            {/* Action Buttons - At Bottom (Sticky) */}
+            <div className="sticky bottom-0 flex flex-row gap-2 sm:gap-3 border-t border-slate-200 bg-white px-4 sm:px-6 py-3 sm:py-4 shadow-sm flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => handleDownloadPDF(selectedPrescription)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+              >
+                <IoDownloadOutline className="h-4 w-4" />
+                Download PDF
+              </button>
             </div>
           </div>
         </div>

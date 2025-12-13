@@ -2,6 +2,8 @@ const asyncHandler = require('../../middleware/asyncHandler');
 const Consultation = require('../../models/Consultation');
 const Appointment = require('../../models/Appointment');
 const Prescription = require('../../models/Prescription');
+const Medicine = require('../../models/Medicine');
+const Test = require('../../models/Test');
 const { getIO } = require('../../config/socket');
 
 // Helper functions
@@ -388,6 +390,123 @@ exports.getAllConsultations = asyncHandler(async (req, res) => {
     success: true,
     data: {
       items: consultations,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    },
+  });
+});
+
+// GET /api/doctors/consultations/medicines/all
+// Get all medicines from all pharmacies for doctor prescription
+exports.getAllMedicines = asyncHandler(async (req, res) => {
+  const { search } = req.query;
+  const { page, limit, skip } = buildPagination(req);
+
+  const filter = { isActive: true };
+  
+  // Build search filter
+  let searchFilter = {};
+  if (search && search.trim()) {
+    const regex = new RegExp(search.trim(), 'i');
+    searchFilter = {
+      $or: [
+        { name: regex },
+        { dosage: regex },
+        { manufacturer: regex },
+      ],
+    };
+  }
+
+  const finalFilter = Object.keys(searchFilter).length
+    ? { $and: [filter, searchFilter] }
+    : filter;
+
+  const [medicines, total] = await Promise.all([
+    Medicine.find(finalFilter)
+      .populate('pharmacyId', 'pharmacyName')
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(limit),
+    Medicine.countDocuments(finalFilter),
+  ]);
+
+  // Format medicines for frontend
+  const formattedMedicines = medicines.map(med => ({
+    _id: med._id,
+    name: med.name,
+    dosage: med.dosage || '',
+    manufacturer: med.manufacturer || '',
+    price: med.price,
+    category: med.category || '',
+    pharmacyName: med.pharmacyId?.pharmacyName || 'Unknown Pharmacy',
+  }));
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      items: formattedMedicines,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    },
+  });
+});
+
+// GET /api/doctors/consultations/tests/all
+// Get all lab tests from all laboratories for doctor prescription
+exports.getAllTests = asyncHandler(async (req, res) => {
+  const { search } = req.query;
+  const { page, limit, skip } = buildPagination(req);
+
+  const filter = { isActive: true };
+  
+  // Build search filter
+  let searchFilter = {};
+  if (search && search.trim()) {
+    const regex = new RegExp(search.trim(), 'i');
+    searchFilter = {
+      $or: [
+        { name: regex },
+        { description: regex },
+        { category: regex },
+      ],
+    };
+  }
+
+  const finalFilter = Object.keys(searchFilter).length
+    ? { $and: [filter, searchFilter] }
+    : filter;
+
+  const [tests, total] = await Promise.all([
+    Test.find(finalFilter)
+      .populate('laboratoryId', 'labName')
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(limit),
+    Test.countDocuments(finalFilter),
+  ]);
+
+  // Format tests for frontend
+  const formattedTests = tests.map(test => ({
+    _id: test._id,
+    name: test.name,
+    description: test.description || '',
+    price: test.price,
+    category: test.category || '',
+    labName: test.laboratoryId?.labName || 'Unknown Laboratory',
+  }));
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      items: formattedTests,
       pagination: {
         page,
         limit,

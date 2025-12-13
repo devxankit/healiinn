@@ -511,9 +511,11 @@ export const getProviderRevenue = async (type, period = 'all') => {
 /**
  * Get admin wallet overview
  */
-export const getAdminWalletOverview = async () => {
+export const getAdminWalletOverview = async (period = 'all') => {
   try {
-    return await apiClient.get('/admin/wallet/overview')
+    return await apiClient.get('/admin/wallet/overview', {
+      params: { period }
+    })
   } catch (error) {
     console.error('Error fetching wallet overview:', error)
     throw error
@@ -523,10 +525,12 @@ export const getAdminWalletOverview = async () => {
 /**
  * Get provider summaries (doctors, pharmacies, laboratories)
  */
-export const getProviderSummaries = async (role = null) => {
+export const getProviderSummaries = async (role = null, period = 'all') => {
   try {
-    const params = role ? { role } : {}
-    return await apiClient.get('/admin/wallet/providers', params)
+    const params = {}
+    if (role) params.role = role
+    if (period) params.period = period
+    return await apiClient.get('/admin/wallet/providers', { params })
   } catch (error) {
     console.error('Error fetching provider summaries:', error)
     throw error

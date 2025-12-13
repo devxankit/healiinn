@@ -15,6 +15,7 @@ import {
   IoAddOutline,
   IoTrashOutline,
   IoCloseOutline,
+  IoEyeOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
 import {
@@ -38,6 +39,8 @@ const AdminDoctors = () => {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectingDoctorId, setRejectingDoctorId] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
+  const [viewingDoctor, setViewingDoctor] = useState(null)
+  const [loadingDoctorDetails, setLoadingDoctorDetails] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -210,6 +213,23 @@ const AdminDoctors = () => {
       toast.error(error.message || 'Failed to reject doctor')
     } finally {
       setProcessingId(null)
+    }
+  }
+
+  const handleViewDoctor = async (doctorId) => {
+    try {
+      setLoadingDoctorDetails(true)
+      const response = await getDoctorById(doctorId)
+      if (response.success && response.data) {
+        setViewingDoctor(response.data)
+      } else {
+        toast.error('Failed to load doctor details')
+      }
+    } catch (error) {
+      console.error('Error fetching doctor details:', error)
+      toast.error(error.message || 'Failed to load doctor details')
+    } finally {
+      setLoadingDoctorDetails(false)
     }
   }
 
@@ -487,26 +507,37 @@ const AdminDoctors = () => {
                     </div>
                     <div className="flex shrink-0 items-start gap-2 flex-col">
                       {getStatusBadge(doctor.status)}
-                      {doctor.status === 'pending' && (
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(doctor.id)}
-                            disabled={processingId === doctor.id}
-                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
-                          >
-                            {processingId === doctor.id ? 'Processing...' : 'Approve'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRejectClick(doctor.id)}
-                            disabled={processingId === doctor.id}
-                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleViewDoctor(doctor.id)}
+                          disabled={loadingDoctorDetails}
+                          className="flex items-center gap-1 rounded-lg bg-slate-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                        >
+                          <IoEyeOutline className="h-3.5 w-3.5" />
+                          View
+                        </button>
+                        {doctor.status === 'pending' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(doctor.id)}
+                              disabled={processingId === doctor.id}
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
+                            >
+                              {processingId === doctor.id ? 'Processing...' : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRejectClick(doctor.id)}
+                              disabled={processingId === doctor.id}
+                              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                      </div>
                       {doctor.status === 'rejected' && doctor.rejectionReason && (
                         <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-2 max-w-xs">
                           <p className="text-xs font-semibold text-red-700 mb-1">Rejection Reason:</p>
@@ -740,6 +771,154 @@ const AdminDoctors = () => {
                 className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
               >
                 {processingId === rejectingDoctorId ? 'Processing...' : 'Confirm Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Doctor Details Modal */}
+      {viewingDoctor && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setViewingDoctor(null)}
+        >
+          <div 
+            className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h2 className="text-lg font-semibold text-slate-900">Doctor Details</h2>
+              <button
+                onClick={() => setViewingDoctor(null)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <IoCloseOutline className="h-4 w-4" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              {loadingDoctorDetails ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-slate-600">Loading doctor details...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Basic Information */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Basic Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-slate-500">Full Name</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {`${viewingDoctor.firstName || ''} ${viewingDoctor.lastName || ''}`.trim() || 'N/A'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Email</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingDoctor.email || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Phone</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingDoctor.phone || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Specialization</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingDoctor.specialization || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Registration Number</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingDoctor.registrationNumber || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Status</p>
+                        <div className="mt-1">{getStatusBadge(viewingDoctor.status === 'approved' ? 'verified' : viewingDoctor.status || 'pending')}</div>
+                      </div>
+                      {viewingDoctor.rating && (
+                        <div>
+                          <p className="text-xs text-slate-500">Rating</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">{viewingDoctor.rating}/5</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Clinic Details */}
+                  {viewingDoctor.clinicDetails && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Clinic Details</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {viewingDoctor.clinicDetails.name && (
+                          <div>
+                            <p className="text-xs text-slate-500">Clinic Name</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-900">{viewingDoctor.clinicDetails.name}</p>
+                          </div>
+                        )}
+                        {viewingDoctor.clinicDetails.address && (
+                          <div className="sm:col-span-2">
+                            <p className="text-xs text-slate-500">Address</p>
+                            <div className="bg-slate-50 rounded-lg p-3 mt-1">
+                              <p className="text-sm text-slate-900">
+                                {viewingDoctor.clinicDetails.address.line1 || ''}
+                                {viewingDoctor.clinicDetails.address.line2 && `, ${viewingDoctor.clinicDetails.address.line2}`}
+                                {viewingDoctor.clinicDetails.address.city && `, ${viewingDoctor.clinicDetails.address.city}`}
+                                {viewingDoctor.clinicDetails.address.state && `, ${viewingDoctor.clinicDetails.address.state}`}
+                                {viewingDoctor.clinicDetails.address.postalCode && ` - ${viewingDoctor.clinicDetails.address.postalCode}`}
+                                {viewingDoctor.clinicDetails.address.country && `, ${viewingDoctor.clinicDetails.address.country}`}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional Details */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Additional Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {viewingDoctor.createdAt && (
+                        <div>
+                          <p className="text-xs text-slate-500">Registered Date</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {new Date(viewingDoctor.createdAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      )}
+                      {viewingDoctor.approvedAt && (
+                        <div>
+                          <p className="text-xs text-slate-500">Approved Date</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {new Date(viewingDoctor.approvedAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      )}
+                      {viewingDoctor.rejectionReason && (
+                        <div className="sm:col-span-2">
+                          <p className="text-xs text-slate-500">Rejection Reason</p>
+                          <p className="mt-1 text-sm text-red-600 bg-red-50 p-2 rounded-lg">{viewingDoctor.rejectionReason}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+              <button
+                onClick={() => setViewingDoctor(null)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Close
               </button>
             </div>
           </div>

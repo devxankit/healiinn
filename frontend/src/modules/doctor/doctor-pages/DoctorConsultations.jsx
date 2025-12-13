@@ -3,7 +3,7 @@ import { useLocation, useSearchParams, useNavigate } from 'react-router-dom'
 import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
-import { getDoctorConsultations, getAllDoctorConsultations, getConsultationById, createConsultation, updateConsultation, getPatientById, getPatientHistory, createPrescription, getPrescriptions, getPatientQueue } from '../doctor-services/doctorService'
+import { getDoctorConsultations, getAllDoctorConsultations, getConsultationById, createConsultation, updateConsultation, getPatientById, getPatientHistory, createPrescription, getPrescriptions, getPatientQueue, getAllMedicines, getAllTests } from '../doctor-services/doctorService'
 import { getSocket } from '../../../utils/socketClient'
 import {
   IoDocumentTextOutline,
@@ -384,29 +384,51 @@ const DoctorConsultations = () => {
       return location.state.selectedConsultation
     }
     
-    // If no passed consultation, IMMEDIATELY load from localStorage (for instant display when navigating back)
-    // This ensures consultation shows immediately without delay
+    // If no passed consultation, load from localStorage ONLY if session is active
+    // This prevents showing consultations when there's no active session
     try {
       const saved = localStorage.getItem('doctorSelectedConsultation')
       if (saved) {
         const parsed = JSON.parse(saved)
         // Only load if it's an active consultation (not completed)
-        if (parsed.status === 'in-progress' || parsed.status === 'called' || parsed.status === 'in-progress') {
-          // Check session is active (but don't block - show consultation immediately)
+        if (parsed.status === 'in-progress' || parsed.status === 'called') {
+          // Check session is active - if not, don't load consultation
           const session = localStorage.getItem('doctorCurrentSession')
           if (session) {
-            console.log('✅ Immediately restored consultation from localStorage:', parsed)
-            return parsed
+            try {
+              const sessionData = JSON.parse(session)
+              // Only load if session is active
+              if (sessionData.status === 'active' || sessionData.status === 'live') {
+                console.log('✅ Restored consultation from localStorage with active session:', parsed)
+                return parsed
+              } else {
+                // Session not active, clear consultation
+                console.log('⚠️ Session not active, clearing consultation from localStorage')
+                localStorage.removeItem('doctorSelectedConsultation')
+                return null
+              }
+            } catch (sessionError) {
+              // Invalid session data, clear consultation
+              console.log('⚠️ Invalid session data, clearing consultation from localStorage')
+              localStorage.removeItem('doctorSelectedConsultation')
+              return null
+            }
           } else {
-            // Session not active, but still show consultation temporarily
-            // Will be verified/cleared by async restore function
-            console.log('⚠️ Session not active, but showing consultation from localStorage (will verify)')
-            return parsed
+            // No session, clear consultation
+            console.log('⚠️ No active session, clearing consultation from localStorage')
+            localStorage.removeItem('doctorSelectedConsultation')
+            return null
           }
+        } else {
+          // Consultation is completed, clear it
+          localStorage.removeItem('doctorSelectedConsultation')
+          return null
         }
       }
     } catch (error) {
       console.error('Error loading selected consultation from localStorage:', error)
+      // Clear invalid data
+      localStorage.removeItem('doctorSelectedConsultation')
     }
     
     // If no passed consultation and no saved consultation, check for active session
@@ -1305,10 +1327,43 @@ const DoctorConsultations = () => {
         setSharedLabReports(transformedReports)
       } else {
         setSharedLabReports([])
+        // If patient not found and consultation was from localStorage, clear it
+        if (response.message?.includes('Patient not found') || response.message?.includes('no appointments')) {
+          const saved = localStorage.getItem('doctorSelectedConsultation')
+          if (saved) {
+            console.log('⚠️ Patient not found in loadSharedLabReports, clearing invalid consultation from localStorage')
+            localStorage.removeItem('doctorSelectedConsultation')
+            setSelectedConsultation(null)
+            setConsultations((prev) => prev.filter(c => {
+              const cPatientId = typeof c.patientId === 'object' 
+                ? (c.patientId._id || c.patientId.id || c.patientId)
+                : c.patientId
+              return cPatientId?.toString() !== patientIdString?.toString()
+            }))
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading shared lab reports:', error)
       setSharedLabReports([])
+      // If error is "Patient not found" and consultation was from localStorage, clear it
+      if (error.message?.includes('Patient not found') || error.message?.includes('no appointments')) {
+        const saved = localStorage.getItem('doctorSelectedConsultation')
+        if (saved) {
+          console.log('⚠️ Patient not found in loadSharedLabReports, clearing invalid consultation from localStorage')
+          localStorage.removeItem('doctorSelectedConsultation')
+          setSelectedConsultation(null)
+          const patientIdString = typeof patientId === 'object' 
+            ? (patientId._id || patientId.id || patientId)
+            : patientId
+          setConsultations((prev) => prev.filter(c => {
+            const cPatientId = typeof c.patientId === 'object' 
+              ? (c.patientId._id || c.patientId.id || c.patientId)
+              : c.patientId
+            return cPatientId?.toString() !== patientIdString?.toString()
+          }))
+        }
+      }
     }
   }
 
@@ -1441,6 +1496,69 @@ const DoctorConsultations = () => {
     }
   }, [selectedConsultation?.patientId, selectedConsultation?.doctorId])
 
+  // Verify consultation exists in database when loaded from localStorage
+  // If patient history API fails, clear localStorage and hide consultation
+  useEffect(() => {
+    const verifyConsultation = async () => {
+      // Only verify if consultation was loaded from localStorage (not from navigation state)
+      if (!selectedConsultation || location.state?.selectedConsultation) {
+        return // Don't verify if it came from navigation state
+      }
+
+      // Check if this consultation was loaded from localStorage
+      const saved = localStorage.getItem('doctorSelectedConsultation')
+      if (!saved) {
+        return // Not from localStorage
+      }
+
+      const patientId = typeof selectedConsultation.patientId === 'object' 
+        ? (selectedConsultation.patientId._id || selectedConsultation.patientId.id || selectedConsultation.patientId)
+        : selectedConsultation.patientId
+
+      if (!patientId) {
+        return
+      }
+
+      // Verify by trying to fetch patient history
+      // If it fails with 404, the consultation doesn't exist in database
+      try {
+        const historyResponse = await getPatientHistory(patientId)
+        if (!historyResponse.success) {
+          // Consultation doesn't exist, clear localStorage and hide consultation
+          console.log('⚠️ Consultation from localStorage not found in database, clearing...')
+          localStorage.removeItem('doctorSelectedConsultation')
+          setSelectedConsultation(null)
+          setConsultations((prev) => prev.filter(c => {
+            const cPatientId = typeof c.patientId === 'object' 
+              ? (c.patientId._id || c.patientId.id || c.patientId)
+              : c.patientId
+            return cPatientId?.toString() !== patientId?.toString()
+          }))
+        }
+      } catch (error) {
+        // If error is 404 or "Patient not found", clear localStorage
+        if (error.message?.includes('Patient not found') || error.message?.includes('404')) {
+          console.log('⚠️ Consultation from localStorage not found in database, clearing...')
+          localStorage.removeItem('doctorSelectedConsultation')
+          setSelectedConsultation(null)
+          setConsultations((prev) => prev.filter(c => {
+            const cPatientId = typeof c.patientId === 'object' 
+              ? (c.patientId._id || c.patientId.id || c.patientId)
+              : c.patientId
+            return cPatientId?.toString() !== patientId?.toString()
+          }))
+        }
+      }
+    }
+
+    // Add a small delay to avoid race conditions with other API calls
+    const timeoutId = setTimeout(() => {
+      verifyConsultation()
+    }, 1000)
+
+    return () => clearTimeout(timeoutId)
+  }, [selectedConsultation, location.state?.selectedConsultation])
+
   // Get doctor info once and store in state to avoid multiple calls
   const [doctorInfo, setDoctorInfo] = useState(() => getDoctorInfo())
 
@@ -1524,12 +1642,21 @@ const DoctorConsultations = () => {
   const [medicineSearchTerm, setMedicineSearchTerm] = useState('')
   const [availableMedicines, setAvailableMedicines] = useState([])
   
-  // Load medicines - TODO: Add API endpoint for pharmacy medicines
-  // For now, using empty array - medicines can be entered manually
+  // Load medicines from all pharmacies
   useEffect(() => {
-    // Medicines should come from pharmacy API in future
-    // For now, allow manual entry only
-    setAvailableMedicines([])
+    const loadMedicines = async () => {
+      try {
+        const response = await getAllMedicines({ limit: 1000 })
+        if (response.success && response.data) {
+          const medicines = response.data.items || []
+          setAvailableMedicines(medicines)
+        }
+      } catch (error) {
+        console.error('Error loading medicines:', error)
+        setAvailableMedicines([])
+      }
+    }
+    loadMedicines()
   }, [])
   
   // Filter medicines based on search term
@@ -1550,7 +1677,7 @@ const DoctorConsultations = () => {
     setNewMedication({
       ...newMedication,
       name: medicine.name,
-      dosage: medicine.dosage, // Auto-fill dosage if available
+      dosage: medicine.dosage || '', // Auto-fill dosage if available
     })
     setShowMedicineDropdown(false)
     setMedicineSearchTerm('')
@@ -1563,6 +1690,8 @@ const DoctorConsultations = () => {
     // Show dropdown if there's a search term or if medicines are available
     if (value.trim() || availableMedicines.length > 0) {
       setShowMedicineDropdown(true)
+    } else {
+      setShowMedicineDropdown(false)
     }
   }
   const [newInvestigation, setNewInvestigation] = useState({
@@ -1575,12 +1704,21 @@ const DoctorConsultations = () => {
   const [testSearchTerm, setTestSearchTerm] = useState('')
   const [availableTests, setAvailableTests] = useState([])
   
-  // Load tests - TODO: Add API endpoint for laboratory tests
-  // For now, using empty array - tests can be entered manually
+  // Load tests from all laboratories
   useEffect(() => {
-    // Tests should come from laboratory API in future
-    // For now, allow manual entry only
-    setAvailableTests([])
+    const loadTests = async () => {
+      try {
+        const response = await getAllTests({ limit: 1000 })
+        if (response.success && response.data) {
+          const tests = response.data.items || []
+          setAvailableTests(tests)
+        }
+      } catch (error) {
+        console.error('Error loading tests:', error)
+        setAvailableTests([])
+      }
+    }
+    loadTests()
   }, [])
   
   // Filter tests based on search term
@@ -1612,6 +1750,8 @@ const DoctorConsultations = () => {
     // Show dropdown if there's a search term or if tests are available
     if (value.trim() || availableTests.length > 0) {
       setShowTestDropdown(true)
+    } else {
+      setShowTestDropdown(false)
     }
   }
   
@@ -1634,10 +1774,43 @@ const DoctorConsultations = () => {
             setPatientHistory(historyResponse.data)
           } else {
             setPatientHistory(null)
+            // If patient not found and consultation was from localStorage, clear it
+            if (historyResponse.message?.includes('Patient not found') || historyResponse.message?.includes('no appointments')) {
+              const saved = localStorage.getItem('doctorSelectedConsultation')
+              if (saved) {
+                console.log('⚠️ Patient not found, clearing invalid consultation from localStorage')
+                localStorage.removeItem('doctorSelectedConsultation')
+                setSelectedConsultation(null)
+                setConsultations((prev) => prev.filter(c => {
+                  const cPatientId = typeof c.patientId === 'object' 
+                    ? (c.patientId._id || c.patientId.id || c.patientId)
+                    : c.patientId
+                  return cPatientId?.toString() !== patientId?.toString()
+                }))
+              }
+            }
           }
         } catch (error) {
           console.error('Error loading patient history:', error)
           setPatientHistory(null)
+          // If error is "Patient not found" and consultation was from localStorage, clear it
+          if (error.message?.includes('Patient not found') || error.message?.includes('no appointments')) {
+            const saved = localStorage.getItem('doctorSelectedConsultation')
+            if (saved) {
+              console.log('⚠️ Patient not found, clearing invalid consultation from localStorage')
+              localStorage.removeItem('doctorSelectedConsultation')
+              setSelectedConsultation(null)
+              const patientId = typeof selectedConsultation.patientId === 'object' 
+                ? (selectedConsultation.patientId._id || selectedConsultation.patientId.id || selectedConsultation.patientId)
+                : selectedConsultation.patientId
+              setConsultations((prev) => prev.filter(c => {
+                const cPatientId = typeof c.patientId === 'object' 
+                  ? (c.patientId._id || c.patientId.id || c.patientId)
+                  : c.patientId
+                return cPatientId?.toString() !== patientId?.toString()
+              }))
+            }
+          }
         }
       } else {
         setPatientHistory(null)
@@ -2133,6 +2306,34 @@ const DoctorConsultations = () => {
     // Set editing mode
     setEditingPrescriptionId(prescription.id)
     
+    // Get consultation ID from prescription
+    const consultationId = prescription.consultationId?._id || prescription.consultationId || prescription.originalData?.consultationId?._id || prescription.originalData?.consultationId
+    
+    // If consultation ID exists, try to load the consultation or set it in selectedConsultation
+    if (consultationId) {
+      // Try to find the consultation in the consultations list
+      const foundConsultation = consultations.find(cons => {
+        const consId = cons._id || cons.id
+        return consId?.toString() === consultationId.toString()
+      })
+      
+      if (foundConsultation) {
+        // Set selected consultation so save function can find it
+        setSelectedConsultation(foundConsultation)
+      } else {
+        // If consultation not found in list, create a minimal consultation object
+        // This ensures handleSavePrescription can find the consultation ID
+        setSelectedConsultation(prev => ({
+          ...prev,
+          id: consultationId,
+          _id: consultationId,
+          consultationId: consultationId,
+          patientId: prescription.patientId || prev?.patientId,
+          patientName: prescription.patientName || prev?.patientName,
+        }))
+      }
+    }
+    
     // Switch to prescription tab
     setActiveTab('prescription')
     
@@ -2514,17 +2715,51 @@ const DoctorConsultations = () => {
     }
 
     try {
+      // If editing a prescription, get consultation ID from the prescription being edited
+      let consultationId = null
+      if (editingPrescriptionId) {
+        const prescriptionBeingEdited = savedPrescriptions.find(p => (p.id || p._id) === editingPrescriptionId)
+        if (prescriptionBeingEdited) {
+          consultationId = prescriptionBeingEdited.consultationId?._id || 
+                           prescriptionBeingEdited.consultationId || 
+                           prescriptionBeingEdited.originalData?.consultationId?._id ||
+                           prescriptionBeingEdited.originalData?.consultationId
+          console.log('✅ Editing prescription - Found consultation ID:', consultationId)
+          
+          // Also update selectedConsultation with consultation ID if not already set
+          if (consultationId && (!selectedConsultation || !selectedConsultation.id || !selectedConsultation._id)) {
+            // Try to find consultation in consultations list
+            const foundConsultation = consultations.find(cons => {
+              const consId = cons._id || cons.id
+              return consId?.toString() === consultationId.toString()
+            })
+            
+            if (foundConsultation) {
+              setSelectedConsultation(foundConsultation)
+            } else {
+              // Create minimal consultation object
+              setSelectedConsultation(prev => ({
+                ...prev,
+                id: consultationId,
+                _id: consultationId,
+                consultationId: consultationId,
+              }))
+            }
+          }
+        }
+      }
+      
       // Get appointment ID from consultation - check multiple possible locations
-      let appointmentId = selectedConsultation.appointmentId?._id || 
-                          selectedConsultation.appointmentId || 
-                          selectedConsultation.originalData?._id ||
-                          selectedConsultation.originalData?.id ||
-                          selectedConsultation.originalData?.appointmentId?._id ||
-                          selectedConsultation.originalData?.appointmentId
+      let appointmentId = selectedConsultation?.appointmentId?._id || 
+                          selectedConsultation?.appointmentId || 
+                          selectedConsultation?.originalData?._id ||
+                          selectedConsultation?.originalData?.id ||
+                          selectedConsultation?.originalData?.appointmentId?._id ||
+                          selectedConsultation?.originalData?.appointmentId
 
       // If appointmentId is still not found, try to extract from consultation ID
       // Consultation ID format: cons-{appointmentId}-{timestamp}
-      if (!appointmentId && selectedConsultation.id && selectedConsultation.id.startsWith('cons-')) {
+      if (!appointmentId && selectedConsultation?.id && selectedConsultation.id.startsWith('cons-')) {
         const parts = selectedConsultation.id.split('-')
         if (parts.length >= 3) {
           appointmentId = parts[1]
@@ -2532,19 +2767,26 @@ const DoctorConsultations = () => {
         }
       }
 
-      if (!appointmentId) {
-        toast.error('Appointment ID not found. Cannot save prescription.')
-        return
-      }
-
       // Get real consultation ID from database (or create consultation if it doesn't exist)
-      let consultationId = selectedConsultation.id || selectedConsultation._id
+      if (!consultationId) {
+        consultationId = selectedConsultation?.id || selectedConsultation?._id
+      }
       
       // Check if consultation ID is a valid MongoDB ObjectId
       const isValidObjectId = consultationId && consultationId.match(/^[0-9a-fA-F]{24}$/)
       
-      if (!isValidObjectId) {
+      // If editing and we have a valid consultation ID, skip to update section
+      if (editingPrescriptionId && isValidObjectId) {
+        console.log('✅ Editing prescription with valid consultation ID:', consultationId)
+        // Will proceed to update consultation section below
+      } else if (!isValidObjectId) {
         // Consultation ID is not valid ObjectId - need to find or create consultation
+        // But first check if we have appointmentId (required for creating consultation)
+        if (!appointmentId) {
+          toast.error('Consultation ID not found and appointment ID is missing. Cannot save prescription.')
+          return
+        }
+        
         console.log('Consultation ID is not valid ObjectId, checking if consultation exists...')
         
         // First, try to find existing consultation by appointmentId
@@ -2689,7 +2931,10 @@ const DoctorConsultations = () => {
             }
           }
         }
-      } else {
+      }
+      
+      // If we have a valid consultation ID (either from editing or from above logic), update it
+      if (consultationId && consultationId.match(/^[0-9a-fA-F]{24}$/)) {
         // Consultation exists - update it with prescription data
         console.log('Updating existing consultation with prescription data...')
         
@@ -2746,7 +2991,125 @@ const DoctorConsultations = () => {
 
       // Now create prescription with real consultation ID (MongoDB ObjectId)
       console.log('Creating prescription with consultationId:', consultationId)
-        const prescriptionResponse = await createPrescription({
+      
+      // Check if prescription already exists for this consultation
+      let existingPrescription = null
+      try {
+        const { getPrescriptions } = await import('../doctor-services/doctorService')
+        const existingPrescriptionsResponse = await getPrescriptions({ consultationId })
+        if (existingPrescriptionsResponse.success && existingPrescriptionsResponse.data?.items?.length > 0) {
+          existingPrescription = existingPrescriptionsResponse.data.items[0]
+          console.log('⚠️ Prescription already exists for this consultation:', existingPrescription._id || existingPrescription.id)
+          
+          // If editing the same prescription, we can proceed to update consultation
+          // But we can't create a new prescription - show message
+          if (editingPrescriptionId && (existingPrescription._id?.toString() === editingPrescriptionId.toString() || existingPrescription.id?.toString() === editingPrescriptionId.toString())) {
+            console.log('✅ Editing existing prescription - consultation will be updated, prescription already exists')
+            // Use existing prescription
+            const prescriptionResponse = {
+              success: true,
+              data: existingPrescription
+            }
+            
+            // Update saved prescriptions list with updated data
+            const transformedPrescription = {
+              id: existingPrescription._id || existingPrescription.id,
+              _id: existingPrescription._id || existingPrescription.id,
+              consultationId: existingPrescription.consultationId?._id || existingPrescription.consultationId || consultationId,
+              patientId: existingPrescription.patientId?._id || existingPrescription.patientId?.id || existingPrescription.patientId || selectedConsultation.patientId,
+              patientName: existingPrescription.patientId?.firstName && existingPrescription.patientId?.lastName
+                ? `${existingPrescription.patientId.firstName} ${existingPrescription.patientId.lastName}`
+                : selectedConsultation.patientName || 'Patient',
+              patientImage: existingPrescription.patientId?.profileImage || selectedConsultation.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedConsultation.patientName || 'Patient')}&background=11496c&color=fff&size=160`,
+              patientPhone: existingPrescription.patientId?.phone || selectedConsultation.patientPhone || '',
+              patientEmail: existingPrescription.patientId?.email || selectedConsultation.patientEmail || '',
+              patientAddress: existingPrescription.patientId?.address || selectedConsultation.patientAddress || '',
+              diagnosis: diagnosis || '',
+              symptoms: symptoms || '',
+              medications: medications || [],
+              investigations: investigations || [],
+              advice: advice || '',
+              followUpDate: followUpDate || '',
+              date: existingPrescription.createdAt ? new Date(existingPrescription.createdAt).toISOString() : new Date().toISOString(),
+              savedAt: existingPrescription.createdAt ? new Date(existingPrescription.createdAt).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }) : new Date().toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              status: existingPrescription.status || 'active',
+              pdfFileUrl: existingPrescription.pdfFileUrl || null,
+              originalData: existingPrescription,
+            }
+            
+            setSavedPrescriptions((prev) =>
+              prev.map(p => (p.id || p._id) === (transformedPrescription.id || transformedPrescription._id) ? transformedPrescription : p)
+            )
+            
+            // Update consultation data
+            const updatedConsultation = {
+              ...selectedConsultation,
+              id: consultationId,
+              _id: consultationId,
+              status: selectedConsultation?.status || 'in-progress',
+              diagnosis,
+              vitals,
+              medications,
+              investigations,
+              advice,
+              prescriptionId: existingPrescription._id || existingPrescription.id,
+            }
+            
+            setConsultations((prev) =>
+              prev.map((cons) =>
+                (cons.id === selectedConsultation.id || cons._id === consultationId) ? updatedConsultation : cons
+              )
+            )
+            
+            setSelectedConsultation(updatedConsultation)
+            
+            toast.success('Prescription updated successfully!')
+            
+            // Reset form
+            setDiagnosis('')
+            setSymptoms('')
+            setMedications([])
+            setInvestigations([])
+            setAdvice('')
+            setFollowUpDate('')
+            setVitals({
+              bloodPressure: { systolic: '', diastolic: '' },
+              temperature: '',
+              pulse: '',
+              respiratoryRate: '',
+              oxygenSaturation: '',
+              weight: '',
+              height: '',
+              bmi: '',
+            })
+            setEditingPrescriptionId(null)
+            setActiveTab('saved')
+            return // Exit early since we handled the update
+          } else {
+            // Prescription exists but we're not editing it - show error
+            toast.error('Prescription already exists for this consultation. Please edit the existing prescription instead.')
+            return
+          }
+        }
+      } catch (checkError) {
+        console.error('Error checking existing prescription:', checkError)
+        // Continue to create new prescription if check fails
+      }
+      
+      // Create new prescription
+      const prescriptionResponse = await createPrescription({
         consultationId: consultationId, // Use real MongoDB ObjectId
         medications: medications.map(med => ({
           name: med.name,
@@ -2762,9 +3125,9 @@ const DoctorConsultations = () => {
         diagnosis: diagnosis || '',
         symptoms: symptoms || '',
         investigations: investigations || [],
-        })
+      })
         
-        if (prescriptionResponse.success) {
+        if (prescriptionResponse && prescriptionResponse.success) {
         // Transform prescription data to match component structure
         const prescriptionData = prescriptionResponse.data
         const transformedPrescription = {
@@ -2815,12 +3178,14 @@ const DoctorConsultations = () => {
           return [transformedPrescription, ...prev]
         })
     
-    // Update consultation status in both consultations list and selectedConsultation
+    // Update consultation data in both consultations list and selectedConsultation
+    // IMPORTANT: Do NOT change status to 'completed' here - status should only change when doctor clicks "Complete" button
     const updatedConsultation = {
       ...selectedConsultation,
           id: consultationId,
           _id: consultationId,
-      status: 'completed',
+      // Keep existing status (don't change to 'completed')
+      status: selectedConsultation?.status || 'in-progress',
       diagnosis,
       vitals,
       medications,
@@ -2835,39 +3200,41 @@ const DoctorConsultations = () => {
       )
     )
     
-    // Also update selectedConsultation state
+    // Also update selectedConsultation state (but keep status as is)
     setSelectedConsultation(updatedConsultation)
         
         toast.success('Prescription saved successfully!')
+        
+        // Reset form and editing state ONLY after successful save
+        setDiagnosis('')
+        setSymptoms('')
+        setMedications([])
+        setInvestigations([])
+        setAdvice('')
+        setFollowUpDate('')
+        setVitals({
+          bloodPressure: { systolic: '', diastolic: '' },
+          temperature: '',
+          pulse: '',
+          respiratoryRate: '',
+          oxygenSaturation: '',
+          weight: '',
+          height: '',
+          bmi: '',
+        })
+        setEditingPrescriptionId(null)
+        
+        // Switch to saved prescriptions tab
+        setActiveTab('saved')
       } else {
-        toast.error(prescriptionResponse.message || 'Failed to save prescription')
+        toast.error(prescriptionResponse?.message || 'Failed to save prescription')
+        // Don't reset form if save failed
       }
     } catch (error) {
       console.error('Error saving prescription:', error)
-      toast.error(error.message || 'Failed to save prescription')
+      toast.error(error.message || error.response?.data?.message || 'Failed to save prescription')
+      // Don't reset form if error occurred
     }
-
-    // Reset form and editing state
-    setDiagnosis('')
-    setSymptoms('')
-    setMedications([])
-    setInvestigations([])
-    setAdvice('')
-    setFollowUpDate('')
-    setVitals({
-      bloodPressure: { systolic: '', diastolic: '' },
-      temperature: '',
-      pulse: '',
-      respiratoryRate: '',
-      oxygenSaturation: '',
-      weight: '',
-      height: '',
-      bmi: '',
-    })
-    setEditingPrescriptionId(null)
-    
-    // Switch to saved prescriptions tab
-    setActiveTab('saved')
   }
 
   // Get filter label
@@ -4020,9 +4387,9 @@ const DoctorConsultations = () => {
                   <div className="space-y-4 lg:space-y-3">
                     {viewingPrescription ? (
                       /* Full Page View Prescription */
-                      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
+                      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 100px)' }}>
                         {/* Header */}
-                        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-4 py-4 lg:py-3">
+                        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-4 py-3 lg:py-2.5 flex-shrink-0">
                           <div className="flex items-center gap-3">
                             <button
                               type="button"
@@ -4035,8 +4402,8 @@ const DoctorConsultations = () => {
                           </div>
                         </div>
                         
-                        {/* Content */}
-                        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+                        {/* Content - Scrollable */}
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 sm:space-y-4">
                           {/* Patient Info */}
                           <div className="flex items-center gap-4 pb-4 border-b border-slate-200">
                             <div className="h-14 w-14 rounded-lg bg-[#11496c] flex items-center justify-center shrink-0 shadow-sm">
@@ -4071,20 +4438,26 @@ const DoctorConsultations = () => {
                           {/* Medications */}
                           {viewingPrescription.medications && viewingPrescription.medications.length > 0 && (
                             <div>
-                              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">
+                              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
                                 Medications ({viewingPrescription.medications.length})
                               </p>
-                              <div className="space-y-2">
+                              <div className="space-y-1.5">
                                 {viewingPrescription.medications.map((med, idx) => (
-                                  <div key={idx} className="rounded-lg bg-emerald-50 border border-emerald-100 p-3">
-                                    <p className="text-sm font-semibold text-emerald-900">{med.name}</p>
-                                    <p className="text-xs text-emerald-700 mt-1">
-                                      Dosage: {med.dosage} • Frequency: {med.frequency}
-                                      {med.duration && ` • Duration: ${med.duration}`}
-                                    </p>
-                                    {med.instructions && (
-                                      <p className="text-xs text-emerald-600 mt-1">Instructions: {med.instructions}</p>
-                                    )}
+                                  <div key={idx} className="flex items-start gap-2 rounded-lg bg-emerald-50 border border-emerald-100 p-2 sm:p-2.5">
+                                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-emerald-200 text-xs font-bold text-emerald-700">
+                                      {idx + 1}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-emerald-900">{med.name} {med.dosage && `(${med.dosage})`}</p>
+                                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-emerald-700">
+                                        {med.dosage && <span>Dosage: {med.dosage}</span>}
+                                        {med.frequency && <span>Frequency: {med.frequency}</span>}
+                                        {med.duration && <span>Duration: {med.duration}</span>}
+                                      </div>
+                                      {med.instructions && (
+                                        <p className="text-xs text-emerald-600 mt-1 line-clamp-2">{med.instructions}</p>
+                                      )}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -4094,16 +4467,19 @@ const DoctorConsultations = () => {
                           {/* Investigations */}
                           {viewingPrescription.investigations && viewingPrescription.investigations.length > 0 && (
                             <div>
-                              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">
+                              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
                                 Recommended Tests ({viewingPrescription.investigations.length})
                               </p>
-                              <div className="space-y-2">
+                              <div className="space-y-1.5">
                                 {viewingPrescription.investigations.map((inv, idx) => (
-                                  <div key={idx} className="rounded-lg bg-[rgba(17,73,108,0.1)] border border-[rgba(17,73,108,0.2)] p-3">
-                                    <p className="text-sm font-semibold text-[#0a2d3f]">{inv.name}</p>
-                                    {inv.notes && (
-                                      <p className="text-xs text-[#11496c] mt-1">{inv.notes}</p>
-                                    )}
+                                  <div key={idx} className="flex items-start gap-2 rounded-lg bg-[rgba(17,73,108,0.1)] border border-[rgba(17,73,108,0.2)] p-2 sm:p-2.5">
+                                    <IoFlaskOutline className="h-4 w-4 shrink-0 text-[#11496c] mt-0.5" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-[#0a2d3f]">{inv.name || inv.testName}</p>
+                                      {inv.notes && (
+                                        <p className="text-xs text-[#11496c] mt-1 line-clamp-2">{inv.notes}</p>
+                                      )}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -4133,8 +4509,8 @@ const DoctorConsultations = () => {
                           )}
                         </div>
 
-                        {/* Footer Actions */}
-                        <div className="sticky bottom-0 flex gap-3 border-t border-slate-200 bg-white p-4 sm:p-6">
+                        {/* Footer Actions - Sticky */}
+                        <div className="sticky bottom-0 flex gap-3 border-t border-slate-200 bg-white p-3 sm:p-4 flex-shrink-0 shadow-sm">
                           <button
                             type="button"
                             onClick={() => setViewingPrescription(null)}
@@ -4781,22 +5157,25 @@ const DoctorConsultations = () => {
                   <IoSearchOutline className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-slate-400 pointer-events-none" />
                   
                   {/* Medicine Dropdown */}
-                  {showMedicineDropdown && (filteredMedicines.length > 0 || medicineSearchTerm.trim()) && (
+                  {showMedicineDropdown && (
                     <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       {filteredMedicines.length > 0 ? (
                         filteredMedicines.map((medicine, index) => (
                           <button
-                            key={index}
+                            key={medicine._id || index}
                             type="button"
                             onClick={() => handleMedicineSelect(medicine)}
                             className="w-full text-left px-3 sm:px-4 py-2 sm:py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{medicine.name}</p>
+                                <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">
+                                  {medicine.name}
+                                  {medicine.dosage && ` (${medicine.dosage})`}
+                                </p>
                                 <p className="text-[10px] sm:text-xs text-slate-600 mt-0.5">
-                                  {medicine.dosage}
-                                  {medicine.manufacturer && ` • ${medicine.manufacturer}`}
+                                  {medicine.manufacturer && `${medicine.manufacturer}`}
+                                  {medicine.pharmacyName && ` • ${medicine.pharmacyName}`}
                                 </p>
                               </div>
                               <IoMedicalOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] ml-2 shrink-0" />
@@ -4806,7 +5185,9 @@ const DoctorConsultations = () => {
                       ) : (
                         <div className="px-3 sm:px-4 py-3 sm:py-4">
                           <p className="text-xs sm:text-sm text-slate-600">
-                            No medicine found. You can type manually to add "{medicineSearchTerm}".
+                            {medicineSearchTerm.trim() 
+                              ? `No medicine found matching "${medicineSearchTerm}". You can type manually to add it.`
+                              : 'Start typing to search medicines...'}
                           </p>
                         </div>
                       )}
@@ -4921,12 +5302,12 @@ const DoctorConsultations = () => {
                   <IoSearchOutline className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-slate-400 pointer-events-none" />
                   
                   {/* Test Dropdown */}
-                  {showTestDropdown && (filteredTests.length > 0 || testSearchTerm.trim()) && (
+                  {showTestDropdown && (
                     <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       {filteredTests.length > 0 ? (
                         filteredTests.map((test, index) => (
                           <button
-                            key={index}
+                            key={test._id || index}
                             type="button"
                             onClick={() => handleTestSelect(test)}
                             className="w-full text-left px-3 sm:px-4 py-2 sm:py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
@@ -4934,11 +5315,10 @@ const DoctorConsultations = () => {
                             <div className="flex items-center justify-between">
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{test.name}</p>
-                                {test.category && (
-                                  <p className="text-[10px] sm:text-xs text-slate-600 mt-0.5">
-                                    {test.category}
-                                  </p>
-                                )}
+                                <p className="text-[10px] sm:text-xs text-slate-600 mt-0.5">
+                                  {test.category && `${test.category}`}
+                                  {test.labName && ` • ${test.labName}`}
+                                </p>
                               </div>
                               <IoFlaskOutline className="h-4 w-4 sm:h-5 sm:w-5 text-[#11496c] ml-2 shrink-0" />
                             </div>
@@ -4947,7 +5327,9 @@ const DoctorConsultations = () => {
                       ) : (
                         <div className="px-3 sm:px-4 py-3 sm:py-4">
                           <p className="text-xs sm:text-sm text-slate-600">
-                            No test found. You can type manually to add "{testSearchTerm}".
+                            {testSearchTerm.trim() 
+                              ? `No test found matching "${testSearchTerm}". You can type manually to add it.`
+                              : 'Start typing to search tests...'}
                           </p>
                         </div>
                       )}

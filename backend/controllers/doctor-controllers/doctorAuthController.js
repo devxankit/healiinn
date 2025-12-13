@@ -366,6 +366,39 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
 
   await notifyAdminsOfPendingSignup({ role: ROLES.DOCTOR, entity: doctor });
 
+  // Create in-app notifications for all admins
+  try {
+    const Admin = require('../../models/Admin');
+    const { createNotification } = require('../../services/notificationService');
+    const admins = await Admin.find({ isActive: true });
+    
+    const doctorName = `${doctor.firstName} ${doctor.lastName}`.trim();
+    
+    for (const admin of admins) {
+      await createNotification({
+        userId: admin._id,
+        userType: 'admin',
+        type: 'system',
+        title: 'New Doctor Registration',
+        message: `${doctorName} has registered and is awaiting approval.`,
+        data: {
+          providerId: doctor._id,
+          providerType: 'doctor',
+          providerName: doctorName,
+          email: doctor.email,
+          phone: doctor.phone,
+        },
+        priority: 'medium',
+        actionUrl: `/admin/doctors`,
+        icon: 'doctor',
+        sendEmail: false, // Email already sent via notifyAdminsOfPendingSignup
+        emitSocket: true,
+      }).catch((error) => console.error(`Error creating admin notification for doctor registration:`, error));
+    }
+  } catch (error) {
+    console.error('Error creating admin notifications for doctor registration:', error);
+  }
+
   return res.status(201).json({
     success: true,
     message: 'Doctor registration submitted for admin approval.',

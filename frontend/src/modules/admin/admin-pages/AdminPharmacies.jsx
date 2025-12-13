@@ -14,6 +14,7 @@ import {
   IoAddOutline,
   IoTrashOutline,
   IoCloseOutline,
+  IoEyeOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
@@ -38,6 +39,8 @@ const AdminPharmacies = () => {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectingPharmacyId, setRejectingPharmacyId] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
+  const [viewingPharmacy, setViewingPharmacy] = useState(null)
+  const [loadingPharmacyDetails, setLoadingPharmacyDetails] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     ownerName: '',
@@ -209,6 +212,23 @@ const AdminPharmacies = () => {
       toast.error(error.message || 'Failed to reject pharmacy')
     } finally {
       setProcessingId(null)
+    }
+  }
+
+  const handleViewPharmacy = async (pharmacyId) => {
+    try {
+      setLoadingPharmacyDetails(true)
+      const response = await getPharmacyById(pharmacyId)
+      if (response.success && response.data) {
+        setViewingPharmacy(response.data)
+      } else {
+        toast.error('Failed to load pharmacy details')
+      }
+    } catch (error) {
+      console.error('Error fetching pharmacy details:', error)
+      toast.error(error.message || 'Failed to load pharmacy details')
+    } finally {
+      setLoadingPharmacyDetails(false)
     }
   }
 
@@ -452,26 +472,37 @@ const AdminPharmacies = () => {
                     </div>
                     <div className="flex shrink-0 items-start gap-2 flex-col">
                       {getStatusBadge(pharmacy.status)}
-                      {pharmacy.status === 'pending' && (
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(pharmacy.id)}
-                            disabled={processingId === pharmacy.id}
-                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
-                          >
-                            {processingId === pharmacy.id ? 'Processing...' : 'Approve'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRejectClick(pharmacy.id)}
-                            disabled={processingId === pharmacy.id}
-                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleViewPharmacy(pharmacy.id)}
+                          disabled={loadingPharmacyDetails}
+                          className="flex items-center gap-1 rounded-lg bg-slate-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                        >
+                          <IoEyeOutline className="h-3.5 w-3.5" />
+                          View
+                        </button>
+                        {pharmacy.status === 'pending' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(pharmacy.id)}
+                              disabled={processingId === pharmacy.id}
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
+                            >
+                              {processingId === pharmacy.id ? 'Processing...' : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRejectClick(pharmacy.id)}
+                              disabled={processingId === pharmacy.id}
+                              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                      </div>
                       {pharmacy.status === 'rejected' && pharmacy.rejectionReason && (
                         <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-2 max-w-xs">
                           <p className="text-xs font-semibold text-red-700 mb-1">Rejection Reason:</p>
@@ -701,6 +732,133 @@ const AdminPharmacies = () => {
                 className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed"
               >
                 {processingId === rejectingPharmacyId ? 'Processing...' : 'Confirm Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Pharmacy Details Modal */}
+      {viewingPharmacy && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setViewingPharmacy(null)}
+        >
+          <div 
+            className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h2 className="text-lg font-semibold text-slate-900">Pharmacy Details</h2>
+              <button
+                onClick={() => setViewingPharmacy(null)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <IoCloseOutline className="h-4 w-4" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
+              {loadingPharmacyDetails ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-slate-600">Loading pharmacy details...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Basic Information */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Basic Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-slate-500">Pharmacy Name</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingPharmacy.pharmacyName || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Owner Name</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingPharmacy.ownerName || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Email</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingPharmacy.email || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Phone</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingPharmacy.phone || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">License Number</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingPharmacy.licenseNumber || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Status</p>
+                        <div className="mt-1">{getStatusBadge(viewingPharmacy.status === 'approved' ? 'verified' : viewingPharmacy.status || 'pending')}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Address */}
+                  {viewingPharmacy.address && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Address</h3>
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-sm text-slate-900">
+                          {viewingPharmacy.address.line1 || ''}
+                          {viewingPharmacy.address.line2 && `, ${viewingPharmacy.address.line2}`}
+                          {viewingPharmacy.address.city && `, ${viewingPharmacy.address.city}`}
+                          {viewingPharmacy.address.state && `, ${viewingPharmacy.address.state}`}
+                          {viewingPharmacy.address.postalCode && ` - ${viewingPharmacy.address.postalCode}`}
+                          {viewingPharmacy.address.country && `, ${viewingPharmacy.address.country}`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional Details */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Additional Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {viewingPharmacy.createdAt && (
+                        <div>
+                          <p className="text-xs text-slate-500">Registered Date</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {new Date(viewingPharmacy.createdAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      )}
+                      {viewingPharmacy.approvedAt && (
+                        <div>
+                          <p className="text-xs text-slate-500">Approved Date</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {new Date(viewingPharmacy.approvedAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      )}
+                      {viewingPharmacy.rejectionReason && (
+                        <div className="sm:col-span-2">
+                          <p className="text-xs text-slate-500">Rejection Reason</p>
+                          <p className="mt-1 text-sm text-red-600 bg-red-50 p-2 rounded-lg">{viewingPharmacy.rejectionReason}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+              <button
+                onClick={() => setViewingPharmacy(null)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Close
               </button>
             </div>
           </div>

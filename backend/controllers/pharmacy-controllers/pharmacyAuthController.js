@@ -219,6 +219,37 @@ exports.registerPharmacy = asyncHandler(async (req, res) => {
 
   await notifyAdminsOfPendingSignup({ role: ROLES.PHARMACY, entity: pharmacy });
 
+  // Create in-app notifications for all admins
+  try {
+    const Admin = require('../../models/Admin');
+    const { createNotification } = require('../../services/notificationService');
+    const admins = await Admin.find({ isActive: true });
+    
+    for (const admin of admins) {
+      await createNotification({
+        userId: admin._id,
+        userType: 'admin',
+        type: 'system',
+        title: 'New Pharmacy Registration',
+        message: `${pharmacy.pharmacyName} has registered and is awaiting approval.`,
+        data: {
+          providerId: pharmacy._id,
+          providerType: 'pharmacy',
+          providerName: pharmacy.pharmacyName,
+          email: pharmacy.email,
+          phone: pharmacy.phone,
+        },
+        priority: 'medium',
+        actionUrl: `/admin/pharmacies`,
+        icon: 'pharmacy',
+        sendEmail: false, // Email already sent via notifyAdminsOfPendingSignup
+        emitSocket: true,
+      }).catch((error) => console.error(`Error creating admin notification for pharmacy registration:`, error));
+    }
+  } catch (error) {
+    console.error('Error creating admin notifications for pharmacy registration:', error);
+  }
+
   return res.status(201).json({
     success: true,
     message: 'Pharmacy registration submitted for admin approval.',

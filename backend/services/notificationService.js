@@ -156,11 +156,19 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
 
   switch (eventType) {
     case 'created':
-      title = 'New Appointment';
-      message = patient
-        ? `Appointment booked with ${patient.firstName} ${patient.lastName || ''}`
-        : 'New appointment has been booked';
-      actionUrl = userType === 'patient' ? '/patient/appointments' : '/doctor/patients';
+      if (userType === 'doctor') {
+        title = 'New Appointment Booking';
+        message = patient
+          ? `New appointment booked by ${patient.firstName} ${patient.lastName || ''}${appointment.tokenNumber ? ` (Token: ${appointment.tokenNumber})` : ''}`
+          : 'New appointment has been booked';
+        actionUrl = '/doctor/patients';
+      } else {
+        title = 'New Appointment';
+        message = patient
+          ? `Appointment booked with ${patient.firstName} ${patient.lastName || ''}`
+          : 'New appointment has been booked';
+        actionUrl = '/patient/appointments';
+      }
       break;
     case 'cancelled':
       title = 'Appointment Cancelled';
@@ -204,17 +212,32 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
       actionUrl = '/patient/appointments';
   }
 
-  // Get user data for email if userType is patient
+  // Get user data for email
   let user = null;
-  if (sendEmail && userType === 'patient' && !patient) {
-    try {
-      const Patient = require('../models/Patient');
-      user = await Patient.findById(userId).select('email firstName lastName');
-    } catch (error) {
-      console.error('Error fetching patient for email:', error);
+  if (sendEmail) {
+    if (userType === 'patient') {
+      if (patient) {
+        user = patient;
+      } else {
+        try {
+          const Patient = require('../models/Patient');
+          user = await Patient.findById(userId).select('email firstName lastName');
+        } catch (error) {
+          console.error('Error fetching patient for email:', error);
+        }
+      }
+    } else if (userType === 'doctor') {
+      if (doctor) {
+        user = doctor;
+      } else {
+        try {
+          const Doctor = require('../models/Doctor');
+          user = await Doctor.findById(userId).select('email firstName lastName');
+        } catch (error) {
+          console.error('Error fetching doctor for email:', error);
+        }
+      }
     }
-  } else if (sendEmail && userType === 'patient' && patient) {
-    user = patient;
   }
 
   return createNotification({
@@ -272,25 +295,31 @@ const createWalletNotification = async ({ userId, userType, amount, eventType, w
       title = 'Wallet Credited';
       message = `₹${amount} has been credited to your wallet`;
       priority = 'high';
-      actionUrl = '/doctor/wallet';
+      actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
       break;
     case 'withdrawal_requested':
       title = 'Withdrawal Requested';
       message = `Withdrawal request of ₹${amount} has been submitted`;
       priority = 'medium';
-      actionUrl = '/doctor/wallet';
+      actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
       break;
     case 'withdrawal_approved':
       title = 'Withdrawal Approved';
       message = `Your withdrawal request of ₹${amount} has been approved`;
       priority = 'high';
-      actionUrl = '/doctor/wallet';
+      actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
+      break;
+    case 'withdrawal_paid':
+      title = 'Payment Processed';
+      message = `Your withdrawal request of ₹${amount} has been processed and payment has been sent${withdrawal?.payoutReference ? ` (Ref: ${withdrawal.payoutReference})` : ''}`;
+      priority = 'high';
+      actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
       break;
     case 'withdrawal_rejected':
       title = 'Withdrawal Rejected';
-      message = `Your withdrawal request of ₹${amount} has been rejected`;
+      message = `Your withdrawal request of ₹${amount} has been rejected${withdrawal?.rejectionReason ? `. Reason: ${withdrawal.rejectionReason}` : ''}`;
       priority = 'high';
-      actionUrl = '/doctor/wallet';
+      actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
       break;
     default:
       title = 'Wallet Update';
@@ -957,7 +986,7 @@ const createSupportTicketNotification = async ({ userId, userType, ticket, event
   return createNotification({
     userId,
     userType,
-    type: 'support_ticket',
+    type: 'support', // Use 'support' as per Notification model enum
     title,
     message,
     data: {

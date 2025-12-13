@@ -1,4 +1,5 @@
 const asyncHandler = require('../../middleware/asyncHandler');
+const mongoose = require('mongoose');
 const Appointment = require('../../models/Appointment');
 const Patient = require('../../models/Patient');
 const Consultation = require('../../models/Consultation');
@@ -191,13 +192,27 @@ exports.getPatientById = asyncHandler(async (req, res) => {
   const { id } = req.auth;
   const patientId = req.params.id; // Fix: route parameter is :id, not :patientId
 
-  // Verify patient has appointments with this doctor
-  const appointment = await Appointment.findOne({
-    doctorId: id,
-    patientId,
-  });
+  // Verify patient has appointments OR consultations with this doctor
+  // Use mongoose.Types.ObjectId to ensure proper type conversion
+  const patientObjectId = mongoose.Types.ObjectId.isValid(patientId) 
+    ? new mongoose.Types.ObjectId(patientId) 
+    : patientId;
+  const doctorObjectId = mongoose.Types.ObjectId.isValid(id) 
+    ? new mongoose.Types.ObjectId(id) 
+    : id;
 
-  if (!appointment) {
+  const [appointment, consultation] = await Promise.all([
+    Appointment.findOne({
+      doctorId: doctorObjectId,
+      patientId: patientObjectId,
+    }),
+    Consultation.findOne({
+      doctorId: doctorObjectId,
+      patientId: patientObjectId,
+    }),
+  ]);
+
+  if (!appointment && !consultation) {
     return res.status(404).json({
       success: false,
       message: 'Patient not found or no appointments with this doctor',
@@ -217,13 +232,36 @@ exports.getPatientHistory = asyncHandler(async (req, res) => {
   const { id } = req.auth;
   const patientId = req.params.id; // Fix: route parameter is :id, not :patientId
 
-  // Verify patient has appointments with this doctor
-  const appointment = await Appointment.findOne({
+  // Verify patient has appointments OR consultations with this doctor
+  // Use mongoose.Types.ObjectId to ensure proper type conversion
+  const patientObjectId = mongoose.Types.ObjectId.isValid(patientId) 
+    ? new mongoose.Types.ObjectId(patientId) 
+    : patientId;
+  const doctorObjectId = mongoose.Types.ObjectId.isValid(id) 
+    ? new mongoose.Types.ObjectId(id) 
+    : id;
+
+  const [appointment, consultation] = await Promise.all([
+    Appointment.findOne({
+      doctorId: doctorObjectId,
+      patientId: patientObjectId,
+    }),
+    Consultation.findOne({
+      doctorId: doctorObjectId,
+      patientId: patientObjectId,
+    }),
+  ]);
+
+  // Debug logging
+  console.log('🔍 getPatientHistory check:', {
     doctorId: id,
     patientId,
+    foundAppointment: !!appointment,
+    foundConsultation: !!consultation,
+    consultationId: consultation?._id,
   });
 
-  if (!appointment) {
+  if (!appointment && !consultation) {
     return res.status(404).json({
       success: false,
       message: 'Patient not found or no appointments with this doctor',
@@ -234,22 +272,22 @@ exports.getPatientHistory = asyncHandler(async (req, res) => {
 
   const [appointments, consultations, prescriptions, sharedReports] = await Promise.all([
     Appointment.find({ 
-      doctorId: id, 
-      patientId,
+      doctorId: doctorObjectId, 
+      patientId: patientObjectId,
       paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
     })
       .sort({ appointmentDate: -1 })
       .limit(10),
-    Consultation.find({ doctorId: id, patientId })
+    Consultation.find({ doctorId: doctorObjectId, patientId: patientObjectId })
       .populate('doctorId', 'firstName lastName specialization')
       .sort({ consultationDate: -1 })
       .limit(10),
-    Prescription.find({ doctorId: id, patientId })
+    Prescription.find({ doctorId: doctorObjectId, patientId: patientObjectId })
       .sort({ createdAt: -1 })
       .limit(10),
     LabReport.find({
-      patientId,
-      'sharedWith.doctorId': id,
+      patientId: patientObjectId,
+      'sharedWith.doctorId': doctorObjectId,
     })
       .populate('laboratoryId', 'labName')
       .populate('orderId', 'createdAt')

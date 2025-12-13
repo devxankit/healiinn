@@ -134,9 +134,12 @@ exports.createPrescription = asyncHandler(async (req, res) => {
   }
 
   // Update consultation with prescription ID
+  // IMPORTANT: Do NOT change consultation status to 'completed' here
+  // Status should only change when doctor explicitly clicks "Complete" button in patient tab
   if (consultationDoc) {
     consultationDoc.prescriptionId = prescription._id;
-    consultationDoc.status = 'completed';
+    // Keep existing status - don't change to 'completed'
+    // consultationDoc.status = 'completed'; // REMOVED - status should only change via Complete button
     await consultationDoc.save();
   }
 

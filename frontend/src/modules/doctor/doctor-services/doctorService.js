@@ -672,4 +672,32 @@ export const getPrescriptionById = async (prescriptionId) => {
   }
 }
 
+/**
+ * Get all medicines from all pharmacies
+ * @param {object} filters - Filter options (search, page, limit)
+ * @returns {Promise<object>} Medicines data
+ */
+export const getAllMedicines = async (filters = {}) => {
+  try {
+    return await apiClient.get('/doctors/consultations/medicines/all', filters)
+  } catch (error) {
+    console.error('Error fetching all medicines:', error)
+    throw error
+  }
+}
+
+/**
+ * Get all lab tests from all laboratories
+ * @param {object} filters - Filter options (search, page, limit)
+ * @returns {Promise<object>} Tests data
+ */
+export const getAllTests = async (filters = {}) => {
+  try {
+    return await apiClient.get('/doctors/consultations/tests/all', filters)
+  } catch (error) {
+    console.error('Error fetching all tests:', error)
+    throw error
+  }
+}
+
 

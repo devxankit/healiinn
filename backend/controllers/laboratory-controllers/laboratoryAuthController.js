@@ -202,6 +202,37 @@ exports.registerLaboratory = asyncHandler(async (req, res) => {
 
   await notifyAdminsOfPendingSignup({ role: ROLES.LABORATORY, entity: laboratory });
 
+  // Create in-app notifications for all admins
+  try {
+    const Admin = require('../../models/Admin');
+    const { createNotification } = require('../../services/notificationService');
+    const admins = await Admin.find({ isActive: true });
+    
+    for (const admin of admins) {
+      await createNotification({
+        userId: admin._id,
+        userType: 'admin',
+        type: 'system',
+        title: 'New Laboratory Registration',
+        message: `${laboratory.labName} has registered and is awaiting approval.`,
+        data: {
+          providerId: laboratory._id,
+          providerType: 'laboratory',
+          providerName: laboratory.labName,
+          email: laboratory.email,
+          phone: laboratory.phone,
+        },
+        priority: 'medium',
+        actionUrl: `/admin/laboratories`,
+        icon: 'laboratory',
+        sendEmail: false, // Email already sent via notifyAdminsOfPendingSignup
+        emitSocket: true,
+      }).catch((error) => console.error(`Error creating admin notification for laboratory registration:`, error));
+    }
+  } catch (error) {
+    console.error('Error creating admin notifications for laboratory registration:', error);
+  }
+
   return res.status(201).json({
     success: true,
     message: 'Laboratory registration submitted for admin approval.',

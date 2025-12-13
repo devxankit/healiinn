@@ -5,6 +5,7 @@ const Transaction = require('../../models/Transaction');
 const Doctor = require('../../models/Doctor');
 const Pharmacy = require('../../models/Pharmacy');
 const Laboratory = require('../../models/Laboratory');
+const Nurse = require('../../models/Nurse');
 const { getIO } = require('../../config/socket');
 const { sendWithdrawalStatusUpdateEmail } = require('../../services/notificationService');
 
@@ -18,18 +19,53 @@ const buildPagination = (req) => {
 
 // GET /api/admin/wallet/overview
 exports.getWalletOverview = asyncHandler(async (req, res) => {
-  // Get total earnings from all providers
+  // Get period filter from query (daily, weekly, monthly, yearly, all)
+  const { period = 'all' } = req.query;
+  
+  // Calculate date range based on period
+  const now = new Date();
+  let dateFilter = {};
+  
+  if (period === 'daily') {
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    dateFilter = { $gte: todayStart };
+  } else if (period === 'weekly') {
+    const weekStart = new Date(now);
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    weekStart.setDate(now.getDate() - dayOfWeek); // Start of week (Sunday = 0)
+    weekStart.setHours(0, 0, 0, 0);
+    dateFilter = { $gte: weekStart };
+  } else if (period === 'monthly') {
+    const monthStart = new Date(now);
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    dateFilter = { $gte: monthStart };
+  } else if (period === 'yearly') {
+    const yearStart = new Date(now);
+    yearStart.setMonth(0, 1); // January 1st
+    yearStart.setHours(0, 0, 0, 0);
+    dateFilter = { $gte: yearStart };
+  }
+  // If period is 'all', no date filter is applied
+
+  // Get total earnings from all providers (with date filter if applicable)
+  const matchFilter = { userType: 'doctor', type: 'earning', status: 'completed' };
+  if (Object.keys(dateFilter).length > 0) {
+    matchFilter.createdAt = dateFilter;
+  }
+  
   const [doctorEarnings, pharmacyEarnings, labEarnings] = await Promise.all([
     WalletTransaction.aggregate([
-      { $match: { userType: 'doctor', type: 'earning', status: 'completed' } },
+      { $match: matchFilter },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]).then(result => result[0]?.total || 0),
     WalletTransaction.aggregate([
-      { $match: { userType: 'pharmacy', type: 'earning', status: 'completed' } },
+      { $match: { ...matchFilter, userType: 'pharmacy' } },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]).then(result => result[0]?.total || 0),
     WalletTransaction.aggregate([
-      { $match: { userType: 'laboratory', type: 'earning', status: 'completed' } },
+      { $match: { ...matchFilter, userType: 'laboratory' } },
       { $group: { _id: null, total: { $sum: '$amount' } } },
     ]).then(result => result[0]?.total || 0),
   ]);
@@ -66,8 +102,27 @@ exports.getWalletOverview = asyncHandler(async (req, res) => {
   const Order = require('../../models/Order');
   const { calculateProviderEarning } = require('../../utils/commissionConfig');
   
-  // Get all paid appointments and calculate commission
-  const allAppointments = await Appointment.find({ paymentStatus: 'paid' }).lean();
+  // Build date filter for appointments and orders
+  // For appointments and orders, we need to filter by paidAt or createdAt
+  let appointmentQuery = { paymentStatus: 'paid' };
+  let orderQuery = { paymentStatus: 'paid' };
+  
+  if (Object.keys(dateFilter).length > 0) {
+    // For appointments, use paidAt if exists, otherwise createdAt
+    appointmentQuery.$or = [
+      { paidAt: dateFilter },
+      { $and: [{ paidAt: { $exists: false } }, { createdAt: dateFilter }] }
+    ];
+    // For orders, use paidAt if exists, otherwise createdAt
+    orderQuery.$or = [
+      { paidAt: dateFilter },
+      { $and: [{ paidAt: { $exists: false } }, { createdAt: dateFilter }] }
+    ];
+  }
+  
+  // Get paid appointments and calculate commission (with date filter if applicable)
+  const allAppointments = await Appointment.find(appointmentQuery).lean();
+  
   let totalCommissionFromAppointments = 0;
   let totalGBVFromAppointments = 0;
   for (const apt of allAppointments) {
@@ -78,8 +133,9 @@ exports.getWalletOverview = asyncHandler(async (req, res) => {
     }
   }
   
-  // Get all paid orders and calculate commission
-  const allOrders = await Order.find({ paymentStatus: 'paid' }).lean();
+  // Get paid orders and calculate commission (with date filter if applicable)
+  const allOrders = await Order.find(orderQuery).lean();
+  
   let totalCommissionFromOrders = 0;
   let totalGBVFromOrders = 0;
   for (const order of allOrders) {
@@ -96,9 +152,12 @@ exports.getWalletOverview = asyncHandler(async (req, res) => {
   const totalPatientPayments = totalGBVFromAppointments + totalGBVFromOrders;
 
   // Calculate available balance
-  // Available = Total Commission - (Paid Out + Approved withdrawals)
-  // Both 'paid' and 'approved' withdrawals reduce available balance because they are committed
+  // For period filters, available balance should still consider all withdrawals
+  // (withdrawals are not filtered by period as they represent committed funds)
+  // But if period is not 'all', we show filtered earnings with all-time available balance
   const committedWithdrawals = totalPaidOut + approvedAmount;
+  // For period filters, show available balance based on filtered commission
+  // but still consider all committed withdrawals
   const availableBalance = Math.max(0, totalCommission - committedWithdrawals);
 
   // Calculate this month and last month earnings
@@ -236,7 +295,7 @@ exports.getWalletOverview = asyncHandler(async (req, res) => {
   return res.status(200).json({
     success: true,
     data: {
-      // Total Platform Earnings = Admin's Commission
+      // Total Platform Earnings = Admin's Commission (filtered by period if specified)
       totalCommission: finalTotalCommission,
       // Available Balance = Commission - Money already paid out - Money approved (committed)
       availableBalance: finalAvailableBalance,
@@ -258,31 +317,76 @@ exports.getWalletOverview = asyncHandler(async (req, res) => {
       activeDoctorsCount: Number(activeDoctorsCount) || 0,
       activePharmaciesCount: Number(activePharmaciesCount) || 0,
       activeLabsCount: Number(activeLabsCount) || 0,
+      // Period filter info
+      period: period,
+      periodEarnings: finalTotalCommission, // Earnings for the selected period
     },
   });
 });
 
 // GET /api/admin/wallet/providers
 exports.getProviderSummaries = asyncHandler(async (req, res) => {
-  const { role } = req.query;
+  const { role, period = 'all' } = req.query;
 
-  const roles = role ? [role] : ['doctor', 'pharmacy', 'laboratory'];
+  // Calculate date range based on period (same logic as getWalletOverview)
+  const now = new Date();
+  let dateFilter = {};
+  
+  if (period === 'daily') {
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    dateFilter = { $gte: todayStart };
+  } else if (period === 'weekly') {
+    const weekStart = new Date(now);
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    weekStart.setDate(now.getDate() - dayOfWeek); // Start of week (Sunday = 0)
+    weekStart.setHours(0, 0, 0, 0);
+    dateFilter = { $gte: weekStart };
+  } else if (period === 'monthly') {
+    const monthStart = new Date(now);
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    dateFilter = { $gte: monthStart };
+  } else if (period === 'yearly') {
+    const yearStart = new Date(now);
+    yearStart.setMonth(0, 1); // January 1st
+    yearStart.setHours(0, 0, 0, 0);
+    dateFilter = { $gte: yearStart };
+  }
+
+  const roles = role ? [role] : ['doctor', 'pharmacy', 'laboratory', 'nurse'];
   const summaries = [];
 
   for (const r of roles) {
-    const Model = r === 'doctor' ? Doctor : r === 'pharmacy' ? Pharmacy : Laboratory;
-    const nameField = r === 'doctor' ? 'firstName' : r === 'pharmacy' ? 'pharmacyName' : 'labName';
+    const Model = r === 'doctor' ? Doctor : r === 'pharmacy' ? Pharmacy : r === 'laboratory' ? Laboratory : Nurse;
+    const nameField = r === 'doctor' || r === 'nurse' ? 'firstName' : r === 'pharmacy' ? 'pharmacyName' : 'labName';
 
     const providers = await Model.find({ status: 'approved', isActive: true })
-      .select(`${nameField} ${r === 'doctor' ? 'lastName' : ''} email phone`);
+      .select(`${nameField} ${(r === 'doctor' || r === 'nurse') ? 'lastName' : ''} email phone`);
 
     for (const provider of providers) {
-      // Get total earnings (all completed earning transactions)
+      // Build match filter for earnings with period filter
+      const earningsMatchFilter = { 
+        userId: provider._id, 
+        userType: r, 
+        type: 'earning', 
+        status: 'completed' 
+      };
+      
+      // Add date filter if period is specified
+      if (Object.keys(dateFilter).length > 0) {
+        earningsMatchFilter.createdAt = dateFilter;
+      }
+      
+      // Get total earnings (filtered by period if specified)
       const totalEarningsResult = await WalletTransaction.aggregate([
-        { $match: { userId: provider._id, userType: r, type: 'earning', status: 'completed' } },
+        { $match: earningsMatchFilter },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]);
       const totalEarnings = totalEarningsResult[0]?.total || 0;
+      
+      // For withdrawals, we still show all-time (not filtered by period)
+      // as withdrawals represent committed funds regardless of when earned
 
       // Get total withdrawals (all completed withdrawal transactions)
       const totalWithdrawalsResult = await WalletTransaction.aggregate([
@@ -310,20 +414,33 @@ exports.getProviderSummaries = asyncHandler(async (req, res) => {
       // Calculate available balance: Balance - Pending Withdrawals
       const availableBalance = Math.max(0, balance - pendingBalance);
 
-      // Get total wallet transactions count
-      const totalTransactions = await WalletTransaction.countDocuments({
+      // Get total wallet transactions count (filtered by period if specified)
+      const transactionCountFilter = {
         userId: provider._id,
         userType: r,
-      });
+      };
+      if (Object.keys(dateFilter).length > 0) {
+        transactionCountFilter.createdAt = dateFilter;
+      }
+      const totalTransactions = await WalletTransaction.countDocuments(transactionCountFilter);
 
-      console.log(`📊 Provider ${r} ${provider._id}:`, {
-        name: r === 'doctor' ? `${provider.firstName} ${provider.lastName}` : provider[nameField],
-        totalEarnings,
-        totalWithdrawals,
-        balance,
+      // Calculate period-specific balance
+      // For period filters, we show earnings for that period
+      // But balance calculation still uses all-time withdrawals (as they're committed funds)
+      const periodBalance = totalEarnings - totalWithdrawals;
+      const periodAvailableBalance = Math.max(0, periodBalance - pendingBalance);
+
+      console.log(`📊 Provider ${r} ${provider._id} (Period: ${period}):`, {
+        name: (r === 'doctor' || r === 'nurse') ? `${provider.firstName} ${provider.lastName}` : provider[nameField],
+        period,
+        totalEarnings, // Period-filtered earnings
+        totalWithdrawals, // All-time withdrawals
+        balance, // All-time balance
+        periodBalance, // Period-specific balance
         pendingBalance,
-        availableBalance,
-        totalTransactions,
+        availableBalance, // All-time available
+        periodAvailableBalance, // Period-specific available
+        totalTransactions, // Period-filtered transactions
       });
 
       summaries.push({
@@ -331,30 +448,35 @@ exports.getProviderSummaries = asyncHandler(async (req, res) => {
         providerType: r,
         type: r, // Add 'type' field for frontend compatibility
         role: r, // Add 'role' field for frontend compatibility
-        name: r === 'doctor' ? `${provider.firstName} ${provider.lastName}` : provider[nameField],
+        name: (r === 'doctor' || r === 'nurse') ? `${provider.firstName} ${provider.lastName}` : provider[nameField],
         email: provider.email,
         phone: provider.phone,
-        balance, // Total balance = earnings - withdrawals
-        availableBalance, // Available = balance - pending
-        totalEarnings,
-        totalWithdrawals,
+        balance, // All-time balance = all earnings - all withdrawals
+        availableBalance, // All-time available = balance - pending
+        totalEarnings, // Period-filtered earnings (or all-time if period='all')
+        totalWithdrawals, // All-time withdrawals (not filtered by period)
         pendingBalance, // Pending withdrawal requests
-        totalTransactions,
+        totalTransactions, // Period-filtered transaction count
         status: 'active',
+        period, // Include period in response
+        periodEarnings: totalEarnings, // Period-specific earnings
       });
     }
   }
 
   console.log('📊 Provider Summaries:', {
+    period,
     totalProviders: summaries.length,
     doctors: summaries.filter(s => s.type === 'doctor').length,
     pharmacies: summaries.filter(s => s.type === 'pharmacy').length,
     laboratories: summaries.filter(s => s.type === 'laboratory').length,
+    nurses: summaries.filter(s => s.type === 'nurse').length,
   });
 
   return res.status(200).json({
     success: true,
     data: summaries,
+    period, // Include period in response
   });
 });
 
@@ -545,6 +667,8 @@ exports.updateWithdrawalStatus = asyncHandler(async (req, res) => {
     
     if (status === 'approved') {
       eventType = 'withdrawal_approved';
+    } else if (status === 'paid') {
+      eventType = 'withdrawal_paid';
     } else if (status === 'rejected') {
       eventType = 'withdrawal_rejected';
     }

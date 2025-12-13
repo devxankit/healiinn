@@ -22,7 +22,7 @@ const AdminInventory = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPharmacy, setSelectedPharmacy] = useState(null)
   const [selectedLab, setSelectedLab] = useState(null)
-  const [activeTab, setActiveTab] = useState('pharmacy') // 'pharmacy' or 'laboratory'
+  const [activeTab, setActiveTab] = useState('total') // 'total', 'pharmacy' or 'laboratory'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -327,6 +327,54 @@ const AdminInventory = () => {
     )
   )
 
+  // Get all medicines and tests for Total Inventory view
+  const allMedicinesForTotal = useMemo(() => {
+    return pharmacyList.flatMap(pharmacy => 
+      (pharmacy.medicines || []).map(med => ({
+        ...med,
+        type: 'medicine',
+        pharmacyId: pharmacy.pharmacyId,
+        pharmacyName: pharmacy.pharmacyName,
+      }))
+    )
+  }, [pharmacyList])
+
+  const allTestsForTotal = useMemo(() => {
+    return labList.flatMap(lab => 
+      (lab.tests || []).map(test => ({
+        ...test,
+        type: 'test',
+        labId: lab.labId,
+        labName: lab.labName,
+        price: Number(test.price) || 0,
+      }))
+    )
+  }, [labList])
+
+  // Combined items for Total Inventory
+  const allInventoryItems = useMemo(() => {
+    return [...allMedicinesForTotal, ...allTestsForTotal]
+  }, [allMedicinesForTotal, allTestsForTotal])
+
+  // Filter combined items for search
+  const filteredInventoryItems = allInventoryItems.filter(item => {
+    const searchLower = searchTerm.toLowerCase()
+    if (item.type === 'medicine') {
+      return (
+        item.name.toLowerCase().includes(searchLower) ||
+        item.dosage?.toLowerCase().includes(searchLower) ||
+        item.manufacturer?.toLowerCase().includes(searchLower) ||
+        item.pharmacyName.toLowerCase().includes(searchLower)
+      )
+    } else {
+      return (
+        item.name.toLowerCase().includes(searchLower) ||
+        item.labName.toLowerCase().includes(searchLower) ||
+        item.description?.toLowerCase().includes(searchLower)
+      )
+    }
+  })
+
 
 
   const formatCurrency = (amount) => {
@@ -547,7 +595,9 @@ const AdminInventory = () => {
         <input
           type="search"
           placeholder={
-            activeTab === 'pharmacy'
+            activeTab === 'total'
+              ? 'Search by medicine, test, pharmacy or laboratory name...'
+              : activeTab === 'pharmacy'
               ? 'Search by pharmacy name or medicine...'
               : 'Search by laboratory name or test...'
           }
@@ -559,6 +609,21 @@ const AdminInventory = () => {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('total')
+            setSelectedLab(null)
+            setSelectedPharmacy(null)
+          }}
+          className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
+            activeTab === 'total'
+              ? 'text-[#11496c] border-[#11496c]'
+              : 'text-slate-600 border-transparent hover:text-slate-900'
+          }`}
+        >
+          Total Inventory
+        </button>
         <button
           type="button"
           onClick={() => {
@@ -590,70 +655,309 @@ const AdminInventory = () => {
       </div>
 
       {/* Summary Cards - Show different values based on active tab */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
-              {activeTab === 'pharmacy' ? (
-                <IoBusinessOutline className="h-6 w-6 text-[#11496c]" />
-              ) : (
-                <IoFlaskOutline className="h-6 w-6 text-[#11496c]" />
-              )}
+      <div className={`grid gap-3 sm:gap-4 ${activeTab === 'total' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6' : 'grid-cols-2 sm:grid-cols-3'}`}>
+        {activeTab === 'total' ? (
+          <>
+            {/* Pharmacy Cards */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
+                  <IoBusinessOutline className="h-6 w-6 text-[#11496c]" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-600">Total Pharmacies</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {totalInventory.totalPharmacies}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-medium text-slate-600">
-                {activeTab === 'pharmacy' ? 'Total Pharmacies' : 'Total Laboratories'}
-              </p>
-              <p className="text-2xl font-bold text-slate-900">
-                {activeTab === 'pharmacy' 
-                  ? totalPharmacyInventory.totalPharmacies 
-                  : totalLabInventory.totalLabs}
-              </p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
+                  <IoCubeOutline className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-600">Total Stock</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {(totalPharmacyInventory.totalStock || 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
-              {activeTab === 'pharmacy' ? (
-                <IoCubeOutline className="h-6 w-6 text-blue-600" />
-              ) : (
-                <IoFlaskOutline className="h-6 w-6 text-blue-600" />
-              )}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100">
+                  <IoPricetagOutline className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-600">Total Value</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {formatCurrency(totalPharmacyInventory.totalValue || 0)}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-medium text-slate-600">
-                {activeTab === 'pharmacy' ? 'Total Stock' : 'Total Tests'}
-              </p>
-              <p className="text-2xl font-bold text-slate-900">
-                {activeTab === 'pharmacy' 
-                  ? (totalPharmacyInventory.totalStock || 0).toLocaleString() 
-                  : (totalLabInventory.totalTests || 0).toLocaleString()}
-              </p>
+            {/* Laboratory Cards */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
+                  <IoFlaskOutline className="h-6 w-6 text-[#11496c]" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-600">Total Laboratories</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {totalInventory.totalLabs}
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100">
-              <IoPricetagOutline className="h-6 w-6 text-purple-600" />
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100">
+                  <IoFlaskOutline className="h-6 w-6 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-600">Total Tests</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {(totalLabInventory.totalTests || 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-medium text-slate-600">Total Value</p>
-              <p className="text-2xl font-bold text-slate-900">
-                {formatCurrency(
-                  activeTab === 'pharmacy' 
-                    ? (totalPharmacyInventory.totalValue || 0)
-                    : (totalLabInventory.totalValue || 0)
-                )}
-              </p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100">
+                  <IoPricetagOutline className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-600">Total Value</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {formatCurrency(totalLabInventory.totalValue || 0)}
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        ) : (
+          <>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
+                  {activeTab === 'pharmacy' ? (
+                    <IoBusinessOutline className="h-6 w-6 text-[#11496c]" />
+                  ) : (
+                    <IoFlaskOutline className="h-6 w-6 text-[#11496c]" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-600">
+                    {activeTab === 'pharmacy' ? 'Total Pharmacies' : 'Total Laboratories'}
+                  </p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {activeTab === 'pharmacy' 
+                      ? totalPharmacyInventory.totalPharmacies 
+                      : totalLabInventory.totalLabs}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
+                  {activeTab === 'pharmacy' ? (
+                    <IoCubeOutline className="h-6 w-6 text-blue-600" />
+                  ) : (
+                    <IoFlaskOutline className="h-6 w-6 text-blue-600" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-600">
+                    {activeTab === 'pharmacy' ? 'Total Stock' : 'Total Tests'}
+                  </p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {activeTab === 'pharmacy' 
+                      ? (totalPharmacyInventory.totalStock || 0).toLocaleString() 
+                      : (totalLabInventory.totalTests || 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm col-span-2 sm:col-span-1">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100">
+                  <IoPricetagOutline className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-600">Total Value</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {formatCurrency(
+                      activeTab === 'pharmacy' 
+                        ? (totalPharmacyInventory.totalValue || 0)
+                        : (totalLabInventory.totalValue || 0)
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'pharmacy' ? (
+      {activeTab === 'total' ? (
+        /* Total Inventory Tab - Shows all medicines and tests side by side */
+        <div className="space-y-3">
+          {filteredInventoryItems.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+              <IoMedicalOutline className="mx-auto h-12 w-12 text-slate-400" />
+              <p className="mt-4 text-sm font-medium text-slate-600">
+                {searchTerm ? 'No items found' : 'No inventory items available'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {searchTerm ? 'Try a different search term' : 'Medicines and tests will appear here once added'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Medicines Section - Left Side */}
+              <div className="space-y-2">
+                {filteredInventoryItems.filter(item => item.type === 'medicine').length > 0 ? (
+                  <>
+                    <h3 className="text-sm font-semibold text-slate-700 px-1 flex items-center gap-2 sticky top-0 bg-white py-2 z-10">
+                      <IoMedicalOutline className="h-4 w-4 text-blue-600" />
+                      Medicines ({filteredInventoryItems.filter(item => item.type === 'medicine').length})
+                    </h3>
+                    <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                      {filteredInventoryItems
+                        .filter(item => item.type === 'medicine')
+                        .map((medicine, index) => {
+                          const quantity = parseInt(medicine.quantity) || 0
+                          const price = parseFloat(medicine.price) || 0
+                          const totalValue = quantity * price
+
+                          return (
+                            <article
+                              key={`med-${medicine._id || index}`}
+                              className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                                  <IoMedicalOutline className="h-5 w-5 text-blue-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                        <h3 className="text-sm font-semibold text-slate-900">{medicine.name}</h3>
+                                        <span className="text-xs text-slate-600">({medicine.dosage || 'N/A'})</span>
+                                      </div>
+                                      <p className="text-xs text-slate-500 mb-1">Pharmacy: {medicine.pharmacyName}</p>
+                                      {medicine.manufacturer && (
+                                        <p className="text-xs text-slate-500 mb-0.5">Manufacturer: {medicine.manufacturer}</p>
+                                      )}
+                                      <div className="flex items-center gap-2.5 text-xs flex-wrap">
+                                        <span className="text-slate-600">
+                                          <span className="font-medium">Units:</span> <span className="font-semibold text-slate-900">{quantity}</span>
+                                        </span>
+                                        <span className="text-slate-600">
+                                          <span className="font-medium">Price/Unit:</span> <span className="font-semibold text-slate-900">{formatCurrency(price)}</span>
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 shrink-0">
+                                      <div className="text-right">
+                                        <p className="text-sm font-bold text-slate-900">{formatCurrency(totalValue)}</p>
+                                        <p className="text-xs text-slate-500">Total Value</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </article>
+                          )
+                        })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+                    <IoMedicalOutline className="mx-auto h-10 w-10 text-slate-400" />
+                    <p className="mt-3 text-sm font-medium text-slate-600">No medicines found</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Tests Section - Right Side */}
+              <div className="space-y-2">
+                {filteredInventoryItems.filter(item => item.type === 'test').length > 0 ? (
+                  <>
+                    <h3 
+                      id="tests-section"
+                      className="text-sm font-semibold text-slate-700 px-1 flex items-center gap-2 sticky top-0 bg-white py-2 z-10 cursor-pointer hover:text-emerald-700 transition-colors"
+                      onClick={() => {
+                        const element = document.getElementById('tests-section')
+                        if (element) {
+                          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        }
+                      }}
+                    >
+                      <IoFlaskOutline className="h-4 w-4 text-emerald-600" />
+                      Laboratory Tests ({filteredInventoryItems.filter(item => item.type === 'test').length})
+                    </h3>
+                    <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                      {filteredInventoryItems
+                        .filter(item => item.type === 'test')
+                        .map((test, index) => {
+                          const price = Number(test.price) || 0
+
+                          return (
+                            <article
+                              key={`test-${test._id || index}`}
+                              className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
+                                  <IoFlaskOutline className="h-5 w-5 text-emerald-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="text-sm font-semibold text-slate-900 mb-0.5">{test.name}</h3>
+                                      <p className="text-xs text-slate-500 mb-1">Laboratory: {test.labName}</p>
+                                      {test.description && (
+                                        <p className="text-xs text-slate-500 mb-0.5">{test.description}</p>
+                                      )}
+                                      <div className="flex items-center gap-2.5 text-xs">
+                                        <span className="text-slate-600">
+                                          <span className="font-medium">Price:</span> <span className="font-semibold text-slate-900">{formatCurrency(price)}</span>
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 shrink-0">
+                                      <div className="text-right">
+                                        <p className="text-sm font-bold text-slate-900">{formatCurrency(price)}</p>
+                                        <p className="text-xs text-slate-500">Test Price</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </article>
+                          )
+                        })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+                    <IoFlaskOutline className="mx-auto h-10 w-10 text-slate-400" />
+                    <p className="mt-3 text-sm font-medium text-slate-600">No tests found</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : activeTab === 'pharmacy' ? (
         /* Pharmacy Inventory Tab */
         <div className="space-y-3">
           {filteredPharmacies.length === 0 ? (

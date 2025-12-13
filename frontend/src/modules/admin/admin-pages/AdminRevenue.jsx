@@ -9,6 +9,7 @@ import {
   IoMedicalOutline,
   IoBusinessOutline,
   IoFlaskOutline,
+  IoHeartOutline,
 } from 'react-icons/io5'
 
 const formatCurrency = (amount) => {
@@ -227,6 +228,12 @@ const AdminRevenue = () => {
         payout: 0,
         orders: 0,
       },
+      nurse: {
+        gbv: 0,
+        commission: 0,
+        payout: 0,
+        bookings: 0,
+      },
     },
     pieChartData: [],
     monthlyRevenue: [],
@@ -291,13 +298,19 @@ const AdminRevenue = () => {
               payout: 0,
               orders: 0,
             },
-            pharmacy: data.revenueBreakdown?.pharmacy || {
-              gbv: 0,
-              commission: 0,
-              payout: 0,
-              orders: 0,
-            },
+          pharmacy: data.revenueBreakdown?.pharmacy || {
+            gbv: 0,
+            commission: 0,
+            payout: 0,
+            orders: 0,
           },
+          nurse: data.revenueBreakdown?.nurse || {
+            gbv: 0,
+            commission: 0,
+            payout: 0,
+            bookings: 0,
+          },
+        },
           pieChartData,
           monthlyRevenue: data.monthlyRevenue || [],
           transactions: formattedTransactions,
@@ -418,7 +431,7 @@ const AdminRevenue = () => {
         <h2 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">
           Revenue Breakdown
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Doctor Revenue */}
           <div
             onClick={() => navigate('/admin/revenue/doctor')}
@@ -537,6 +550,47 @@ const AdminRevenue = () => {
                 <span className="text-xs text-slate-600">Orders:</span>
                 <span className="text-sm font-semibold text-slate-900">
                   {revenueData.revenueBreakdown.pharmacy.orders}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Nurse Revenue */}
+          <div
+            onClick={() => navigate('/admin/revenue/nurse')}
+            className="rounded-lg border border-pink-100 bg-pink-50/50 p-4 cursor-pointer transition-all hover:shadow-md hover:border-pink-200 active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-500">
+                <IoHeartOutline className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-700">Nurse Revenue</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-600">GBV:</span>
+                <span className="text-sm font-bold text-slate-900">
+                  {formatCurrency(revenueData.revenueBreakdown.nurse.gbv)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-600">Commission:</span>
+                <span className="text-sm font-bold text-emerald-600">
+                  {formatCurrency(revenueData.revenueBreakdown.nurse.commission)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-600">Payout:</span>
+                <span className="text-sm font-bold text-pink-600">
+                  {formatCurrency(revenueData.revenueBreakdown.nurse.payout)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-pink-200">
+                <span className="text-xs text-slate-600">Bookings:</span>
+                <span className="text-sm font-semibold text-slate-900">
+                  {revenueData.revenueBreakdown.nurse.bookings}
                 </span>
               </div>
             </div>

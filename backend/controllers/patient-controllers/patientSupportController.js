@@ -72,15 +72,39 @@ exports.createSupportTicket = asyncHandler(async (req, res) => {
       }).catch((error) => console.error('Error creating support ticket notification:', error));
     }
 
-    // Send notification to all admins
+    // Send notification to all admins (email and in-app)
     const admins = await Admin.find({ isActive: true }).select('email name');
+    const { createNotification } = require('../../services/notificationService');
+    
     for (const admin of admins) {
+      // Send email notification
       await sendAdminSupportTicketNotification({
         admin,
         ticket,
         user: patient,
         userType: 'patient',
       }).catch((error) => console.error(`Error sending admin support ticket email to ${admin.email}:`, error));
+      
+      // Create in-app notification for admin
+      await createNotification({
+        userId: admin._id,
+        userType: 'admin',
+        type: 'support',
+        title: 'New Support Ticket',
+        message: `New support ticket from ${patient?.firstName || 'Patient'} ${patient?.lastName || ''}: ${ticket.subject || 'Support Request'}`,
+        data: {
+          ticketId: ticket._id,
+          userId: id,
+          userType: 'patient',
+          subject: ticket.subject,
+          priority: ticket.priority,
+        },
+        priority: ticket.priority === 'high' || ticket.priority === 'urgent' ? 'high' : 'medium',
+        actionUrl: `/admin/support/${ticket._id}`,
+        icon: 'support',
+        sendEmail: false, // Email already sent above
+        emitSocket: true,
+      }).catch((error) => console.error(`Error creating admin support ticket notification:`, error));
     }
   } catch (error) {
     console.error('Error sending email notifications:', error);

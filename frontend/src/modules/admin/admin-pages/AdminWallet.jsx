@@ -148,6 +148,8 @@ const AdminWallet = () => {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [earningsPeriod, setEarningsPeriod] = useState('all') // all, daily, weekly, monthly, yearly
+  const [providerPeriod, setProviderPeriod] = useState('all') // Period filter for provider cards
 
   // Fetch wallet data from API
   useEffect(() => {
@@ -156,8 +158,8 @@ const AdminWallet = () => {
         setLoading(true)
         setError(null)
         const [overviewResponse, providersResponse, withdrawalsResponse, transactionsResponse] = await Promise.all([
-          getAdminWalletOverview(),
-          getProviderSummaries(),
+          getAdminWalletOverview(earningsPeriod),
+          getProviderSummaries(null, providerPeriod),
           getWithdrawals(),
           getAdminWalletTransactions(),
         ])
@@ -453,7 +455,7 @@ const AdminWallet = () => {
       clearInterval(interval)
       window.removeEventListener('appointmentBooked', handleAppointmentBooked)
     }
-  }, [toast])
+  }, [toast, earningsPeriod, providerPeriod])
 
   // Legacy localStorage loading removed - using API now
 
@@ -488,9 +490,9 @@ const AdminWallet = () => {
       
       // Refresh all wallet data to update balances
       const [overviewResponse, withdrawalsResponse, providersResponse] = await Promise.all([
-        getAdminWalletOverview(),
+        getAdminWalletOverview(earningsPeriod),
         getWithdrawals(),
-        getProviderSummaries(),
+        getProviderSummaries(null, providerPeriod),
       ])
       
       if (overviewResponse.success && overviewResponse.data) {
@@ -646,7 +648,7 @@ const AdminWallet = () => {
       
       // Refresh wallet data to update pending count
       const [overviewResponse, withdrawalsResponse] = await Promise.all([
-        getAdminWalletOverview(),
+        getAdminWalletOverview(earningsPeriod),
         getWithdrawals(),
       ])
       
@@ -815,9 +817,62 @@ const AdminWallet = () => {
         
         {/* Content */}
         <div className="relative z-10">
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
             <div className="flex-1">
-              <p className="text-sm font-medium text-white/80 mb-1">Total Platform Earnings</p>
+              <p className="text-sm font-medium text-white/80 mb-2">Total Platform Earnings</p>
+              {/* Period Filter Buttons - Mobile First Design */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-white/10 backdrop-blur-sm rounded-lg p-1 border border-white/20 w-full sm:w-auto">
+                <button
+                  onClick={() => setEarningsPeriod('daily')}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all flex-1 sm:flex-initial ${
+                    earningsPeriod === 'daily'
+                      ? 'bg-white text-[#11496c] shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  Daily
+                </button>
+                <button
+                  onClick={() => setEarningsPeriod('weekly')}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all flex-1 sm:flex-initial ${
+                    earningsPeriod === 'weekly'
+                      ? 'bg-white text-[#11496c] shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  Weekly
+                </button>
+                <button
+                  onClick={() => setEarningsPeriod('monthly')}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all flex-1 sm:flex-initial ${
+                    earningsPeriod === 'monthly'
+                      ? 'bg-white text-[#11496c] shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setEarningsPeriod('yearly')}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all flex-1 sm:flex-initial ${
+                    earningsPeriod === 'yearly'
+                      ? 'bg-white text-[#11496c] shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  Yearly
+                </button>
+                <button
+                  onClick={() => setEarningsPeriod('all')}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all flex-1 sm:flex-initial ${
+                    earningsPeriod === 'all'
+                      ? 'bg-white text-[#11496c] shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  All
+                </button>
+              </div>
               <p className="text-4xl sm:text-5xl font-bold tracking-tight">
                 {loading ? '...' : formatCurrency(walletOverview.totalEarnings || walletOverview.totalCommission || 0)}
               </p>
@@ -974,10 +1029,68 @@ const AdminWallet = () => {
       {/* Provider Details Tab */}
       {activeTab === 'overview' && (
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">All Providers Wallet Details</h2>
-              <p className="mt-1 text-xs text-slate-600">View earnings and balances for all providers</p>
+          <header className="mb-4 flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">All Providers Wallet Details</h2>
+                <p className="mt-1 text-xs text-slate-600">View earnings and balances for all providers</p>
+              </div>
+              {/* Period Filter for Provider Cards */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-600 hidden sm:inline">Filter:</span>
+                <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 border border-slate-200">
+                  <button
+                    onClick={() => setProviderPeriod('daily')}
+                    className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all ${
+                      providerPeriod === 'daily'
+                        ? 'bg-[#11496c] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    Daily
+                  </button>
+                  <button
+                    onClick={() => setProviderPeriod('weekly')}
+                    className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all ${
+                      providerPeriod === 'weekly'
+                        ? 'bg-[#11496c] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    Weekly
+                  </button>
+                  <button
+                    onClick={() => setProviderPeriod('monthly')}
+                    className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all ${
+                      providerPeriod === 'monthly'
+                        ? 'bg-[#11496c] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setProviderPeriod('yearly')}
+                    className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all ${
+                      providerPeriod === 'yearly'
+                        ? 'bg-[#11496c] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    Yearly
+                  </button>
+                  <button
+                    onClick={() => setProviderPeriod('all')}
+                    className={`px-2.5 py-1.5 text-xs font-medium rounded transition-all ${
+                      providerPeriod === 'all'
+                        ? 'bg-[#11496c] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    }`}
+                  >
+                    All
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="relative flex-1 sm:flex-initial">
@@ -1030,8 +1143,12 @@ const AdminWallet = () => {
                             <p className="mt-0.5 text-sm text-slate-600 truncate">{provider.email}</p>
                             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
                               <div>
-                                <p className="text-xs font-semibold text-slate-500 uppercase">Total Earnings</p>
-                                <p className="mt-1 text-sm font-bold text-slate-900">{formatCurrency(provider.totalEarnings)}</p>
+                                <p className="text-xs font-semibold text-slate-500 uppercase">
+                                  Earnings {providerPeriod !== 'all' && `(${providerPeriod})`}
+                                </p>
+                                <p className="mt-1 text-sm font-bold text-slate-900">
+                                  {formatCurrency(provider.totalEarnings || provider.periodEarnings || 0)}
+                                </p>
                               </div>
                               <div>
                                 <p className="text-xs font-semibold text-slate-500 uppercase">Available</p>
@@ -1053,7 +1170,10 @@ const AdminWallet = () => {
                         </div>
                         <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
                           <IoReceiptOutline className="h-3.5 w-3.5" />
-                          <span>{provider.totalTransactions} transactions</span>
+                          <span>
+                            {provider.totalTransactions} transaction{provider.totalTransactions !== 1 ? 's' : ''}
+                            {providerPeriod !== 'all' && ` (${providerPeriod})`}
+                          </span>
                         </div>
                       </div>
                     </div>

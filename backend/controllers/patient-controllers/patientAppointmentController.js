@@ -1834,6 +1834,8 @@ exports.verifyAppointmentPayment = asyncHandler(async (req, res) => {
         appointment: populatedAppointment,
         eventType: "created",
         patient,
+        doctor, // Pass doctor object for email
+        sendEmail: true, // Send email to doctor
       }).catch((error) =>
         console.error("Error creating doctor notification:", error)
       );
