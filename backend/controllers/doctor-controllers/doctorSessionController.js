@@ -127,12 +127,19 @@ const timeStringToMinutes = (timeStr) => {
   // Trim whitespace
   timeStr = String(timeStr).trim();
   
-  // Handle 12-hour format (e.g., "2:30 PM", "12:00 AM", "5:00 PM")
-  const amPmMatch = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  // Handle 12-hour format (e.g., "2:30 PM", "12:00 AM", "5:00 PM", "10:00 AM", "10:00:00 AM")
+  // Match with optional space between time and AM/PM, optional seconds, case insensitive
+  const amPmMatch = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
   if (amPmMatch) {
     let hours = parseInt(amPmMatch[1], 10);
     const minutes = parseInt(amPmMatch[2], 10);
     const period = amPmMatch[3].toUpperCase();
+    
+    // Validate hours and minutes
+    if (isNaN(hours) || isNaN(minutes) || hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+      console.log('⚠️ [Backend] Invalid time values in 12-hour format:', timeStr, { hours, minutes });
+      return null;
+    }
     
     // Convert to 24-hour format
     if (period === 'AM' && hours === 12) {
@@ -145,16 +152,23 @@ const timeStringToMinutes = (timeStr) => {
     return hours * 60 + minutes;
   }
   
-  // Handle 24-hour format (e.g., "14:30", "00:00")
-  const time24Match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  // Handle 24-hour format (e.g., "14:30", "00:00", "10:00", "17:00")
+  const time24Match = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/); // Optional seconds
   if (time24Match) {
     const hours = parseInt(time24Match[1], 10);
     const minutes = parseInt(time24Match[2], 10);
+    
+    // Validate hours and minutes
+    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      console.log('⚠️ [Backend] Invalid time values in 24-hour format:', timeStr, { hours, minutes });
+      return null;
+    }
+    
     return hours * 60 + minutes;
   }
   
   // If no match, log error and return null
-  console.log('⚠️ [Backend] Failed to parse time string:', timeStr);
+  console.log('⚠️ [Backend] Failed to parse time string:', timeStr, '(type:', typeof timeStr, ')');
   return null;
 };
 
@@ -196,8 +210,26 @@ const isWithinSessionTime = (sessionStartTime, sessionEndTime, sessionDate) => {
   const startMinutes = timeStringToMinutes(sessionStartTime);
   const endMinutes = timeStringToMinutes(sessionEndTime);
   
+  // Validate all time values
+  if (currentMinutes === null || currentMinutes === undefined || isNaN(currentMinutes)) {
+    console.log('⚠️ [Backend] Invalid current time:', currentMinutes);
+    return false;
+  }
+  
   if (startMinutes === null || endMinutes === null) {
     console.log('⚠️ [Backend] Failed to parse session times:', { 
+      sessionStartTime, 
+      sessionEndTime, 
+      startMinutes, 
+      endMinutes,
+      currentMinutes 
+    });
+    return false;
+  }
+  
+  // Ensure all values are valid numbers
+  if (isNaN(startMinutes) || isNaN(endMinutes)) {
+    console.log('⚠️ [Backend] Session times are not valid numbers:', { 
       sessionStartTime, 
       sessionEndTime, 
       startMinutes, 
@@ -280,6 +312,9 @@ exports.updateSession = asyncHandler(async (req, res) => {
     if (!isWithinSessionTime(sessionStart, sessionEnd, session.date)) {
       // Use IST time for doctor session operations - format directly from IST
       const currentTime = getISTTimeString();
+      const currentMinutes = getISTTimeInMinutes();
+      const startMinutes = timeStringToMinutes(sessionStart);
+      const endMinutes = timeStringToMinutes(sessionEnd);
       
       return res.status(400).json({
         success: false,
@@ -288,7 +323,13 @@ exports.updateSession = asyncHandler(async (req, res) => {
           sessionStartTime: sessionStart,
           sessionEndTime: sessionEnd,
           currentTime: currentTime,
+          currentMinutes: currentMinutes,
+          startMinutes: startMinutes,
+          endMinutes: endMinutes,
           isWithinTime: false,
+          comparison: currentMinutes !== null && startMinutes !== null && endMinutes !== null 
+            ? `${currentMinutes} >= ${startMinutes} && ${currentMinutes} <= ${endMinutes} = ${currentMinutes >= startMinutes && currentMinutes <= endMinutes}`
+            : 'Could not parse times for comparison',
         },
       });
     }
