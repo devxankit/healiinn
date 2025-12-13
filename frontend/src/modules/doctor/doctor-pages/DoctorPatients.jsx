@@ -1160,6 +1160,17 @@ const DoctorPatients = () => {
   // Handler for audio call button
   const handleAudioCall = async (appointmentId) => {
     console.log('📞 [handleAudioCall] Button clicked for appointmentId:', appointmentId)
+    
+    // Prevent multiple rapid clicks - check if we're already processing this specific appointment
+    if (callInfoFull && (callInfoFull.appointmentId === appointmentId || callInfoFull.appointmentId === appointmentId?.toString())) {
+      // If we have a callId, it means call was initiated, don't allow duplicate
+      if (callInfoFull.callId) {
+        console.log('📞 [handleAudioCall] Call already initiated for this appointment, ignoring click')
+        toast.info('Call already initiated for this appointment')
+        return
+      }
+    }
+    
     try {
       const appointment = appointments.find((appt) => appt.id === appointmentId)
       if (!appointment) {
@@ -1276,9 +1287,19 @@ const DoctorPatients = () => {
       // Listen for errors
       const handleCallError = (data) => {
         console.error('📞 [handleAudioCall] Received call:error event:', data)
-        toast.error(data.message || 'Call error occurred')
-        updateCallStatus('idle')
-        setCallInfoFull(null)
+        const errorMessage = data.message || 'Call error occurred'
+        
+        // If error is about existing call, allow retry by clearing state
+        if (errorMessage.includes('already in progress')) {
+          console.log('📞 [handleAudioCall] Call already exists, clearing state to allow retry')
+          updateCallStatus('idle')
+          setCallInfoFull(null)
+          toast.warning('A call already exists. Please wait a moment and try again.')
+        } else {
+          toast.error(errorMessage)
+          updateCallStatus('idle')
+          setCallInfoFull(null)
+        }
         socket.off('call:error', handleCallError)
       }
       socket.once('call:error', handleCallError)
@@ -1302,6 +1323,9 @@ const DoctorPatients = () => {
     } catch (error) {
       console.error('📞 [handleAudioCall] Error initiating audio call:', error)
       toast.error('Failed to initiate audio call')
+      // Reset state on error to allow retry
+      updateCallStatus('idle')
+      setCallInfoFull(null)
     }
   }
 
