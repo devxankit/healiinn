@@ -8,6 +8,29 @@ const producers = new Map(); // Map<producerId, Producer>
 const consumers = new Map(); // Map<consumerId, Consumer>
 
 /**
+ * Check if a string is a valid IP address (IPv4 or IPv6)
+ */
+function isValidIpAddress(ip) {
+  if (!ip || typeof ip !== 'string') return false;
+  
+  // IPv4 regex
+  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  // IPv6 regex (simplified)
+  const ipv6Regex = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+  
+  if (ipv4Regex.test(ip)) {
+    // Validate IPv4 ranges
+    const parts = ip.split('.');
+    return parts.every(part => {
+      const num = parseInt(part, 10);
+      return num >= 0 && num <= 255;
+    });
+  }
+  
+  return ipv6Regex.test(ip);
+}
+
+/**
  * Initialize mediasoup worker
  */
 async function createWorker() {
@@ -132,11 +155,19 @@ async function createWebRtcTransport(callId, options = {}) {
   
   const { listenIps, enableUdp, enableTcp, preferUdp } = options;
   
+  // For cloud services like Render:
+  // - ip: Use '0.0.0.0' to listen on all interfaces (required by mediasoup)
+  // - announcedIp: Use PUBLIC_IP (domain or IP) to announce to clients in ICE candidates
+  const publicIp = process.env.PUBLIC_IP;
+  const listenIp = publicIp && !isValidIpAddress(publicIp) 
+    ? '0.0.0.0'  // If PUBLIC_IP is a domain, listen on all interfaces
+    : (publicIp || '127.0.0.1');  // If PUBLIC_IP is an IP or not set, use it directly
+  
   const transport = await router.createWebRtcTransport({
     listenIps: listenIps || [
       {
-        ip: process.env.PUBLIC_IP || '127.0.0.1',
-        announcedIp: process.env.PUBLIC_IP || undefined,
+        ip: listenIp,
+        announcedIp: publicIp || undefined,  // Announce domain/IP to clients
       },
     ],
     enableUdp: enableUdp !== false,
