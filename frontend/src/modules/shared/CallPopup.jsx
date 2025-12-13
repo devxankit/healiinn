@@ -210,6 +210,53 @@ const CallPopup = () => {
     }
   }, [activeCall?.remoteParticipant])
 
+  // Continuously monitor transport states when connected (SFU mode)
+  useEffect(() => {
+    if (status !== 'connected' || useP2P) {
+      return // Only monitor in SFU mode when connected
+    }
+
+    const sendTransport = sendTransportRef.current
+    const recvTransport = recvTransportRef.current
+
+    if (!sendTransport || !recvTransport) {
+      return // Transports not initialized yet
+    }
+
+    console.log('📞 [CallPopup] Starting transport state monitoring...')
+
+    // Check transport states periodically
+    const checkInterval = setInterval(() => {
+      const sendState = sendTransport.connectionState
+      const recvState = recvTransport.connectionState
+      const sendClosed = sendTransport.closed
+      const recvClosed = recvTransport.closed
+
+      // If transports are closed or failed, update status
+      if (sendClosed || recvClosed || sendState === 'failed' || recvState === 'failed') {
+        console.error('📞 [CallPopup] ⚠️ Transport monitoring detected failure:', {
+          sendState,
+          recvState,
+          sendClosed,
+          recvClosed
+        })
+        setError('Connection lost. The transports have failed. Please try ending and restarting the call.')
+        setStatus('error')
+        clearInterval(checkInterval)
+      } else if (sendState === 'connected' && recvState === 'connected' && !sendClosed && !recvClosed) {
+        // Transports are healthy - ensure status is connected
+        if (status !== 'connected') {
+          console.log('📞 [CallPopup] Transports healthy, ensuring status is connected')
+          setStatus('connected')
+        }
+      }
+    }, 3000) // Check every 3 seconds
+
+    return () => {
+      clearInterval(checkInterval)
+    }
+  }, [status, useP2P])
+
   // Keep audio and microphone active when minimized
   useEffect(() => {
     if (!isMinimized || status !== 'connected') {
@@ -516,12 +563,10 @@ const CallPopup = () => {
         }
       }, 2000) // Wait 2 seconds to check transport states
       
-      // Set status optimistically, but the timeout check will verify and update if needed
-      setStatus('connected')
-      if (!callStartTimeRef.current) {
-        callStartTimeRef.current = Date.now()
-        startDurationTimer()
-      }
+      // Don't set status optimistically - wait for verification
+      // The timeout check will set status to 'connected' only if transports are actually connected
+      // If transports fail, it will set status to 'error'
+      // Status will remain 'connecting' until verification completes
     } catch (error) {
       console.error('📞 [SFU] Error initializing SFU:', error)
       throw error
