@@ -478,6 +478,45 @@ const CallPopup = () => {
         await consumeRemoteAudio(producerId)
       }
 
+      // Wait a moment to verify transports are actually connected before setting status
+      // Check transport states after a short delay
+      setTimeout(() => {
+        const sendState = sendTransport.connectionState
+        const recvState = recvTransport.connectionState
+        const sendClosed = sendTransport.closed
+        const recvClosed = recvTransport.closed
+        
+        console.log('📞 [SFU] Transport state check after initialization:', {
+          sendTransport: sendState,
+          recvTransport: recvState,
+          sendClosed: sendClosed,
+          recvClosed: recvClosed
+        })
+        
+        // If transports are closed or failed, connection failed
+        if (sendClosed || recvClosed || sendState === 'failed' || recvState === 'failed') {
+          console.error('📞 [SFU] Transports failed or closed after initialization')
+          setError('Connection failed. The transports did not establish properly. Please try ending and restarting the call.')
+          setStatus('error')
+          return
+        }
+        
+        // Only set connected if both transports are actually connected
+        if (sendState === 'connected' && recvState === 'connected') {
+          console.log('📞 [SFU] ✅ Both transports connected successfully')
+          setStatus('connected')
+          if (!callStartTimeRef.current) {
+            callStartTimeRef.current = Date.now()
+            startDurationTimer()
+          }
+        } else {
+          // Still connecting or in intermediate state - keep monitoring
+          console.log('📞 [SFU] Transports in intermediate state, will continue monitoring...')
+          // Don't set status to connected yet - let transport handlers update it
+        }
+      }, 2000) // Wait 2 seconds to check transport states
+      
+      // Set status optimistically, but the timeout check will verify and update if needed
       setStatus('connected')
       if (!callStartTimeRef.current) {
         callStartTimeRef.current = Date.now()
@@ -1256,6 +1295,13 @@ const CallPopup = () => {
             closed: sendTransport.closed,
             iceServers: iceServers
           })
+          
+          // If SFU transport fails, update status to error
+          if (!useP2P) {
+            console.log('🔄 [Fallback] Send transport failed, connection lost')
+            setError('Connection failed. The send transport did not establish. Please try ending and restarting the call.')
+            setStatus('error')
+          }
         }
       })
 
@@ -1370,6 +1416,17 @@ const CallPopup = () => {
           connectionState: recvTransport.connectionState,
           state: state
         })
+        
+        if (state === 'failed' || state === 'disconnected') {
+          console.error(`🔍 [DIAGNOSTIC] ⚠️ Recv transport connection issue: ${state}`)
+          
+          // If SFU transport fails, update status to error
+          if (!useP2P && status === 'connected') {
+            console.log('🔄 [Fallback] Recv transport failed, connection lost')
+            setError('Connection lost. Please try ending and restarting the call.')
+            setStatus('error')
+          }
+        }
       })
 
       recvTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
