@@ -100,16 +100,16 @@ class P2PCallManager {
       // Get local media stream
       console.log('🔗 [P2P] Requesting microphone access...')
       try {
-        this.localStream = await navigator.mediaDevices.getUserMedia({ 
+        this.localStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true
-          } 
+          }
         })
         console.log('🔗 [P2P] ✅ Microphone access granted')
         console.log('🔗 [P2P] Local stream tracks:', this.localStream.getAudioTracks().length)
-        
+
         this.localStream.getAudioTracks().forEach(track => {
           console.log('🔗 [P2P] Adding track to peer connection:', track.id)
           this.peerConnection.addTrack(track, this.localStream)
@@ -183,7 +183,7 @@ class P2PCallManager {
       })
       console.log('🔗 [P2P] Event streams:', event.streams?.length || 0)
       console.log('🔗 [P2P] Event transceiver:', event.transceiver?.direction)
-      
+
       if (event.streams && event.streams[0]) {
         this.remoteStream = event.streams[0]
         console.log('🔗 [P2P] Remote stream set:', {
@@ -192,7 +192,7 @@ class P2PCallManager {
           audioTracks: this.remoteStream.getAudioTracks().length,
           videoTracks: this.remoteStream.getVideoTracks().length
         })
-        
+
         // Log all tracks in the remote stream
         this.remoteStream.getTracks().forEach((track, index) => {
           console.log(`🔗 [P2P] Remote stream track ${index}:`, {
@@ -203,7 +203,7 @@ class P2PCallManager {
             readyState: track.readyState
           })
         })
-        
+
         // Trigger callback for remote stream
         if (this.onRemoteStream) {
           console.log('🔗 [P2P] Calling onRemoteStream callback')
@@ -228,7 +228,7 @@ class P2PCallManager {
     this.peerConnection.oniceconnectionstatechange = () => {
       const iceState = this.peerConnection.iceConnectionState
       console.log('🔗 [P2P] ICE connection state:', iceState)
-      
+
       // Trigger callback for ICE state changes (for fallback detection)
       if (this.onIceConnectionStateChange) {
         this.onIceConnectionStateChange(iceState)
@@ -236,10 +236,10 @@ class P2PCallManager {
     }
   }
 
-  async createOffer() {
+  async createOffer(options = {}) {
     try {
-      console.log('🔗 [P2P] Creating offer...')
-      
+      console.log('🔗 [P2P] Creating offer...', options)
+
       // Verify local tracks are in the peer connection
       const senders = this.peerConnection.getSenders()
       console.log('🔗 [P2P] Senders before creating offer:', senders.length)
@@ -250,9 +250,9 @@ class P2PCallManager {
           console.warn(`🔗 [P2P] Sender ${index}: no track attached`)
         }
       })
-      
-      const offer = await this.peerConnection.createOffer()
-      
+
+      const offer = await this.peerConnection.createOffer(options)
+
       // Verify offer includes audio
       console.log('🔗 [P2P] Offer SDP type:', offer.type)
       if (offer.sdp) {
@@ -262,21 +262,21 @@ class P2PCallManager {
           console.warn('🔗 [P2P] ⚠️ WARNING: Offer SDP does not contain audio!')
         }
       }
-      
+
       await this.peerConnection.setLocalDescription(offer)
-      
+
       console.log('🔗 [P2P] Offer created, sending to peer')
       console.log('🔗 [P2P] Socket state before emitting offer:', {
         connected: this.socket?.connected,
         disconnected: this.socket?.disconnected,
         id: this.socket?.id
       })
-      
+
       if (!this.socket || !this.socket.connected) {
         console.error('🔗 [P2P] ❌ Socket not connected, cannot send offer!')
         throw new Error('Socket not connected')
       }
-      
+
       this.socket.emit('p2p:offer', {
         callId: this.callId,
         offer: offer
@@ -291,7 +291,7 @@ class P2PCallManager {
   async handleOffer(offer) {
     try {
       console.log('🔗 [P2P] Received offer, setting remote description...')
-      
+
       // Verify local tracks are still in the peer connection
       const senders = this.peerConnection.getSenders()
       console.log('🔗 [P2P] Current senders before handling offer:', senders.length)
@@ -302,7 +302,7 @@ class P2PCallManager {
           console.warn(`🔗 [P2P] Sender ${index}: no track attached`)
         }
       })
-      
+
       // If no senders with tracks, re-add the local stream
       const hasAudioTrack = senders.some(sender => sender.track && sender.track.kind === 'audio')
       if (!hasAudioTrack && this.localStream) {
@@ -312,13 +312,13 @@ class P2PCallManager {
           this.peerConnection.addTrack(track, this.localStream)
         })
       }
-      
+
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
-      
+
       console.log('🔗 [P2P] Creating answer...')
       // Create answer - tracks added via addTrack() should be automatically included
       const answer = await this.peerConnection.createAnswer()
-      
+
       // Verify answer includes audio
       console.log('🔗 [P2P] Answer SDP type:', answer.type)
       if (answer.sdp) {
@@ -328,9 +328,9 @@ class P2PCallManager {
           console.warn('🔗 [P2P] ⚠️ WARNING: Answer SDP does not contain audio!')
         }
       }
-      
+
       await this.peerConnection.setLocalDescription(answer)
-      
+
       // Verify senders after setting local description
       const sendersAfter = this.peerConnection.getSenders()
       console.log('🔗 [P2P] Senders after creating answer:', sendersAfter.length)
@@ -339,7 +339,7 @@ class P2PCallManager {
           console.log(`🔗 [P2P] Sender ${index} after answer: track ID=${sender.track.id}, kind=${sender.track.kind}`)
         }
       })
-      
+
       console.log('🔗 [P2P] Answer created, sending to peer')
       this.socket.emit('p2p:answer', {
         callId: this.callId,
@@ -366,11 +366,43 @@ class P2PCallManager {
   async handleIceCandidate(candidate) {
     try {
       console.log('🔗 [P2P] Received ICE candidate, adding to peer connection...')
+
+      // Check if peer connection is still valid
+      if (!this.peerConnection || this.peerConnection.signalingState === 'closed') {
+        console.warn('🔗 [P2P] ⚠️ Peer connection is closed, ignoring ICE candidate')
+        return
+      }
+
+      // Check if candidate is valid
+      if (!candidate || (candidate.candidate && candidate.candidate.trim() === '')) {
+        console.warn('🔗 [P2P] ⚠️ Invalid ICE candidate (empty), ignoring')
+        return
+      }
+
+      // Handle null candidate (end of candidates)
+      if (candidate.candidate === null || candidate.candidate === undefined) {
+        console.log('🔗 [P2P] Received null ICE candidate (end of candidates)')
+        await this.peerConnection.addIceCandidate(null)
+        console.log('🔗 [P2P] Null ICE candidate added successfully')
+        return
+      }
+
       await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-      console.log('🔗 [P2P] ICE candidate added successfully')
+      console.log('🔗 [P2P] ✅ ICE candidate added successfully')
     } catch (error) {
-      console.error('🔗 [P2P] Error handling ICE candidate:', error)
-      throw error
+      // Don't throw for ICE candidate errors - they're often non-fatal
+      // Common errors: candidate already added, connection closed, invalid candidate
+      const errorMessage = error?.message || error?.toString() || 'Unknown error'
+      const errorName = error?.name || 'Error'
+
+      // Only log as warning for common non-fatal errors
+      if (errorMessage.includes('already') ||
+        errorMessage.includes('closed') ||
+        errorMessage.includes('InvalidStateError')) {
+        console.warn(`🔗 [P2P] ⚠️ ICE candidate error (non-fatal): ${errorName} - ${errorMessage}`)
+      } else {
+        console.error(`🔗 [P2P] ❌ Error handling ICE candidate: ${errorName} - ${errorMessage}`, error)
+      }
     }
   }
 
@@ -390,7 +422,7 @@ class P2PCallManager {
    */
   cleanup() {
     console.log('🔗 [P2P] Cleaning up P2P connection...')
-    
+
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop())
       this.localStream = null

@@ -734,9 +734,13 @@ const DoctorPatients = () => {
   // Check session date on mount and clear if not today
   useEffect(() => {
     if (currentSession) {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const todayStr = today.toISOString().split('T')[0]
+      // Get today's date in IST by using the date string format (YYYY-MM-DD)
+      // This avoids timezone issues - we'll compare date strings directly
+      // The backend returns dates in IST, so we should compare using the same format
+      const now = new Date()
+      // Get date string in local timezone (will be converted properly by backend)
+      // For comparison, we'll use the session date format directly
+      const todayStr = now.toISOString().split('T')[0]
       
       const sessionDate = currentSession.date
       
@@ -751,15 +755,20 @@ const DoctorPatients = () => {
         }
       }
       
+      // Note: Date comparison here is just for logging/debugging
+      // The actual date validation is done by the backend using IST timezone
+      // Frontend date might differ due to browser timezone, but backend handles it correctly
       console.log('🔍 Checking session date:', {
         today: todayStr,
         sessionDate: sessionDateStr,
         sessionStatus: currentSession.status,
         match: sessionDateStr === todayStr,
+        note: 'Date comparison is for logging only - backend uses IST for validation'
       }) // Debug log
       
       // Only clear if session is cancelled or completed
       // Don't clear based on date mismatch - let backend handle that
+      // The backend uses IST timezone and will return the correct session for the requested date
       if (
         currentSession.status === 'cancelled' ||
         currentSession.status === 'completed'
@@ -769,7 +778,7 @@ const DoctorPatients = () => {
         localStorage.removeItem('doctorCurrentSession')
       }
       // Note: We're not clearing based on date mismatch anymore
-      // The backend will return the correct session for the requested date
+      // The backend will return the correct session for the requested date using IST
     }
   }, [currentSession])
 

@@ -14,7 +14,7 @@ const SOCKET_URL = API_BASE_URL.replace('/api', '').replace(/\/$/, '')
 const CallPopup = () => {
   const { activeCall, endCall, isMinimized, minimize, maximize } = useCall()
   const callId = activeCall?.callId
-  
+
   const [status, setStatus] = useState('connecting') // connecting, connected, ended, error
   const [isMuted, setIsMuted] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
@@ -27,6 +27,7 @@ const CallPopup = () => {
   const roomJoinedRef = useRef(false) // Track if we successfully joined the call room
   const hasAttemptedFallbackRef = useRef(false) // Track if we've already attempted SFU fallback
   const isSwitchingToSFURef = useRef(false) // Track if we're currently switching to SFU
+  const p2pConnectionTimeoutRef = useRef(null) // Track P2P connection timeout
 
   // Refs
   const socketRef = useRef(null)
@@ -52,7 +53,7 @@ const CallPopup = () => {
 
   // Store activeCall in ref to avoid stale closures
   const activeCallRef = useRef(activeCall)
-  
+
   // Update activeCall ref when it changes
   useEffect(() => {
     activeCallRef.current = activeCall
@@ -62,38 +63,38 @@ const CallPopup = () => {
   const handleCallEndedUnified = useCallback((data) => {
     const currentCallId = callIdRef.current
     const currentActiveCall = activeCallRef.current
-    
+
     console.log('📞 [CallPopup] ====== call:ended EVENT RECEIVED ======')
     console.log('📞 [CallPopup] Event data:', data)
     console.log('📞 [CallPopup] Current callId (from ref):', currentCallId)
     console.log('📞 [CallPopup] Current activeCall (from ref):', currentActiveCall)
     console.log('📞 [CallPopup] isEndingRef.current:', isEndingRef.current)
-    
+
     // Prevent duplicate processing
     if (isEndingRef.current) {
       console.log('📞 [CallPopup] Call already ending, ignoring duplicate call:ended event')
       return
     }
-    
+
     // Process if:
     // 1. CallId matches exactly, OR
     // 2. We have an activeCall (fallback - process even if callId doesn't match)
     const callIdMatches = data && data.callId && data.callId === currentCallId
     const hasActiveCall = currentActiveCall && currentActiveCall.callId
-    
+
     if (!callIdMatches && !hasActiveCall) {
       console.log('📞 [CallPopup] Ignoring call:ended - no callId match and no active call')
       return
     }
-    
+
     if (!callIdMatches && hasActiveCall) {
       console.warn('📞 [CallPopup] call:ended event callId mismatch, but processing anyway because we have activeCall')
       console.warn('📞 [CallPopup] Expected:', currentCallId, 'Received:', data?.callId)
     }
-    
+
     console.log('📞 [CallPopup] ✅ Processing call:ended event - ending call')
     isEndingRef.current = true
-    
+
     // End the call (don't emit to server as it's already ended by other party)
     cleanup()
     setStatus('ended')
@@ -103,6 +104,40 @@ const CallPopup = () => {
       isEndingRef.current = false
     }, 500)
   }, [endCall])
+
+  // Unified handler for call:patientJoined events - resend offer
+  const handlePatientJoinedUnified = useCallback(async (data) => {
+    console.log('📞 [CallPopup] ====== call:patientJoined EVENT RECEIVED (Unified) ======')
+    console.log('📞 [CallPopup] Event data:', data)
+
+    if (data.callId && data.callId !== callIdRef.current) {
+      console.log('📞 [CallPopup] Ignoring patient joined - callId mismatch')
+      return
+    }
+
+    // Only Initiator (Doctor) needs to resend offer
+    const module = getModule()
+
+    // Check if we are using P2P and manager exists
+    if (module === 'doctor' && useP2P && p2pManagerRef.current) {
+      console.log('📞 [CallPopup] Patient joined, resending P2P offer to ensure connection...')
+      try {
+        // Add a small delay to ensure patient is fully ready to receive
+        setTimeout(async () => {
+          try {
+            if (p2pManagerRef.current) {
+              console.log('📞 [CallPopup] Creating/Resending Offer with ICE Restart...')
+              await p2pManagerRef.current.createOffer({ iceRestart: true })
+            }
+          } catch (err) {
+            console.error('📞 [CallPopup] Error resending offer:', err)
+          }
+        }, 1500)
+      } catch (error) {
+        console.error('📞 [CallPopup] Error triggering offer resend:', error)
+      }
+    }
+  }, [useP2P])
 
   useEffect(() => {
     if (!callId) {
@@ -127,14 +162,14 @@ const CallPopup = () => {
     // This ensures we receive the event even if CallPopup creates a new socket
     const sharedSocket = getSocket()
     let sharedSocketCleanup = null
-    
+
     if (sharedSocket) {
       console.log('📞 [CallPopup] Setting up call:ended listener on shared socket')
       console.log('📞 [CallPopup] Shared socket connected:', sharedSocket.connected)
-      
+
       // Use the unified handler
       sharedSocket.on('call:ended', handleCallEndedUnified)
-      
+
       sharedSocketCleanup = () => {
         sharedSocket.off('call:ended', handleCallEndedUnified)
       }
@@ -154,7 +189,7 @@ const CallPopup = () => {
         }, 500)
       }
     }
-    
+
     window.addEventListener('call:forceEnd', handleForceEnd)
 
     initializeCall()
@@ -166,7 +201,7 @@ const CallPopup = () => {
       }
       window.removeEventListener('call:forceEnd', handleForceEnd)
     }
-  }, [callId, handleCallEndedUnified, endCall])
+  }, [callId, handleCallEndedUnified, endCall, handlePatientJoinedUnified])
 
   // Update remoteParticipant when activeCall changes
   useEffect(() => {
@@ -182,7 +217,7 @@ const CallPopup = () => {
     }
 
     console.log('📞 [CallPopup] Minimized - ensuring audio and microphone stay active')
-    
+
     const keepAudioActive = () => {
       // Keep remote audio playing
       const audioElement = remoteAudioRef.current
@@ -242,11 +277,11 @@ const CallPopup = () => {
 
     isSwitchingToSFURef.current = true
     console.log('🔄 [Fallback] ====== SWITCHING TO SFU ======')
-    
+
     try {
       const socket = socketRef.current
       const currentCallId = callIdRef.current
-      
+
       if (!socket || !currentCallId) {
         console.error('🔄 [Fallback] Missing socket or callId, cannot switch to SFU')
         setError('Failed to switch to SFU. Please try again.')
@@ -279,12 +314,12 @@ const CallPopup = () => {
       setUseP2P(false)
       setStatus('connecting')
       setError(null)
-      
+
       console.log('🔄 [Fallback] Starting SFU connection...')
-      
+
       // Call the SFU initialization code
       await initializeSFU(socket, currentCallId)
-      
+
       console.log('🔄 [Fallback] ✅ Successfully switched to SFU')
     } catch (error) {
       console.error('🔄 [Fallback] ❌ Error switching to SFU:', error)
@@ -299,7 +334,7 @@ const CallPopup = () => {
   const initializeSFU = async (socket, currentCallId) => {
     try {
       console.log('📞 [SFU] Initializing SFU connection...')
-      
+
       // Get RTP capabilities
       const { rtpCapabilities, iceServers } = await new Promise((resolve, reject) => {
         socket.emit('mediasoup:getRtpCapabilities', { callId: currentCallId }, (response) => {
@@ -376,12 +411,12 @@ const CallPopup = () => {
       })
 
       // Get user media and produce
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true
-        } 
+        }
       })
       localStreamRef.current = stream
 
@@ -458,20 +493,20 @@ const CallPopup = () => {
     try {
       const module = getModule()
       const currentCallId = callIdRef.current
-      
+
       if (!currentCallId) {
         console.warn('📞 [CallPopup] No callId available, cannot initialize call')
         return
       }
-      
+
       // Reset fallback flags for new call
       hasAttemptedFallbackRef.current = false
       isSwitchingToSFURef.current = false
-      
+
       // Try to use existing socket first (for patient to ensure same connection)
       let socket = getSocket()
       let isNewSocket = false
-      
+
       // Helper function to join call room (returns promise)
       const joinCallRoom = (socketInstance) => {
         return new Promise((resolve) => {
@@ -483,7 +518,7 @@ const CallPopup = () => {
             resolve(false)
             return
           }
-          
+
           const joinRoomWithTimeout = () => {
             console.log('📞 [CallPopup] Joining call room:', `call-${currentCallId}`)
             console.log('📞 [CallPopup] Socket state:', {
@@ -491,16 +526,16 @@ const CallPopup = () => {
               connected: socketInstance.connected,
               disconnected: socketInstance.disconnected
             })
-            
+
             // Set timeout for room join (5 seconds)
             const timeout = setTimeout(() => {
               console.error('📞 [CallPopup] ⏱️ Room join timeout - no response from server')
               resolve(false)
             }, 5000)
-            
+
             socketInstance.emit('call:joinRoom', { callId: currentCallId }, (response) => {
               clearTimeout(timeout)
-              
+
               if (response && response.error) {
                 console.error('📞 [CallPopup] ❌ Failed to join call room:', response.error)
                 console.error('📞 [CallPopup] Response details:', response)
@@ -508,13 +543,21 @@ const CallPopup = () => {
               } else {
                 console.log('📞 [CallPopup] ✅ Successfully joined call room')
                 console.log('📞 [CallPopup] Server response:', response)
-                
+
                 // Verify room join by checking socket state
                 // Note: socket.rooms is not available on client, but we trust server response
                 // We can verify by checking if socket is still connected
                 if (socketInstance.connected) {
                   console.log('📞 [CallPopup] Socket still connected after room join')
                   roomJoinedRef.current = true // Mark as joined
+
+                  // Notify server that we've joined (crucial for P2P signaling triggers)
+                  const module = getModule()
+                  if (module === 'patient') {
+                    console.log('📞 [CallPopup] Patient emitting call:joined...')
+                    socketInstance.emit('call:joined', { callId: currentCallId })
+                  }
+
                   resolve(true)
                 } else {
                   console.warn('📞 [CallPopup] ⚠️ Socket disconnected after room join')
@@ -524,7 +567,7 @@ const CallPopup = () => {
               }
             })
           }
-          
+
           if (socketInstance.connected) {
             joinRoomWithTimeout()
           } else {
@@ -536,7 +579,7 @@ const CallPopup = () => {
               joinRoomWithTimeout()
             }
             socketInstance.once('connect', connectHandler)
-            
+
             // Also set a timeout for connection wait
             setTimeout(() => {
               if (!socketInstance.connected) {
@@ -548,11 +591,11 @@ const CallPopup = () => {
           }
         })
       }
-      
+
       if (!socket || !socket.connected) {
         // Fallback to creating new socket if shared socket not available
         const token = getAuthToken(module) || getAuthToken('patient') || getAuthToken('doctor')
-        
+
         if (!token) {
           setError('Authentication required')
           setStatus('error')
@@ -565,7 +608,7 @@ const CallPopup = () => {
           transports: ['polling', 'websocket'],
         })
         isNewSocket = true
-        
+
         // Set up socket event listeners before connect
         const handleDisconnect = (reason) => {
           console.log('📞 [CallPopup] Socket disconnected, reason:', reason)
@@ -591,28 +634,28 @@ const CallPopup = () => {
           setStatus('error')
         }
 
-      // Use unified handler for call:ended
-      const handleCallEnded = handleCallEndedUnified
+        // Use unified handler for call:ended
+        const handleCallEnded = handleCallEndedUnified
 
         // Handle call declined (patient declined before call started)
         const handleCallDeclined = (data) => {
           const currentCallId = callIdRef.current
           const currentActiveCall = activeCallRef.current
-          
+
           console.log('📞 [CallPopup] ====== call:declined EVENT RECEIVED ======')
           console.log('📞 [CallPopup] Event data:', data)
           console.log('📞 [CallPopup] Current callId (from ref):', currentCallId)
           console.log('📞 [CallPopup] Current activeCall (from ref):', currentActiveCall)
-          
+
           // Process if we have an active call
           const callIdMatches = data && data.callId && data.callId === currentCallId
           const hasActiveCall = currentActiveCall && currentActiveCall.callId
-          
+
           if (!callIdMatches && !hasActiveCall) {
             console.log('📞 [CallPopup] Ignoring call:declined - no callId match and no active call')
             return
           }
-          
+
           console.log('📞 [CallPopup] ✅ Processing call:declined event - closing call')
           cleanup()
           setStatus('ended')
@@ -628,7 +671,7 @@ const CallPopup = () => {
           console.log('📞 [CallPopup] Producer data:', data)
           console.log('📞 [CallPopup] Our producer ID:', producerRef.current?.id)
           console.log('📞 [CallPopup] New producer ID:', data.producerId)
-          
+
           // DIAGNOSTIC: Event flow tracking
           console.log(`🔍 [DIAGNOSTIC] Event received at:`, new Date(eventTimestamp).toISOString())
           const currentSocket = socketRef.current || socket
@@ -638,7 +681,7 @@ const CallPopup = () => {
             callId: callIdRef.current,
             roomJoined: roomJoinedRef.current // socket.rooms not available on client
           })
-          
+
           // Don't consume if call is ending or ended
           if (isEndingRef.current || status === 'ended' || status === 'error') {
             console.log('📞 [CallPopup] Ignoring new producer - call is ending or ended')
@@ -648,13 +691,13 @@ const CallPopup = () => {
             })
             return
           }
-          
+
           if (!data.producerId) {
             console.warn('📞 [CallPopup] New producer event missing producerId')
             console.warn(`🔍 [DIAGNOSTIC] Invalid event data:`, data)
             return
           }
-          
+
           // Never consume our own producer
           const isOurOwnProducer = producerRef.current && producerRef.current.id === data.producerId
           if (isOurOwnProducer) {
@@ -665,7 +708,7 @@ const CallPopup = () => {
             })
             return
           }
-          
+
           // DIAGNOSTIC: Timing check - when was our producer created?
           const producerCreatedTime = producerRef.current?._createdAt || 'unknown'
           console.log(`🔍 [DIAGNOSTIC] Producer timing:`, {
@@ -673,7 +716,7 @@ const CallPopup = () => {
             remoteProducerReceived: new Date(eventTimestamp).toISOString(),
             timeSinceOurProducer: producerCreatedTime !== 'unknown' ? (eventTimestamp - producerCreatedTime) + 'ms' : 'unknown'
           })
-          
+
           // Consume the remote producer
           console.log('📞 [CallPopup] ✅ Consuming remote producer:', data.producerId)
           const consumeStartTime = Date.now()
@@ -687,16 +730,19 @@ const CallPopup = () => {
           }
         }
 
+
+
         socket.on('disconnect', handleDisconnect)
         socket.on('call:error', handleCallError)
         socket.on('call:ended', handleCallEnded)
         socket.on('call:declined', handleCallDeclined)
         socket.on('mediasoup:newProducer', handleNewProducer)
+        socket.on('call:patientJoined', handlePatientJoinedUnified)
 
         socket.on('connect', async () => {
           console.log('📞 [CallPopup] Socket connected for call')
           socketRef.current = socket
-          
+
           // Join call room BEFORE starting the call
           console.log('📞 [CallPopup] Joining call room before starting call...')
           const roomJoined = await joinCallRoom(socket)
@@ -708,7 +754,7 @@ const CallPopup = () => {
           } else {
             console.log('📞 [CallPopup] ✅ Successfully joined call room, now starting call')
           }
-          
+
           // Store cleanup function after socketRef is set
           if (socketRef.current) {
             socketRef.current._callPopupCleanup = () => {
@@ -717,16 +763,17 @@ const CallPopup = () => {
               socket.off('call:ended', handleCallEnded)
               socket.off('call:declined', handleCallDeclined)
               socket.off('mediasoup:newProducer', handleNewProducer)
+              socket.off('call:patientJoined', handlePatientJoinedUnified)
               // Also cleanup P2P event handlers
               socket.off('p2p:offer')
               socket.off('p2p:answer')
               socket.off('p2p:iceCandidate')
             }
           }
-          
+
           joinCall()
         })
-        
+
         // Handle socket disconnect more gracefully for P2P
         socket.on('disconnect', (reason) => {
           console.log('📞 [CallPopup] Socket disconnected, reason:', reason)
@@ -743,7 +790,7 @@ const CallPopup = () => {
       } else {
         console.log('📞 [CallPopup] Using existing socket connection')
         socketRef.current = socket
-        
+
         // Set up socket event listeners for existing socket
         const handleDisconnect = (reason) => {
           console.log('📞 [CallPopup] Socket disconnected, reason:', reason)
@@ -766,28 +813,28 @@ const CallPopup = () => {
           setStatus('error')
         }
 
-      // Use unified handler for call:ended
-      const handleCallEnded = handleCallEndedUnified
+        // Use unified handler for call:ended
+        const handleCallEnded = handleCallEndedUnified
 
         // Handle call declined (patient declined before call started)
         const handleCallDeclined = (data) => {
           const currentCallId = callIdRef.current
           const currentActiveCall = activeCallRef.current
-          
+
           console.log('📞 [CallPopup] ====== call:declined EVENT RECEIVED ======')
           console.log('📞 [CallPopup] Event data:', data)
           console.log('📞 [CallPopup] Current callId (from ref):', currentCallId)
           console.log('📞 [CallPopup] Current activeCall (from ref):', currentActiveCall)
-          
+
           // Process if we have an active call
           const callIdMatches = data && data.callId && data.callId === currentCallId
           const hasActiveCall = currentActiveCall && currentActiveCall.callId
-          
+
           if (!callIdMatches && !hasActiveCall) {
             console.log('📞 [CallPopup] Ignoring call:declined - no callId match and no active call')
             return
           }
-          
+
           console.log('📞 [CallPopup] ✅ Processing call:declined event - closing call')
           cleanup()
           setStatus('ended')
@@ -803,7 +850,7 @@ const CallPopup = () => {
           console.log('📞 [CallPopup] Producer data:', data)
           console.log('📞 [CallPopup] Our producer ID:', producerRef.current?.id)
           console.log('📞 [CallPopup] New producer ID:', data.producerId)
-          
+
           // DIAGNOSTIC: Event flow tracking
           console.log(`🔍 [DIAGNOSTIC] Event received at:`, new Date(eventTimestamp).toISOString())
           const currentSocket = socketRef.current || socket
@@ -813,7 +860,7 @@ const CallPopup = () => {
             callId: callIdRef.current,
             roomJoined: roomJoinedRef.current // socket.rooms not available on client
           })
-          
+
           // Don't consume if call is ending or ended
           if (isEndingRef.current || status === 'ended' || status === 'error') {
             console.log('📞 [CallPopup] Ignoring new producer - call is ending or ended')
@@ -823,13 +870,13 @@ const CallPopup = () => {
             })
             return
           }
-          
+
           if (!data.producerId) {
             console.warn('📞 [CallPopup] New producer event missing producerId')
             console.warn(`🔍 [DIAGNOSTIC] Invalid event data:`, data)
             return
           }
-          
+
           // Never consume our own producer
           const isOurOwnProducer = producerRef.current && producerRef.current.id === data.producerId
           if (isOurOwnProducer) {
@@ -840,7 +887,7 @@ const CallPopup = () => {
             })
             return
           }
-          
+
           // DIAGNOSTIC: Timing check - when was our producer created?
           const producerCreatedTime = producerRef.current?._createdAt || 'unknown'
           console.log(`🔍 [DIAGNOSTIC] Producer timing:`, {
@@ -848,7 +895,7 @@ const CallPopup = () => {
             remoteProducerReceived: new Date(eventTimestamp).toISOString(),
             timeSinceOurProducer: producerCreatedTime !== 'unknown' ? (eventTimestamp - producerCreatedTime) + 'ms' : 'unknown'
           })
-          
+
           // Consume the remote producer
           console.log('📞 [CallPopup] ✅ Consuming remote producer:', data.producerId)
           const consumeStartTime = Date.now()
@@ -867,6 +914,7 @@ const CallPopup = () => {
         socket.on('call:ended', handleCallEnded)
         socket.on('call:declined', handleCallDeclined)
         socket.on('mediasoup:newProducer', handleNewProducer)
+        socket.on('call:patientJoined', handlePatientJoinedUnified)
 
         // Store cleanup function for listeners
         if (socketRef.current) {
@@ -876,9 +924,10 @@ const CallPopup = () => {
             socket.off('call:ended', handleCallEnded)
             socket.off('call:declined', handleCallDeclined)
             socket.off('mediasoup:newProducer', handleNewProducer)
+            socket.off('call:patientJoined', handlePatientJoinedUnified)
           }
         }
-        
+
         // Join call room BEFORE starting the call (for existing socket)
         console.log('📞 [CallPopup] Joining call room before starting call...')
         const roomJoined = await joinCallRoom(socket)
@@ -890,7 +939,7 @@ const CallPopup = () => {
         } else {
           console.log('📞 [CallPopup] ✅ Successfully joined call room, now starting call')
         }
-        
+
         // Socket already connected, join call immediately
         joinCall()
       }
@@ -914,7 +963,7 @@ const CallPopup = () => {
         console.warn('📞 [CallPopup] No callId available, cannot join call')
         return
       }
-      
+
       console.log('📞 [CallPopup] ====== JOINING CALL ======')
       console.log('📞 [CallPopup] Call ID:', currentCallId)
       console.log('📞 [CallPopup] Socket connected:', socket.connected)
@@ -924,18 +973,18 @@ const CallPopup = () => {
       const shouldUseP2P = useP2P
       const module = getModule()
       const isInitiator = module === 'doctor' // Doctor initiates the call
-      
+
       if (shouldUseP2P) {
         console.log('🔗 [P2P] Using P2P connection mode')
         console.log('🔗 [P2P] Is initiator:', isInitiator)
-        
+
         // Initialize P2P manager
         const p2pManager = new P2PCallManager(currentCallId, socket, () => {
           const module = getModule()
           return getAuthToken(module) || getAuthToken('patient') || getAuthToken('doctor')
         })
         p2pManagerRef.current = p2pManager
-        
+
         // Set up remote stream handler
         p2pManager.onRemoteStream = (remoteStream) => {
           console.log('🔗 [P2P] ====== REMOTE STREAM RECEIVED IN CALLPOPUP ======')
@@ -945,7 +994,7 @@ const CallPopup = () => {
             audioTracks: remoteStream?.getAudioTracks().length || 0,
             videoTracks: remoteStream?.getVideoTracks().length || 0
           })
-          
+
           if (remoteStream) {
             remoteStream.getTracks().forEach((track, index) => {
               console.log(`🔗 [P2P] Remote stream track ${index}:`, {
@@ -957,23 +1006,23 @@ const CallPopup = () => {
               })
             })
           }
-          
+
           const audioElement = remoteAudioRef.current
           console.log('🔗 [P2P] Audio element available:', !!audioElement)
-          
+
           if (audioElement && remoteStream) {
             console.log('🔗 [P2P] Setting up audio element with remote stream...')
             audioElement.srcObject = remoteStream
             audioElement.volume = 1.0
             audioElement.muted = false
-            
+
             console.log('🔗 [P2P] Audio element configured:', {
               srcObject: !!audioElement.srcObject,
               volume: audioElement.volume,
               muted: audioElement.muted,
               paused: audioElement.paused
             })
-            
+
             // Try to play with retry logic
             const playAudio = async (retryCount = 0) => {
               try {
@@ -988,7 +1037,7 @@ const CallPopup = () => {
                 }
               }
             }
-            
+
             playAudio()
             console.log('🔗 [P2P] ✅ Remote audio stream configured')
           } else {
@@ -1013,7 +1062,7 @@ const CallPopup = () => {
             }
           }
         }
-        
+
         // Set up connection state handler with automatic SFU fallback
         p2pManager.onConnectionStateChange = (state) => {
           console.log('🔗 [P2P] Connection state changed:', state)
@@ -1027,7 +1076,7 @@ const CallPopup = () => {
             hasAttemptedFallbackRef.current = false
           } else if (state === 'failed' || state === 'disconnected') {
             console.error('🔗 [P2P] Connection failed:', state)
-            
+
             // Only attempt fallback once and if not already switching
             if (!hasAttemptedFallbackRef.current && !isSwitchingToSFURef.current) {
               console.log('🔄 [Fallback] P2P connection failed, attempting SFU fallback...')
@@ -1044,12 +1093,12 @@ const CallPopup = () => {
         // Set up ICE connection state handler for early failure detection
         p2pManager.onIceConnectionStateChange = (iceState) => {
           console.log('🔗 [P2P] ICE connection state changed:', iceState)
-          
+
           // If ICE fails, attempt fallback (but only if peer connection state hasn't already failed)
           if (iceState === 'failed' && !hasAttemptedFallbackRef.current && !isSwitchingToSFURef.current) {
             const pcState = p2pManager.peerConnection?.connectionState
             console.log('🔗 [P2P] ICE connection failed, peer connection state:', pcState)
-            
+
             // Wait a bit to see if peer connection state also fails
             setTimeout(() => {
               const currentPcState = p2pManager.peerConnection?.connectionState
@@ -1063,7 +1112,7 @@ const CallPopup = () => {
             }, 2000) // Wait 2 seconds for peer connection to catch up
           }
         }
-        
+
         // Set up P2P event handlers (store references for cleanup)
         const p2pOfferHandler = async (data) => {
           if (data.callId === currentCallId && !isInitiator) {
@@ -1075,7 +1124,7 @@ const CallPopup = () => {
             }
           }
         }
-        
+
         const p2pAnswerHandler = async (data) => {
           if (data.callId === currentCallId && isInitiator) {
             console.log('🔗 [P2P] Received answer')
@@ -1086,35 +1135,37 @@ const CallPopup = () => {
             }
           }
         }
-        
+
         const p2pIceCandidateHandler = async (data) => {
-          if (data.callId === currentCallId && data.candidate) {
+          if (data.callId === currentCallId && data.candidate !== undefined) {
             console.log('🔗 [P2P] Received ICE candidate')
             try {
               await p2pManager.handleIceCandidate(data.candidate)
             } catch (error) {
-              console.error('🔗 [P2P] Error handling ICE candidate:', error)
+              // Error is already logged in handleIceCandidate, just log here for context
+              const errorMessage = error?.message || error?.toString() || 'Unknown error'
+              console.warn('🔗 [P2P] ICE candidate handler error (may be non-fatal):', errorMessage)
             }
           }
         }
-        
+
         socket.on('p2p:offer', p2pOfferHandler)
         socket.on('p2p:answer', p2pAnswerHandler)
         socket.on('p2p:iceCandidate', p2pIceCandidateHandler)
-        
+
         // Store handlers for cleanup
         socket._p2pHandlers = {
           offer: p2pOfferHandler,
           answer: p2pAnswerHandler,
           iceCandidate: p2pIceCandidateHandler
         }
-        
+
         // Initialize P2P connection
         console.log('🔗 [P2P] Starting P2P initialization...')
         const p2pInitialized = await p2pManager.initialize(isInitiator)
         if (!p2pInitialized) {
           console.error('🔗 [P2P] ❌ Failed to initialize P2P connection')
-          
+
           // Attempt automatic fallback to SFU if not already attempted
           if (!hasAttemptedFallbackRef.current && !isSwitchingToSFURef.current) {
             console.log('🔄 [Fallback] P2P initialization failed, attempting SFU fallback...')
@@ -1128,11 +1179,46 @@ const CallPopup = () => {
             return
           }
         }
-        
+
         console.log('🔗 [P2P] ✅ P2P connection initialized successfully')
         // Note: Connection state will be set by onConnectionStateChange handler
         // Don't set status here as P2P might still fail during ICE negotiation
-        
+
+        // Set up timeout to automatically fallback to SFU if connection doesn't complete
+        // This handles cases where P2P gets stuck in "connecting" state
+        p2pConnectionTimeoutRef.current = setTimeout(() => {
+          const pcState = p2pManager.peerConnection?.connectionState
+          console.log('🔗 [P2P] Connection timeout check (15s):', {
+            pcState: pcState,
+            hasAttemptedFallback: hasAttemptedFallbackRef.current,
+            isSwitching: isSwitchingToSFURef.current
+          })
+
+          // If still not connected after 15 seconds and not already switching, fallback to SFU
+          if (pcState !== 'connected' && 
+              !hasAttemptedFallbackRef.current && 
+              !isSwitchingToSFURef.current) {
+            console.log('🔄 [Fallback] P2P connection timeout (15s), attempting SFU fallback...')
+            hasAttemptedFallbackRef.current = true
+            switchToSFU()
+          }
+        }, 15000) // 15 second timeout
+
+        // Clear timeout if connection succeeds
+        const originalOnConnectionStateChange = p2pManager.onConnectionStateChange
+        p2pManager.onConnectionStateChange = (state) => {
+          if (state === 'connected') {
+            if (p2pConnectionTimeoutRef.current) {
+              clearTimeout(p2pConnectionTimeoutRef.current)
+              p2pConnectionTimeoutRef.current = null
+              console.log('🔗 [P2P] Connection established, clearing timeout')
+            }
+          }
+          if (originalOnConnectionStateChange) {
+            originalOnConnectionStateChange(state)
+          }
+        }
+
         return // Exit early, P2P flow complete
       } else {
         console.log('📞 [SFU] Using SFU (mediasoup) connection mode')
@@ -1159,7 +1245,7 @@ const CallPopup = () => {
           dtlsState: sendTransport.dtlsState,
           state: state
         })
-        
+
         if (state === 'failed' || state === 'disconnected') {
           console.error(`🔍 [DIAGNOSTIC] ⚠️ Send transport connection issue: ${state}`)
           console.error(`🔍 [DIAGNOSTIC] Send transport failure details:`, {
@@ -1172,12 +1258,12 @@ const CallPopup = () => {
           })
         }
       })
-      
+
       // DIAGNOSTIC: Monitor ICE state changes
       sendTransport.on('icegatheringstatechange', (state) => {
         console.log(`🔍 [DIAGNOSTIC] Send transport ICE gathering state: ${state}`)
       })
-      
+
       // DIAGNOSTIC: Monitor ICE connection state
       sendTransport.on('iceconnectionstatechange', (state) => {
         console.log(`🔍 [DIAGNOSTIC] Send transport ICE connection state: ${state}`)
@@ -1185,7 +1271,7 @@ const CallPopup = () => {
           console.error(`🔍 [DIAGNOSTIC] ⚠️ Send transport ICE connection issue: ${state}`)
         }
       })
-      
+
       // DIAGNOSTIC: Monitor DTLS state changes
       sendTransport.on('dtlsstatechange', (state) => {
         console.log(`🔍 [DIAGNOSTIC] Send transport DTLS state: ${state}`)
@@ -1206,7 +1292,7 @@ const CallPopup = () => {
             console.error(`🔍 [DIAGNOSTIC] ⏱️ Send transport connection timeout (10s)`)
             errback(new Error('Transport connection timeout'))
           }, 10000)
-          
+
           socket.emit('mediasoup:connectTransport', {
             transportId: sendTransport.id,
             dtlsParameters,
@@ -1325,10 +1411,10 @@ const CallPopup = () => {
           clearInterval(monitorTransportStates)
           return
         }
-        
+
         const sendState = sendTransportRef.current.connectionState
         const recvState = recvTransportRef.current.connectionState
-        
+
         console.log(`🔍 [DIAGNOSTIC] Transport states periodic check:`, {
           sendTransport: {
             id: sendTransportRef.current.id,
@@ -1377,7 +1463,7 @@ const CallPopup = () => {
             })
           })
         }
-        
+
         const roomJoined = await verifyRoomJoin()
         if (!roomJoined) {
           console.warn('📞 [CallPopup] ⚠️ Room join verification failed, but continuing with production')
@@ -1406,7 +1492,7 @@ const CallPopup = () => {
         const existingProducers = existingProducersResponse.producers || []
         console.log('📞 [CallPopup] Found', existingProducers.length, 'existing producer(s):', existingProducers.map(p => p.id))
         console.log('📞 [CallPopup] Our producer ID:', producerRef.current?.id)
-        
+
         // Consume all existing producers (from other participants who joined earlier)
         if (existingProducers.length > 0) {
           for (const producer of existingProducers) {
@@ -1415,9 +1501,9 @@ const CallPopup = () => {
             // 2. It's not our own producer
             // 3. We haven't already consumed it (check consumerRef)
             const isOurProducer = producer.id === producerRef.current?.id
-            const alreadyConsumed = consumerRef.current && 
+            const alreadyConsumed = consumerRef.current &&
               consumerRef.current.producerId === producer.id
-            
+
             if (producer.id && !isOurProducer && !alreadyConsumed) {
               console.log('📞 [CallPopup] ✅ Consuming existing producer:', producer.id)
               try {
@@ -1453,7 +1539,7 @@ const CallPopup = () => {
       // Notify server that we've successfully joined the call (for doctor notification)
       // Note: module is already declared at the start of joinCall function
       const currentSocket = socketRef.current
-      
+
       if (module === 'patient' && currentSocket) {
         // Ensure socket is connected before emitting
         if (currentSocket.connected) {
@@ -1463,7 +1549,7 @@ const CallPopup = () => {
             id: currentSocket.id,
             authenticated: !!currentSocket.auth
           })
-          
+
           currentSocket.emit('call:joined', { callId: currentCallId }, (response) => {
             if (response) {
               console.log('📞 [CallPopup] call:joined acknowledgment:', response)
@@ -1492,10 +1578,10 @@ const CallPopup = () => {
     try {
       console.log('📞 [CallPopup] ====== PRODUCING LOCAL AUDIO ======')
       console.log('📞 [CallPopup] Requesting microphone access...')
-      
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       localStreamRef.current = stream
-      
+
       const audioTracks = stream.getAudioTracks()
       console.log('📞 [CallPopup] Microphone access granted, audio tracks:', audioTracks.length)
       if (audioTracks.length > 0) {
@@ -1511,7 +1597,7 @@ const CallPopup = () => {
       if (!sendTransportRef.current) {
         throw new Error('Send transport not available')
       }
-      
+
       const track = audioTracks[0]
       const params = {
         track,
@@ -1537,7 +1623,7 @@ const CallPopup = () => {
         creationTime: producerCreateDuration + 'ms'
       })
       console.log('📞 [CallPopup] Producer will notify other participants via mediasoup:newProducer event')
-      
+
       // DIAGNOSTIC: Log producer creation timing
       console.log(`🔍 [DIAGNOSTIC] Producer creation:`, {
         producerId: producer.id,
@@ -1606,7 +1692,7 @@ const CallPopup = () => {
     try {
       console.log('📞 [CallPopup] ====== CONSUMING REMOTE AUDIO ======')
       console.log('📞 [CallPopup] Producer ID:', producerId)
-      
+
       // Don't consume if call is ending or ended
       if (isEndingRef.current || status === 'ended' || status === 'error') {
         console.log('📞 [CallPopup] Cannot consume - call is ending or ended')
@@ -1648,7 +1734,7 @@ const CallPopup = () => {
       console.log('📞 [CallPopup] Requesting consumer from server...')
       console.log('📞 [CallPopup] Transport ID:', recvTransport.id)
       console.log('📞 [CallPopup] Call ID:', currentCallId)
-      
+
       const { consumer } = await new Promise((resolve, reject) => {
         socket.emit('mediasoup:consume', {
           transportId: recvTransport.id,
@@ -1726,14 +1812,14 @@ const CallPopup = () => {
               reject(new Error(response.error))
             } else {
               console.log('📞 [CallPopup] ✅ Consumer resumed on server')
-              
+
               // DIAGNOSTIC: Verify consumer is actually resumed
               console.log(`🔍 [DIAGNOSTIC] Consumer resume verification:`, {
                 id: consumerInstance.id,
                 paused: consumerInstance.paused,
                 closed: consumerInstance.closed
               })
-              
+
               resolve(response)
             }
           })
@@ -1761,14 +1847,19 @@ const CallPopup = () => {
       // Wait for audio element to be ready and set up remote audio playback
       console.log('📞 [CallPopup] Setting up audio element for remote audio...')
       const setupAudioElement = (retryCount = 0) => {
-        const maxRetries = 10
-        if (!remoteAudioRef.current) {
+        const maxRetries = 20 // Increased retries
+        const audioElement = remoteAudioRef.current
+
+        // Check if audio element exists and is in the DOM
+        if (!audioElement) {
           if (retryCount < maxRetries) {
             console.warn(`📞 [CallPopup] Audio element not available, retrying... (${retryCount + 1}/${maxRetries})`)
-            // Retry after a short delay if element is not ready
-            setTimeout(() => {
-              setupAudioElement(retryCount + 1)
-            }, 100)
+            // Use requestAnimationFrame for better timing with DOM updates
+            requestAnimationFrame(() => {
+              setTimeout(() => {
+                setupAudioElement(retryCount + 1)
+              }, 50)
+            })
             return
           } else {
             console.error('📞 [CallPopup] ❌ Audio element still not available after', maxRetries, 'retries')
@@ -1776,8 +1867,23 @@ const CallPopup = () => {
           }
         }
 
-        const audioElement = remoteAudioRef.current
-        console.log('📞 [CallPopup] Audio element found, setting up remote audio stream...')
+        // Verify the element is actually in the DOM
+        if (!audioElement.ownerDocument || !audioElement.ownerDocument.body.contains(audioElement)) {
+          if (retryCount < maxRetries) {
+            console.warn(`📞 [CallPopup] Audio element not in DOM, retrying... (${retryCount + 1}/${maxRetries})`)
+            requestAnimationFrame(() => {
+              setTimeout(() => {
+                setupAudioElement(retryCount + 1)
+              }, 50)
+            })
+            return
+          } else {
+            console.error('📞 [CallPopup] ❌ Audio element not in DOM after', maxRetries, 'retries')
+            return
+          }
+        }
+
+        console.log('📞 [CallPopup] Audio element found and in DOM, setting up remote audio stream...')
 
         // DIAGNOSTIC: Check audio element initial state
         console.log(`🔍 [DIAGNOSTIC] Audio element initial state:`, {
@@ -1786,17 +1892,25 @@ const CallPopup = () => {
           volume: audioElement.volume,
           readyState: audioElement.readyState,
           srcObject: !!audioElement.srcObject,
-          error: audioElement.error
+          error: audioElement.error,
+          inDOM: audioElement.ownerDocument?.body?.contains(audioElement)
         })
+
+        // Verify consumer track exists and is valid
+        if (!consumerInstance.track) {
+          console.error('📞 [CallPopup] ❌ Consumer instance has no track!')
+          return
+        }
 
         // Create audio element for remote audio
         const stream = new MediaStream([consumerInstance.track])
         console.log('📞 [CallPopup] Created MediaStream with track:', {
           trackId: consumerInstance.track.id,
           kind: consumerInstance.track.kind,
-          enabled: consumerInstance.track.enabled
+          enabled: consumerInstance.track.enabled,
+          readyState: consumerInstance.track.readyState
         })
-        
+
         // DIAGNOSTIC: Check MediaStream state
         console.log(`🔍 [DIAGNOSTIC] MediaStream details:`, {
           id: stream.id,
@@ -1809,12 +1923,40 @@ const CallPopup = () => {
             readyState: t.readyState
           }))
         })
-        
+
+        // Clear any existing srcObject first
+        if (audioElement.srcObject) {
+          console.log('📞 [CallPopup] Clearing existing srcObject before setting new stream')
+          const oldStream = audioElement.srcObject
+          oldStream.getTracks().forEach(track => track.stop())
+          audioElement.srcObject = null
+        }
+
         // Set up audio element properties
-        audioElement.srcObject = stream
-        audioElement.volume = 1.0 // Ensure volume is at maximum
-        audioElement.muted = false // Ensure not muted
-        
+        try {
+          audioElement.srcObject = stream
+          audioElement.volume = 1.0 // Ensure volume is at maximum
+          audioElement.muted = false // Ensure not muted
+
+          // Force a re-check to ensure srcObject was set
+          if (!audioElement.srcObject) {
+            console.error('📞 [CallPopup] ❌ Failed to set srcObject on audio element!')
+            // Try again after a brief delay
+            setTimeout(() => {
+              if (remoteAudioRef.current && consumerInstance.track) {
+                console.log('📞 [CallPopup] Retrying srcObject assignment...')
+                remoteAudioRef.current.srcObject = new MediaStream([consumerInstance.track])
+                remoteAudioRef.current.volume = 1.0
+                remoteAudioRef.current.muted = false
+              }
+            }, 100)
+            return
+          }
+        } catch (error) {
+          console.error('📞 [CallPopup] ❌ Error setting audio element srcObject:', error)
+          return
+        }
+
         console.log('📞 [CallPopup] Audio element configured:', {
           volume: audioElement.volume,
           muted: audioElement.muted,
@@ -1822,30 +1964,36 @@ const CallPopup = () => {
           readyState: audioElement.readyState
         })
 
-        // DIAGNOSTIC: Verify audio element configuration
-        console.log(`🔍 [DIAGNOSTIC] Audio element after configuration:`, {
-          srcObject: !!audioElement.srcObject,
-          srcObjectTracks: audioElement.srcObject ? audioElement.srcObject.getTracks().length : 0,
-          volume: audioElement.volume,
-          muted: audioElement.muted,
-          paused: audioElement.paused,
-          readyState: audioElement.readyState,
-          autoplay: audioElement.autoplay
-        })
-        
+        // DIAGNOSTIC: Verify audio element configuration immediately after setting
+        setTimeout(() => {
+          const verifyElement = remoteAudioRef.current
+          if (verifyElement) {
+            console.log(`🔍 [DIAGNOSTIC] Audio element verification (after 100ms):`, {
+              srcObject: !!verifyElement.srcObject,
+              srcObjectTracks: verifyElement.srcObject ? verifyElement.srcObject.getTracks().length : 0,
+              srcObjectActive: verifyElement.srcObject ? verifyElement.srcObject.active : false,
+              volume: verifyElement.volume,
+              muted: verifyElement.muted,
+              paused: verifyElement.paused,
+              readyState: verifyElement.readyState,
+              autoplay: verifyElement.autoplay
+            })
+          }
+        }, 100)
+
         // Add event listeners for debugging
         const onLoadedMetadata = () => {
           console.log('📞 [CallPopup] ✅ Audio metadata loaded')
         }
-        
+
         const onCanPlay = () => {
           console.log('📞 [CallPopup] ✅ Audio can play')
         }
-        
+
         const onPlay = () => {
           console.log('📞 [CallPopup] ✅ Audio started playing')
         }
-        
+
         const onError = (e) => {
           console.error('📞 [CallPopup] ❌ Audio element error:', e)
           console.error('📞 [CallPopup] Error details:', {
@@ -1874,7 +2022,7 @@ const CallPopup = () => {
         const onSuspend = () => {
           console.warn(`🔍 [DIAGNOSTIC] ⚠️ Audio element suspended`)
         }
-        
+
         audioElement.addEventListener('loadedmetadata', onLoadedMetadata)
         audioElement.addEventListener('canplay', onCanPlay)
         audioElement.addEventListener('play', onPlay)
@@ -1950,16 +2098,16 @@ const CallPopup = () => {
 
       // Setup audio element (with retry if not ready)
       setupAudioElement()
-      
+
       console.log('📞 [CallPopup] ✅ Successfully consuming remote audio from producer:', producerId)
     } catch (error) {
       // Check if error is due to call being ended or transport/router being closed
       const errorMessage = error.message || error.toString()
-      const isCallEndedError = 
+      const isCallEndedError =
         errorMessage.includes('Router not found') ||
         errorMessage.includes('Transport') && errorMessage.includes('closed') ||
         errorMessage.includes('call') && errorMessage.includes('ended')
-      
+
       if (isCallEndedError) {
         // Call was likely ended, this is expected - don't log as error
         console.log('📞 [CallPopup] Cannot consume remote audio - call may have ended:', errorMessage)
@@ -1985,13 +2133,13 @@ const CallPopup = () => {
       const newMutedState = !isMuted
       p2pManagerRef.current.setMuted(newMutedState)
       setIsMuted(newMutedState)
-      
+
       // Notify DoctorCallStatus of mute state change
       const event = new CustomEvent('call:muteStateUpdate', { detail: { muted: newMutedState } })
       window.dispatchEvent(event)
       return
     }
-    
+
     // Handle SFU mute
     if (producerRef.current) {
       const newMutedState = !isMuted
@@ -2001,7 +2149,7 @@ const CallPopup = () => {
         producerRef.current.resume()
       }
       setIsMuted(newMutedState)
-      
+
       // Notify DoctorCallStatus of mute state change
       const event = new CustomEvent('call:muteStateUpdate', { detail: { muted: newMutedState } })
       window.dispatchEvent(event)
@@ -2027,6 +2175,70 @@ const CallPopup = () => {
       window.removeEventListener('call:muteToggle', handleMuteToggleEvent)
     }
   }, [isMuted])
+
+  // Backup mechanism: Ensure audio element has srcObject when consumer is ready
+  // This runs periodically to catch cases where the initial setup might have failed
+  useEffect(() => {
+    if (status !== 'connecting' && status !== 'connected') {
+      return
+    }
+
+    const checkAndSetupAudio = () => {
+      const consumer = consumerRef.current
+      const audioElement = remoteAudioRef.current
+
+      if (!consumer || !audioElement || !consumer.track) {
+        return
+      }
+
+      // Check if audio element needs srcObject
+      if (!audioElement.srcObject) {
+        console.log('📞 [CallPopup] [Backup] Audio element missing srcObject, setting up...')
+
+        try {
+          const stream = new MediaStream([consumer.track])
+          audioElement.srcObject = stream
+          audioElement.volume = 1.0
+          audioElement.muted = false
+
+          console.log('📞 [CallPopup] [Backup] ✅ Audio element srcObject set via backup mechanism')
+
+          // Verify it was set
+          setTimeout(() => {
+            if (audioElement.srcObject) {
+              console.log('📞 [CallPopup] [Backup] ✅ Verified srcObject is set')
+              // Try to play
+              audioElement.play().catch(error => {
+                console.warn('📞 [CallPopup] [Backup] Play failed (may need user interaction):', error.name)
+              })
+            } else {
+              console.warn('📞 [CallPopup] [Backup] ⚠️ srcObject was not set successfully')
+            }
+          }, 50)
+        } catch (error) {
+          console.error('📞 [CallPopup] [Backup] Error setting srcObject:', error)
+        }
+      }
+    }
+
+    // Check immediately
+    checkAndSetupAudio()
+
+    // Also check periodically as a backup (every 500ms for first 5 seconds)
+    const interval = setInterval(() => {
+      checkAndSetupAudio()
+    }, 500)
+
+    const timeout = setTimeout(() => {
+      clearInterval(interval)
+    }, 5000)
+
+    return () => {
+      clearInterval(interval)
+      clearTimeout(timeout)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]) // Re-run when status changes (intentionally not including refs in deps)
 
   const handleEndCall = async (emitToServer = true) => {
     // Prevent duplicate call end
@@ -2077,10 +2289,16 @@ const CallPopup = () => {
     console.log('📞 [CallPopup] Cleaning up call resources')
     isEndingRef.current = true
     roomJoinedRef.current = false // Reset room join status
-    
+
     // Stop duration timer
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current)
+    }
+
+    // Clear P2P connection timeout
+    if (p2pConnectionTimeoutRef.current) {
+      clearTimeout(p2pConnectionTimeoutRef.current)
+      p2pConnectionTimeoutRef.current = null
     }
 
     // Cleanup P2P connection
@@ -2088,7 +2306,7 @@ const CallPopup = () => {
       console.log('🔗 [P2P] Cleaning up P2P connection')
       p2pManagerRef.current.cleanup()
       p2pManagerRef.current = null
-      
+
       // Remove P2P event listeners
       const socket = socketRef.current
       if (socket) {
@@ -2147,7 +2365,7 @@ const CallPopup = () => {
       } catch (error) {
         console.warn('Error emitting call:leave:', error)
       }
-      
+
       // Only disconnect if this is not the shared socket
       const sharedSocket = getSocket()
       if (socketRef.current !== sharedSocket) {
@@ -2157,7 +2375,7 @@ const CallPopup = () => {
           console.warn('Error disconnecting socket:', error)
         }
       }
-      
+
       socketRef.current = null
     }
   }
@@ -2170,10 +2388,10 @@ const CallPopup = () => {
   // Audio element must always be rendered to keep audio playing (even when minimized)
   // Render it before any conditional returns
   const audioElement = (
-    <audio 
-      ref={remoteAudioRef} 
-      autoPlay 
-      playsInline 
+    <audio
+      ref={remoteAudioRef}
+      autoPlay
+      playsInline
       volume={1.0}
       style={{ display: 'none' }}
     />
@@ -2229,7 +2447,7 @@ const CallPopup = () => {
             {/* Pulsing animation */}
             <div className="absolute inset-0 bg-blue-400 rounded-full animate-ping opacity-75"></div>
             <IoCallOutline className="text-white text-2xl relative z-10" />
-            
+
             {/* Duration badge */}
             {status === 'connected' && callDuration > 0 && (
               <span className="absolute -bottom-1 -right-1 bg-green-500 text-white text-xs font-semibold px-1.5 py-0.5 rounded-full">
@@ -2300,183 +2518,180 @@ const CallPopup = () => {
       {audioElement}
       <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
         <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
-        {/* Minimize button (for doctors) */}
-        {getModule() === 'doctor' && (
-          <button
-            onClick={minimize}
-            className="absolute top-4 right-4 text-slate-500 hover:text-slate-700 rounded p-1 transition"
-            title="Minimize"
-          >
-            <IoRemoveOutline className="text-xl" />
-          </button>
-        )}
-        
-        {/* Diagnostic Toggle Button */}
-        <button
-          onClick={() => setShowDiagnostics(!showDiagnostics)}
-          className="absolute top-4 left-4 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded transition"
-          title="Toggle Diagnostics"
-        >
-          🔍 {showDiagnostics ? 'Hide' : 'Show'} Diagnostics
-        </button>
-        
-        {/* Header */}
-        <div className="text-center mb-6">
-          <div className="w-20 h-20 bg-slate-200 rounded-full mx-auto mb-4 flex items-center justify-center">
-            <IoCallOutline className="text-3xl text-slate-600" />
-          </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-1">Audio Call</h2>
-          <p className="text-slate-600 text-sm">{remoteParticipant}</p>
-          {status === 'connected' && (
-            <p className="text-slate-500 text-xs mt-2">{formatCallDuration(callDuration)}</p>
+          {/* Minimize button (for doctors) */}
+          {getModule() === 'doctor' && (
+            <button
+              onClick={minimize}
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-700 rounded p-1 transition"
+              title="Minimize"
+            >
+              <IoRemoveOutline className="text-xl" />
+            </button>
           )}
-          {status === 'connecting' && (
-            <p className="text-slate-500 text-xs mt-2">Connecting...</p>
-          )}
-        </div>
 
-        {/* Controls */}
-        <div className="flex items-center justify-center gap-4 mt-8">
+          {/* Diagnostic Toggle Button */}
           <button
-            onClick={handleMuteToggle}
-            disabled={status !== 'connected'}
-            className={`w-14 h-14 rounded-full flex items-center justify-center transition ${
-              isMuted
+            onClick={() => setShowDiagnostics(!showDiagnostics)}
+            className="absolute top-4 left-4 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded transition"
+            title="Toggle Diagnostics"
+          >
+            🔍 {showDiagnostics ? 'Hide' : 'Show'} Diagnostics
+          </button>
+
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="w-20 h-20 bg-slate-200 rounded-full mx-auto mb-4 flex items-center justify-center">
+              <IoCallOutline className="text-3xl text-slate-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 mb-1">Audio Call</h2>
+            <p className="text-slate-600 text-sm">{remoteParticipant}</p>
+            {status === 'connected' && (
+              <p className="text-slate-500 text-xs mt-2">{formatCallDuration(callDuration)}</p>
+            )}
+            {status === 'connecting' && (
+              <p className="text-slate-500 text-xs mt-2">Connecting...</p>
+            )}
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center justify-center gap-4 mt-8">
+            <button
+              onClick={handleMuteToggle}
+              disabled={status !== 'connected'}
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition ${isMuted
                 ? 'bg-red-500 text-white hover:bg-red-600'
                 : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-            title={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {isMuted ? <IoMicOffOutline className="text-2xl" /> : <IoMicOutline className="text-2xl" />}
-          </button>
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? <IoMicOffOutline className="text-2xl" /> : <IoMicOutline className="text-2xl" />}
+            </button>
 
-          <button
-            onClick={() => handleEndCall(true)}
-            disabled={status === 'ended'}
-            className="w-16 h-16 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            title="End Call"
-          >
-            <IoCloseOutline className="text-3xl" />
-          </button>
-        </div>
-
-        {/* Status indicator */}
-        <div className="mt-6 text-center">
-          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${
-            status === 'connected' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${
-              status === 'connected' ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'
-            }`}></div>
-            {status === 'connected' ? 'Connected' : 'Connecting...'}
+            <button
+              onClick={() => handleEndCall(true)}
+              disabled={status === 'ended'}
+              className="w-16 h-16 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title="End Call"
+            >
+              <IoCloseOutline className="text-3xl" />
+            </button>
           </div>
-        </div>
 
-        {/* Diagnostic Panel */}
-        {showDiagnostics && (
-          <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 max-h-96 overflow-y-auto">
-            <h3 className="text-sm font-bold text-slate-900 mb-2">🔍 Diagnostic Information</h3>
-            <div className="space-y-2 text-xs">
-              <div>
-                <strong>Call ID:</strong> {callIdRef.current || 'N/A'}
-              </div>
-              <div>
-                <strong>Status:</strong> {status}
-              </div>
-              
-              {socketRef.current && (
-                <div className="mt-2">
-                  <strong>Socket:</strong>
-                  <div className="ml-2 text-slate-600">
-                    ID: {socketRef.current.id}<br/>
-                    Connected: {socketRef.current.connected ? '✅' : '❌'}<br/>
-                    Room Joined: {roomJoinedRef.current ? '✅ Yes' : '❌ No'}
-                  </div>
-                </div>
-              )}
-
-              {sendTransportRef.current && (
-                <div className="mt-2">
-                  <strong>Send Transport:</strong>
-                  <div className="ml-2 text-slate-600">
-                    ID: {sendTransportRef.current.id}<br/>
-                    State: <span className={sendTransportRef.current.connectionState === 'connected' ? 'text-green-600' : 'text-yellow-600'}>{sendTransportRef.current.connectionState}</span><br/>
-                    Closed: {sendTransportRef.current.closed ? '❌' : '✅'}
-                  </div>
-                </div>
-              )}
-
-              {recvTransportRef.current && (
-                <div className="mt-2">
-                  <strong>Recv Transport:</strong>
-                  <div className="ml-2 text-slate-600">
-                    ID: {recvTransportRef.current.id}<br/>
-                    State: <span className={recvTransportRef.current.connectionState === 'connected' ? 'text-green-600' : 'text-yellow-600'}>{recvTransportRef.current.connectionState}</span><br/>
-                    Closed: {recvTransportRef.current.closed ? '❌' : '✅'}
-                  </div>
-                </div>
-              )}
-
-              {producerRef.current && (
-                <div className="mt-2">
-                  <strong>Producer:</strong>
-                  <div className="ml-2 text-slate-600">
-                    ID: {producerRef.current.id}<br/>
-                    Paused: {producerRef.current.paused ? '⏸️' : '▶️'}<br/>
-                    Closed: {producerRef.current.closed ? '❌' : '✅'}<br/>
-                    {producerRef.current.track && (
-                      <>
-                        Track Enabled: {producerRef.current.track.enabled ? '✅' : '❌'}<br/>
-                        Track Muted: {producerRef.current.track.muted ? '🔇' : '🔊'}
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {consumerRef.current && (
-                <div className="mt-2">
-                  <strong>Consumer:</strong>
-                  <div className="ml-2 text-slate-600">
-                    ID: {consumerRef.current.id}<br/>
-                    Producer ID: {consumerRef.current.producerId}<br/>
-                    Paused: {consumerRef.current.paused ? '⏸️' : '▶️'}<br/>
-                    Closed: {consumerRef.current.closed ? '❌' : '✅'}<br/>
-                    {consumerRef.current.track && (
-                      <>
-                        Track Enabled: {consumerRef.current.track.enabled ? '✅' : '❌'}<br/>
-                        Track Muted: {consumerRef.current.track.muted ? '🔇' : '🔊'}<br/>
-                        Track State: {consumerRef.current.track.readyState}
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {remoteAudioRef.current && (
-                <div className="mt-2">
-                  <strong>Audio Element:</strong>
-                  <div className="ml-2 text-slate-600">
-                    Paused: {remoteAudioRef.current.paused ? '⏸️' : '▶️'}<br/>
-                    Muted: {remoteAudioRef.current.muted ? '🔇' : '🔊'}<br/>
-                    Volume: {remoteAudioRef.current.volume}<br/>
-                    Ready State: {remoteAudioRef.current.readyState}<br/>
-                    Has Source: {remoteAudioRef.current.srcObject ? '✅' : '❌'}<br/>
-                    {remoteAudioRef.current.error && (
-                      <span className="text-red-600">Error: {remoteAudioRef.current.error.message}</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-2 text-xs text-slate-500">
-                <em>Check browser console (F12) for detailed diagnostic logs</em>
-              </div>
+          {/* Status indicator */}
+          <div className="mt-6 text-center">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${status === 'connected' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+              }`}>
+              <div className={`w-2 h-2 rounded-full ${status === 'connected' ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'
+                }`}></div>
+              {status === 'connected' ? 'Connected' : 'Connecting...'}
             </div>
           </div>
-        )}
+
+          {/* Diagnostic Panel */}
+          {showDiagnostics && (
+            <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 max-h-96 overflow-y-auto">
+              <h3 className="text-sm font-bold text-slate-900 mb-2">🔍 Diagnostic Information</h3>
+              <div className="space-y-2 text-xs">
+                <div>
+                  <strong>Call ID:</strong> {callIdRef.current || 'N/A'}
+                </div>
+                <div>
+                  <strong>Status:</strong> {status}
+                </div>
+
+                {socketRef.current && (
+                  <div className="mt-2">
+                    <strong>Socket:</strong>
+                    <div className="ml-2 text-slate-600">
+                      ID: {socketRef.current.id}<br />
+                      Connected: {socketRef.current.connected ? '✅' : '❌'}<br />
+                      Room Joined: {roomJoinedRef.current ? '✅ Yes' : '❌ No'}
+                    </div>
+                  </div>
+                )}
+
+                {sendTransportRef.current && (
+                  <div className="mt-2">
+                    <strong>Send Transport:</strong>
+                    <div className="ml-2 text-slate-600">
+                      ID: {sendTransportRef.current.id}<br />
+                      State: <span className={sendTransportRef.current.connectionState === 'connected' ? 'text-green-600' : 'text-yellow-600'}>{sendTransportRef.current.connectionState}</span><br />
+                      Closed: {sendTransportRef.current.closed ? '❌' : '✅'}
+                    </div>
+                  </div>
+                )}
+
+                {recvTransportRef.current && (
+                  <div className="mt-2">
+                    <strong>Recv Transport:</strong>
+                    <div className="ml-2 text-slate-600">
+                      ID: {recvTransportRef.current.id}<br />
+                      State: <span className={recvTransportRef.current.connectionState === 'connected' ? 'text-green-600' : 'text-yellow-600'}>{recvTransportRef.current.connectionState}</span><br />
+                      Closed: {recvTransportRef.current.closed ? '❌' : '✅'}
+                    </div>
+                  </div>
+                )}
+
+                {producerRef.current && (
+                  <div className="mt-2">
+                    <strong>Producer:</strong>
+                    <div className="ml-2 text-slate-600">
+                      ID: {producerRef.current.id}<br />
+                      Paused: {producerRef.current.paused ? '⏸️' : '▶️'}<br />
+                      Closed: {producerRef.current.closed ? '❌' : '✅'}<br />
+                      {producerRef.current.track && (
+                        <>
+                          Track Enabled: {producerRef.current.track.enabled ? '✅' : '❌'}<br />
+                          Track Muted: {producerRef.current.track.muted ? '🔇' : '🔊'}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {consumerRef.current && (
+                  <div className="mt-2">
+                    <strong>Consumer:</strong>
+                    <div className="ml-2 text-slate-600">
+                      ID: {consumerRef.current.id}<br />
+                      Producer ID: {consumerRef.current.producerId}<br />
+                      Paused: {consumerRef.current.paused ? '⏸️' : '▶️'}<br />
+                      Closed: {consumerRef.current.closed ? '❌' : '✅'}<br />
+                      {consumerRef.current.track && (
+                        <>
+                          Track Enabled: {consumerRef.current.track.enabled ? '✅' : '❌'}<br />
+                          Track Muted: {consumerRef.current.track.muted ? '🔇' : '🔊'}<br />
+                          Track State: {consumerRef.current.track.readyState}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {remoteAudioRef.current && (
+                  <div className="mt-2">
+                    <strong>Audio Element:</strong>
+                    <div className="ml-2 text-slate-600">
+                      Paused: {remoteAudioRef.current.paused ? '⏸️' : '▶️'}<br />
+                      Muted: {remoteAudioRef.current.muted ? '🔇' : '🔊'}<br />
+                      Volume: {remoteAudioRef.current.volume}<br />
+                      Ready State: {remoteAudioRef.current.readyState}<br />
+                      Has Source: {remoteAudioRef.current.srcObject ? '✅' : '❌'}<br />
+                      {remoteAudioRef.current.error && (
+                        <span className="text-red-600">Error: {remoteAudioRef.current.error.message}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-2 text-xs text-slate-500">
+                  <em>Check browser console (F12) for detailed diagnostic logs</em>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
     </>
   )
 }
