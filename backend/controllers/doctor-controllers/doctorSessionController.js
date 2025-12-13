@@ -328,40 +328,12 @@ exports.updateSession = asyncHandler(async (req, res) => {
     });
   }
 
-  // Validate session can be started - only for today's sessions within scheduled time
+  // Validate session can be started - check if current time is within session time range
   if (status === SESSION_STATUS.LIVE) {
     const sessionStart = sessionStartTime || session.sessionStartTime;
     const sessionEnd = sessionEndTime || session.sessionEndTime;
     
-    // Get today's date in IST
-    const todayComponents = getISTDateComponents();
-    const sessionComponents = parseDateInISTComponents(session.date);
-    
-    // Format date strings for comparison and error messages
-    const todayStr = `${todayComponents.year}-${String(todayComponents.month + 1).padStart(2, '0')}-${String(todayComponents.day).padStart(2, '0')}`;
-    const sessionStr = `${sessionComponents.year}-${String(sessionComponents.month + 1).padStart(2, '0')}-${String(sessionComponents.day).padStart(2, '0')}`;
-    
-    // Check if session is scheduled for today
-    const isToday = todayComponents.year === sessionComponents.year && 
-                    todayComponents.month === sessionComponents.month && 
-                    todayComponents.day === sessionComponents.day;
-    
-    // Only allow starting sessions scheduled for today
-    if (!isToday) {
-      return res.status(400).json({
-        success: false,
-        message: `You can only start sessions scheduled for today. Today is ${todayStr}, but this session is scheduled for ${sessionStr}.`,
-        data: {
-          todayDate: todayStr,
-          sessionDate: sessionStr,
-          isToday: false,
-          sessionStartTime: sessionStart,
-          sessionEndTime: sessionEnd,
-        },
-      });
-    }
-    
-    // Session is for today - now check if current time is within session time range
+    // Get current time in IST
     const currentTime = getISTTimeString();
     const currentMinutes = getISTTimeInMinutes();
     const startMinutes = timeStringToMinutes(sessionStart);
@@ -376,9 +348,6 @@ exports.updateSession = asyncHandler(async (req, res) => {
           sessionStartTime: sessionStart,
           sessionEndTime: sessionEnd,
           currentTime: currentTime,
-          currentMinutes,
-          startMinutes,
-          endMinutes,
         },
       });
     }
@@ -390,10 +359,8 @@ exports.updateSession = asyncHandler(async (req, res) => {
       let errorMessage;
       if (currentMinutes < startMinutes) {
         errorMessage = `Session can only be started at or after ${sessionStart}. Current time: ${currentTime}`;
-      } else if (currentMinutes > endMinutes) {
-        errorMessage = `Session can only be started before ${sessionEnd}. Current time: ${currentTime}`;
       } else {
-        errorMessage = `Session can only be started during scheduled time (${sessionStart} - ${sessionEnd}). Current time: ${currentTime}`;
+        errorMessage = `Session can only be started before ${sessionEnd}. Current time: ${currentTime}`;
       }
       
       return res.status(400).json({
@@ -406,26 +373,9 @@ exports.updateSession = asyncHandler(async (req, res) => {
           currentMinutes: currentMinutes,
           startMinutes: startMinutes,
           endMinutes: endMinutes,
-          isToday: true,
-          todayDate: todayStr,
-          sessionDate: sessionStr,
-          isWithinTime: false,
-          comparison: `${currentMinutes} >= ${startMinutes} && ${currentMinutes} <= ${endMinutes} = ${isWithinTime}`,
         },
       });
     }
-    
-    // All validations passed: session is for today AND current time is within session time range
-    console.log('✅ [Backend] Session start validation passed:', {
-      todayDate: todayStr,
-      sessionDate: sessionStr,
-      sessionTime: `${sessionStart} - ${sessionEnd}`,
-      currentTime: currentTime,
-      currentMinutes,
-      startMinutes,
-      endMinutes,
-      isWithinTime: true,
-    });
     
     if (!session.startedAt) {
       // Use IST time for doctor session operations
