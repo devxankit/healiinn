@@ -12,6 +12,7 @@ import {
   IoTimeOutline,
 } from 'react-icons/io5'
 import { getPatientReports, downloadReport, shareLabReport } from '../patient-services/patientService'
+import { getFileUrl } from '../../../utils/apiClient'
 import { useToast } from '../../../contexts/ToastContext'
 
 // Default reports (will be replaced by API data)
@@ -47,12 +48,12 @@ const PatientReports = () => {
         setLoading(true)
         setError(null)
         const response = await getPatientReports()
-        
+
         if (response.success && response.data) {
-          const reportsData = Array.isArray(response.data) 
-            ? response.data 
+          const reportsData = Array.isArray(response.data)
+            ? response.data
             : response.data.items || []
-          
+
           const transformed = reportsData.map(report => ({
             id: report._id || report.id,
             _id: report._id || report.id,
@@ -70,7 +71,7 @@ const PatientReports = () => {
             doctorImage: report.doctorId?.image || null,
             originalData: report,
           }))
-          
+
           setReports(transformed)
         }
       } catch (err) {
@@ -87,15 +88,15 @@ const PatientReports = () => {
 
   // Get doctors for sharing (using discovery API)
   const [doctors, setDoctors] = useState([])
-  
+
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
         const { getDiscoveryDoctors } = await import('../patient-services/patientService')
         const response = await getDiscoveryDoctors()
         if (response.success && response.data) {
-          const doctorsData = Array.isArray(response.data) 
-            ? response.data 
+          const doctorsData = Array.isArray(response.data)
+            ? response.data
             : response.data.items || []
           const transformed = doctorsData.map(doctor => ({
             id: doctor._id || doctor.id,
@@ -121,7 +122,7 @@ const PatientReports = () => {
   const handleViewClick = (report) => {
     // Open the lab-uploaded PDF in a new tab
     if (report.pdfFileUrl && report.pdfFileUrl !== '#') {
-      window.open(report.pdfFileUrl, '_blank')
+      window.open(getFileUrl(report.pdfFileUrl), '_blank')
     } else {
       // Fallback: show modal if PDF not available
       setSelectedReport(report)
@@ -150,20 +151,20 @@ const PatientReports = () => {
     if (!selectedReport || !selectedDoctorId) return
 
     setIsSharing(true)
-    
+
     try {
       const selectedDoctor = doctors.find(doc => (doc.id || doc._id) === selectedDoctorId)
       const reportId = selectedReport._id || selectedReport.id
       const doctorId = selectedDoctorId
-      
+
       // Try to find consultation ID if patient has appointment with this doctor
       let consultationId = null
       try {
         const { getPatientAppointments } = await import('../patient-services/patientService')
         const appointmentsResponse = await getPatientAppointments({ doctor: doctorId, status: 'completed' })
         if (appointmentsResponse.success && appointmentsResponse.data) {
-          const appointments = Array.isArray(appointmentsResponse.data) 
-            ? appointmentsResponse.data 
+          const appointments = Array.isArray(appointmentsResponse.data)
+            ? appointmentsResponse.data
             : appointmentsResponse.data.items || []
           // Get the most recent completed appointment
           const recentAppointment = appointments
@@ -176,7 +177,7 @@ const PatientReports = () => {
               const dateB = new Date(b.appointmentDate || b.createdAt || 0)
               return dateB - dateA
             })[0]
-          
+
           if (recentAppointment?.consultationId) {
             consultationId = recentAppointment.consultationId._id || recentAppointment.consultationId
           }
@@ -185,21 +186,21 @@ const PatientReports = () => {
         console.error('Error fetching consultation ID:', error)
         // Continue without consultationId
       }
-      
+
       // Share report via API
       const response = await shareLabReport(reportId, doctorId, consultationId)
-      
+
       if (response.success) {
         toast.success(`Report shared successfully with ${selectedDoctor?.name || 'doctor'}`)
         handleCloseShareModal()
-        
+
         // Refresh reports to get updated shared status
         const reportsResponse = await getPatientReports()
         if (reportsResponse.success && reportsResponse.data) {
-          const reportsData = Array.isArray(reportsResponse.data) 
-            ? reportsResponse.data 
+          const reportsData = Array.isArray(reportsResponse.data)
+            ? reportsResponse.data
             : reportsResponse.data.items || []
-          
+
           const transformed = reportsData.map(report => ({
             id: report._id || report.id,
             _id: report._id || report.id,
@@ -217,17 +218,17 @@ const PatientReports = () => {
             doctorImage: report.doctorId?.image || null,
             originalData: report,
           }))
-          
+
           setReports(transformed)
         }
       } else {
         toast.error(response.message || 'Failed to share report. Please try again.')
-        }
-      } catch (error) {
+      }
+    } catch (error) {
       console.error('Error sharing report:', error)
       toast.error(error.message || 'Failed to share report. Please try again.')
     } finally {
-        setIsSharing(false)
+      setIsSharing(false)
     }
   }
 
@@ -238,7 +239,7 @@ const PatientReports = () => {
         // Check if we have stored PDF in localStorage (from previous download)
         const storedPdfs = JSON.parse(localStorage.getItem('patientLabReportPdfs') || '{}')
         const storedPdf = storedPdfs[report.id]
-        
+
         if (storedPdf && storedPdf.base64Data) {
           // Use stored PDF if available
           const link = document.createElement('a')
@@ -249,20 +250,20 @@ const PatientReports = () => {
           document.body.removeChild(link)
           return
         }
-        
+
         // Try to fetch the PDF file (works for same-origin or CORS-enabled servers)
         try {
-          const response = await fetch(report.pdfFileUrl, {
+          const response = await fetch(getFileUrl(report.pdfFileUrl), {
             method: 'GET',
             mode: 'cors',
           })
-          
+
           if (response.ok) {
             const blob = await response.blob()
-            
+
             // Create a blob URL for download
             const blobUrl = URL.createObjectURL(blob)
-            
+
             // Create download link
             const link = document.createElement('a')
             link.href = blobUrl
@@ -270,12 +271,12 @@ const PatientReports = () => {
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)
-            
+
             // Clean up blob URL
             setTimeout(() => {
               URL.revokeObjectURL(blobUrl)
             }, 100)
-            
+
             // Store PDF in localStorage for offline access
             try {
               const reader = new FileReader()
@@ -300,7 +301,7 @@ const PatientReports = () => {
           // If fetch fails due to CORS, use direct link approach
           console.warn('Fetch failed, trying direct link:', fetchError)
         }
-        
+
         // Fallback: Use direct link (browser will handle download if server allows)
         // This works for same-origin or servers that allow direct downloads
         const link = document.createElement('a')
@@ -311,17 +312,17 @@ const PatientReports = () => {
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
-        
+
         // Note: For cross-origin PDFs that don't allow CORS, the browser will open in new tab
         // In production, use a backend proxy endpoint to download the PDF
       } catch (error) {
         console.error('Error downloading PDF:', error)
         // Last resort: open in new tab
-        window.open(report.pdfFileUrl, '_blank')
+        window.open(getFileUrl(report.pdfFileUrl), '_blank')
       }
       return
     }
-    
+
     // Fallback: Generate and download PDF report if no PDF file URL
     const pdfContent = `
 <!DOCTYPE html>
@@ -395,11 +396,11 @@ const PatientReports = () => {
 </body>
 </html>
     `
-    
+
     const printWindow = window.open('', '_blank')
     printWindow.document.write(pdfContent)
     printWindow.document.close()
-    
+
     setTimeout(() => {
       printWindow.focus()
       printWindow.print()
@@ -443,65 +444,65 @@ const PatientReports = () => {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {reports.map((report) => (
-            <article
-              key={report.id}
-              className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md flex flex-col min-h-[180px]"
-            >
-              {/* Header Section */}
-              <div className="flex items-start gap-4 p-5 pb-4 flex-1 min-h-[120px]">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
-                style={{ 
-                  background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
-                  boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
-                }}>
-                  <IoFlaskOutline className="h-8 w-8" />
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold text-slate-900 line-clamp-2 leading-tight">{report.testName}</h3>
-                      <p className="mt-1 text-sm text-slate-600 line-clamp-1">{report.labName}</p>
-                      <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-                        <IoTimeOutline className="h-3.5 w-3.5 shrink-0" />
-                        <span className="whitespace-nowrap">{formatDate(report.date)}</span>
+              <article
+                key={report.id}
+                className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md flex flex-col min-h-[180px]"
+              >
+                {/* Header Section */}
+                <div className="flex items-start gap-4 p-5 pb-4 flex-1 min-h-[120px]">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
+                    style={{
+                      background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
+                      boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
+                    }}>
+                    <IoFlaskOutline className="h-8 w-8" />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-bold text-slate-900 line-clamp-2 leading-tight">{report.testName}</h3>
+                        <p className="mt-1 text-sm text-slate-600 line-clamp-1">{report.labName}</p>
+                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                          <IoTimeOutline className="h-3.5 w-3.5 shrink-0" />
+                          <span className="whitespace-nowrap">{formatDate(report.date)}</span>
+                        </div>
                       </div>
+                      <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 whitespace-nowrap">
+                        Ready
+                      </span>
                     </div>
-                    <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 whitespace-nowrap">
-                      Ready
-                    </span>
                   </div>
                 </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-4">
-                <button
-                  type="button"
-                  onClick={() => handleDownload(report)}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98]"
-                >
-                  <IoDownloadOutline className="h-4 w-4 shrink-0" />
-                  <span className="whitespace-nowrap">Download PDF</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleViewClick(report)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow active:scale-95"
-                  aria-label="View report"
-                >
-                  <IoEyeOutline className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleShareClick(report)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-[rgba(17,73,108,0.4)] hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] hover:shadow active:scale-95"
-                  aria-label="Share with doctor"
-                >
-                  <IoShareSocialOutline className="h-5 w-5" />
-                </button>
-              </div>
-            </article>
+                {/* Action Buttons */}
+                <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-4">
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(report)}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98]"
+                  >
+                    <IoDownloadOutline className="h-4 w-4 shrink-0" />
+                    <span className="whitespace-nowrap">Download PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleViewClick(report)}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow active:scale-95"
+                    aria-label="View report"
+                  >
+                    <IoEyeOutline className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleShareClick(report)}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-[rgba(17,73,108,0.4)] hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] hover:shadow active:scale-95"
+                    aria-label="Share with doctor"
+                  >
+                    <IoShareSocialOutline className="h-5 w-5" />
+                  </button>
+                </div>
+              </article>
             ))}
           </div>
         )}
@@ -535,11 +536,10 @@ const PatientReports = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedDoctorId(selectedReport.doctorId)}
-                    className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
-                      selectedDoctorId === selectedReport.doctorId
+                    className={`w-full rounded-xl border-2 p-3 text-left transition-all ${selectedDoctorId === selectedReport.doctorId
                         ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                         : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <img
@@ -576,11 +576,10 @@ const PatientReports = () => {
                           key={doctor.id}
                           type="button"
                           onClick={() => setSelectedDoctorId(doctor.id)}
-                          className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
-                            selectedDoctorId === doctor.id
+                          className={`w-full rounded-xl border-2 p-3 text-left transition-all ${selectedDoctorId === doctor.id
                               ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
                               : 'border-slate-200 bg-white hover:border-slate-300'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center gap-3">
                             <img
@@ -672,10 +671,10 @@ const PatientReports = () => {
               {/* Report Header */}
               <div className="flex items-start gap-4 mb-6">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
-                style={{ 
-                  background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
-                  boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
-                }}>
+                  style={{
+                    background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
+                    boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
+                  }}>
                   <IoFlaskOutline className="h-8 w-8" />
                 </div>
                 <div className="flex-1">

@@ -13,6 +13,7 @@ import {
   IoMailOutline,
 } from 'react-icons/io5'
 import { getLaboratoryReports, shareLaboratoryReport } from '../laboratory-services/laboratoryService'
+import { getFileUrl } from '../../../utils/apiClient'
 import { useToast } from '../../../contexts/ToastContext'
 
 const formatDateTime = (value) => {
@@ -53,12 +54,12 @@ const LaboratoryReports = () => {
       try {
         setLoading(true)
         const response = await getLaboratoryReports()
-        
+
         if (response.success && response.data) {
-          const reportsData = Array.isArray(response.data) 
-            ? response.data 
+          const reportsData = Array.isArray(response.data)
+            ? response.data
             : response.data.reports || []
-          
+
           const transformed = reportsData.map(report => ({
             id: report._id || report.id,
             orderId: report.orderId?._id || report.orderId?.id || report.orderId || '',
@@ -75,7 +76,7 @@ const LaboratoryReports = () => {
             sharedWithPatient: report.sharedWithPatient || false,
             sharedDate: report.sharedDate || null,
           }))
-          
+
           setTestReports(transformed)
         }
       } catch (err) {
@@ -109,7 +110,7 @@ const LaboratoryReports = () => {
     setIsProcessing(true)
     try {
       await shareLaboratoryReport(report.id)
-      
+
       setTestReports((prev) =>
         prev.map((r) =>
           r.id === report.id
@@ -117,7 +118,7 @@ const LaboratoryReports = () => {
             : r
         )
       )
-      
+
       toast.success(`Test report shared with ${report.patientName} successfully!`)
     } catch (error) {
       console.error('Error sharing report:', error)
@@ -128,9 +129,13 @@ const LaboratoryReports = () => {
   }
 
   const handleDownloadReport = (report) => {
-    // Generate PDF for test report
-    alert(`Downloading test report for ${report.testName}...`)
-    // PDF generation logic can be added here
+    // Open PDF for test report
+    const pdfUrl = report.pdfFileUrl || report.fileUrl || report.url
+    if (pdfUrl) {
+      window.open(getFileUrl(pdfUrl), '_blank')
+    } else {
+      toast.error('Report PDF not found')
+    }
   }
 
   const handleViewReport = (report) => {

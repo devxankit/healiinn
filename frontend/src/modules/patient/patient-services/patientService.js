@@ -259,6 +259,20 @@ export const getPatientOrders = async (filters = {}) => {
 }
 
 /**
+ * Get patient order by ID
+ * @param {string} orderId - Order ID
+ * @returns {Promise<object>} Order data
+ */
+export const getPatientOrderById = async (orderId) => {
+  try {
+    return await apiClient.get(`/patients/orders/${orderId}`)
+  } catch (error) {
+    console.error('Error fetching patient order details:', error)
+    throw error
+  }
+}
+
+/**
  * Get patient prescriptions
  * @param {object} filters - Filter options
  * @returns {Promise<object>} Prescriptions data

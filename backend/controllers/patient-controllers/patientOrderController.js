@@ -26,9 +26,15 @@ exports.getOrders = asyncHandler(async (req, res) => {
   if (status) filter.status = status;
   if (providerType) filter.providerType = providerType;
 
+  console.log('[PatientOrders] Fetching orders for patient:', id);
+  console.log('[PatientOrders] Filter:', JSON.stringify(filter));
+
+  const countTest = await Order.countDocuments({ patientId: id });
+  console.log('[PatientOrders] Total orders in DB for this patient (ignoring other filters):', countTest);
+
   const [orders, total] = await Promise.all([
     Order.find(filter)
-      .populate('providerId', providerType === 'pharmacy' ? 'pharmacyName address' : 'labName address')
+      .populate('providerId', 'pharmacyName labName address name')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -52,12 +58,14 @@ exports.getOrders = asyncHandler(async (req, res) => {
 // GET /api/patients/orders/:id
 exports.getOrderById = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { orderId } = req.params;
+  const orderId = req.params.id;
 
   const order = await Order.findOne({
     _id: orderId,
     patientId: id,
-  }).populate('providerId').populate('prescriptionId');
+  })
+    .populate('providerId', 'labName pharmacyName name address')
+    .populate('prescriptionId');
 
   if (!order) {
     return res.status(404).json({

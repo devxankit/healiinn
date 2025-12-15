@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   IoCheckmarkCircleOutline,
   IoCloseOutline,
@@ -54,6 +55,7 @@ const PatientRequests = () => {
   const [requests, setRequests] = useState([])
   const [receiptPdfUrl, setReceiptPdfUrl] = useState(null)
   const toast = useToast()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -115,6 +117,15 @@ const PatientRequests = () => {
               })
             }
 
+            const orders = Array.isArray(request.orders) ? request.orders : []
+            const latestOrder = orders.length > 0 ? orders[orders.length - 1] : null
+            // Prioritize order status if available, but don't revert to 'accepted' if request is already 'confirmed' (paid)
+            // This prevents the 'Pay' button from reappearing when lab accepts the order
+            let status = latestOrder?.status || request.status || 'pending'
+            if (request.status === 'confirmed' && latestOrder?.status === 'accepted') {
+              status = 'confirmed'
+            }
+
             return {
               id: request._id || request.id,
               _id: request._id || request.id,
@@ -127,7 +138,7 @@ const PatientRequests = () => {
                 : (request.adminResponse?.pharmacy?.pharmacyId || request.adminResponse?.pharmacies?.[0]?.pharmacyId),
               testName: request.adminResponse?.lab?.testName || request.adminResponse?.tests?.[0]?.testName || 'Lab Test',
               medicineName: request.adminResponse?.pharmacy?.medicineName || 'Prescription Medicines',
-              status: request.status || 'pending',
+              status: status,
               requestDate: request.createdAt || request.requestDate || new Date().toISOString().split('T')[0],
               responseDate: request.adminResponse?.responseTime || request.responseDate || null,
               totalAmount: request.adminResponse?.totalAmount || request.totalAmount || null,
@@ -176,6 +187,7 @@ const PatientRequests = () => {
                 phone: request.prescriptionId.doctorId.phone || '',
               } : null,
               originalData: request,
+              orders: orders, // Include orders in the transformed object
             }
           })
 
@@ -254,6 +266,13 @@ const PatientRequests = () => {
             })
           }
 
+          const latestOrder = orders.length > 0 ? orders[orders.length - 1] : null
+          // Prioritize order status if available, but don't revert to 'accepted' if request is already 'confirmed' (paid)
+          let status = latestOrder?.status || request.status || 'pending'
+          if (request.status === 'confirmed' && latestOrder?.status === 'accepted') {
+            status = 'confirmed'
+          }
+
           return {
             id: request._id || request.id,
             _id: request._id || request.id,
@@ -266,7 +285,7 @@ const PatientRequests = () => {
               : (request.adminResponse?.pharmacy?.pharmacyId || request.adminResponse?.pharmacies?.[0]?.pharmacyId),
             testName: request.adminResponse?.lab?.testName || request.adminResponse?.tests?.[0]?.testName || 'Lab Test',
             medicineName: request.adminResponse?.pharmacy?.medicineName || 'Prescription Medicines',
-            status: request.status || 'pending',
+            status: status,
             requestDate: request.createdAt || request.requestDate || new Date().toISOString().split('T')[0],
             responseDate: request.adminResponse?.responseTime || request.responseDate || null,
             totalAmount: request.adminResponse?.totalAmount || request.totalAmount || null,
@@ -302,6 +321,7 @@ const PatientRequests = () => {
               phone: request.prescriptionId.doctorId.phone || '',
             } : null,
             originalData: request,
+            orders: orders, // Include orders in the transformed object
           }
         })
 
@@ -544,7 +564,7 @@ const PatientRequests = () => {
 
       // Step 1: Create payment order
       const paymentOrderResponse = await createRequestPaymentOrder(requestId)
-      
+
       if (!paymentOrderResponse.success) {
         toast.error(paymentOrderResponse.message || 'Failed to create payment order. Please try again.')
         setIsProcessing(false)
@@ -567,8 +587,8 @@ const PatientRequests = () => {
       }
 
       const requestType = selectedRequest.type === 'book_test_visit' || selectedRequest.type === 'lab' ? 'lab test' : 'medicine'
-      const requestDescription = selectedRequest.type === 'book_test_visit' || selectedRequest.type === 'lab' 
-        ? 'Lab Test Payment' 
+      const requestDescription = selectedRequest.type === 'book_test_visit' || selectedRequest.type === 'lab'
+        ? 'Lab Test Payment'
         : 'Medicine Order Payment'
 
       const options = {
@@ -591,10 +611,10 @@ const PatientRequests = () => {
 
             if (verifyResponse.success) {
               toast.success(`Payment successful! Your ${requestType} order has been confirmed.`)
-        handleClosePaymentModal()
-        // Refetch requests to get updated status
-        await refetchRequests()
-      } else {
+              handleClosePaymentModal()
+              // Refetch requests to get updated status
+              await refetchRequests()
+            } else {
               toast.error(verifyResponse.message || 'Payment verification failed.')
             }
           } catch (error) {
@@ -670,6 +690,23 @@ const PatientRequests = () => {
         return 'bg-purple-100 text-purple-700'
       case 'confirmed':
         return 'bg-emerald-100 text-emerald-700'
+      // Lab statuses
+      case 'visit_time':
+        return 'bg-blue-100 text-blue-700'
+      case 'sample_collected':
+        return 'bg-indigo-100 text-indigo-700'
+      case 'being_tested':
+        return 'bg-purple-100 text-purple-700'
+      case 'reports_being_generated':
+        return 'bg-orange-100 text-orange-700'
+      case 'test_successful':
+        return 'bg-emerald-100 text-emerald-700'
+      case 'reports_updated':
+        return 'bg-green-100 text-green-700'
+      case 'completed':
+        return 'bg-slate-100 text-slate-700'
+      case 'cancelled':
+        return 'bg-red-100 text-red-700'
       default:
         return 'bg-slate-100 text-slate-700'
     }
@@ -699,9 +736,24 @@ const PatientRequests = () => {
       case 'paid':
         return 'Processing'
       case 'confirmed':
-        return 'Confirmed'
+        return 'Paid'
       default:
-        return status
+        // User requested: "instead of completed status... show request accepted"
+        if (status === 'completed' || status === 'Completed') {
+          return 'Request Accepted'
+        }
+        return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+    }
+  }
+
+  const handleRequestClick = (request) => {
+    // If there's an active order (status confirmed/completed/etc.), redirect to orders section
+    // Check if we have orders attached or status implies order creation
+    const hasOrder = request.orders && request.orders.length > 0
+    const isOrderActive = hasOrder || request.status === 'confirmed' || request.status === 'completed' || request.status === 'reports_updated'
+
+    if (isOrderActive) {
+      navigate('/patient/orders')
     }
   }
 
@@ -727,14 +779,16 @@ const PatientRequests = () => {
             {requests.map((request) => (
               <article
                 key={request.id}
-                className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
+                onClick={() => handleRequestClick(request)}
+                className={`group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md ${(request.orders && request.orders.length > 0) || request.status === 'confirmed' || request.status === 'completed' ? 'cursor-pointer hover:border-[#11496c]/30' : ''
+                  }`}
               >
                 {/* Main Content */}
                 <div className="p-3">
                   <div className="flex items-start gap-2.5">
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${request.type === 'lab'
-                        ? 'text-white shadow-md'
-                        : 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-orange-300/50 text-white shadow-md'
+                      ? 'text-white shadow-md'
+                      : 'bg-gradient-to-br from-orange-400 to-orange-500 shadow-orange-300/50 text-white shadow-md'
                       }`}
                       style={request.type === 'lab' ? {
                         background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
@@ -752,7 +806,7 @@ const PatientRequests = () => {
                       <div className="mb-2">
                         <div className="flex items-start justify-between gap-2 mb-1">
                           <h3 className="flex-1 min-w-0 text-sm font-bold text-slate-900 leading-tight pr-2 line-clamp-1">
-                            Healiinn
+                            {request.providerName || 'Healiinn'}
                           </h3>
                           <div className="shrink-0">
                             <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${getStatusColor(request.status)}`}>
@@ -764,9 +818,89 @@ const PatientRequests = () => {
                         <p className="text-[9px] text-slate-500">
                           {formatDate(request.requestDate)}
                         </p>
+                        {/* Lab Details Display */}
+                        {request.type === 'lab' && request.labInfo && (
+                          <div className="mt-1.5 space-y-0.5 border-t border-slate-100 pt-1.5">
+                            {request.labInfo.address && (
+                              <div className="flex items-start gap-1">
+                                <IoLocationOutline className="mt-0.5 h-2.5 w-2.5 shrink-0 text-slate-400" />
+                                <span className="text-[9px] text-slate-600 line-clamp-2">
+                                  {typeof request.labInfo.address === 'object'
+                                    ? [
+                                      request.labInfo.address.line1,
+                                      request.labInfo.address.line2,
+                                      request.labInfo.address.city,
+                                      request.labInfo.address.state,
+                                      request.labInfo.address.postalCode
+                                    ].filter(Boolean).join(', ')
+                                    : request.labInfo.address}
+                                </span>
+                              </div>
+                            )}
+                            {request.labInfo.phone && (
+                              <div className="flex items-center gap-1">
+                                <IoCallOutline className="h-2.5 w-2.5 shrink-0 text-slate-400" />
+                                <span className="text-[9px] text-slate-600">{request.labInfo.phone}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
+
+                  {/* Status Message for Paid/Confirmed Requests - Show when waiting for provider acceptance */}
+                  {request.status === 'confirmed' && (!request.orders || !request.orders.some(o => ['accepted', 'confirmed', 'completed', 'ready_for_pickup'].includes(o.status))) && (
+                    <div className="mt-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                      <div className="flex items-center gap-2">
+                        <IoTimeOutline className="h-5 w-5 text-yellow-600" />
+                        <p className="text-xs font-semibold text-yellow-800">
+                          Waiting for {(request.type === 'lab' || request.type === 'book_test_visit') ? 'Lab' : 'Pharmacy'} request acceptance...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Conditional Display for Accepted Status */}
+                  {request.status === 'accepted' && (
+                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                      <div className="flex items-start gap-3">
+                        <IoCheckmarkCircleOutline className="h-5 w-5 text-emerald-600 mt-0.5" />
+                        <div className="flex-1">
+                          {request.type === 'lab' ? (
+                            request.visitType === 'home' ? (
+                              // Home Collection - Hide Contact Info
+                              <div>
+                                <p className="text-sm font-bold text-emerald-800">
+                                  Request Accepted and Sample Collection Coming Soon
+                                </p>
+                              </div>
+                            ) : (
+                              // Lab Visit - Show Admin Accepted Message
+                              <div>
+                                <p className="text-sm font-bold text-emerald-800 mb-1">
+                                  Admin Accepted
+                                </p>
+                                <p className="text-xs text-emerald-700">
+                                  Your request has been accepted by the admin. Please proceed with payment.
+                                </p>
+                              </div>
+                            )
+                          ) : (
+                            // Pharmacy (Always Home Delivery)
+                            <div>
+                              <p className="text-sm font-bold text-emerald-800 mb-1">
+                                Admin Accepted
+                              </p>
+                              <p className="text-xs text-emerald-700">
+                                Your request has been accepted by the admin. Please proceed with payment.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Medicines Grouped by Pharmacy - Only show for pharmacy requests, HIDE pharmacy name */}
                   {request.type !== 'lab' && request.type !== 'book_test_visit' && request.medicinesByPharmacy && request.medicinesByPharmacy.length > 0 && (
@@ -811,31 +945,32 @@ const PatientRequests = () => {
                   {/* Lab Information and Tests - Only for lab requests */}
                   {(request.type === 'lab' || request.type === 'book_test_visit') && request.totalAmount && request.totalAmount > 0 && (
                     <>
-                      {/* Lab Name and Address - Only show when visitType === 'lab' */}
-                      {request.visitType === 'lab' && (request.labInfo || request.providerName) && (
-                        <div className="mt-2 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
-                            <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Laboratory</h4>
-                          </div>
-                          <div className="space-y-1 text-[9px]">
-                            <div className="font-semibold text-slate-900">
-                              {request.labInfo?.labName || request.labInfo?.name || request.providerName}
+                      {/* Lab Name and Address - Only show when visitType === 'lab' AND order is accepted by provider */}
+                      {request.visitType === 'lab' && (request.labInfo || request.providerName) && request.status === 'confirmed' &&
+                        request.orders?.some(o => ['accepted', 'confirmed', 'completed'].includes(o.status)) && (
+                          <div className="mt-2 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
+                              <h4 className="text-[9px] font-bold text-slate-800 uppercase tracking-wider">Laboratory</h4>
                             </div>
-                            {request.labInfo?.address && (
-                              <div className="flex items-start gap-1 mt-0.5 text-slate-600">
-                                <IoLocationOutline className="h-2.5 w-2.5 shrink-0 mt-0.5" />
-                                <span className="leading-tight">
-                                  {typeof request.labInfo.address === 'object'
-                                    ? `${request.labInfo.address.line1 || ''}${request.labInfo.address.line1 && request.labInfo.address.city ? ', ' : ''}${request.labInfo.address.city || ''}${request.labInfo.address.city && request.labInfo.address.state ? ', ' : ''}${request.labInfo.address.state || ''}${request.labInfo.address.postalCode ? ` ${request.labInfo.address.postalCode}` : ''}`.trim()
-                                    : request.labInfo.address
-                                  }
-                                </span>
+                            <div className="space-y-1 text-[9px]">
+                              <div className="font-semibold text-slate-900">
+                                {request.labInfo?.labName || request.labInfo?.name || request.providerName}
                               </div>
-                            )}
+                              {request.labInfo?.address && (
+                                <div className="flex items-start gap-1 mt-0.5 text-slate-600">
+                                  <IoLocationOutline className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                                  <span className="leading-tight">
+                                    {request.labInfo.address && typeof request.labInfo.address === 'object'
+                                      ? `${request.labInfo.address.line1 || ''}${request.labInfo.address.line1 && request.labInfo.address.city ? ', ' : ''}${request.labInfo.address.city || ''}${request.labInfo.address.city && request.labInfo.address.state ? ', ' : ''}${request.labInfo.address.state || ''}${request.labInfo.address.postalCode ? ` ${request.labInfo.address.postalCode}` : ''}`.trim()
+                                      : (request.labInfo.address || '')
+                                    }
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
                       {/* Tests Grouped by Lab - Hide lab name for patient */}
                       {request.testsByLab && request.testsByLab.length > 0 && (
@@ -922,12 +1057,14 @@ const PatientRequests = () => {
                     </div>
                   )}
 
-                  {/* Confirmed Status - Compact */}
-                  {request.status === 'confirmed' && (
+                  {/* Confirmed Status - Show only when provider accepted */}
+                  {request.status === 'confirmed' && request.orders?.some(o => ['accepted', 'confirmed', 'completed'].includes(o.status)) && (
                     <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 p-2">
                       <IoCheckmarkCircleOutline className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                       <p className="text-[10px] font-semibold text-emerald-900 leading-tight">
-                        Booking confirmed! {request.type === 'lab' ? 'Test' : 'Medicine'} will be delivered as scheduled.
+                        {request.visitType === 'home' || request.visitType === 'home_collection'
+                          ? "Contact soon for home collection."
+                          : "Booking confirmed! Please visit the lab."}
                       </p>
                     </div>
                   )}

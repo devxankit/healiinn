@@ -12,6 +12,13 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       index: true,
+      ref: function (doc) {
+        if (doc && doc.providerType) {
+          if (doc.providerType === 'laboratory') return 'Laboratory'
+          if (doc.providerType === 'pharmacy') return 'Pharmacy'
+        }
+        return 'Pharmacy' // Fallback to a valid model instead of non-existent 'User'
+      }
     },
     providerType: {
       type: String,
@@ -41,7 +48,12 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'accepted', 'processing', 'ready', 'delivered', 'cancelled'],
+      enum: [
+        // Common statuses
+        'pending', 'accepted', 'processing', 'ready', 'delivered', 'cancelled', 'completed',
+        // Lab visit flow statuses
+        'visit_time', 'sample_collected', 'being_tested', 'reports_being_generated', 'test_successful', 'reports_updated'
+      ],
       default: 'pending',
       index: true,
     },

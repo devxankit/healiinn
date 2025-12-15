@@ -157,6 +157,10 @@ exports.getRequests = asyncHandler(async (req, res) => {
           },
         ],
       })
+      .populate('adminResponse.labs')
+      .populate('adminResponse.pharmacies')
+      .populate('adminResponse.tests.labId')
+      .populate('orders')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -203,7 +207,10 @@ exports.getRequestById = asyncHandler(async (req, res) => {
         },
       ],
     })
-    .populate('orders');
+    .populate('orders')
+    .populate('adminResponse.labs')
+    .populate('adminResponse.pharmacies')
+    .populate('adminResponse.tests.labId');
 
   if (!request) {
     return res.status(404).json({
@@ -315,7 +322,7 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
   if (paymentId && paymentMethod === 'razorpay') {
     const { verifyPayment, getPaymentDetails } = require('../../services/paymentService');
     const { orderId } = req.body;
-    
+
     if (!orderId || !signature) {
       return res.status(400).json({
         success: false,
@@ -402,6 +409,12 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
       const currentBalance = latestTransaction?.balance || 0;
       const newBalance = currentBalance + pharmacyEarning;
 
+      // Ensure pharmacyId is valid before creating transaction
+      if (!pharmacyId) {
+        console.error('Missing pharmacyId for wallet transaction', { pharmacyGroup: medicines });
+        continue;
+      }
+
       // Create wallet transaction for pharmacy earning
       await WalletTransaction.create({
         userId: pharmacyId,
@@ -456,18 +469,19 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
       // 2. {labId, test: {name, price}} - from selectedTestsFromLab
       // 3. {name, price} - without labId (use first lab from adminResponse.labs)
       let labId = test.labId?.toString() || test.labId;
-      
+
       // If no labId in test, try to get from adminResponse.labs (first lab)
       if (!labId && request.adminResponse.labs && request.adminResponse.labs.length > 0) {
-        labId = request.adminResponse.labs[0].id?.toString() || request.adminResponse.labs[0]._id?.toString();
+        const firstLab = request.adminResponse.labs[0];
+        labId = firstLab.labId?.toString() || firstLab.id?.toString() || firstLab._id?.toString();
       }
-      
+
       if (!labId) {
         // If still no labId, skip this test
         console.warn('Test missing labId:', test);
         return;
       }
-      
+
       if (!labGroups[labId]) {
         labGroups[labId] = [];
       }
@@ -498,6 +512,12 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
 
       const currentBalance = latestTransaction?.balance || 0;
       const newBalance = currentBalance + labEarning;
+
+      // Ensure labId is valid before creating transaction
+      if (!labId) {
+        console.error('Missing labId for wallet transaction', { labGroup: tests });
+        continue;
+      }
 
       // Create wallet transaction for lab earning
       await WalletTransaction.create({
@@ -548,7 +568,7 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
   // Create transaction record for patient
   const Transaction = require('../../models/Transaction');
   const totalAmount = request.adminResponse.totalAmount || 0;
-  
+
   const patientTransaction = await Transaction.create({
     userId: id,
     userType: 'patient',
@@ -572,7 +592,7 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
   const addOrderIfNeeded = async ({ providerId, providerType, items, totalAmount }) => {
     if (!providerId || !totalAmount) return null
     if (!mongoose.Types.ObjectId.isValid(providerId)) return null
-    const providerObjectId = mongoose.Types.ObjectId(providerId)
+    const providerObjectId = new mongoose.Types.ObjectId(providerId)
     const existing = await Order.findOne({
       requestId: request._id,
       providerId: providerObjectId,
@@ -596,14 +616,14 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
   }
 
   const pharmacyGroups = {}
-  ;(request.adminResponse?.medicines || []).forEach((med) => {
-    const pharmId = med.pharmacyId
-    if (!pharmId) return
-    if (!pharmacyGroups[pharmId]) {
-      pharmacyGroups[pharmId] = []
-    }
-    pharmacyGroups[pharmId].push(med)
-  })
+    ; (request.adminResponse?.medicines || []).forEach((med) => {
+      const pharmId = med.pharmacyId
+      if (!pharmId) return
+      if (!pharmacyGroups[pharmId]) {
+        pharmacyGroups[pharmId] = []
+      }
+      pharmacyGroups[pharmId].push(med)
+    })
   for (const [pharmacyId, meds] of Object.entries(pharmacyGroups)) {
     const items = meds.map(med => ({
       name: med.name,

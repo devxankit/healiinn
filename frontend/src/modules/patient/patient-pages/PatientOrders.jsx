@@ -31,18 +31,21 @@ const PatientOrders = () => {
         setLoading(true)
         setError(null)
         const response = await getPatientOrders()
-        
+
         if (response.success && response.data) {
-          const ordersData = Array.isArray(response.data) 
-            ? response.data 
-            : response.data.orders || []
-          
+          // Backend returns orders in response.data.items
+          const ordersData = Array.isArray(response.data)
+            ? response.data
+            : response.data.items || response.data.orders || []
+
+          console.log('[PatientOrders] Fetched orders:', ordersData.length, ordersData)
+
           // Transform API data to match component structure
-          const transformed = ordersData.map(order => ({
+          const transformed = (ordersData || []).map(order => ({
             id: order._id || order.id,
             _id: order._id || order.id,
-            type: order.providerType || order.type || 'pharmacy',
-            labName: order.providerType === 'laboratory' 
+            type: order.providerType === 'laboratory' ? 'lab' : (order.providerType || order.type || 'pharmacy'),
+            labName: order.providerType === 'laboratory'
               ? (order.providerId?.labName || order.providerId?.name || 'Laboratory')
               : undefined,
             pharmacyName: order.providerType === 'pharmacy'
@@ -59,12 +62,25 @@ const PatientOrders = () => {
             date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
             collectionType: order.deliveryOption === 'pickup' ? 'lab' : 'home',
-            deliveryType: order.deliveryOption || 'home',
-            address: order.deliveryAddress || order.address || '',
+            deliveryType: order.deliveryOption === 'home_delivery' ? 'home' : (order.deliveryOption === 'pickup' ? 'pickup' : 'home'),
+            address: (() => {
+              // Prefer delivery address, then order address, then provider address
+              const formatAddr = (addr) => {
+                if (!addr) return ''
+                if (typeof addr === 'string') return addr
+                return [addr.line1, addr.line2, addr.city, addr.state, addr.postalCode].filter(Boolean).join(', ')
+              }
+              return (
+                formatAddr(order.deliveryAddress) ||
+                formatAddr(order.address) ||
+                formatAddr(order.providerId?.address) ||
+                ''
+              )
+            })(),
             prescriptionId: order.prescriptionId || order.prescription?.id || null,
             originalData: order,
           }))
-          
+
           setOrders(transformed)
         }
       } catch (err) {
@@ -82,7 +98,7 @@ const PatientOrders = () => {
   // Filter orders based on selected filter
   const filteredOrders = useMemo(() => {
     if (filter === 'all') return orders
-    
+
     return orders.filter(order => {
       switch (filter) {
         case 'pharmacy':
@@ -90,7 +106,7 @@ const PatientOrders = () => {
         case 'lab':
           return order.type === 'lab'
         case 'active':
-          return ['new', 'confirmed', 'processing', 'ready', 'payment_pending', 'payment_confirmed'].includes(order.status)
+          return ['new', 'accepted', 'confirmed', 'processing', 'ready', 'payment_pending', 'payment_confirmed'].includes(order.status)
         case 'completed':
           return ['delivered', 'test_completed', 'report_uploaded', 'completed'].includes(order.status)
         default:
@@ -131,7 +147,12 @@ const PatientOrders = () => {
       case 'payment_confirmed':
         return 'bg-emerald-100 text-emerald-700'
       case 'new':
+      case 'pending':
         return 'bg-[rgba(17,73,108,0.15)] text-[#11496c]'
+      case 'accepted':
+        return 'bg-indigo-100 text-indigo-700'
+      case 'visit_time':
+        return 'bg-blue-100 text-blue-700'
       case 'home_collection_requested':
       case 'patient_arrived':
       case 'delivery_requested':
@@ -139,9 +160,16 @@ const PatientOrders = () => {
       case 'sample_collected':
       case 'delivered':
         return 'bg-purple-100 text-purple-700'
+      case 'being_tested':
+        return 'bg-indigo-100 text-indigo-700'
+      case 'reports_being_generated':
+        return 'bg-cyan-100 text-cyan-700'
       case 'test_completed':
-      case 'report_uploaded':
+      case 'test_successful':
         return 'bg-emerald-100 text-emerald-700'
+      case 'report_uploaded':
+      case 'reports_updated':
+        return 'bg-green-100 text-green-700'
       case 'completed':
         return 'bg-emerald-100 text-emerald-700'
       case 'cancelled':
@@ -157,17 +185,30 @@ const PatientOrders = () => {
         return 'Payment Pending'
       case 'payment_confirmed':
         return 'Payment Confirmed'
-      // Lab statuses
+      // Lab statuses - new flow
       case 'new':
-        return 'New Order'
+      case 'pending':
+        return 'Pending'
+      case 'accepted':
+        return 'Order Accepted'
+      case 'visit_time':
+        return 'You can now visit the lab'
+      case 'lab_assistant_is_arriving':
+        return 'Lab assistant is arriving'
       case 'home_collection_requested':
         return 'Collection Requested'
       case 'sample_collected':
         return 'Sample Collected'
+      case 'being_tested':
+        return 'Being Tested'
+      case 'reports_being_generated':
+        return 'Reports Being Generated'
       case 'test_completed':
-        return 'Test Completed'
+      case 'test_successful':
+        return 'Test Successful'
       case 'report_uploaded':
-        return 'Report Uploaded'
+      case 'reports_updated':
+        return 'Reports Updated'
       // Pharmacy statuses
       case 'patient_arrived':
         return 'Patient Arrived'
@@ -192,15 +233,25 @@ const PatientOrders = () => {
       case 'payment_confirmed':
         return <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
       case 'new':
+      case 'pending':
       case 'home_collection_requested':
       case 'patient_arrived':
       case 'delivery_requested':
+      case 'lab_assistant_is_arriving':
         return <IoTimeOutline className="h-3.5 w-3.5" />
+      case 'visit_time':
+        return <IoCalendarOutline className="h-3.5 w-3.5" />
       case 'sample_collected':
       case 'delivered':
         return <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+      case 'being_tested':
+        return <IoFlaskOutline className="h-3.5 w-3.5" />
+      case 'reports_being_generated':
+        return <IoDocumentTextOutline className="h-3.5 w-3.5" />
       case 'test_completed':
+      case 'test_successful':
       case 'report_uploaded':
+      case 'reports_updated':
       case 'completed':
         return <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
       case 'cancelled':
@@ -235,11 +286,10 @@ const PatientOrders = () => {
           <button
             key={type}
             onClick={() => setFilter(type)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
-              filter === type
-                ? 'bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)]'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}
+            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${filter === type
+              ? 'bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)]'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
           >
             {type === 'all' ? 'All Orders' : type === 'lab' ? 'Lab Tests' : 'Pharmacy'}
           </button>
@@ -252,20 +302,35 @@ const PatientOrders = () => {
           <article
             key={order.id}
             className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              const orderIdToUse = order._id || order.id || order.originalData?._id || order.originalData?.id
+              if (!orderIdToUse) return
+              navigate(`/patient/orders/${orderIdToUse}`, { state: { order } })
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                const orderIdToUse = order._id || order.id || order.originalData?._id || order.originalData?.id
+                if (!orderIdToUse) return
+                navigate(`/patient/orders/${orderIdToUse}`, { state: { order } })
+              }
+            }}
           >
             <div className="flex items-start gap-3">
               {/* Icon */}
-              <div 
+              <div
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-lg"
-                style={order.type === 'lab' 
-                  ? { 
-                      background: 'linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)',
-                      boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3), 0 2px 4px -1px rgba(59, 130, 246, 0.2)'
-                    }
+                style={order.type === 'lab'
+                  ? {
+                    background: 'linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)',
+                    boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3), 0 2px 4px -1px rgba(59, 130, 246, 0.2)'
+                  }
                   : {
-                      background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-                      boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.3), 0 2px 4px -1px rgba(245, 158, 11, 0.2)'
-                    }
+                    background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                    boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.3), 0 2px 4px -1px rgba(245, 158, 11, 0.2)'
+                  }
                 }
               >
                 {order.type === 'lab' ? (
@@ -296,12 +361,22 @@ const PatientOrders = () => {
                     {order.type === 'lab' ? order.testName : order.medicineName}
                   </p>
 
-                  {/* Status Badge */}
-                  <div>
+                  {/* Status Badge and Visit Type */}
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(order.status)}`}>
                       {getStatusIcon(order.status)}
                       <span>{getStatusLabel(order.status)}</span>
                     </span>
+                    {/* Visit Type Badge */}
+                    {order.type === 'lab' && (
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                        order.collectionType === 'home' 
+                          ? 'bg-blue-100 text-blue-700' 
+                          : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {order.collectionType === 'home' ? '🏠 Home Visit' : '🏥 Lab Visit'}
+                      </span>
+                    )}
                   </div>
 
                   {/* Date and Time Row */}
@@ -323,7 +398,7 @@ const PatientOrders = () => {
                       <span className="truncate">{order.address}</span>
                     </div>
                     <p className="text-xs text-slate-400">
-                      {order.type === 'lab' 
+                      {order.type === 'lab'
                         ? `Collection: ${order.collectionType === 'home' ? 'Home Collection' : 'Lab Visit'}`
                         : `Delivery: ${order.deliveryType === 'home' ? 'Home Delivery' : 'Pickup'}`
                       }

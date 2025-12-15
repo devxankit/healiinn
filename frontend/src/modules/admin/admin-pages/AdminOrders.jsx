@@ -79,26 +79,26 @@ const AdminOrders = () => {
       try {
         setLoading(true)
         setError(null)
-        
+
         // Build filters
         const filters = {}
         if (searchTerm) filters.search = searchTerm
         if (typeFilter !== 'all') filters.type = typeFilter
-        
+
         const response = await getAdminOrders(filters)
-        
+
         if (response.success && response.data) {
-          const ordersData = Array.isArray(response.data) 
-            ? response.data 
+          const ordersData = Array.isArray(response.data)
+            ? response.data
             : response.data.items || []
-          
+
           // Transform API data to match component structure
           const transformed = ordersData.map(order => {
             // Determine order type
-            const orderType = order.providerType || order.type || 
-                            (order.pharmacyId || order.pharmacyName) ? 'pharmacy' : 
-                            (order.labId || order.labName || order.laboratoryId) ? 'laboratory' : 'pharmacy'
-            
+            const orderType = order.providerType || order.type ||
+              (order.pharmacyId || order.pharmacyName) ? 'pharmacy' :
+              (order.labId || order.labName || order.laboratoryId) ? 'laboratory' : 'pharmacy'
+
             return {
               id: order._id || order.id,
               _id: order._id || order.id,
@@ -123,14 +123,14 @@ const AdminOrders = () => {
               originalData: order,
             }
           })
-          
+
           // Sort by date (newest first)
           transformed.sort((a, b) => {
             const dateA = new Date(`${a.date} ${a.time}`)
             const dateB = new Date(`${b.date} ${b.time}`)
             return dateB - dateA
           })
-          
+
           setOrders(transformed)
         }
       } catch (err) {
@@ -141,7 +141,7 @@ const AdminOrders = () => {
         setLoading(false)
       }
     }
-    
+
     loadOrders()
     // Refresh every 30 seconds
     const interval = setInterval(loadOrders, 30000)
@@ -154,7 +154,7 @@ const AdminOrders = () => {
     // Filter by period
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    
+
     filtered = filtered.filter((order) => {
       const orderDate = new Date(order.date)
       orderDate.setHours(0, 0, 0, 0)
@@ -195,11 +195,11 @@ const AdminOrders = () => {
   // Provider aggregation for all views
   const providerAggregation = useMemo(() => {
     const providerMap = new Map()
-    
+
     filteredOrders.forEach((order) => {
       // Use provider ID + type as key to separate same name providers of different types
       const key = `${order.providerId || order.providerName}_${order.type}`
-      
+
       if (!providerMap.has(key)) {
         providerMap.set(key, {
           providerName: order.providerName,
@@ -211,26 +211,26 @@ const AdminOrders = () => {
           totalOrders: 0,
         })
       }
-      
+
       const provider = providerMap.get(key)
       provider.totalOrders++
       provider.revenue += order.amount
-      
+
       if (order.status === 'completed') {
         provider.completed++
       } else if (order.status === 'pending') {
         provider.pending++
       }
     })
-    
+
     // Filter by search if provided
     let providers = Array.from(providerMap.values())
-    
+
     // Filter by type if not 'all'
     if (typeFilter !== 'all') {
       providers = providers.filter((provider) => provider.type === typeFilter)
     }
-    
+
     // Filter by search if provided
     if (searchTerm.trim()) {
       const normalizedSearch = searchTerm.trim().toLowerCase()
@@ -238,7 +238,7 @@ const AdminOrders = () => {
         provider.providerName.toLowerCase().includes(normalizedSearch)
       )
     }
-    
+
     // Sort by revenue descending
     return providers.sort((a, b) => b.revenue - a.revenue)
   }, [filteredOrders, typeFilter, searchTerm])
@@ -247,7 +247,7 @@ const AdminOrders = () => {
   const selectedProviderOrders = useMemo(() => {
     if (!selectedProvider) return []
     return filteredOrders.filter(
-      order => 
+      order =>
         (order.providerId || order.providerName) === selectedProvider.providerId &&
         order.type === selectedProvider.type
     )
@@ -257,6 +257,8 @@ const AdminOrders = () => {
     switch (status) {
       case 'completed':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      case 'accepted':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200'
       case 'pending':
         return 'bg-amber-50 text-amber-700 border-amber-200'
       default:
@@ -297,7 +299,7 @@ const AdminOrders = () => {
     const completed = filteredOrders.filter((order) => order.status === 'completed').length
     const pending = filteredOrders.filter((order) => order.status === 'pending').length
     const totalAmount = filteredOrders.reduce((sum, order) => sum + order.amount, 0)
-    
+
     // Provider stats - always calculate from aggregation
     const providerStats = {
       totalProviders: providerAggregation.length,
@@ -325,11 +327,10 @@ const AdminOrders = () => {
           <button
             key={period}
             onClick={() => setPeriodFilter(period)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
-              periodFilter === period
+            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${periodFilter === period
                 ? 'bg-[#11496c] text-white shadow-sm'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}
+              }`}
           >
             {period}
           </button>
@@ -383,15 +384,14 @@ const AdminOrders = () => {
             <button
               key={type}
               onClick={() => setTypeFilter(type)}
-              className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                typeFilter === type
+              className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${typeFilter === type
                   ? type === 'all'
                     ? 'bg-[#11496c] text-white'
                     : type === 'pharmacy'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-amber-600 text-white'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-amber-600 text-white'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
+                }`}
             >
               {type.charAt(0).toUpperCase() + type.slice(1)}
             </button>
@@ -517,21 +517,19 @@ const AdminOrders = () => {
                             {order.items.slice(0, 3).map((item, idx) => (
                               <span
                                 key={idx}
-                                className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-medium ${
-                                  order.type === 'pharmacy' 
-                                    ? 'bg-slate-100 text-slate-700' 
+                                className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-medium ${order.type === 'pharmacy'
+                                    ? 'bg-slate-100 text-slate-700'
                                     : 'bg-amber-100 text-amber-700'
-                                }`}
+                                  }`}
                               >
                                 {item}
                               </span>
                             ))}
                             {order.items.length > 3 && (
-                              <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-medium ${
-                                order.type === 'pharmacy' 
-                                  ? 'bg-slate-100 text-slate-500' 
+                              <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-medium ${order.type === 'pharmacy'
+                                  ? 'bg-slate-100 text-slate-500'
                                   : 'bg-amber-100 text-amber-600'
-                              }`}>
+                                }`}>
                                 +{order.items.length - 3} more
                               </span>
                             )}
@@ -564,7 +562,7 @@ const AdminOrders = () => {
                   </span>
                 </div>
               </div>
-              
+
               {providerAggregation.filter(p => p.type === 'pharmacy').length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                   <IoBusinessOutline className="mx-auto h-10 w-10 text-slate-300 mb-2" />
@@ -637,7 +635,7 @@ const AdminOrders = () => {
                   </span>
                 </div>
               </div>
-              
+
               {providerAggregation.filter(p => p.type === 'laboratory').length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                   <IoFlaskOutline className="mx-auto h-10 w-10 text-slate-300 mb-2" />

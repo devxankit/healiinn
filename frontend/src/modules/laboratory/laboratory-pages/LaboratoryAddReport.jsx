@@ -13,7 +13,7 @@ import {
   IoCalendarOutline,
   IoInformationCircleOutline,
 } from 'react-icons/io5'
-import { createLaboratoryReport, getLaboratoryOrders } from '../laboratory-services/laboratoryService'
+import { createLaboratoryReport, getLaboratoryOrders, updateLaboratoryOrder } from '../laboratory-services/laboratoryService'
 
 const LaboratoryAddReport = () => {
   const navigate = useNavigate()
@@ -34,12 +34,31 @@ const LaboratoryAddReport = () => {
 
   const loadOrder = async () => {
     try {
-      const response = await getLaboratoryOrders()
-      const orders = Array.isArray(response) ? response : (response.data || response.orders || [])
-      const foundOrder = orders.find(o => o.id === orderId || o._id === orderId || o.orderId === orderId)
+      const response = await getLaboratoryOrders({ limit: 200 })
+      const orders = Array.isArray(response)
+        ? response
+        : (response.data?.items || response.data?.orders || response.data?.leads || response.data || [])
+
+      const foundOrder = orders.find(o =>
+        o.id === orderId ||
+        o._id === orderId ||
+        o.orderId === orderId
+      )
       
       if (foundOrder) {
-        setOrder(foundOrder)
+        // Normalize order info for display
+        setOrder({
+          id: foundOrder._id || foundOrder.id,
+          orderId: foundOrder.orderId || foundOrder._id || foundOrder.id,
+          patientName: foundOrder.patientId?.firstName && foundOrder.patientId?.lastName
+            ? `${foundOrder.patientId.firstName} ${foundOrder.patientId.lastName}`
+            : foundOrder.patientId?.name || foundOrder.patientName || 'Unknown Patient',
+          patientPhone: foundOrder.patientId?.phone || foundOrder.patientPhone || '',
+          patientEmail: foundOrder.patientId?.email || foundOrder.patientEmail || '',
+          testName: foundOrder.tests?.[0]?.name || foundOrder.tests?.[0] || foundOrder.testName || 'Test',
+          orderDate: foundOrder.createdAt || foundOrder.orderDate || new Date().toISOString(),
+          original: foundOrder,
+        })
       } else {
         toast.error('Order not found')
         navigate('/laboratory/test-reports')
@@ -121,6 +140,15 @@ const LaboratoryAddReport = () => {
       
       // Upload PDF file and create report
       await createLaboratoryReport(reportData, selectedFile)
+
+      // Mark order as completed so it appears in completed section
+      try {
+        if (orderId) {
+          await updateLaboratoryOrder(orderId, { status: 'completed' })
+        }
+      } catch (statusError) {
+        console.warn('Report uploaded but failed to update order status:', statusError)
+      }
       
       clearInterval(progressInterval)
       setUploadProgress(100)

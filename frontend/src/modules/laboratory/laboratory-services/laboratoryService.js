@@ -119,10 +119,10 @@ export const logoutLaboratory = async () => {
       // Even if backend call fails, we still clear tokens on frontend
       console.error('Error calling logout API:', error)
     })
-    
+
     // Clear all tokens from storage
     clearLaboratoryTokens()
-    
+
     return { success: true, message: 'Logout successful' }
   } catch (error) {
     console.error('Error logging out:', error)
@@ -310,8 +310,22 @@ export const updateLaboratoryRequestOrderStatus = async (requestId, status) => {
  */
 export const updateLaboratoryOrder = async (orderId, updateData) => {
   try {
-    return await apiClient.patch(`/laboratory/request-orders/${orderId}/status`, updateData)
+    // Use /labs/leads/:id/status for updating orders (since getLaboratoryOrders uses /labs/leads)
+    return await apiClient.patch(`/labs/leads/${orderId}/status`, updateData)
   } catch (error) {
+    // If 404/Not Found, try specific request orders endpoint as fallback
+    // This handles cases where the order is actually a request order but exposed via leads
+    const isNotFound = error.message && (
+      error.message.includes('404') ||
+      error.message.toLowerCase().includes('not found') ||
+      error.message.toLowerCase().includes('order not found')
+    )
+
+    if (isNotFound && updateData && updateData.status) {
+      console.log(`[Lab Service] Order ${orderId} not found in leads, trying request-orders endpoint...`)
+      return await updateLaboratoryRequestOrderStatus(orderId, updateData.status)
+    }
+
     console.error('Error updating laboratory order:', error)
     throw error
   }
@@ -401,7 +415,7 @@ export const createLaboratoryReport = async (reportData, pdfFile = null) => {
         pdfFileUrl = uploadResponse.data.url
       }
     }
-    
+
     // Create report with PDF URL or file data
     const formData = new FormData()
     formData.append('orderId', reportData.orderId)
@@ -414,7 +428,7 @@ export const createLaboratoryReport = async (reportData, pdfFile = null) => {
     } else if (pdfFileUrl) {
       formData.append('pdfFileUrl', pdfFileUrl)
     }
-    
+
     return await apiClient.upload('/laboratory/reports', formData)
   } catch (error) {
     console.error('Error creating laboratory report:', error)
@@ -561,7 +575,7 @@ export const uploadLaboratoryProfileImage = async (file) => {
   try {
     const formData = new FormData()
     formData.append('image', file)
-    
+
     const data = await apiClient.upload('/laboratory/upload/profile-image', formData)
     return data
   } catch (error) {
@@ -579,7 +593,7 @@ export const uploadLaboratoryReport = async (file) => {
   try {
     const formData = new FormData()
     formData.append('pdf', file)
-    
+
     const data = await apiClient.upload('/laboratory/upload/report', formData)
     return data
   } catch (error) {

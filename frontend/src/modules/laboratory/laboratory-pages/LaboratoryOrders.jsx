@@ -19,11 +19,32 @@ import { getLaboratoryOrders, updateLaboratoryOrder } from '../laboratory-servic
 // Default orders (will be replaced by API data)
 const defaultOrders = []
 
+// Status flow for lab visit/home collection:
+// Lab visit: pending -> visit_time -> sample_collected -> being_tested -> reports_being_generated -> test_successful -> reports_updated -> completed
+// Home collection: pending -> lab_assistant_is_arriving -> sample_collected -> being_tested -> reports_being_generated -> test_successful -> reports_updated -> completed
 const statusConfig = {
   pending: { label: 'Pending', color: 'bg-amber-100 text-amber-700', icon: IoTimeOutline },
-  ready: { label: 'Ready', color: 'bg-emerald-100 text-emerald-700', icon: IoCheckmarkCircleOutline },
+  visit_time: { label: 'You can now visit the lab', color: 'bg-blue-100 text-blue-700', icon: IoCalendarOutline },
+  lab_assistant_is_arriving: { label: 'Lab assistant is arriving', color: 'bg-blue-100 text-blue-700', icon: IoTimeOutline },
+  sample_collected: { label: 'Sample Collected', color: 'bg-purple-100 text-purple-700', icon: IoCheckmarkCircleOutline },
+  being_tested: { label: 'Being Tested', color: 'bg-indigo-100 text-indigo-700', icon: IoFlaskOutline },
+  reports_being_generated: { label: 'Reports Being Generated', color: 'bg-cyan-100 text-cyan-700', icon: IoDocumentTextOutline },
+  test_successful: { label: 'Test Successful', color: 'bg-emerald-100 text-emerald-700', icon: IoCheckmarkCircleOutline },
+  reports_updated: { label: 'Reports Updated', color: 'bg-green-100 text-green-700', icon: IoCheckmarkCircleOutline },
   completed: { label: 'Completed', color: 'bg-slate-100 text-slate-700', icon: IoCheckmarkCircleOutline },
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700', icon: IoCloseCircleOutline },
+}
+
+// Status flow order for progression
+const statusFlow = ['pending', 'visit_time', 'lab_assistant_is_arriving', 'sample_collected', 'being_tested', 'reports_being_generated', 'test_successful', 'reports_updated', 'completed']
+
+// Get next status in the flow
+const getNextStatus = (currentStatus) => {
+  const currentIndex = statusFlow.indexOf(currentStatus)
+  if (currentIndex === -1 || currentIndex === statusFlow.length - 1) {
+    return null // No next status
+  }
+  return statusFlow[currentIndex + 1]
 }
 
 const formatDateTime = (value) => {
@@ -84,7 +105,19 @@ const LaboratoryOrders = () => {
               patientName: patientName,
               patientPhone: lead.patientId?.phone || lead.patientPhone || '',
               patientEmail: lead.patientId?.email || lead.patientEmail || '',
-              status: lead.status === 'accepted' ? 'ready' : lead.status === 'new' ? 'pending' : lead.status === 'test_completed' ? 'completed' : lead.status || 'pending',
+              // Map backend statuses to frontend status flow
+              status: (() => {
+                const backendStatus = lead.status || 'pending'
+                // Map old statuses to new flow
+                if (backendStatus === 'accepted' || backendStatus === 'new') return 'pending'
+                if (backendStatus === 'ready') return 'visit_time'
+                if (backendStatus === 'lab_assistant_is_arriving') return 'lab_assistant_is_arriving'
+                if (backendStatus === 'test_completed') return 'test_successful'
+                if (backendStatus === 'report_uploaded') return 'reports_updated'
+                if (backendStatus === 'completed') return 'completed'
+                // Return as-is if it matches new flow, otherwise default to pending
+                return statusFlow.includes(backendStatus) ? backendStatus : 'pending'
+              })(),
               createdAt: lead.createdAt || new Date().toISOString(),
               testRequestId: lead._id || lead.id,
               tests: (lead.tests || lead.investigations || lead.items || []).map(test => ({
@@ -92,7 +125,8 @@ const LaboratoryOrders = () => {
                 price: typeof test === 'object' && test.price ? test.price : 0,
               })),
               totalAmount: lead.billingSummary?.totalAmount || lead.totalAmount || lead.amount || 0,
-              deliveryType: lead.homeCollectionRequested || lead.deliveryOption === 'home' ? 'home' : 'pickup',
+              deliveryType: lead.homeCollectionRequested || lead.deliveryOption === 'home' || lead.deliveryOption === 'home_delivery' ? 'home' : 'lab',
+              visitType: lead.visitType || (lead.deliveryOption === 'home' || lead.deliveryOption === 'home_delivery' ? 'home' : 'lab'),
               address: lead.patientId?.address 
                 ? `${lead.patientId.address.line1 || ''} ${lead.patientId.address.city || ''} ${lead.patientId.address.state || ''}`.trim() || 'Address not provided'
                 : lead.deliveryAddress || lead.address || 'Address not provided',
@@ -136,7 +170,7 @@ const LaboratoryOrders = () => {
   const handleStatusUpdate = async (orderId, newStatus) => {
     const order = orders.find(o => o.id === orderId || o._id === orderId)
     if (!order) {
-      toast.error('Order not found')
+      toast.error('Order not found in local state')
       return
     }
 
@@ -151,8 +185,26 @@ const LaboratoryOrders = () => {
     }
 
     try {
+      console.log('[Lab Orders] Updating status:', { 
+        orderId, 
+        newStatus, 
+        orderIdType: typeof orderId,
+        orderIdLength: orderId?.length,
+        order: {
+          id: order.id,
+          _id: order._id,
+          testRequestId: order.testRequestId,
+          originalData: order.originalData?._id || order.originalData?.id
+        }
+      })
+      
+      // Use the most reliable ID - prefer order._id, then order.id, then testRequestId
+      const idToUse = order._id || order.id || order.testRequestId || orderId
+      console.log('[Lab Orders] Using ID for update:', idToUse)
+      
       // Call API to update status
-      await updateLaboratoryOrder(orderId, { status: newStatus })
+      const response = await updateLaboratoryOrder(idToUse, { status: newStatus })
+      console.log('[Lab Orders] Status update response:', response)
       
       // Update order status in state
       setOrders(prevOrders => 
@@ -166,7 +218,11 @@ const LaboratoryOrders = () => {
       toast.success(`Order status updated to "${statusLabel}"! Notification sent to ${patientName}`)
     } catch (error) {
       console.error('Error updating order status:', error)
-      toast.error('Failed to update order status. Please try again.')
+      console.error('Error details:', { orderId, newStatus, order })
+      
+      const errorMessage = error.message || 'Failed to update order status. Please try again.'
+      toast.error(errorMessage)
+      
       // Revert status change on error
       setOrders(prevOrders => 
         prevOrders.map(o => 
@@ -196,7 +252,7 @@ const LaboratoryOrders = () => {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {['all', 'pending', 'ready', 'completed'].map((status) => (
+        {['all', 'completed'].map((status) => (
           <button
             key={status}
             onClick={() => setFilter(status)}
@@ -250,10 +306,20 @@ const LaboratoryOrders = () => {
                         {statusInfo.label}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-slate-500 group-hover:text-slate-600 transition-colors lg:text-[10px] lg:truncate">Order ID: {String(orderId).slice(0, 12)}...</p>
+                    <p className="mt-1 text-xs text-slate-500 group-hover:text-slate-600 transition-colors break-all lg:text-[10px]">Order ID: {String(orderId)}</p>
                     {order.testRequestId && (
-                      <p className="text-xs text-slate-500 group-hover:text-slate-600 transition-colors line-clamp-1 lg:text-[10px] lg:truncate">Test: {String(order.testRequestId).slice(0, 10)}...</p>
+                      <p className="text-xs text-slate-500 group-hover:text-slate-600 transition-colors break-all lg:text-[10px]">Test ID: {String(order.testRequestId)}</p>
                     )}
+                    {/* Visit Type Badge */}
+                    <div className="mt-1">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        (order.deliveryType === 'home' || order.visitType === 'home') 
+                          ? 'bg-blue-100 text-blue-700' 
+                          : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {(order.deliveryType === 'home' || order.visitType === 'home') ? '🏠 Home Visit' : '🏥 Lab Visit'}
+                      </span>
+                    </div>
                     <p className="mt-1 text-xs text-slate-600 group-hover:text-slate-700 transition-colors lg:text-[10px] lg:flex lg:items-center lg:gap-1">
                       <IoCalendarOutline className="mr-1 inline h-3 w-3 text-[#11496c] lg:h-2.5 lg:w-2.5 lg:mr-0" />
                       <span className="lg:truncate">{formatDateTime(order.createdAt)}</span>
@@ -261,9 +327,6 @@ const LaboratoryOrders = () => {
                   </div>
                   <div className="text-right shrink-0 lg:flex lg:flex-col lg:items-end lg:gap-0.5">
                     <p className="text-lg font-bold text-slate-900 group-hover:text-[#11496c] transition-colors duration-300 lg:text-base lg:leading-tight">{formatCurrency(order.totalAmount)}</p>
-                    <p className="text-xs text-slate-500 group-hover:text-slate-600 transition-colors lg:text-[10px]">
-                      {order.deliveryType === 'home' ? 'Home' : 'Pickup'}
-                    </p>
                   </div>
                 </div>
 
@@ -299,24 +362,21 @@ const LaboratoryOrders = () => {
 
                 {/* Action Buttons */}
                 <div className="relative flex gap-2 flex-wrap lg:mt-auto lg:pt-2 lg:border-t lg:border-slate-200">
-                  {order.status === 'pending' && (
-                    <button
-                      onClick={() => handleStatusUpdate(orderId, 'ready')}
-                      className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95 group-hover:scale-105 lg:px-2 lg:py-1.5 lg:text-[10px]"
-                    >
-                      <span className="lg:hidden">Mark Ready</span>
-                      <span className="hidden lg:inline">Ready</span>
-                    </button>
-                  )}
-                  {order.status === 'ready' && (
-                    <button
-                      onClick={() => handleStatusUpdate(orderId, 'completed')}
-                      className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-emerald-400/40 transition-all hover:bg-emerald-600 hover:shadow-md active:scale-95 group-hover:scale-105 lg:px-2 lg:py-1.5 lg:text-[10px]"
-                    >
-                      <span className="lg:hidden">Mark Completed</span>
-                      <span className="hidden lg:inline">Complete</span>
-                    </button>
-                  )}
+                  {(() => {
+                    const nextStatus = getNextStatus(order.status)
+                    if (!nextStatus) return null
+                    
+                    const nextStatusConfig = statusConfig[nextStatus]
+                    return (
+                      <button
+                        onClick={() => handleStatusUpdate(orderId, nextStatus)}
+                        className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95 group-hover:scale-105 lg:px-2 lg:py-1.5 lg:text-[10px]"
+                      >
+                        <span className="lg:hidden">Next: {nextStatusConfig.label}</span>
+                        <span className="hidden lg:inline">{nextStatusConfig.label}</span>
+                      </button>
+                    )
+                  })()}
                   <button
                     onClick={() => setSelectedOrder(order)}
                     className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-[#11496c] hover:bg-[#11496c] hover:text-white active:scale-95 group-hover:scale-110 lg:h-8 lg:w-8"

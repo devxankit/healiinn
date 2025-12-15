@@ -7,7 +7,7 @@ import {
   confirmLaboratoryRequestOrder,
   updateLaboratoryRequestOrderStatus,
 } from '../laboratory-services/laboratoryService'
-import { getAuthToken } from '../../../utils/apiClient'
+import { getAuthToken, getFileUrl } from '../../../utils/apiClient'
 import {
   IoDocumentTextOutline,
   IoCalendarOutline,
@@ -127,7 +127,10 @@ const LaboratoryRequestOrders = () => {
             investigations: investigations.length > 0 ? investigations : (prescription.investigations || []),
             totalAmount: adminResponse.billingSummary?.totalAmount || adminResponse.totalAmount || order?.totalAmount || 0,
             status: order?.status || req.status || 'pending',
-            labAccepted: order?.status === 'accepted' || order?.status === 'confirmed' || false,
+            labAccepted:
+              ['accepted', 'confirmed'].includes(order?.status) ||
+              ['accepted', 'confirmed'].includes(req.status) ||
+              false,
             labRejected: order?.status === 'rejected' || false,
             labConfirmed: order?.status === 'completed' || false,
             acceptedAt: order?.acceptedAt || order?.createdAt,
@@ -137,7 +140,7 @@ const LaboratoryRequestOrders = () => {
             paidAt: req.paidAt,
             order: order,
           }
-        }).filter(Boolean) // Remove any null entries
+        }).filter(Boolean).filter(req => req.status !== 'accepted') // Only show confirmed/completed requests to lab
 
         // Sort by date (newest first)
         transformedRequests.sort((a, b) => {
@@ -433,25 +436,7 @@ const LaboratoryRequestOrders = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Filter Tabs */}
-      <div className="flex gap-2">
-        {[
-          { key: 'all', label: 'All' },
-          { key: 'pending', label: 'Pending' },
-          { key: 'completed', label: 'Completed' },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setFilter(tab.key)}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${filter === tab.key
-              ? 'bg-[#11496c] text-white shadow-md shadow-[rgba(17,73,108,0.3)]'
-              : 'bg-white text-slate-700 border border-slate-200 hover:border-[rgba(17,73,108,0.3)] hover:bg-[rgba(17,73,108,0.05)]'
-              }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Requests List */}
 
       {/* Requests List */}
       <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
@@ -551,19 +536,7 @@ const LaboratoryRequestOrders = () => {
 
                 {/* Section 2: Medical/Order Info (Span 6) */}
                 <div className="lg:col-span-6 mt-4 lg:mt-0 space-y-3 lg:border-l lg:border-slate-200 lg:pl-6">
-                  {/* Doctor */}
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Prescribed By</p>
-                    <div className="flex items-start gap-2">
-                      <IoMedicalOutline className="h-4 w-4 text-[#11496c] mt-0.5" />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{request.prescription?.doctorName || 'Doctor'}</p>
-                        {request.prescription?.doctorSpecialty && (
-                          <p className="text-xs text-slate-500">{request.prescription.doctorSpecialty}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+
 
                   {/* Tests Summary & Date */}
                   <div className="flex items-center justify-between gap-4">
@@ -583,8 +556,8 @@ const LaboratoryRequestOrders = () => {
                   </div>
                 </div>
 
-                {/* Section 4: Actions (Span 12) */}
-                {((request.paymentConfirmed || request.status === 'payment_pending' || request.status === 'pending' || request.status === 'confirmed') && !request.labAccepted && !request.labRejected && request.status !== 'completed' && request.status !== 'rejected' && request.status !== 'accepted') && (
+                {/* Section 4: Actions (View/Download always, Accept when allowed) */}
+                {request.status !== 'rejected' && request.status !== 'completed' && (
                   <div className="lg:col-span-12 mt-4 pt-4 border-t border-slate-200/60 flex flex-row items-center justify-end gap-2">
                     {/* Icon Only View Button */}
                     <button
@@ -592,7 +565,7 @@ const LaboratoryRequestOrders = () => {
                         e.stopPropagation()
                         const pdfUrl = request.prescriptionPdfUrl || request.prescription?.pdfUrl
                         if (pdfUrl && pdfUrl !== '#' && pdfUrl !== 'undefined' && pdfUrl !== 'null') {
-                          window.open(pdfUrl, '_blank')
+                          window.open(getFileUrl(pdfUrl), '_blank')
                         } else {
                           handleViewPDF(request)
                         }
@@ -616,32 +589,33 @@ const LaboratoryRequestOrders = () => {
                     </button>
 
                     {/* Compact Accept Button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleAcceptOrder(request.id || request.requestId)
-                      }}
-                      className="flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 shadow-emerald-600/20 active:scale-95"
-                    >
-                      <IoCheckmarkCircleOutline className="h-4 w-4" />
-                      Accept
-                    </button>
-                  </div>
-                )}
+                    {((request.paymentConfirmed || ['payment_pending', 'pending', 'confirmed'].includes(request.status)) &&
+                      !request.labAccepted &&
+                      !request.labRejected &&
+                      !['accepted', 'confirmed'].includes(request.status)) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleAcceptOrder(request.id || request.requestId)
+                          }}
+                          className="flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 shadow-emerald-600/20 active:scale-95"
+                        >
+                          <IoCheckmarkCircleOutline className="h-4 w-4" />
+                          Accept
+                        </button>
+                      )}
 
-                {/* Confirm Action */}
-                {(request.status === 'accepted' || request.status === 'confirmed' || request.status === 'payment_pending') && request.labAccepted && !request.labConfirmed && request.paymentConfirmed && (
-                  <div className="lg:col-span-12 mt-4 pt-4 border-t border-slate-200/60 flex items-center justify-end gap-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleConfirmOrder(request.id || request.requestId)
-                      }}
-                      className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 shadow-emerald-600/20 active:scale-95"
-                    >
-                      <IoCheckmarkCircleOutline className="h-4 w-4" />
-                      Confirm Collection
-                    </button>
+                    {/* Accepted disabled state */}
+                    {(request.labAccepted || request.status === 'accepted' || request.status === 'confirmed') && !request.labRejected && (
+                      <button
+                        type="button"
+                        disabled
+                        className="flex items-center justify-center gap-1 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200 cursor-not-allowed"
+                      >
+                        <IoCheckmarkCircleOutline className="h-4 w-4" />
+                        Accepted
+                      </button>
+                    )}
                   </div>
                 )}
 

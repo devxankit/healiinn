@@ -184,14 +184,13 @@ const LaboratoryDashboard = () => {
         const response = await getLaboratoryOrders({ 
           startDate: todayStart, 
           endDate: todayEnd, 
-          limit: 10,
-          status: 'new,accepted,pending'
+          limit: 50, // fetch more and then show top 10
         })
         
         if (response.success && response.data) {
           const ordersData = Array.isArray(response.data) 
             ? response.data 
-            : response.data.orders || []
+            : response.data.items || response.data.orders || response.data.leads || []
           
           const transformed = ordersData.map(order => ({
             id: order._id || order.id,
@@ -211,7 +210,9 @@ const LaboratoryDashboard = () => {
             createdAt: order.createdAt || new Date().toISOString(),
           }))
           
-          setTodayOrders(transformed)
+          // Sort by createdAt desc and keep top 10
+          transformed.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          setTodayOrders(transformed.slice(0, 10))
         }
       } catch (error) {
         console.error('Error fetching today orders:', error)

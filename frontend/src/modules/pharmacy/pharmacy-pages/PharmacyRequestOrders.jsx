@@ -153,12 +153,12 @@ const PharmacyRequestOrders = () => {
     try {
       setLoading(true)
       const response = await getPharmacyRequestOrders()
-      
+
       if (response.success && response.data) {
-        const requestsData = Array.isArray(response.data) 
-          ? response.data 
+        const requestsData = Array.isArray(response.data)
+          ? response.data
           : response.data.requests || response.data.orders || []
-        
+
         const transformed = requestsData.map(req => ({
           id: req._id || req.id,
           requestId: req._id || req.id,
@@ -166,7 +166,7 @@ const PharmacyRequestOrders = () => {
             ? `${req.patientId.firstName} ${req.patientId.lastName}`
             : req.patientId?.name || req.patientName || 'Unknown Patient',
           patientPhone: req.patientId?.phone || req.patientPhone || '',
-          patientAddress: req.patientId?.address 
+          patientAddress: req.patientId?.address
             ? `${req.patientId.address.line1 || ''}, ${req.patientId.address.city || ''}, ${req.patientId.address.state || ''}`.trim()
             : req.patientAddress || 'Address not provided',
           patientEmail: req.patientId?.email || req.patientEmail || '',
@@ -188,10 +188,10 @@ const PharmacyRequestOrders = () => {
           rejectedAt: req.rejectedAt || null,
           deliveryType: req.deliveryOption || req.deliveryType || 'home',
         }))
-        
+
         // Sort by date (newest first)
         transformed.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-        
+
         setRequests(transformed)
       }
     } catch (error) {
@@ -211,14 +211,14 @@ const PharmacyRequestOrders = () => {
       if (!confirmReject) return
 
       await updatePharmacyRequestOrderStatus(orderId, 'rejected')
-      
+
       // Update local state
-      setRequests(prev => prev.map(r => 
+      setRequests(prev => prev.map(r =>
         r.id === orderId || r.requestId === orderId
           ? { ...r, status: 'rejected', rejectedAt: new Date().toISOString(), pharmacyRejected: true }
           : r
       ))
-      
+
       toast.success('Order rejected successfully')
       loadRequests()
     } catch (error) {
@@ -230,14 +230,14 @@ const PharmacyRequestOrders = () => {
   const handleAcceptOrder = async (orderId) => {
     try {
       await confirmPharmacyRequestOrder(orderId)
-      
+
       // Update local state
-      setRequests(prev => prev.map(r => 
+      setRequests(prev => prev.map(r =>
         r.id === orderId || r.requestId === orderId
           ? { ...r, status: 'accepted', acceptedAt: new Date().toISOString(), pharmacyAccepted: true }
           : r
       ))
-      
+
       toast.success('Order accepted successfully! You can now confirm and prepare the order.')
       loadRequests()
     } catch (error) {
@@ -250,14 +250,14 @@ const PharmacyRequestOrders = () => {
   const handleConfirmOrder = async (orderId) => {
     try {
       await updatePharmacyRequestOrderStatus(orderId, 'preparing')
-      
+
       // Update local state
-      setRequests(prev => prev.map(r => 
+      setRequests(prev => prev.map(r =>
         r.id === orderId || r.requestId === orderId
           ? { ...r, status: 'preparing', deliveryStatus: 'preparing', confirmedAt: new Date().toISOString(), preparingAt: new Date().toISOString() }
           : r
       ))
-      
+
       toast.success('Order confirmed and marked as preparing')
       loadRequests()
     } catch (error) {
@@ -269,14 +269,14 @@ const PharmacyRequestOrders = () => {
   const handleUpdateDeliveryStatus = async (orderId, status) => {
     try {
       await updatePharmacyRequestOrderStatus(orderId, status)
-      
+
       // Update local state
-      setRequests(prev => prev.map(r => 
+      setRequests(prev => prev.map(r =>
         r.id === orderId || r.requestId === orderId
           ? { ...r, status, deliveryStatus: status, [`${status}At`]: new Date().toISOString() }
           : r
       ))
-      
+
       toast.success(`Order status updated to ${status}`)
       loadRequests()
     } catch (error) {
@@ -317,11 +317,11 @@ const PharmacyRequestOrders = () => {
     } else if (filter === 'rejected') {
       matchesFilter = request.pharmacyRejected === true
     }
-    
+
     // Filter by search term
     if (!matchesFilter) return false
     if (!searchTerm.trim()) return true
-    
+
     const search = searchTerm.toLowerCase()
     return (
       (request.patientName || '').toLowerCase().includes(search) ||
@@ -506,92 +506,7 @@ const PharmacyRequestOrders = () => {
 
   return (
     <div className="flex flex-col gap-4 pb-4">
-      {/* Header Section */}
-      <div className="flex flex-col gap-3">
-        {/* Search Bar */}
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#11496c]">
-            <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <input
-            type="search"
-            placeholder="Search by patient name, phone, doctor, diagnosis, or medicine..."
-            className="w-full rounded-xl border border-[rgba(17,73,108,0.2)] bg-white py-3 pl-10 pr-4 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:border-[rgba(17,73,108,0.3)] hover:bg-white hover:shadow-md focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Stats Summary */}
-      {requests.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <article
-            onClick={() => handleCardClick('all')}
-            className={`rounded-xl border border-slate-200 bg-gradient-to-br from-blue-50 to-blue-100/50 p-3 cursor-pointer transition-all hover:shadow-md active:scale-[0.98] ${
-              filter === 'all' ? 'ring-2 ring-blue-500 ring-offset-2' : ''
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700 mb-1">Total Orders</p>
-                <p className="text-xl font-bold text-blue-900">{requests.length}</p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500 text-white">
-                <IoBagHandleOutline className="text-lg" />
-              </div>
-            </div>
-          </article>
-          <article
-            onClick={() => handleCardClick('pending')}
-            className={`rounded-xl border border-slate-200 bg-gradient-to-br from-amber-50 to-amber-100/50 p-3 cursor-pointer transition-all hover:shadow-md active:scale-[0.98] ${
-              filter === 'pending' ? 'ring-2 ring-amber-500 ring-offset-2' : ''
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 mb-1">Pending</p>
-                <p className="text-xl font-bold text-amber-900">{requests.filter(r => r.status === 'pending' || r.status === 'payment_pending' || r.status === 'confirmed').length}</p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500 text-white">
-                <IoTimeOutline className="text-lg" />
-              </div>
-            </div>
-          </article>
-          <article
-            onClick={() => handleCardClick('accepted')}
-            className={`rounded-xl border border-slate-200 bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-3 cursor-pointer transition-all hover:shadow-md active:scale-[0.98] ${
-              filter === 'accepted' ? 'ring-2 ring-emerald-500 ring-offset-2' : ''
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 mb-1">Accepted</p>
-                <p className="text-xl font-bold text-emerald-900">{requests.filter(r => r.pharmacyAccepted === true && r.status !== 'completed').length}</p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500 text-white">
-                <IoCheckmarkCircleOutline className="text-lg" />
-              </div>
-            </div>
-          </article>
-          <article
-            onClick={() => handleCardClick('completed')}
-            className={`rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/50 p-3 cursor-pointer transition-all hover:shadow-md active:scale-[0.98] ${
-              filter === 'completed' ? 'ring-2 ring-slate-500 ring-offset-2' : ''
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-700 mb-1">Completed</p>
-                <p className="text-xl font-bold text-slate-900">{requests.filter(r => r.status === 'completed' || r.deliveryStatus === 'delivered').length}</p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-500 text-white">
-                <IoCheckmarkDoneOutline className="text-lg" />
-              </div>
-            </div>
-          </article>
-        </div>
-      )}
+      {/* Requests List */}
 
       {/* Requests List */}
       <div className="space-y-3">
@@ -602,8 +517,8 @@ const PharmacyRequestOrders = () => {
               {searchTerm ? 'No matching requests found' : 'No requests found'}
             </p>
             <p className="text-sm text-slate-500">
-              {searchTerm 
-                ? 'Try adjusting your search or filter criteria' 
+              {searchTerm
+                ? 'Try adjusting your search or filter criteria'
                 : 'Patient medicine order requests will appear here'}
             </p>
             {searchTerm && (
@@ -648,33 +563,21 @@ const PharmacyRequestOrders = () => {
                           <span className="text-[10px] font-bold text-emerald-700">₹{request.totalAmount.toFixed(1)}</span>
                         </div>
                       )}
-                      <span className={`inline-flex items-center gap-0.5 rounded-lg px-2 py-0.5 text-[10px] font-bold ${
-                        request.status === 'completed' || request.deliveryStatus === 'delivered'
-                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                          : request.pharmacyAccepted
+                      <span className={`inline-flex items-center gap-0.5 rounded-lg px-2 py-0.5 text-[10px] font-bold ${request.status === 'completed' || request.deliveryStatus === 'delivered'
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                        : request.pharmacyAccepted
                           ? 'bg-green-100 text-green-700 border border-green-200'
                           : request.pharmacyRejected
-                          ? 'bg-red-100 text-red-700 border border-red-200'
-                          : 'bg-blue-100 text-blue-700 border border-blue-200'
-                      }`}>
+                            ? 'bg-red-100 text-red-700 border border-red-200'
+                            : 'bg-blue-100 text-blue-700 border border-blue-200'
+                        }`}>
                         <StatusIcon className="h-2.5 w-2.5" />
                         {getDeliveryStatusLabel(request.status, request.deliveryStatus)}
                       </span>
                     </div>
                   </div>
 
-                  {/* Line 2: Doctor Information Card */}
-                  <div className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 border border-slate-200">
-                    <IoMedicalOutline className="h-3 w-3 text-[#11496c] shrink-0" />
-                    <span className="text-xs font-semibold text-slate-900">{request.prescription?.doctorName || 'Doctor'}</span>
-                  </div>
 
-                  {/* Line 3: Doctor Specialty */}
-                  {request.prescription?.doctorSpecialty && (
-                    <div className="text-xs text-slate-600 font-medium ml-1">
-                      {request.prescription.doctorSpecialty}
-                    </div>
-                  )}
 
                   {/* Line 4: Diagnosis Card */}
                   {request.prescription?.diagnosis && (
@@ -734,11 +637,10 @@ const PharmacyRequestOrders = () => {
                   {/* Line 8: Delivery Type Badge */}
                   {request.deliveryType && (
                     <div>
-                      <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold ${
-                        request.deliveryType === 'home'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-blue-50 text-blue-700 border border-blue-200'
-                      }`}>
+                      <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-bold ${request.deliveryType === 'home'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}>
                         {request.deliveryType === 'home' ? (
                           <>
                             <IoBagHandleOutline className="h-2.5 w-2.5" />
@@ -762,19 +664,38 @@ const PharmacyRequestOrders = () => {
                     </div>
                   )}
 
-                  {/* Line 10: Accept/Reject Buttons */}
+                  {/* Line 10: Actions - View, Download, Accept */}
                   {((request.paymentConfirmed || request.status === 'payment_pending' || request.status === 'pending' || request.status === 'confirmed') && !request.pharmacyAccepted && !request.pharmacyRejected && request.status !== 'completed' && request.status !== 'rejected' && request.status !== 'accepted' && request.deliveryStatus !== 'preparing' && request.status !== 'preparing' && request.deliveryStatus !== 'out_for_delivery' && request.status !== 'out_for_delivery' && request.deliveryStatus !== 'delivered') && (
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex items-center justify-end gap-2 pt-2 mt-2 border-t border-slate-100">
+                      {/* Icon Only View Button */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          handleRejectOrder(request.id || request.requestId)
+                          const pdfUrl = request.prescription?.pdfUrl || request.prescriptionPdfUrl
+                          if (pdfUrl && pdfUrl !== '#' && pdfUrl !== 'undefined' && pdfUrl !== 'null') {
+                            window.open(pdfUrl, '_blank')
+                          } else {
+                            handleViewPDF(request)
+                          }
                         }}
-                        className="flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-95"
+                        className="p-1.5 rounded-lg bg-white text-slate-700 border border-slate-200 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95"
+                        title="View Prescription"
                       >
-                        <IoCloseCircleOutline className="h-3.5 w-3.5" />
-                        Reject
+                        <IoEyeOutline className="h-4 w-4" />
                       </button>
+
+                      {/* Compact Download Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDownloadPDF(request)
+                        }}
+                        className="flex items-center justify-center gap-1 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 active:scale-95"
+                      >
+                        <IoDownloadOutline className="h-3.5 w-3.5" />
+                        Download
+                      </button>
+
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -790,26 +711,26 @@ const PharmacyRequestOrders = () => {
                   {/* Other Action Buttons */}
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Deliver Order Button - Show when payment confirmed and not yet delivered */}
-                    {request.paymentConfirmed && 
-                     request.deliveryStatus !== 'delivered' && 
-                     request.status !== 'completed' && 
-                     (request.status === 'confirmed' || 
-                      request.status === 'payment_pending' || 
-                      request.deliveryStatus === 'preparing' || 
-                      request.status === 'preparing' || 
-                      request.deliveryStatus === 'out_for_delivery' || 
-                      request.status === 'out_for_delivery') && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleMarkAsDelivered(request.id || request.requestId)
-                        }}
-                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
-                      >
-                        <IoCheckmarkDoneOutline className="h-3.5 w-3.5" />
-                        Deliver Order
-                      </button>
-                    )}
+                    {request.paymentConfirmed &&
+                      request.deliveryStatus !== 'delivered' &&
+                      request.status !== 'completed' &&
+                      (request.status === 'confirmed' ||
+                        request.status === 'payment_pending' ||
+                        request.deliveryStatus === 'preparing' ||
+                        request.status === 'preparing' ||
+                        request.deliveryStatus === 'out_for_delivery' ||
+                        request.status === 'out_for_delivery') && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleMarkAsDelivered(request.id || request.requestId)
+                          }}
+                          className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
+                        >
+                          <IoCheckmarkDoneOutline className="h-3.5 w-3.5" />
+                          Deliver Order
+                        </button>
+                      )}
                     {/* Confirm Order Button - Show when order is accepted and payment confirmed but not yet preparing */}
                     {(request.status === 'accepted' || request.status === 'confirmed' || request.status === 'payment_pending') && request.pharmacyAccepted && !request.pharmacyConfirmed && request.paymentConfirmed && request.deliveryStatus !== 'preparing' && request.status !== 'preparing' && (
                       <button
@@ -1192,26 +1113,26 @@ const PharmacyRequestOrders = () => {
                   </>
                 )}
                 {/* Deliver Order Button - Primary action when payment confirmed */}
-                {selectedRequest.paymentConfirmed && 
-                 selectedRequest.deliveryStatus !== 'delivered' && 
-                 selectedRequest.status !== 'completed' && 
-                 (selectedRequest.status === 'confirmed' || 
-                  selectedRequest.status === 'payment_pending' || 
-                  selectedRequest.deliveryStatus === 'preparing' || 
-                  selectedRequest.status === 'preparing' || 
-                  selectedRequest.deliveryStatus === 'out_for_delivery' || 
-                  selectedRequest.status === 'out_for_delivery') && (
-                  <button
-                    onClick={() => {
-                      handleMarkAsDelivered(selectedRequest.id || selectedRequest.requestId)
-                      setSelectedRequest(null)
-                    }}
-                    className="w-full rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <IoCheckmarkDoneOutline className="h-5 w-5" />
-                    <span>Deliver Order</span>
-                  </button>
-                )}
+                {selectedRequest.paymentConfirmed &&
+                  selectedRequest.deliveryStatus !== 'delivered' &&
+                  selectedRequest.status !== 'completed' &&
+                  (selectedRequest.status === 'confirmed' ||
+                    selectedRequest.status === 'payment_pending' ||
+                    selectedRequest.deliveryStatus === 'preparing' ||
+                    selectedRequest.status === 'preparing' ||
+                    selectedRequest.deliveryStatus === 'out_for_delivery' ||
+                    selectedRequest.status === 'out_for_delivery') && (
+                    <button
+                      onClick={() => {
+                        handleMarkAsDelivered(selectedRequest.id || selectedRequest.requestId)
+                        setSelectedRequest(null)
+                      }}
+                      className="w-full rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <IoCheckmarkDoneOutline className="h-5 w-5" />
+                      <span>Deliver Order</span>
+                    </button>
+                  )}
                 {/* Confirm Order Button - Show when order is accepted and payment confirmed but not yet preparing */}
                 {(selectedRequest.status === 'accepted' || selectedRequest.status === 'confirmed' || selectedRequest.status === 'payment_pending') && selectedRequest.pharmacyAccepted && !selectedRequest.pharmacyConfirmed && selectedRequest.paymentConfirmed && selectedRequest.deliveryStatus !== 'preparing' && selectedRequest.status !== 'preparing' && (
                   <button

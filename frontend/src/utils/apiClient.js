@@ -110,7 +110,7 @@ const getModuleApiPath = (module) => {
  */
 const refreshAccessToken = async (module = 'admin') => {
   const refreshToken = getRefreshToken(module)
-  
+
   if (!refreshToken) {
     throw new Error('No refresh token available')
   }
@@ -131,7 +131,7 @@ const refreshAccessToken = async (module = 'admin') => {
     }
 
     const data = await response.json()
-    
+
     if (data.success && data.data) {
       // Store new tokens
       const remember = !!localStorage.getItem(`${module}AuthToken`)
@@ -139,10 +139,10 @@ const refreshAccessToken = async (module = 'admin') => {
         accessToken: data.data.accessToken,
         refreshToken: data.data.refreshToken,
       }, remember)
-      
+
       return data.data
     }
-    
+
     throw new Error('Invalid refresh response')
   } catch (error) {
     // Clear tokens on refresh failure
@@ -160,24 +160,24 @@ const refreshAccessToken = async (module = 'admin') => {
  */
 const apiRequest = async (endpoint, options = {}, module = 'admin') => {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
-  
+
   // Check if this is a public auth endpoint (login/signup) that shouldn't require token
-  const isAuthEndpoint = endpoint.includes('/auth/login') || 
-                         endpoint.includes('/auth/signup') || 
-                         endpoint.includes('/auth/forgot-password') ||
-                         endpoint.includes('/auth/verify-otp') ||
-                         endpoint.includes('/auth/reset-password') ||
-                         endpoint.includes('/auth/check-exists')
-  
+  const isAuthEndpoint = endpoint.includes('/auth/login') ||
+    endpoint.includes('/auth/signup') ||
+    endpoint.includes('/auth/forgot-password') ||
+    endpoint.includes('/auth/verify-otp') ||
+    endpoint.includes('/auth/reset-password') ||
+    endpoint.includes('/auth/check-exists')
+
   // Check if this is a public discovery endpoint (doctors, pharmacies, laboratories, specialties)
   // NOTE: Only patient-facing discovery endpoints are public, admin endpoints require auth
   const isPublicDiscoveryEndpoint = (endpoint.includes('/patients/doctors') ||
-                                    endpoint.includes('/patients/specialties') ||
-                                    endpoint.includes('/patients/pharmacies') ||
-                                    endpoint.includes('/patients/laboratories') ||
-                                    endpoint.includes('/specialties')) &&
-                                    !endpoint.includes('/admin/')
-  
+    endpoint.includes('/patients/specialties') ||
+    endpoint.includes('/patients/pharmacies') ||
+    endpoint.includes('/patients/laboratories') ||
+    endpoint.includes('/specialties')) &&
+    !endpoint.includes('/admin/')
+
   // For protected endpoints (not auth or public discovery), check token before making request
   if (!isAuthEndpoint && !isPublicDiscoveryEndpoint) {
     const token = getAuthToken(module)
@@ -191,13 +191,13 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
       throw new Error('Authentication token missing. Please login again.')
     }
   }
-  
+
   const config = {
     ...options,
     headers: {
       // Only add auth headers if not an auth endpoint or public discovery endpoint
-      ...((isAuthEndpoint || isPublicDiscoveryEndpoint) 
-        ? { 'Content-Type': 'application/json', ...options.headers } 
+      ...((isAuthEndpoint || isPublicDiscoveryEndpoint)
+        ? { 'Content-Type': 'application/json', ...options.headers }
         : getAuthHeaders(module, options.headers)),
     },
   }
@@ -213,7 +213,7 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
       if (isAuthEndpoint || isPublicDiscoveryEndpoint) {
         return response
       }
-      
+
       // For protected endpoints, handle token refresh/redirect
       // If we have a refresh token, try to refresh
       if (getRefreshToken(module)) {
@@ -277,20 +277,20 @@ class ApiClient {
     })
     const queryString = new URLSearchParams(cleanParams).toString()
     const url = queryString ? `${endpoint}?${queryString}` : endpoint
-    
+
     console.log(`🌐 API GET Request [${this.module}]:`, url) // Debug log
     console.log(`🌐 Clean params:`, cleanParams) // Debug log
-    
+
     const response = await apiRequest(url, { method: 'GET' }, this.module)
-    
+
     console.log(`📡 API Response Status [${this.module}]:`, response.status, response.statusText) // Debug log
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error(`❌ API Error [${this.module}]:`, errorData) // Debug log
       throw new Error(errorData.message || `Request failed: ${response.statusText}`)
     }
-    
+
     const jsonData = await response.json()
     console.log(`✅ API Response Data [${this.module}]:`, jsonData) // Debug log
     return jsonData
@@ -311,12 +311,12 @@ class ApiClient {
       },
       this.module
     )
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.message || `Request failed: ${response.statusText}`)
     }
-    
+
     return await response.json()
   }
 
@@ -335,12 +335,12 @@ class ApiClient {
       },
       this.module
     )
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.message || `Request failed: ${response.statusText}`)
     }
-    
+
     return await response.json()
   }
 
@@ -359,12 +359,12 @@ class ApiClient {
       },
       this.module
     )
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.message || `Request failed: ${response.statusText}`)
     }
-    
+
     return await response.json()
   }
 
@@ -375,12 +375,12 @@ class ApiClient {
    */
   async delete(endpoint) {
     const response = await apiRequest(endpoint, { method: 'DELETE' }, this.module)
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.message || `Request failed: ${response.statusText}`)
     }
-    
+
     return await response.json()
   }
 
@@ -394,7 +394,7 @@ class ApiClient {
     const token = getAuthToken(this.module)
     const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
     const url = endpoint.startsWith('http') ? endpoint : `${baseURL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
-    
+
     let response
     try {
       response = await fetch(url, {
@@ -407,19 +407,19 @@ class ApiClient {
       })
     } catch (fetchError) {
       // Handle network errors (connection refused, etc.)
-      if (fetchError.message?.includes('Failed to fetch') || 
-          fetchError.message?.includes('NetworkError') ||
-          fetchError.name === 'TypeError') {
+      if (fetchError.message?.includes('Failed to fetch') ||
+        fetchError.message?.includes('NetworkError') ||
+        fetchError.name === 'TypeError') {
         throw new Error('Cannot connect to server. Please make sure the backend server is running on port 5000.')
       }
       throw fetchError
     }
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.message || `Upload failed: ${response.statusText}`)
     }
-    
+
     return await response.json()
   }
 }
@@ -429,6 +429,27 @@ const apiClient = new ApiClient('admin')
 
 // Export class for creating module-specific instances
 export { ApiClient, storeTokens, clearTokens, getAuthToken, getRefreshToken }
+
+/**
+ * Get full URL for a static file path
+ * @param {string} path - Relative file path (e.g., /uploads/...)
+ * @returns {string} Full URL
+ */
+export const getFileUrl = (path) => {
+  if (!path) return ''
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  if (path.startsWith('blob:')) return path
+
+  // Clean path
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+
+  // Get base URL from API_BASE_URL logic
+  // If API_BASE_URL ends with /api, remove it to get server root
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+  const rootBase = apiBase.replace(/\/api\/?$/, '')
+
+  return `${rootBase}${cleanPath}`
+}
 
 export default apiClient
 

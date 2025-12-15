@@ -60,7 +60,8 @@ const requestSchema = new mongoose.Schema(
       },
       pharmacies: [
         {
-          type: mongoose.Schema.Types.Mixed,
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Pharmacy',
         },
       ],
       lab: {
@@ -68,7 +69,8 @@ const requestSchema = new mongoose.Schema(
       },
       labs: [
         {
-          type: mongoose.Schema.Types.Mixed,
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Laboratory',
         },
       ],
       medicines: [

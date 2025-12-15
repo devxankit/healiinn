@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
-import { 
-  getPatientPrescriptions, 
-  getDoctors, 
-  getDiscoveryPharmacies, 
+import {
+  getPatientPrescriptions,
+  getDoctors,
+  getDiscoveryPharmacies,
   getDiscoveryLaboratories,
-  createPatientRequest
+  createPatientRequest,
+  getPatientReports,
 } from '../patient-services/patientService'
+import { getFileUrl } from '../../../utils/apiClient'
 import {
   IoDocumentTextOutline,
   IoCalendarOutline,
@@ -76,18 +78,18 @@ const PatientPrescriptions = () => {
   const [selectedDoctors, setSelectedDoctors] = useState([])
   const [shareSearchTerm, setShareSearchTerm] = useState('')
   const [isSharing, setIsSharing] = useState(false)
-  
+
   // Lab report sharing and viewing states
   const [selectedLabReport, setSelectedLabReport] = useState(null)
   const [showLabShareModal, setShowLabShareModal] = useState(false)
   const [showLabViewModal, setShowLabViewModal] = useState(false)
   const [selectedLabDoctorId, setSelectedLabDoctorId] = useState(null)
   const [isSharingLabReport, setIsSharingLabReport] = useState(false)
-  
+
   // Test visit modal states
   const [showTestVisitModal, setShowTestVisitModal] = useState(false)
   const [testVisitPrescription, setTestVisitPrescription] = useState(null)
-  
+
   // Get active tab from URL params, default to 'prescriptions'
   const tabFromUrl = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState(tabFromUrl === 'lab-reports' ? 'lab-reports' : 'prescriptions')
@@ -113,12 +115,12 @@ const PatientPrescriptions = () => {
         setLoading(true)
         setError(null)
         const response = await getPatientPrescriptions()
-        
+
         if (response.success && response.data) {
-          const prescriptionsData = Array.isArray(response.data) 
-            ? response.data 
+          const prescriptionsData = Array.isArray(response.data)
+            ? response.data
             : response.data.items || response.data.prescriptions || []
-          
+
           // Transform API data to match component structure
           const transformed = prescriptionsData.map(presc => ({
             id: presc._id || presc.id,
@@ -183,7 +185,7 @@ const PatientPrescriptions = () => {
             },
             originalData: presc,
           }))
-          
+
           setPrescriptions(transformed)
         }
       } catch (err) {
@@ -271,7 +273,7 @@ const PatientPrescriptions = () => {
     doc.setFont('helvetica', 'bold')
     doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
     yPos += 6
-    
+
     // Clinic Name in Teal (Below Healiinn) - Reduced size
     doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
@@ -285,7 +287,7 @@ const PatientPrescriptions = () => {
     doc.setTextColor(0, 0, 0)
     let clinicAddressRaw = prescriptionData.doctor?.clinicAddress || prescriptionData.originalData?.doctorId?.clinicDetails?.address
     let clinicAddress = 'Address not provided'
-    
+
     if (clinicAddressRaw) {
       if (typeof clinicAddressRaw === 'string') {
         clinicAddress = clinicAddressRaw
@@ -303,7 +305,7 @@ const PatientPrescriptions = () => {
         clinicAddress = addressParts.join(', ').trim() || 'Address not provided'
       }
     }
-    
+
     const addressLines = doc.splitTextToSize(clinicAddress, pageWidth - 2 * margin)
     addressLines.forEach((line) => {
       doc.text(line, pageWidth / 2, yPos, { align: 'center' })
@@ -320,7 +322,7 @@ const PatientPrescriptions = () => {
     doc.setTextColor(0, 0, 0)
     const phone = prescriptionData.doctor?.phone || prescriptionData.originalData?.doctorId?.phone || 'N/A'
     doc.text(phone, margin + 5, contactY)
-    
+
     // Email icon and address (right)
     doc.setFillColor(100, 100, 100) // Gray circle for email
     doc.circle(pageWidth - margin - 2, contactY - 1, 1.2, 'F')
@@ -340,11 +342,11 @@ const PatientPrescriptions = () => {
     doc.setFont('helvetica', 'bold')
     doc.text('Doctor Information', margin, infoStartY)
     doc.text('Patient Information', pageWidth - margin, infoStartY, { align: 'right' })
-    
+
     yPos = infoStartY + 5
     doc.setFontSize(7)
     doc.setFont('helvetica', 'normal')
-    
+
     // Doctor Info (Left)
     doc.text(`Name: ${prescriptionData.doctor.name}`, margin, yPos)
     doc.text(`Specialty: ${prescriptionData.doctor.specialty}`, margin, yPos + 3)
@@ -354,26 +356,26 @@ const PatientPrescriptions = () => {
     // Patient Info (Right) - Get from prescriptionData.patient first, then originalData
     let patientYPos = yPos
     const patient = prescriptionData.patient || prescriptionData.originalData?.patientId
-    const patientName = patient?.name || (patient?.firstName && patient?.lastName 
-      ? `${patient.firstName} ${patient.lastName}` 
+    const patientName = patient?.name || (patient?.firstName && patient?.lastName
+      ? `${patient.firstName} ${patient.lastName}`
       : 'N/A')
     doc.text(`Name: ${patientName}`, pageWidth - margin, patientYPos, { align: 'right' })
     patientYPos += 3
-    
-    const patientAge = patient?.age || (patient?.dateOfBirth 
+
+    const patientAge = patient?.age || (patient?.dateOfBirth
       ? Math.floor((new Date() - new Date(patient.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000))
       : null)
     doc.text(`Age: ${patientAge ? `${patientAge} years` : 'N/A'}`, pageWidth - margin, patientYPos, { align: 'right' })
     patientYPos += 3
-    
+
     const patientGender = patient?.gender || 'N/A'
     doc.text(`Gender: ${patientGender}`, pageWidth - margin, patientYPos, { align: 'right' })
     patientYPos += 3
-    
+
     const patientPhone = patient?.phone || 'N/A'
     doc.text(`Phone: ${patientPhone}`, pageWidth - margin, patientYPos, { align: 'right' })
     patientYPos += 3
-    
+
     // Patient Address - Always show if available
     const patientAddress = patient?.address
     if (patientAddress) {
@@ -392,7 +394,7 @@ const PatientPrescriptions = () => {
         if (patientAddress.country) addressParts.push(patientAddress.country)
         addressText = addressParts.join(', ').trim()
       }
-      
+
       if (addressText && addressText !== '[object Object]') {
         const addressLines = doc.splitTextToSize(`Address: ${addressText}`, pageWidth / 2 - margin - 5)
         addressLines.forEach((line, index) => {
@@ -410,7 +412,7 @@ const PatientPrescriptions = () => {
     doc.setFont('helvetica', 'bold')
     doc.text('Diagnosis', margin, yPos)
     yPos += 5
-    
+
     // Light blue rounded box for diagnosis - Smaller height
     const diagnosisHeight = 6
     doc.setFillColor(...lightBlueColor)
@@ -430,16 +432,16 @@ const PatientPrescriptions = () => {
       yPos += 5
       doc.setFontSize(7)
       doc.setFont('helvetica', 'normal')
-      const symptomLines = typeof prescriptionData.symptoms === 'string' 
+      const symptomLines = typeof prescriptionData.symptoms === 'string'
         ? prescriptionData.symptoms.split('\n').filter(line => line.trim())
         : Array.isArray(prescriptionData.symptoms)
-        ? prescriptionData.symptoms.filter(s => s && s.trim())
-        : [String(prescriptionData.symptoms)]
-      
+          ? prescriptionData.symptoms.filter(s => s && s.trim())
+          : [String(prescriptionData.symptoms)]
+
       symptomLines.forEach((symptom) => {
         // Check if we're getting too close to bottom - stop if needed
         if (yPos > pageHeight - 60) return
-        
+
         // Green bullet point
         doc.setFillColor(34, 197, 94) // Green color
         doc.circle(margin + 1.2, yPos - 0.8, 1, 'F')
@@ -457,14 +459,14 @@ const PatientPrescriptions = () => {
       doc.setFont('helvetica', 'bold')
       doc.text('Medications', margin, yPos)
       yPos += 5
-      
+
       prescriptionData.medications.forEach((med, idx) => {
         // NO PAGE BREAKS - Force everything to fit on one page
         // Make medication cards more compact
         const cardHeight = 18
         doc.setFillColor(...lightGrayColor)
         doc.roundedRect(margin, yPos - 2, pageWidth - 2 * margin, cardHeight, 2, 2, 'F')
-        
+
         // Numbered square in teal (top-right corner) - Smaller
         const numberSize = 6
         const numberX = pageWidth - margin - numberSize - 2
@@ -475,24 +477,24 @@ const PatientPrescriptions = () => {
         doc.setFontSize(7)
         doc.setFont('helvetica', 'bold')
         doc.text(`${idx + 1}`, numberX + numberSize / 2, numberY + numberSize / 2 + 0.5, { align: 'center' })
-        
+
         // Medication name (bold, top) - Smaller font
         doc.setTextColor(0, 0, 0)
         doc.setFontSize(9)
         doc.setFont('helvetica', 'bold')
         doc.text(med.name, margin + 3, yPos + 2)
-        
+
         // Medication details in 2 columns (left and right) - Smaller font
         doc.setFontSize(6.5)
         doc.setFont('helvetica', 'normal')
         const leftColX = margin + 3
         const rightColX = margin + (pageWidth - 2 * margin) / 2 + 3
         const startY = yPos + 6
-        
+
         // Left column
         doc.text(`Dosage: ${med.dosage || 'N/A'}`, leftColX, startY)
         doc.text(`Duration: ${med.duration || 'N/A'}`, leftColX, startY + 3)
-        
+
         // Right column
         doc.text(`Frequency: ${med.frequency || 'N/A'}`, rightColX, startY)
         if (med.instructions) {
@@ -505,7 +507,7 @@ const PatientPrescriptions = () => {
             }
           })
         }
-        
+
         yPos += cardHeight + 2
       })
       yPos += 1
@@ -517,36 +519,36 @@ const PatientPrescriptions = () => {
       doc.setFont('helvetica', 'bold')
       doc.text('Recommended Tests', margin, yPos)
       yPos += 5
-      
+
       prescriptionData.investigations.forEach((inv) => {
         // NO PAGE BREAKS - Stop if getting too close to bottom
         if (yPos > pageHeight - 50) return
-        
+
         // Handle both frontend format (name) and backend format (testName)
         const invName = inv.name || inv.testName || 'Investigation'
         const invNotes = inv.notes || ''
-        
+
         // Ensure invName is a valid string (not null, undefined, or object)
         const invNameStr = typeof invName === 'string' ? invName : String(invName || 'Investigation')
         const invNotesStr = typeof invNotes === 'string' ? invNotes : String(invNotes || '')
-        
+
         // Light purple box for each test - Smaller height
         const testBoxHeight = invNotesStr ? 10 : 7
         doc.setFillColor(...lightPurpleColor)
         doc.roundedRect(margin, yPos - 2, pageWidth - 2 * margin, testBoxHeight, 2, 2, 'F')
-        
+
         doc.setFontSize(7)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(0, 0, 0)
         doc.text(invNameStr, margin + 3, yPos + 1.5)
-        
+
         if (invNotesStr) {
           doc.setFontSize(6.5)
           doc.setFont('helvetica', 'normal')
           doc.setTextColor(80, 80, 80)
           doc.text(invNotesStr, margin + 3, yPos + 6)
         }
-        
+
         yPos += testBoxHeight + 2
       })
       yPos += 1
@@ -580,11 +582,11 @@ const PatientPrescriptions = () => {
       const followUpHeight = 9
       doc.setFillColor(...lightYellowColor)
       doc.roundedRect(margin, yPos - 2, pageWidth - 2 * margin, followUpHeight, 2, 2, 'F')
-      
+
       // Calendar icon (small square)
       doc.setFillColor(255, 200, 0)
       doc.roundedRect(margin + 2, yPos + 0.5, 2.5, 2.5, 0.5, 0.5, 'F')
-      
+
       doc.setFontSize(8)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(0, 0, 0)
@@ -609,11 +611,11 @@ const PatientPrescriptions = () => {
     const signatureAreaWidth = 50  // Standard signature width
     const signatureX = pageWidth - margin - 55  // Position from right margin (55 = area width + spacing)
     const signatureY = yPos
-    
+
     // Get digital signature from prescription data - handle both object and string formats
     const digitalSignatureRaw = prescriptionData.doctor?.digitalSignature || prescriptionData.originalData?.doctorId?.digitalSignature
     let signatureImageUrl = ''
-    
+
     // Extract imageUrl from signature object or use string directly
     if (digitalSignatureRaw) {
       if (typeof digitalSignatureRaw === 'string') {
@@ -622,13 +624,13 @@ const PatientPrescriptions = () => {
         signatureImageUrl = digitalSignatureRaw.imageUrl || digitalSignatureRaw.url || ''
       }
     }
-    
+
     // Add digital signature image if available
     if (signatureImageUrl && signatureImageUrl !== '') {
       try {
         let imageData = signatureImageUrl
         let imageFormat = 'PNG'
-        
+
         // Determine image format from data URL or file extension
         if (imageData.includes('data:image/jpeg') || imageData.includes('data:image/jpg')) {
           imageFormat = 'JPEG'
@@ -644,17 +646,17 @@ const PatientPrescriptions = () => {
         } else if (imageData.toLowerCase().endsWith('.png')) {
           imageFormat = 'PNG'
         }
-        
+
         // Calculate signature image dimensions - compact size for prescription
         // Standard signature size: width 50, height 18 (in jsPDF points)
         // This ensures signature is small and properly fits in the document
         const signatureWidth = 50  // Compact width
         const signatureHeight = 18  // Compact height
-        
+
         // Position signature image above the signature line
         // Position it 18 points above the signature line (standard spacing)
         const signatureImageY = signatureY - signatureHeight
-        
+
         // Add signature image with compact dimensions, properly positioned
         doc.addImage(imageData, imageFormat, signatureX, signatureImageY, signatureWidth, signatureHeight, undefined, 'FAST')
         console.log('Signature image added successfully with size:', signatureWidth, 'x', signatureHeight)
@@ -671,16 +673,16 @@ const PatientPrescriptions = () => {
       doc.setLineWidth(0.5)
       doc.line(signatureX, signatureY, signatureX + 50, signatureY)
     }
-    
+
     // Doctor name and designation below signature (centered under signature area)
     // Adjust position based on whether signature image is present
     // signatureImageUrl is already declared above, check if it has a value
     const hasSignatureImage = signatureImageUrl && signatureImageUrl !== ''
-    
+
     // Position text appropriately - if image exists, position below it, otherwise below line
     const textYPos = hasSignatureImage ? signatureY + 6 : signatureY + 8
     const centerX = signatureX + 25  // Center of signature area (50/2 = 25)
-    
+
     doc.setFontSize(8)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(0, 0, 0)
@@ -705,7 +707,7 @@ const PatientPrescriptions = () => {
       // If signature is a URL (not base64), convert it to base64 first
       const digitalSignatureRaw = prescription.doctor?.digitalSignature || prescription.originalData?.doctorId?.digitalSignature
       let signatureImageUrl = ''
-      
+
       if (digitalSignatureRaw) {
         if (typeof digitalSignatureRaw === 'string') {
           signatureImageUrl = digitalSignatureRaw.trim()
@@ -713,7 +715,7 @@ const PatientPrescriptions = () => {
           signatureImageUrl = digitalSignatureRaw.imageUrl || digitalSignatureRaw.url || ''
         }
       }
-      
+
       // If signature is a URL (not base64), convert to base64
       if (signatureImageUrl && !signatureImageUrl.startsWith('data:image/')) {
         try {
@@ -730,7 +732,7 @@ const PatientPrescriptions = () => {
           console.warn('Could not convert signature URL to base64, will try direct URL:', error)
         }
       }
-      
+
       const doc = generatePDF(prescription)
       const fileName = `Prescription_${prescription.doctor.name.replace(/\s+/g, '_')}_${prescription.issuedAt}.pdf`
       doc.save(fileName)
@@ -745,7 +747,7 @@ const PatientPrescriptions = () => {
       // If signature is a URL (not base64), convert it to base64 first
       const digitalSignatureRaw = prescription.doctor?.digitalSignature || prescription.originalData?.doctorId?.digitalSignature
       let signatureImageUrl = ''
-      
+
       if (digitalSignatureRaw) {
         if (typeof digitalSignatureRaw === 'string') {
           signatureImageUrl = digitalSignatureRaw.trim()
@@ -753,7 +755,7 @@ const PatientPrescriptions = () => {
           signatureImageUrl = digitalSignatureRaw.imageUrl || digitalSignatureRaw.url || ''
         }
       }
-      
+
       // If signature is a URL (not base64), convert to base64
       if (signatureImageUrl && !signatureImageUrl.startsWith('data:image/')) {
         try {
@@ -770,7 +772,7 @@ const PatientPrescriptions = () => {
           console.warn('Could not convert signature URL to base64, will try direct URL:', error)
         }
       }
-      
+
       const doc = generatePDF(prescription)
       // Generate PDF blob and open in new window
       const pdfBlob = doc.output('blob')
@@ -808,7 +810,7 @@ const PatientPrescriptions = () => {
       doctors: selectedDoctors,
     })
     setIsSharing(false)
-    
+
     // Navigate to first doctor's booking page
     if (selectedDoctors.length > 0) {
       const firstDoctorId = selectedDoctors[0]
@@ -829,10 +831,10 @@ const PatientPrescriptions = () => {
 
     try {
       setIsSharing(true)
-      
+
       // Get prescription ID
       const prescriptionId = testVisitPrescription._id || testVisitPrescription.id
-      
+
       if (!prescriptionId) {
         toast.error('Prescription ID not found')
         setIsSharing(false)
@@ -865,10 +867,10 @@ const PatientPrescriptions = () => {
 
     try {
       setIsSharing(true)
-      
+
       // Get prescription ID
       const prescriptionId = testVisitPrescription._id || testVisitPrescription.id
-      
+
       if (!prescriptionId) {
         toast.error('Prescription ID not found')
         setIsSharing(false)
@@ -899,10 +901,10 @@ const PatientPrescriptions = () => {
   const handleOrderMedicine = async (prescription) => {
     try {
       setIsSharing(true)
-      
+
       // Get prescription ID
       const prescriptionId = prescription._id || prescription.id
-      
+
       if (!prescriptionId) {
         toast.error('Prescription ID not found')
         setIsSharing(false)
@@ -933,7 +935,7 @@ const PatientPrescriptions = () => {
   // Load lab reports from API
   const [labReports, setLabReports] = useState([])
   const [loadingReports, setLoadingReports] = useState(false)
-  
+
   // State for doctors, pharmacies, and labs
   const [doctors, setDoctors] = useState([])
   const [pharmacies, setPharmacies] = useState([])
@@ -941,25 +943,25 @@ const PatientPrescriptions = () => {
   const [loadingDoctors, setLoadingDoctors] = useState(false)
   const [loadingPharmacies, setLoadingPharmacies] = useState(false)
   const [loadingLabs, setLoadingLabs] = useState(false)
-  
+
   // Filter doctors for sharing (must be after doctors state declaration)
   const filteredDoctors = doctors.filter((doctor) => {
     if (!doctor.isActive) return false
-    
+
     const search = shareSearchTerm.toLowerCase()
-    const doctorName = doctor.firstName && doctor.lastName 
+    const doctorName = doctor.firstName && doctor.lastName
       ? `Dr. ${doctor.firstName} ${doctor.lastName}`
       : doctor.name || ''
     const specialty = doctor.specialization || doctor.specialty || ''
     const location = doctor.clinicDetails?.clinicName || doctor.location || ''
-    
+
     return (
       doctorName.toLowerCase().includes(search) ||
       specialty.toLowerCase().includes(search) ||
       location.toLowerCase().includes(search)
     )
   })
-  
+
   // Fetch doctors for sharing
   useEffect(() => {
     const fetchDoctors = async () => {
@@ -967,8 +969,8 @@ const PatientPrescriptions = () => {
         setLoadingDoctors(true)
         const response = await getDoctors({ limit: 50 })
         if (response.success && response.data) {
-          const items = Array.isArray(response.data) 
-            ? response.data 
+          const items = Array.isArray(response.data)
+            ? response.data
             : response.data.items || []
           setDoctors(items)
         }
@@ -979,12 +981,12 @@ const PatientPrescriptions = () => {
         setLoadingDoctors(false)
       }
     }
-    
+
     if (showShareModal || showLabShareModal) {
       fetchDoctors()
     }
   }, [showShareModal, showLabShareModal])
-  
+
   // Fetch pharmacies
   useEffect(() => {
     const fetchPharmacies = async () => {
@@ -992,8 +994,8 @@ const PatientPrescriptions = () => {
         setLoadingPharmacies(true)
         const response = await getDiscoveryPharmacies({ limit: 20 })
         if (response.success && response.data) {
-          const items = Array.isArray(response.data) 
-            ? response.data 
+          const items = Array.isArray(response.data)
+            ? response.data
             : response.data.items || []
           setPharmacies(items)
         }
@@ -1004,10 +1006,10 @@ const PatientPrescriptions = () => {
         setLoadingPharmacies(false)
       }
     }
-    
+
     fetchPharmacies()
   }, [])
-  
+
   // Fetch labs
   useEffect(() => {
     const fetchLabs = async () => {
@@ -1015,8 +1017,8 @@ const PatientPrescriptions = () => {
         setLoadingLabs(true)
         const response = await getDiscoveryLaboratories({ limit: 20 })
         if (response.success && response.data) {
-          const items = Array.isArray(response.data) 
-            ? response.data 
+          const items = Array.isArray(response.data)
+            ? response.data
             : response.data.items || []
           setLabs(items)
         }
@@ -1027,17 +1029,38 @@ const PatientPrescriptions = () => {
         setLoadingLabs(false)
       }
     }
-    
+
     fetchLabs()
   }, [])
-  
+
   useEffect(() => {
     const fetchLabReports = async () => {
       try {
         setLoadingReports(true)
-        // Lab reports are fetched from PatientReports page API
-        // For now, we'll keep it empty or fetch from API if needed
-        setLabReports([])
+        const response = await getPatientReports({ limit: 50 })
+        if (response.success && response.data) {
+          const items = Array.isArray(response.data)
+            ? response.data
+            : response.data.items || []
+
+          const mapped = items.map((report) => ({
+            id: report._id || report.id,
+            testName: report.testName || report.test?.name || 'Lab Test',
+            labName: report.laboratoryId?.labName || report.labName || 'Laboratory',
+            labId: report.laboratoryId?._id || report.laboratoryId || report.labId,
+            date: report.createdAt || report.reportDate || report.date || new Date().toISOString(),
+            status: report.status || 'ready',
+            pdfFileUrl: report.pdfFileUrl || null,
+            pdfFileName:
+              report.pdfFileName ||
+              `${report.testName || 'Report'}_${new Date(report.createdAt || Date.now()).toISOString().split('T')[0]}.pdf`,
+            original: report,
+          }))
+
+          setLabReports(mapped)
+        } else {
+          setLabReports([])
+        }
       } catch (error) {
         console.error('Error loading lab reports:', error)
         setLabReports([])
@@ -1045,7 +1068,7 @@ const PatientPrescriptions = () => {
         setLoadingReports(false)
       }
     }
-    
+
     fetchLabReports()
     // Refresh every 30 seconds to get new reports
     const interval = setInterval(fetchLabReports, 30000)
@@ -1057,7 +1080,7 @@ const PatientPrescriptions = () => {
 
   // State for patient appointments
   const [patientAppointments, setPatientAppointments] = useState([])
-  
+
   // Fetch patient appointments to check if doctor has appointment
   useEffect(() => {
     const fetchAppointments = async () => {
@@ -1065,8 +1088,8 @@ const PatientPrescriptions = () => {
         const { getPatientAppointments } = await import('../patient-services/patientService')
         const response = await getPatientAppointments({ limit: 100 })
         if (response.success && response.data) {
-          const items = Array.isArray(response.data) 
-            ? response.data 
+          const items = Array.isArray(response.data)
+            ? response.data
             : response.data.items || []
           setPatientAppointments(items)
         }
@@ -1075,12 +1098,12 @@ const PatientPrescriptions = () => {
         setPatientAppointments([])
       }
     }
-    
+
     if (showShareModal || showLabShareModal) {
       fetchAppointments()
     }
   }, [showShareModal, showLabShareModal])
-  
+
   // Check if patient has appointment with a doctor
   const checkPatientHasAppointment = (doctorId) => {
     return patientAppointments.some(
@@ -1104,17 +1127,10 @@ const PatientPrescriptions = () => {
   }
 
   const handleViewLabReportClick = (report) => {
-    // Check if PDF is available
     if (report.pdfFileUrl && report.pdfFileUrl !== '#') {
-      // If it's a base64 data URL, open directly
-      if (report.pdfFileUrl.startsWith('data:')) {
-      window.open(report.pdfFileUrl, '_blank')
-      } else {
-        // For other URLs, open in new tab
-        window.open(report.pdfFileUrl, '_blank')
-      }
+      const url = getFileUrl(report.pdfFileUrl)
+      window.open(url, '_blank')
     } else {
-      // Fallback: show modal if PDF not available
       setSelectedLabReport(report)
       setShowLabViewModal(true)
     }
@@ -1129,22 +1145,22 @@ const PatientPrescriptions = () => {
     if (!selectedLabReport || !selectedLabDoctorId) return
 
     setIsSharingLabReport(true)
-    
+
     const selectedDoctor = doctors.find(doc => (doc._id || doc.id) === selectedLabDoctorId)
-    
+
     if (!selectedDoctor) {
       setIsSharingLabReport(false)
       toast.error('Doctor not found')
       return
     }
-    
-    const doctorName = selectedDoctor.firstName && selectedDoctor.lastName 
+
+    const doctorName = selectedDoctor.firstName && selectedDoctor.lastName
       ? `Dr. ${selectedDoctor.firstName} ${selectedDoctor.lastName}`
       : selectedDoctor.name || 'Doctor'
 
     // Check if patient has appointment with this doctor
     const hasAppointment = checkPatientHasAppointment(selectedLabDoctorId)
-    
+
     if (hasAppointment || (selectedLabReport.doctorId && selectedLabDoctorId === selectedLabReport.doctorId)) {
       // Direct share - TODO: Implement API for sharing reports with doctors
       // For now, just show success message
@@ -1172,7 +1188,7 @@ const PatientPrescriptions = () => {
         // Check if we have stored PDF in localStorage (from previous download)
         const storedPdfs = JSON.parse(localStorage.getItem('patientLabReportPdfs') || '{}')
         const storedPdf = storedPdfs[report.id]
-        
+
         if (storedPdf && storedPdf.base64Data) {
           // Use stored PDF if available
           const link = document.createElement('a')
@@ -1183,11 +1199,11 @@ const PatientPrescriptions = () => {
           document.body.removeChild(link)
           return
         }
-        
+
         // Check if URL is from same origin or is a data URL
         const isSameOrigin = report.pdfFileUrl.startsWith(window.location.origin) || report.pdfFileUrl.startsWith('/')
         const isDataUrl = report.pdfFileUrl.startsWith('data:')
-        
+
         if (isDataUrl) {
           // Direct download for data URLs
           const link = document.createElement('a')
@@ -1198,20 +1214,20 @@ const PatientPrescriptions = () => {
           document.body.removeChild(link)
           return
         }
-        
+
         // Only try fetch for same-origin URLs to avoid CORS errors
         if (isSameOrigin) {
           try {
-            const response = await fetch(report.pdfFileUrl, {
+            const response = await fetch(getFileUrl(report.pdfFileUrl), {
               method: 'GET',
             })
-            
+
             if (response.ok) {
               const blob = await response.blob()
-              
+
               // Create a blob URL for download
               const blobUrl = URL.createObjectURL(blob)
-              
+
               // Create download link
               const link = document.createElement('a')
               link.href = blobUrl
@@ -1219,12 +1235,12 @@ const PatientPrescriptions = () => {
               document.body.appendChild(link)
               link.click()
               document.body.removeChild(link)
-              
+
               // Clean up blob URL
               setTimeout(() => {
                 URL.revokeObjectURL(blobUrl)
               }, 100)
-              
+
               // Store PDF in localStorage for offline access
               try {
                 const reader = new FileReader()
@@ -1250,18 +1266,18 @@ const PatientPrescriptions = () => {
             console.warn('Fetch failed for same-origin URL')
           }
         }
-        
+
         // For external URLs (cross-origin), don't try fetch (will cause CORS error)
         // Just open in new tab - browser will handle download if server allows
-        window.open(report.pdfFileUrl, '_blank')
+        window.open(getFileUrl(report.pdfFileUrl), '_blank')
       } catch (error) {
         console.error('Error downloading PDF:', error)
         // Last resort: open in new tab
-        window.open(report.pdfFileUrl, '_blank')
+        window.open(getFileUrl(report.pdfFileUrl), '_blank')
       }
       return
     }
-    
+
     // Fallback: Generate and download PDF report if no PDF file URL
     // Generate and download PDF report
     const pdfContent = `
@@ -1336,11 +1352,11 @@ const PatientPrescriptions = () => {
 </body>
 </html>
     `
-    
+
     const printWindow = window.open('', '_blank')
     printWindow.document.write(pdfContent)
     printWindow.document.close()
-    
+
     setTimeout(() => {
       printWindow.focus()
       printWindow.print()
@@ -1361,11 +1377,10 @@ const PatientPrescriptions = () => {
             // Scroll to top
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}
-          className={`relative overflow-hidden rounded-2xl border-2 p-4 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${
-            activeTab === 'prescriptions'
-              ? 'border-[#11496c] bg-[rgba(17,73,108,0.05)]'
-              : 'border-slate-200 bg-white'
-          }`}
+          className={`relative overflow-hidden rounded-2xl border-2 p-4 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${activeTab === 'prescriptions'
+            ? 'border-[#11496c] bg-[rgba(17,73,108,0.05)]'
+            : 'border-slate-200 bg-white'
+            }`}
         >
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -1391,11 +1406,10 @@ const PatientPrescriptions = () => {
             // Scroll to top
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}
-          className={`relative overflow-hidden rounded-2xl border-2 p-4 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${
-            activeTab === 'lab-reports'
-              ? 'border-[#11496c] bg-[rgba(17,73,108,0.05)]'
-              : 'border-slate-200 bg-white'
-          }`}
+          className={`relative overflow-hidden rounded-2xl border-2 p-4 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${activeTab === 'lab-reports'
+            ? 'border-[#11496c] bg-[rgba(17,73,108,0.05)]'
+            : 'border-slate-200 bg-white'
+            }`}
         >
           <div className="flex items-start justify-between">
             <div className="flex-1">
@@ -1426,11 +1440,10 @@ const PatientPrescriptions = () => {
                 key={tab.value}
                 type="button"
                 onClick={() => setFilter(tab.value)}
-                className={`flex-1 rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                  filter === tab.value
-                    ? 'text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
+                className={`flex-1 rounded-xl px-4 py-2 text-sm font-semibold transition ${filter === tab.value
+                  ? 'text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-50'
+                  }`}
                 style={filter === tab.value ? { backgroundColor: '#11496c' } : {}}
               >
                 {tab.label}
@@ -1440,109 +1453,108 @@ const PatientPrescriptions = () => {
 
           {/* Prescriptions List */}
           <div id="prescriptions-section">
-      {filteredPrescriptions.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-          <IoDocumentTextOutline className="mx-auto h-12 w-12 text-slate-400" />
-          <p className="mt-4 text-sm font-medium text-slate-600">No prescriptions found</p>
-          <p className="mt-1 text-xs text-slate-500">Prescriptions shared by doctors will appear here</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredPrescriptions.map((prescription) => (
-            <article
-              key={prescription.id}
-              className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-lg"
-            >
-              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl opacity-0 transition-opacity group-hover:opacity-100" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)' }} />
+            {filteredPrescriptions.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <IoDocumentTextOutline className="mx-auto h-12 w-12 text-slate-400" />
+                <p className="mt-4 text-sm font-medium text-slate-600">No prescriptions found</p>
+                <p className="mt-1 text-xs text-slate-500">Prescriptions shared by doctors will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredPrescriptions.map((prescription) => (
+                  <article
+                    key={prescription.id}
+                    className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-lg"
+                  >
+                    <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl opacity-0 transition-opacity group-hover:opacity-100" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)' }} />
 
-              <div className="relative">
-                {/* Doctor Info */}
-                <div className="flex items-start gap-4">
-                  <img
-                    src={prescription.doctor.image}
-                    alt={prescription.doctor.name}
-                    className="h-16 w-16 rounded-2xl object-cover ring-2 ring-slate-100 bg-slate-100"
-                    onError={(e) => {
-                      e.target.onerror = null
-                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                    }}
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-900">{prescription.doctor.name}</h3>
-                    <p className="text-sm text-[#11496c]">{prescription.doctor.specialty}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span
-                        className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
-                          prescription.status === 'active'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {prescription.status === 'active' ? 'Active' : 'Completed'}
-                      </span>
-                      <div className="flex items-center gap-1 text-xs text-slate-500">
-                        <IoCalendarOutline className="h-3 w-3" />
-                        <span>Issued {formatDate(prescription.issuedAt)}</span>
+                    <div className="relative">
+                      {/* Doctor Info */}
+                      <div className="flex items-start gap-4">
+                        <img
+                          src={prescription.doctor.image}
+                          alt={prescription.doctor.name}
+                          className="h-16 w-16 rounded-2xl object-cover ring-2 ring-slate-100 bg-slate-100"
+                          onError={(e) => {
+                            e.target.onerror = null
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
+                          }}
+                        />
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-slate-900">{prescription.doctor.name}</h3>
+                          <p className="text-sm text-[#11496c]">{prescription.doctor.specialty}</p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span
+                              className={`rounded-full px-2 py-1 text-[10px] font-semibold ${prescription.status === 'active'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-100 text-slate-700'
+                                }`}
+                            >
+                              {prescription.status === 'active' ? 'Active' : 'Completed'}
+                            </span>
+                            <div className="flex items-center gap-1 text-xs text-slate-500">
+                              <IoCalendarOutline className="h-3 w-3" />
+                              <span>Issued {formatDate(prescription.issuedAt)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
+                        {/* First Row: Download PDF, View, Share */}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPDF(prescription)}
+                            className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"
+                          >
+                            <IoDownloadOutline className="h-4 w-4" />
+                            Download PDF
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleViewPDF(prescription)}
+                            className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                            aria-label="View PDF"
+                          >
+                            <IoEyeOutline className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleShareClick(prescription.id)}
+                            className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                            aria-label="Share prescription"
+                          >
+                            <IoShareSocialOutline className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        {/* Second Row: Book Test Visit, Order Medicine */}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleBookTestVisit(prescription)}
+                            className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                          >
+                            <IoFlaskOutline className="h-4 w-4" />
+                            Book Test Visit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOrderMedicine(prescription)}
+                            className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                          >
+                            <IoBagHandleOutline className="h-4 w-4" />
+                            Order Medicine
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
-                  {/* First Row: Download PDF, View, Share */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadPDF(prescription)}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition hover:bg-[#0d3a52] active:scale-95"
-                    >
-                      <IoDownloadOutline className="h-4 w-4" />
-                      Download PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleViewPDF(prescription)}
-                      className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                      aria-label="View PDF"
-                    >
-                      <IoEyeOutline className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleShareClick(prescription.id)}
-                      className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                      aria-label="Share prescription"
-                    >
-                      <IoShareSocialOutline className="h-4 w-4" />
-                    </button>
-                  </div>
-                  
-                  {/* Second Row: Book Test Visit, Order Medicine */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleBookTestVisit(prescription)}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
-                    >
-                      <IoFlaskOutline className="h-4 w-4" />
-                      Book Test Visit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleOrderMedicine(prescription)}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
-                    >
-                      <IoBagHandleOutline className="h-4 w-4" />
-                      Order Medicine
-                    </button>
-                  </div>
-                </div>
+                  </article>
+                ))}
               </div>
-            </article>
-          ))}
-        </div>
-      )}
+            )}
           </div>
         </>
       )}
@@ -1550,82 +1562,82 @@ const PatientPrescriptions = () => {
       {/* Lab Reports Content */}
       {activeTab === 'lab-reports' && (
         <div id="lab-reports-section" className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900">Lab Reports</h2>
-          <p className="text-xs text-slate-600">Share reports with your doctors</p>
-        </div>
-
-        {labReports.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-            <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-400" />
-            <p className="mt-4 text-sm font-medium text-slate-600">No lab reports found</p>
-            <p className="mt-1 text-xs text-slate-500">Lab reports will appear here when laboratory shares them</p>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-900">Lab Reports</h2>
+            <p className="text-xs text-slate-600">Share reports with your doctors</p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {labReports.map((report) => (
-              <article
-                key={report.id}
-                className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md flex flex-col min-h-[180px]"
-              >
-                {/* Header Section */}
-                <div className="flex items-start gap-4 p-5 pb-4 flex-1 min-h-[120px]">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
-                  style={{ 
-                    background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
-                    boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
-                  }}>
-                    <IoFlaskOutline className="h-8 w-8" />
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-slate-900 line-clamp-2 leading-tight">{report.testName}</h3>
-                        <p className="mt-1 text-sm text-slate-600 line-clamp-1">{report.labName}</p>
-                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-                          <IoCalendarOutline className="h-3.5 w-3.5 shrink-0" />
-                          <span className="whitespace-nowrap">{formatDate(report.date)}</span>
+
+          {labReports.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+              <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-400" />
+              <p className="mt-4 text-sm font-medium text-slate-600">No lab reports found</p>
+              <p className="mt-1 text-xs text-slate-500">Lab reports will appear here when laboratory shares them</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {labReports.map((report) => (
+                <article
+                  key={report.id}
+                  className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md flex flex-col min-h-[180px]"
+                >
+                  {/* Header Section */}
+                  <div className="flex items-start gap-4 p-5 pb-4 flex-1 min-h-[120px]">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg"
+                      style={{
+                        background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
+                        boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.3)'
+                      }}>
+                      <IoFlaskOutline className="h-8 w-8" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-bold text-slate-900 line-clamp-2 leading-tight">{report.testName}</h3>
+                          <p className="mt-1 text-sm text-slate-600 line-clamp-1">{report.labName}</p>
+                          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                            <IoCalendarOutline className="h-3.5 w-3.5 shrink-0" />
+                            <span className="whitespace-nowrap">{formatDate(report.date)}</span>
+                          </div>
                         </div>
+                        <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 whitespace-nowrap">
+                          Ready
+                        </span>
                       </div>
-                      <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 whitespace-nowrap">
-                        Ready
-                      </span>
                     </div>
                   </div>
-                </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-4">
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadLabReport(report)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98]"
-                  >
-                    <IoDownloadOutline className="h-4 w-4 shrink-0" />
-                    <span className="whitespace-nowrap">Download PDF</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleViewLabReportClick(report)}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow active:scale-95"
-                    aria-label="View report"
-                  >
-                    <IoEyeOutline className="h-5 w-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleShareLabReportClick(report)}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-[rgba(17,73,108,0.4)] hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] hover:shadow active:scale-95"
-                    aria-label="Share with doctor"
-                  >
-                    <IoShareSocialOutline className="h-5 w-5" />
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-4">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadLabReport(report)}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-[0.98]"
+                    >
+                      <IoDownloadOutline className="h-4 w-4 shrink-0" />
+                      <span className="whitespace-nowrap">Download PDF</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleViewLabReportClick(report)}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow active:scale-95"
+                      aria-label="View report"
+                    >
+                      <IoEyeOutline className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShareLabReportClick(report)}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:border-[rgba(17,73,108,0.4)] hover:bg-[rgba(17,73,108,0.1)] hover:text-[#11496c] hover:shadow active:scale-95"
+                      aria-label="Share with doctor"
+                    >
+                      <IoShareSocialOutline className="h-5 w-5" />
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1712,19 +1724,17 @@ const PatientPrescriptions = () => {
                         key={doctor.id}
                         type="button"
                         onClick={() => toggleDoctorSelection(doctor.id)}
-                        className={`w-full flex items-center justify-between rounded-xl border-2 p-4 transition text-left ${
-                          isSelected
-                            ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                        }`}
+                        className={`w-full flex items-center justify-between rounded-xl border-2 p-4 transition text-left ${isSelected
+                          ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                          }`}
                       >
                         <div className="flex items-center gap-3 flex-1">
                           <img
                             src={doctor.image}
                             alt={doctor.name}
-                            className={`h-12 w-12 rounded-xl object-cover ring-2 bg-slate-100 ${
-                              isSelected ? 'ring-[#11496c]' : 'ring-slate-200'
-                            }`}
+                            className={`h-12 w-12 rounded-xl object-cover ring-2 bg-slate-100 ${isSelected ? 'ring-[#11496c]' : 'ring-slate-200'
+                              }`}
                             onError={(e) => {
                               e.target.onerror = null
                               e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
@@ -1829,11 +1839,10 @@ const PatientPrescriptions = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedLabDoctorId(selectedLabReport.doctorId)}
-                    className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
-                      selectedLabDoctorId === selectedLabReport.doctorId
-                        ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
+                    className={`w-full rounded-xl border-2 p-3 text-left transition-all ${selectedLabDoctorId === selectedLabReport.doctorId
+                      ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <img
@@ -1872,7 +1881,7 @@ const PatientPrescriptions = () => {
                       })
                       .map((doctor) => {
                         const doctorId = doctor._id || doctor.id
-                        const doctorName = doctor.firstName && doctor.lastName 
+                        const doctorName = doctor.firstName && doctor.lastName
                           ? `Dr. ${doctor.firstName} ${doctor.lastName}`
                           : doctor.name || 'Doctor'
                         const specialty = doctor.specialization || doctor.specialty || ''
@@ -1882,11 +1891,10 @@ const PatientPrescriptions = () => {
                             key={doctorId}
                             type="button"
                             onClick={() => setSelectedLabDoctorId(doctorId)}
-                            className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
-                              selectedLabDoctorId === doctorId
-                                ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                                : 'border-slate-200 bg-white hover:border-slate-300'
-                            }`}
+                            className={`w-full rounded-xl border-2 p-3 text-left transition-all ${selectedLabDoctorId === doctorId
+                              ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                              }`}
                           >
                             <div className="flex items-center gap-3">
                               <img
@@ -2070,7 +2078,7 @@ const PatientPrescriptions = () => {
               {selectedLabReport.pdfFileUrl && selectedLabReport.pdfFileUrl !== '#' ? (
                 <>
                   <iframe
-                    src={`${selectedLabReport.pdfFileUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                    src={`${getFileUrl(selectedLabReport.pdfFileUrl)}#toolbar=1&navpanes=1&scrollbar=1`}
                     className="w-full flex-1 border-0"
                     title={`Lab Report - ${selectedLabReport.testName}`}
                     onError={(e) => {

@@ -134,21 +134,21 @@ const AdminRequests = () => {
                 : []
 
               return {
-            labId: lab._id || lab.id,
-            labName: lab.labName || '',
-            status: lab.status || 'pending',
-            isActive: lab.isActive !== false,
-            phone: lab.phone || '',
-            email: lab.email || '',
-            address: lab.address ? `${lab.address.line1 || ''}, ${lab.address.city || ''}, ${lab.address.state || ''}`.trim() : '',
-            rating: lab.rating || 0,
+                labId: lab._id || lab.id,
+                labName: lab.labName || '',
+                status: lab.status || 'pending',
+                isActive: lab.isActive !== false,
+                phone: lab.phone || '',
+                email: lab.email || '',
+                address: lab.address ? `${lab.address.line1 || ''}, ${lab.address.city || ''}, ${lab.address.state || ''}`.trim() : '',
+                rating: lab.rating || 0,
                 tests: tests.map((test) => ({
                   name: test.name || '',
                   price: Number(test.price) || 0,
                   description: test.description || '',
                   _id: test._id || test.id,
                 })),
-            originalData: lab,
+                originalData: lab,
               }
             } catch (err) {
               console.error(`Error loading tests for laboratory ${lab._id}:`, err)
@@ -198,14 +198,14 @@ const AdminRequests = () => {
                 : []
 
               return {
-            pharmacyId: pharm._id || pharm.id,
-            pharmacyName: pharm.pharmacyName || '',
-            status: pharm.status || 'pending',
-            isActive: pharm.isActive !== false,
-            phone: pharm.phone || '',
-            email: pharm.email || '',
-            address: pharm.address ? `${pharm.address.line1 || ''}, ${pharm.address.city || ''}, ${pharm.address.state || ''}`.trim() : '',
-            rating: pharm.rating || 0,
+                pharmacyId: pharm._id || pharm.id,
+                pharmacyName: pharm.pharmacyName || '',
+                status: pharm.status || 'pending',
+                isActive: pharm.isActive !== false,
+                phone: pharm.phone || '',
+                email: pharm.email || '',
+                address: pharm.address ? `${pharm.address.line1 || ''}, ${pharm.address.city || ''}, ${pharm.address.state || ''}`.trim() : '',
+                rating: pharm.rating || 0,
                 medicines: medicines.map((med) => ({
                   name: med.name || '',
                   dosage: med.dosage || '',
@@ -215,7 +215,7 @@ const AdminRequests = () => {
                   expiryDate: med.expiryDate || null,
                   _id: med._id || med.id,
                 })),
-            originalData: pharm,
+                originalData: pharm,
               }
             } catch (err) {
               console.error(`Error loading medicines for pharmacy ${pharm._id}:`, err)
@@ -280,11 +280,11 @@ const AdminRequests = () => {
         // Helper function to format patient address
         const formatPatientAddress = (req) => {
           // Priority: 1. req.patientId.address, 2. req.prescriptionId.patientId.address, 3. req.address/deliveryAddress
-          let address = req.patientId?.address || 
-                       req.prescriptionId?.patientId?.address || 
-                       req.address || 
-                       req.deliveryAddress || 
-                       null
+          let address = req.patientId?.address ||
+            req.prescriptionId?.patientId?.address ||
+            req.address ||
+            req.deliveryAddress ||
+            null
 
           if (!address) return ''
 
@@ -366,7 +366,8 @@ const AdminRequests = () => {
             investigations: req.investigations || req.tests || [],
             createdAt: req.createdAt || new Date().toISOString(),
             prescription: flattenPrescription(req),
-            adminResponse: req.adminResponse || null, // Include adminResponse from backend
+            // If adminResponse exists, prefer that for display on modal reopen
+            adminResponse: (req.adminResponse && Object.keys(req.adminResponse).length > 0) ? req.adminResponse : null,
             originalData: req,
           }))
 
@@ -390,7 +391,7 @@ const AdminRequests = () => {
             medicines: req.medicines || req.items || [],
             createdAt: req.createdAt || new Date().toISOString(),
             prescription: flattenPrescription(req),
-            adminResponse: req.adminResponse || null, // Include adminResponse from backend
+            adminResponse: (req.adminResponse && Object.keys(req.adminResponse).length > 0) ? req.adminResponse : null, // Include adminResponse from backend
             originalData: req,
           }))
 
@@ -484,6 +485,28 @@ const AdminRequests = () => {
     }
   }
 
+  // Open request and ensure the correct section is active
+
+
+  const handleOpenRequest = (request) => {
+    if (!request) return
+    const nextSection = (request.type === 'book_test_visit' || request.requestType === 'lab' || request.providerType === 'laboratory')
+      ? 'lab'
+      : 'pharmacy'
+    setActiveSection(nextSection)
+    setSelectedRequest(request)
+  }
+
+  const hasBillGeneratedForRequest = (req) => {
+    if (!req || !req.adminResponse) return false
+    const hasData = Object.keys(req.adminResponse).length > 0
+    if (!hasData) return false
+    return (
+      req.paymentConfirmed === true ||
+      ['admin_responded', 'accepted', 'confirmed', 'payment_confirmed', 'paid'].includes(req.status)
+    )
+  }
+
   // Helper function to get localStorage key for current request
   const getRequestStorageKey = (key) => {
     if (!selectedRequest) return null
@@ -499,10 +522,10 @@ const AdminRequests = () => {
         // Bill already generated, populate state from adminResponse so it's visible in the modal
         if (activeSection === 'lab' && selectedRequest.adminResponse.investigations) {
           // Calculate total from adminResponse for lab
-          const calculatedTotal = selectedRequest.adminResponse.totalAmount || 
+          const calculatedTotal = selectedRequest.adminResponse.totalAmount ||
             selectedRequest.adminResponse.investigations.reduce((sum, test) => sum + (test.price || 0), 0)
           setTotalAmount(calculatedTotal)
-          
+
           // Populate selectedLabs from adminResponse
           if (selectedRequest.adminResponse.labs && selectedRequest.adminResponse.labs.length > 0) {
             const labsFromResponse = selectedRequest.adminResponse.labs.map(lab => ({
@@ -514,7 +537,7 @@ const AdminRequests = () => {
             }))
             setSelectedLabs(labsFromResponse)
           }
-          
+
           // Populate selectedTestsFromLab from adminResponse
           if (selectedRequest.adminResponse.investigations && selectedRequest.adminResponse.investigations.length > 0) {
             const testsFromResponse = selectedRequest.adminResponse.investigations.map((test, idx) => {
@@ -522,7 +545,7 @@ const AdminRequests = () => {
               const lab = selectedRequest.adminResponse.labs && selectedRequest.adminResponse.labs.length > 0
                 ? selectedRequest.adminResponse.labs[0]
                 : { id: '', name: '' }
-              
+
               return {
                 labId: lab.id || lab.labId || '',
                 labName: lab.name || lab.labName || '',
@@ -537,10 +560,10 @@ const AdminRequests = () => {
           }
         } else if (activeSection === 'pharmacy' && selectedRequest.adminResponse.medicines) {
           // Calculate total from adminResponse for pharmacy
-          const calculatedTotal = selectedRequest.adminResponse.totalAmount || 
+          const calculatedTotal = selectedRequest.adminResponse.totalAmount ||
             selectedRequest.adminResponse.medicines.reduce((sum, med) => sum + ((med.price || 0) * (med.quantity || 0)), 0)
           setTotalAmount(calculatedTotal)
-          
+
           // Populate selectedPharmacies from adminResponse
           if (selectedRequest.adminResponse.pharmacies && selectedRequest.adminResponse.pharmacies.length > 0) {
             const pharmaciesFromResponse = selectedRequest.adminResponse.pharmacies.map(pharmacy => ({
@@ -552,7 +575,7 @@ const AdminRequests = () => {
             }))
             setSelectedPharmacies(pharmaciesFromResponse)
           }
-          
+
           // Populate selectedMedicinesFromPharmacy from adminResponse
           if (selectedRequest.adminResponse.medicines && selectedRequest.adminResponse.medicines.length > 0) {
             const medicinesFromResponse = selectedRequest.adminResponse.medicines.map(med => {
@@ -560,7 +583,7 @@ const AdminRequests = () => {
               const pharmacy = selectedRequest.adminResponse.pharmacies && selectedRequest.adminResponse.pharmacies.length > 0
                 ? selectedRequest.adminResponse.pharmacies[0]
                 : { id: '', name: '' }
-              
+
               return {
                 pharmacyId: pharmacy.id || pharmacy.pharmacyId || med.pharmacyId || '',
                 pharmacyName: pharmacy.name || pharmacy.pharmacyName || med.pharmacyName || '',
@@ -582,7 +605,7 @@ const AdminRequests = () => {
       const storageKey = getRequestStorageKey(activeSection === 'lab' ? 'labData' : 'pharmacyData')
       const savedData = localStorage.getItem(storageKey)
       let hasSavedData = false
-      
+
       if (savedData) {
         try {
           const parsed = JSON.parse(savedData)
@@ -615,7 +638,7 @@ const AdminRequests = () => {
           console.error('Error loading saved data:', error)
         }
       }
-      
+
       if (!hasSavedData) {
         if (activeSection === 'lab') {
           // No saved data, initialize fresh for lab
@@ -641,7 +664,7 @@ const AdminRequests = () => {
         }))
         setAdminMedicines(initialMedicines)
         if (!hasSavedData) {
-        setTotalAmount(0)
+          setTotalAmount(0)
         }
         setAdminResponse('')
       }
@@ -650,14 +673,14 @@ const AdminRequests = () => {
         // Lab tests are handled in the lab selection section, but we clear medicines
         setAdminMedicines([])
         if (!hasSavedData) {
-        setTotalAmount(0)
+          setTotalAmount(0)
         }
         setAdminResponse('')
       }
       else {
         setAdminMedicines([])
         if (!hasSavedData) {
-        setTotalAmount(0)
+          setTotalAmount(0)
         }
         setAdminResponse('')
       }
@@ -900,20 +923,20 @@ const AdminRequests = () => {
 
     if (activeSection === 'pharmacy') {
       if (!selectedRequest || selectedPharmacies.length === 0) {
-        alert('Please select a pharmacy first')
+        toast.error('Please select a pharmacy first')
         return
       }
       if (selectedMedicinesFromPharmacy.length === 0) {
-        alert('Please select at least one medicine')
+        toast.error('Please select at least one medicine')
         return
       }
     } else if (activeSection === 'lab') {
       if (!selectedRequest || selectedLabs.length === 0) {
-        alert('Please select at least one lab first')
+        toast.error('Please select at least one lab first')
         return
       }
       if (selectedTestsFromLab.length === 0) {
-        alert('Please select at least one test')
+        toast.error('Please select at least one test')
         return
       }
     }
@@ -1286,58 +1309,55 @@ const AdminRequests = () => {
 
       toast.success('Response sent successfully! Patient can now view and pay for the request.')
 
+      // Construct the response data structure for local update (including names to ensure visibility)
+      const updatedAdminResponseData = {
+        ...apiPayload,
+        // Override IDs with full objects for display
+        labs: activeSection === 'lab' ? selectedLabs.map(l => ({
+          labId: l.labId || l._id,
+          name: l.labName || l.name, // Ensure name property exists
+          labName: l.labName || l.name
+        })) : [],
+        pharmacies: activeSection === 'pharmacy' ? selectedPharmacies.map(p => ({
+          pharmacyId: p.pharmacyId || p._id,
+          name: p.pharmacyName || p.name, // Ensure name property exists
+          pharmacyName: p.pharmacyName || p.name
+        })) : [],
+        totalAmount: totalAmount,
+        respondedAt: new Date().toISOString()
+      }
+
       // Update the requests list immediately with adminResponse so it persists when modal is reopened
       if (activeSection === 'lab') {
-        setLabRequests(prevRequests => 
-          prevRequests.map(req => 
+        setLabRequests(prevRequests =>
+          prevRequests.map(req =>
             req.id === selectedRequest.id || req._id === selectedRequest.id
               ? {
-                  ...req,
-                  adminResponse: adminResponseData,
-                  status: 'accepted',
-                }
+                ...req,
+                adminResponse: updatedAdminResponseData,
+                status: 'accepted',
+              }
               : req
           )
         )
       } else if (activeSection === 'pharmacy') {
-        setPharmacyRequests(prevRequests => 
-          prevRequests.map(req => 
+        setPharmacyRequests(prevRequests =>
+          prevRequests.map(req =>
             req.id === selectedRequest.id || req._id === selectedRequest.id
               ? {
-                  ...req,
-                  adminResponse: adminResponseData,
-                  status: 'accepted',
-                }
+                ...req,
+                adminResponse: updatedAdminResponseData,
+                status: 'accepted',
+              }
               : req
           )
         )
       }
 
-      // Update selectedRequest with the adminResponse data so bill details are visible
-      // This keeps the modal open and shows the generated bill
-      setSelectedRequest({
-        ...selectedRequest,
-        adminResponse: adminResponseData,
-        status: 'accepted', // Update status to show bill details
-      })
+      // Close the modal as requested
+      setSelectedRequest(null)
 
-      // Reload requests in background to get updated data from server
-      loadRequests().catch(err => console.error('Error reloading requests:', err))
-
-      // Clear localStorage for this request since response is sent
-      if (selectedRequest) {
-        const labStorageKey = getRequestStorageKey('labData')
-        const pharmacyStorageKey = getRequestStorageKey('pharmacyData')
-        if (labStorageKey) {
-          localStorage.removeItem(labStorageKey)
-        }
-        if (pharmacyStorageKey) {
-          localStorage.removeItem(pharmacyStorageKey)
-        }
-      }
-
-      // Don't close modal - keep it open to show bill details
-      // Just reset the form inputs
+      // Reset form inputs (though closing modal usually does this via the onClose handler, explicit reset here is safe)
       setShowPharmacyDropdown(false)
       setShowLabDropdown(false)
       setAdminResponse('')
@@ -1346,7 +1366,7 @@ const AdminRequests = () => {
       setExpandedLabId(null)
       setExpandedLabSearch('')
       setLabTestSearch('')
-      
+
       // Keep selected labs and tests visible - they're now in adminResponse
       // Don't clear them so user can see what was selected
     } catch (error) {
@@ -1840,6 +1860,62 @@ const AdminRequests = () => {
     console.log('Filtered Requests:', filteredRequests.length)
   }, [labRequests, pharmacyRequests, activeSection, filteredRequests])
 
+  // Hydrate state when selectedRequest changes and has adminResponse
+  useEffect(() => {
+    if (selectedRequest?.adminResponse) {
+      const resp = selectedRequest.adminResponse;
+
+      // Hydrate Pharmacy Data
+      if (resp.pharmacies && resp.pharmacies.length > 0) {
+        // Map simplified pharmacy objects to state
+        setSelectedPharmacies(resp.pharmacies.map(p => ({
+          pharmacyId: p.pharmacyId || p._id || p.id,
+          pharmacyName: p.pharmacyName || p.name,
+          ...p
+        })));
+      }
+
+      if (resp.medicines && resp.medicines.length > 0) {
+        setSelectedMedicinesFromPharmacy(resp.medicines.map(m => ({
+          pharmacyId: m.pharmacyId,
+          pharmacyName: m.pharmacyName,
+          medicine: {
+            name: m.name,
+            dosage: m.dosage
+          },
+          quantity: m.quantity,
+          price: m.price
+        })));
+      }
+
+      // Hydrate Lab Data
+      if (resp.labs && resp.labs.length > 0) {
+        setSelectedLabs(resp.labs.map(l => ({
+          labId: l.labId || l._id || l.id,
+          labName: l.labName || l.name,
+          ...l
+        })));
+      }
+
+      if ((resp.tests && resp.tests.length > 0) || (resp.investigations && resp.investigations.length > 0)) {
+        const testsToUse = resp.tests || resp.investigations;
+        setSelectedTestsFromLab(testsToUse.map(t => ({
+          labId: t.labId,
+          labName: t.labName,
+          test: {
+            name: t.testName || t.name
+          },
+          price: t.price
+        })));
+      }
+
+      // Set Total Amount
+      if (resp.totalAmount) {
+        setTotalAmount(Number(resp.totalAmount));
+      }
+    }
+  }, [selectedRequest]);
+
   return (
     <div className="min-h-screen bg-slate-50 py-6">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -1995,9 +2071,9 @@ const AdminRequests = () => {
                                   ? 'Completed'
                                   : 'Active'}
                     </span>
-                    {request.paymentConfirmed && request.paidAt && (
+                    {request.paymentConfirmed && (
                       <span className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-green-100 text-green-700">
-                        Paid: {formatDate(request.paidAt)}
+                        Paid{request.paidAt ? `: ${formatDate(request.paidAt)}` : ''}
                       </span>
                     )}
                     {request.cancelledBy === 'patient' && (
@@ -2078,32 +2154,42 @@ const AdminRequests = () => {
                       >
                         <IoDownloadOutline className="h-4 w-4" />
                       </button>
-                      {request.status === 'pending' && (
+                      {request.status === 'pending' ? (
                         <>
                           <button
                             type="button"
-                            onClick={() => handleAcceptRequest(request.id)}
-                            className="flex items-center justify-center rounded-lg bg-emerald-600 p-2 text-white shadow-sm transition hover:bg-emerald-700 active:scale-95"
-                            title="Accept"
+                            onClick={() => handleOpenRequest(request)}
+                            className="flex items-center justify-center rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] active:scale-95 gap-1.5"
+                            title={activeSection === 'pharmacy' ? 'Select Pharmacy' : 'Select Lab'}
                           >
-                            <IoCheckmarkCircleOutline className="h-4 w-4" />
+                            {activeSection === 'pharmacy' ? (
+                              <>
+                                <IoBagHandleOutline className="h-4 w-4" />
+                                Select Pharmacy
+                              </>
+                            ) : (
+                              <>
+                                <IoFlaskOutline className="h-4 w-4" />
+                                Select Lab
+                              </>
+                            )}
                           </button>
                           <button
                             type="button"
                             onClick={() => handleCancelRequest(request.id)}
-                            className="flex items-center justify-center rounded-lg bg-red-600 p-2 text-white shadow-sm transition hover:bg-red-700 active:scale-95"
-                            title="Cancel"
+                            className="flex items-center justify-center rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 active:scale-95 gap-1.5"
+                            title="Reject"
                           >
                             <IoCloseCircleOutline className="h-4 w-4" />
+                            Reject
                           </button>
                         </>
-                      )}
-                      {request.status === 'accepted' && request.status !== 'cancelled' && (
+                      ) : request.status !== 'cancelled' ? (
                         <button
                           type="button"
-                          onClick={() => setSelectedRequest(request)}
+                          onClick={() => handleOpenRequest(request)}
                           className="flex items-center justify-center rounded-lg border border-[#11496c] bg-white p-2 text-[#11496c] transition hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
-                          title={activeSection === 'pharmacy' ? 'Add Medicines' : 'Select Lab'}
+                          title={activeSection === 'pharmacy' ? 'View/Edit Medicines' : 'View/Edit Lab'}
                         >
                           {activeSection === 'pharmacy' ? (
                             <IoBagHandleOutline className="h-4 w-4" />
@@ -2111,8 +2197,7 @@ const AdminRequests = () => {
                             <IoFlaskOutline className="h-4 w-4" />
                           )}
                         </button>
-                      )}
-                      {request.status === 'cancelled' && (
+                      ) : (
                         <span className="text-[9px] font-semibold text-red-600 px-2 py-1 rounded bg-red-50">
                           Cancelled
                         </span>
@@ -2238,22 +2323,22 @@ const AdminRequests = () => {
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               // Only reset state if bill hasn't been generated yet
-              const hasBillGenerated = selectedRequest?.adminResponse && 
+              const hasBillGenerated = selectedRequest?.adminResponse &&
                 (selectedRequest.status === 'accepted' || selectedRequest.status === 'admin_responded')
-              
+
               if (!hasBillGenerated) {
                 // Reset all state only if bill not generated
-              setSelectedPharmacy(null)
-              setSelectedLab(null)
-              setSelectedPharmacies([])
-              setSelectedLabs([])
-              setAdminMedicines([])
-              setAdminResponse('')
-              setTotalAmount(0)
-              setSelectedMedicinesFromPharmacy([])
-              setSelectedTestsFromLab([])
+                setSelectedPharmacy(null)
+                setSelectedLab(null)
+                setSelectedPharmacies([])
+                setSelectedLabs([])
+                setAdminMedicines([])
+                setAdminResponse('')
+                setTotalAmount(0)
+                setSelectedMedicinesFromPharmacy([])
+                setSelectedTestsFromLab([])
               }
-              
+
               // Always close dropdowns and reset search
               setShowPharmacyDropdown(false)
               setShowLabDropdown(false)
@@ -2262,7 +2347,7 @@ const AdminRequests = () => {
               setExpandedLabId(null)
               setExpandedLabSearch('')
               setLabTestSearch('')
-              
+
               // Close modal
               setSelectedRequest(null)
             }
@@ -2280,22 +2365,22 @@ const AdminRequests = () => {
                 onClick={() => {
                   // Only reset state if bill hasn't been generated yet
                   // If bill is generated, keep the data so it shows when modal is reopened
-                  const hasBillGenerated = selectedRequest?.adminResponse && 
+                  const hasBillGenerated = selectedRequest?.adminResponse &&
                     (selectedRequest.status === 'accepted' || selectedRequest.status === 'admin_responded')
-                  
+
                   if (!hasBillGenerated) {
                     // Reset all state only if bill not generated
-                  setSelectedPharmacy(null)
-                  setSelectedLab(null)
-                  setSelectedPharmacies([])
-                  setSelectedLabs([])
-                  setAdminMedicines([])
-                  setAdminResponse('')
-                  setTotalAmount(0)
-                  setSelectedMedicinesFromPharmacy([])
-                  setSelectedTestsFromLab([])
+                    setSelectedPharmacy(null)
+                    setSelectedLab(null)
+                    setSelectedPharmacies([])
+                    setSelectedLabs([])
+                    setAdminMedicines([])
+                    setAdminResponse('')
+                    setTotalAmount(0)
+                    setSelectedMedicinesFromPharmacy([])
+                    setSelectedTestsFromLab([])
                   }
-                  
+
                   // Always close dropdowns and reset search
                   setShowPharmacyDropdown(false)
                   setShowLabDropdown(false)
@@ -2304,7 +2389,7 @@ const AdminRequests = () => {
                   setExpandedLabId(null)
                   setExpandedLabSearch('')
                   setLabTestSearch('')
-                  
+
                   // Close modal
                   setSelectedRequest(null)
                 }}
@@ -2432,7 +2517,7 @@ const AdminRequests = () => {
               )}
 
               {/* Pharmacy Selection Dropdown - Only for pharmacy requests (not cancelled) */}
-              {activeSection === 'pharmacy' && selectedRequest.status !== 'cancelled' && (
+              {activeSection === 'pharmacy' && (selectedRequest.status === 'pending' || (selectedRequest.status !== 'cancelled' && !selectedRequest.adminResponse)) && (
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
                   <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                     <IoBusinessOutline className="h-3.5 w-3.5" />
@@ -2505,13 +2590,13 @@ const AdminRequests = () => {
                                         <h4 className="text-xs font-semibold text-slate-900 mb-0.5 truncate">
                                           {pharmacy.pharmacyName}
                                         </h4>
-                                      {pharmacy.rating != null && Number(pharmacy.rating) > 0 && (
+                                        {pharmacy.rating != null && Number(pharmacy.rating) > 0 && (
                                           <div className="flex items-center gap-1 mb-0.5">
                                             <div className="flex items-center gap-0.5">
-                                            {renderStars(Number(pharmacy.rating))}
+                                              {renderStars(Number(pharmacy.rating))}
                                             </div>
                                             <span className="text-[10px] font-semibold text-slate-700">
-                                            {Number(pharmacy.rating).toFixed(1)}
+                                              {Number(pharmacy.rating).toFixed(1)}
                                             </span>
                                           </div>
                                         )}
@@ -2755,9 +2840,9 @@ const AdminRequests = () => {
                           </div>
                         ))}
                       </div>
-                      <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-900">Total Amount:</span>
-                        <span className="text-sm font-bold text-[#11496c]">₹{totalAmount.toFixed(2)}</span>
+                      <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between bg-blue-100 p-2 rounded">
+                        <span className="text-sm font-bold text-slate-900">Total Calculation:</span>
+                        <span className="text-lg font-extrabold text-[#11496c]">₹{totalAmount.toFixed(2)}</span>
                       </div>
                     </div>
                   )}
@@ -2766,7 +2851,7 @@ const AdminRequests = () => {
 
 
               {/* Lab Selection Dropdown - Only for lab requests (not cancelled) */}
-              {activeSection === 'lab' && selectedRequest.status !== 'cancelled' && (
+              {activeSection === 'lab' && (selectedRequest.status === 'pending' || (selectedRequest.status !== 'cancelled' && !selectedRequest.adminResponse)) && (
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
                   <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                     <IoFlaskOutline className="h-3.5 w-3.5" />
@@ -2935,11 +3020,11 @@ const AdminRequests = () => {
                                       <div className="space-y-1 max-h-48 overflow-y-auto">
                                         {(() => {
                                           const filteredTests = lab.tests.filter((test) => {
-                                          if (expandedLabId !== lab.labId || !expandedLabSearch) return true
-                                          const searchTerm = expandedLabSearch.toLowerCase()
-                                          return test.name?.toLowerCase().includes(searchTerm)
+                                            if (expandedLabId !== lab.labId || !expandedLabSearch) return true
+                                            const searchTerm = expandedLabSearch.toLowerCase()
+                                            return test.name?.toLowerCase().includes(searchTerm)
                                           })
-                                          
+
                                           if (filteredTests.length === 0) {
                                             return (
                                               <div className="p-2 text-center text-[10px] text-slate-500">
@@ -2947,57 +3032,57 @@ const AdminRequests = () => {
                                               </div>
                                             )
                                           }
-                                          
-                                          return filteredTests.map((test, idx) => {
-                                          const isTestSelected = selectedTestsFromLab.some(
-                                            item => item.test.name === test.name && item.labId === lab.labId
-                                          )
 
-                                          return (
-                                            <div
-                                              key={idx}
-                                              className={`rounded border p-2 text-[10px] transition ${isTestSelected
-                                                ? 'border-[#11496c] bg-blue-50'
-                                                : 'border-slate-200 bg-white hover:border-slate-300'
-                                                }`}
-                                            >
-                                              <div className="flex items-start justify-between gap-2">
-                                                <div className="flex-1 min-w-0">
-                                                  <div className="flex items-center gap-1.5 mb-1">
-                                                    <button
-                                                      type="button"
-                                                      onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        handleAddTestFromLab(test, lab.labId, lab.labName)
-                                                      }}
-                                                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${isTestSelected
-                                                        ? 'border-[#11496c] bg-[#11496c] text-white'
-                                                        : 'border-slate-300 bg-white text-slate-600 hover:border-[#11496c] hover:text-[#11496c]'
-                                                        }`}
-                                                    >
-                                                      {isTestSelected ? (
-                                                        <IoCheckmarkCircleOutline className="h-3 w-3" />
-                                                      ) : (
-                                                        <IoAddOutline className="h-3 w-3" />
-                                                      )}
-                                                    </button>
-                                                    <div className="flex-1 min-w-0">
-                                                      <p className="font-semibold text-slate-900">
-                                                        {test.name}
-                                                      </p>
+                                          return filteredTests.map((test, idx) => {
+                                            const isTestSelected = selectedTestsFromLab.some(
+                                              item => item.test.name === test.name && item.labId === lab.labId
+                                            )
+
+                                            return (
+                                              <div
+                                                key={idx}
+                                                className={`rounded border p-2 text-[10px] transition ${isTestSelected
+                                                  ? 'border-[#11496c] bg-blue-50'
+                                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                                                  }`}
+                                              >
+                                                <div className="flex items-start justify-between gap-2">
+                                                  <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation()
+                                                          handleAddTestFromLab(test, lab.labId, lab.labName)
+                                                        }}
+                                                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${isTestSelected
+                                                          ? 'border-[#11496c] bg-[#11496c] text-white'
+                                                          : 'border-slate-300 bg-white text-slate-600 hover:border-[#11496c] hover:text-[#11496c]'
+                                                          }`}
+                                                      >
+                                                        {isTestSelected ? (
+                                                          <IoCheckmarkCircleOutline className="h-3 w-3" />
+                                                        ) : (
+                                                          <IoAddOutline className="h-3 w-3" />
+                                                        )}
+                                                      </button>
+                                                      <div className="flex-1 min-w-0">
+                                                        <p className="font-semibold text-slate-900">
+                                                          {test.name}
+                                                        </p>
+                                                      </div>
                                                     </div>
-                                                  </div>
-                                                  <div className="flex items-center gap-3 text-slate-600 ml-6">
-                                                    {test.price && (
-                                                      <span className="font-semibold text-[#11496c]">
-                                                        ₹{test.price}
-                                                      </span>
-                                                    )}
+                                                    <div className="flex items-center gap-3 text-slate-600 ml-6">
+                                                      {test.price && (
+                                                        <span className="font-semibold text-[#11496c]">
+                                                          ₹{test.price}
+                                                        </span>
+                                                      )}
+                                                    </div>
                                                   </div>
                                                 </div>
                                               </div>
-                                            </div>
-                                          )
+                                            )
                                           })
                                         })()}
                                       </div>
@@ -3050,70 +3135,75 @@ const AdminRequests = () => {
                           </div>
                         ))}
                       </div>
-                      <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-900">Total Amount:</span>
-                        <span className="text-sm font-bold text-[#11496c]">₹{totalAmount.toFixed(2)}</span>
+                      <div className="mt-2 pt-2 border-t border-blue-200 flex items-center justify-between bg-blue-100 p-2 rounded">
+                        <span className="text-sm font-bold text-slate-900">Total Calculation:</span>
+                        <span className="text-lg font-extrabold text-[#11496c]">₹{totalAmount.toFixed(2)}</span>
                       </div>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Admin Response Message - Only show if status is pending */}
-              {selectedRequest.status === 'pending' && (
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                    <IoDocumentTextOutline className="h-4 w-4" />
-                    Response Message
-                  </h3>
-                  <textarea
-                    value={adminResponse}
-                    onChange={(e) => setAdminResponse(e.target.value)}
-                    placeholder="Enter response message for patient (optional)..."
-                    rows={3}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#11496c]"
-                  />
-                </div>
-              )}
+
 
               {/* Admin Response Display - If already responded */}
-              {(selectedRequest.status === 'admin_responded' || selectedRequest.status === 'accepted') && selectedRequest.adminResponse && (
+              {hasBillGeneratedForRequest(selectedRequest) && (
                 <div className="rounded-lg border border-green-200 bg-green-50 p-3">
                   <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
                     <IoCheckmarkCircleOutline className="h-3.5 w-3.5 text-green-600" />
                     Bill Generated
                   </h3>
                   <p className="text-xs text-slate-700 mb-1.5">{selectedRequest.adminResponse.message || 'Bill has been generated successfully.'}</p>
-                  
+
                   {/* Show selected labs - with fallback to selectedLabs if adminResponse doesn't have it */}
                   {(() => {
-                    const labsToShow = selectedRequest.adminResponse.labs && selectedRequest.adminResponse.labs.length > 0
+                    const labsToShow = (selectedRequest.adminResponse.labs && selectedRequest.adminResponse.labs.length > 0)
                       ? selectedRequest.adminResponse.labs
-                      : (activeSection === 'lab' && selectedLabs.length > 0 ? selectedLabs.map(l => ({ name: l.labName, id: l.labId })) : [])
-                    
+                      : (selectedLabs.length > 0
+                        ? selectedLabs.map(l => ({
+                          name: l.labName || l.name,
+                          id: l.labId || l.id,
+                        }))
+                        : [])
+
                     if (labsToShow.length > 0) {
                       return (
                         <div className="mt-2 mb-2">
                           <p className="text-[10px] font-semibold text-slate-600 mb-1">Selected Laboratories:</p>
                           <div className="space-y-1">
-                            {labsToShow.map((lab, idx) => (
-                              <div key={idx} className="text-[10px] text-slate-600 bg-white rounded px-2 py-1">
-                                {lab.name || lab.labName}
-                              </div>
-                            ))}
+                            {labsToShow.map((lab, idx) => {
+                              const labId = lab.id || lab.labId || lab._id
+                              const matchedLab = labs.find(l =>
+                                l.labId === labId || l._id === labId || l.id === labId
+                              )
+                              const displayName = lab.name || lab.labName || matchedLab?.labName || matchedLab?.name || 'Laboratory'
+                              const displayId = labId || matchedLab?.labId || matchedLab?._id || matchedLab?.id
+
+                              return (
+                                <div key={idx} className="flex items-center gap-1.5 bg-white rounded px-2 py-1.5 border border-green-100 shadow-sm">
+                                  <IoFlaskOutline className="h-3 w-3 text-green-600" />
+                                  <div className="flex flex-col leading-tight">
+                                    <span className="text-[10px] font-bold text-slate-800">{displayName}</span>
+                                    {displayId && (
+                                      <span className="text-[10px] text-slate-500 break-all">ID: {displayId}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       )
                     }
                     return null
                   })()}
-                  
+
                   {/* Show selected pharmacies - with fallback to selectedPharmacies if adminResponse doesn't have it */}
                   {(() => {
                     const pharmaciesToShow = selectedRequest.adminResponse.pharmacies && selectedRequest.adminResponse.pharmacies.length > 0
                       ? selectedRequest.adminResponse.pharmacies
                       : (activeSection === 'pharmacy' && selectedPharmacies.length > 0 ? selectedPharmacies.map(p => ({ name: p.pharmacyName, id: p.pharmacyId })) : [])
-                    
+
                     if (pharmaciesToShow.length > 0) {
                       return (
                         <div className="mt-2 mb-2">
@@ -3130,13 +3220,13 @@ const AdminRequests = () => {
                     }
                     return null
                   })()}
-                  
+
                   {/* Show selected tests/investigations - with fallback to selectedTestsFromLab if adminResponse doesn't have it */}
                   {(() => {
                     const testsToShow = selectedRequest.adminResponse.investigations && selectedRequest.adminResponse.investigations.length > 0
                       ? selectedRequest.adminResponse.investigations
                       : (activeSection === 'lab' && selectedTestsFromLab.length > 0 ? selectedTestsFromLab.map(item => ({ name: item.test.name, price: item.price })) : [])
-                    
+
                     if (testsToShow.length > 0) {
                       return (
                         <div className="mt-2 mb-2">
@@ -3154,18 +3244,18 @@ const AdminRequests = () => {
                     }
                     return null
                   })()}
-                  
+
                   {/* Show selected medicines - with fallback to selectedMedicinesFromPharmacy if adminResponse doesn't have it */}
                   {(() => {
                     const medicinesToShow = selectedRequest.adminResponse.medicines && selectedRequest.adminResponse.medicines.length > 0
                       ? selectedRequest.adminResponse.medicines
-                      : (activeSection === 'pharmacy' && selectedMedicinesFromPharmacy.length > 0 ? selectedMedicinesFromPharmacy.map(item => ({ 
-                          name: item.medicine.name, 
-                          dosage: item.medicine.dosage, 
-                          quantity: item.quantity, 
-                          price: item.price 
-                        })) : [])
-                    
+                      : (activeSection === 'pharmacy' && selectedMedicinesFromPharmacy.length > 0 ? selectedMedicinesFromPharmacy.map(item => ({
+                        name: item.medicine.name,
+                        dosage: item.medicine.dosage,
+                        quantity: item.quantity,
+                        price: item.price
+                      })) : [])
+
                     if (medicinesToShow.length > 0) {
                       return (
                         <div className="mt-2 mb-2">
@@ -3187,12 +3277,12 @@ const AdminRequests = () => {
                     }
                     return null
                   })()}
-                  
-                  <div className="mt-2 pt-2 border-t border-green-300 flex items-center justify-between">
-                    <span className="text-[10px] font-semibold text-slate-700">Total Amount:</span>
-                    <span className="text-xs font-bold text-green-700">₹{Number(selectedRequest.adminResponse.totalAmount || totalAmount || 0).toFixed(2)}</span>
+
+                  <div className="mt-2 pt-2 border-t border-green-300 flex items-center justify-between bg-green-100 p-2 rounded">
+                    <span className="text-sm font-bold text-slate-900">Total Calculation:</span>
+                    <span className="text-lg font-extrabold text-green-700">₹{Number(selectedRequest.adminResponse.totalAmount || totalAmount || 0).toFixed(2)}</span>
                   </div>
-                  
+
                   <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-600">
                     {selectedRequest.adminResponse.pharmacies && selectedRequest.adminResponse.pharmacies.length > 0 && (
                       <p>Pharmacies: {selectedRequest.adminResponse.pharmacies.map(p => p.name).join(', ')}</p>
@@ -3204,7 +3294,7 @@ const AdminRequests = () => {
                       <p>Lab: {selectedRequest.adminResponse.lab.name}</p>
                     )}
                     {selectedRequest.adminResponse.respondedAt && (
-                    <p>Sent: {formatDate(selectedRequest.adminResponse.respondedAt)}</p>
+                      <p>Sent: {formatDate(selectedRequest.adminResponse.respondedAt)}</p>
                     )}
                   </div>
                 </div>
@@ -3250,22 +3340,7 @@ const AdminRequests = () => {
                 </div>
               )}
 
-              {/* Admin Response Message - Only show if status is pending */}
-              {selectedRequest.status === 'pending' && (
-                <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-3">
-                  <h3 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-                    <IoChatbubbleOutline className="h-3.5 w-3.5" />
-                    Admin Response Message
-                  </h3>
-                  <textarea
-                    value={adminResponse}
-                    onChange={(e) => setAdminResponse(e.target.value)}
-                    placeholder="Enter your response message to the patient..."
-                    rows={3}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c] resize-none"
-                  />
-                </div>
-              )}
+
             </div>
 
             {/* Footer Actions */}
@@ -3300,14 +3375,16 @@ const AdminRequests = () => {
                   <button
                     type="button"
                     onClick={handleSendResponse}
-                    disabled={
-                      isSendingResponse ||
-                      (activeSection === 'pharmacy' && (selectedPharmacies.length === 0 || selectedMedicinesFromPharmacy.length === 0)) ||
-                      (activeSection === 'lab' && (selectedLabs.length === 0 || selectedTestsFromLab.length === 0))
-                    }
+                    disabled={isSendingResponse || hasBillGeneratedForRequest(selectedRequest)}
                     className="flex items-center justify-center gap-1.5 rounded-lg bg-[#11496c] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0d3a52] disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={hasBillGeneratedForRequest(selectedRequest) ? 'Bill already generated' : 'Generate Bill'}
                   >
-                    {isSendingResponse ? (
+                    {hasBillGeneratedForRequest(selectedRequest) ? (
+                      <>
+                        <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                        Bill Generated
+                      </>
+                    ) : isSendingResponse ? (
                       <>
                         <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
                         Sending...
@@ -3362,8 +3439,8 @@ const AdminRequests = () => {
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Cancel Request</h2>
-                <p className="text-xs text-slate-600">Please provide a reason for cancellation</p>
+                <h2 className="text-lg font-bold text-slate-900">Reject Request</h2>
+                <p className="text-xs text-slate-600">Please provide a reason for rejecting this request</p>
               </div>
               <button
                 type="button"
@@ -3420,7 +3497,7 @@ const AdminRequests = () => {
                 className="flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <IoCloseCircleOutline className="h-3.5 w-3.5" />
-                Cancel Request
+                Reject Request
               </button>
             </div>
           </div>

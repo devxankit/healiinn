@@ -51,8 +51,18 @@ exports.getReports = asyncHandler(async (req, res) => {
 // POST /api/laboratory/reports
 exports.createReport = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { orderId, testName, results, notes, pdfFileUrl } = req.body;
+  let { orderId, testName, results, notes, pdfFileUrl } = req.body;
   const uploadedFile = req.file; // PDF file from multer
+
+  // Parse results if it comes as a string (multipart/form-data)
+  if (typeof results === 'string') {
+    try {
+      results = JSON.parse(results);
+    } catch (e) {
+      console.error('Error parsing results JSON:', e);
+      results = [];
+    }
+  }
 
   if (!orderId || !testName) {
     return res.status(400).json({
@@ -76,35 +86,44 @@ exports.createReport = asyncHandler(async (req, res) => {
   }
 
   // Check if report already exists
-  const existingReport = await LabReport.findOne({ orderId });
-  if (existingReport) {
-    return res.status(400).json({
-      success: false,
-      message: 'Report already exists for this order',
-    });
+  // Check if report already exists
+  let report = await LabReport.findOne({ orderId });
+
+  if (report) {
+    // If report exists, update it (Upsert behavior)
+    // Verify it belongs to this laboratory
+    if (report.laboratoryId.toString() !== id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this report',
+      });
+    }
+
+    report.testName = testName;
+    if (results) report.results = results;
+    if (notes) report.notes = notes;
+    // Update other fields as needed
+    await report.save();
+  } else {
+    // Create new report
+    const reportData = {
+      orderId,
+      patientId: order.patientId,
+      laboratoryId: id,
+      prescriptionId,
+      testName,
+      results: results || [],
+      notes: notes || '',
+      status: 'pending',
+      reportDate: new Date(),
+    };
+    report = await LabReport.create(reportData);
   }
 
-  // Get laboratory and patient data
+  // Get laboratory and patient data (needed for PDF and notifications)
   const laboratory = await Laboratory.findById(id);
   const patient = await Patient.findById(order.patientId);
-
-  // Get prescription ID from order if available
   const prescriptionId = order.prescriptionId || null;
-
-  // Create report
-  const reportData = {
-    orderId,
-    patientId: order.patientId,
-    laboratoryId: id,
-    prescriptionId,
-    testName,
-    results: results || [],
-    notes: notes || '',
-    status: 'pending',
-    reportDate: new Date(),
-  };
-
-  const report = await LabReport.create(reportData);
 
   // Handle PDF: Use uploaded file if provided, otherwise generate
   let pdfUrl = pdfFileUrl || null;
@@ -123,7 +142,7 @@ exports.createReport = asyncHandler(async (req, res) => {
       );
       pdfUrl = await uploadLabReportPDF(pdfBuffer, 'healiinn/reports', `report_${report._id}`);
     }
-    
+
     if (pdfUrl) {
       report.pdfFileUrl = pdfUrl;
       report.status = 'completed';
@@ -144,19 +163,19 @@ exports.createReport = asyncHandler(async (req, res) => {
     const populatedReport = await LabReport.findById(report._id)
       .populate('laboratoryId', 'labName')
       .populate('orderId');
-    
+
     // Notify patient about report ready
     io.to(`patient-${order.patientId}`).emit('report:created', {
       report: populatedReport,
     });
-    
+
     // Notify patient about order completion
     io.to(`patient-${order.patientId}`).emit('order:completed', {
       orderId: order._id,
       order: order,
       report: populatedReport,
     });
-    
+
     // Notify admin about order completion
     io.to('admins').emit('order:completed', {
       orderId: order._id,

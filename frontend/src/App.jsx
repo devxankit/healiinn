@@ -20,6 +20,7 @@ import PatientLogin from './modules/patient/patient-pages/PatientLogin'
 import PatientTransactions from './modules/patient/patient-pages/PatientTransactions'
 import PatientAppointments from './modules/patient/patient-pages/PatientAppointments'
 import PatientOrders from './modules/patient/patient-pages/PatientOrders'
+import PatientOrderDetails from './modules/patient/patient-pages/PatientOrderDetails'
 import PatientSupport from './modules/patient/patient-pages/PatientSupport'
 import PatientHistory from './modules/patient/patient-pages/PatientHistory'
 import NotificationsPage from './modules/shared/NotificationsPage'
@@ -167,6 +168,7 @@ function PatientRoutes() {
                     <Route path="/transactions" element={<ProtectedRoute module="patient"><PatientTransactions /></ProtectedRoute>} />
                     <Route path="/appointments" element={<ProtectedRoute module="patient"><PatientAppointments /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute module="patient"><PatientOrders /></ProtectedRoute>} />
+          <Route path="/orders/:id" element={<ProtectedRoute module="patient"><PatientOrderDetails /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute module="patient"><PatientHistory /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute module="patient"><PatientSupport /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute module="patient"><NotificationsPage /></ProtectedRoute>} />

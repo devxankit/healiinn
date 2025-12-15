@@ -69,12 +69,15 @@ exports.getRequestOrders = asyncHandler(async (req, res) => {
 // GET /api/laboratory/request-orders/:id
 exports.getRequestOrderById = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { requestId } = req.params;
+  const { id: requestId } = req.params;
 
   const request = await Request.findOne({
     _id: requestId,
-    type: 'book_test_visit',
-    'adminResponse.tests.labId': id,
+    type: { $in: ['book_test_visit', 'lab'] },
+    $or: [
+      { 'adminResponse.tests.labId': id },
+      { 'adminResponse.labs': id }, // Correctly matches if id is in the array of ObjectIds
+    ],
   })
     .populate('patientId')
     .populate({
@@ -112,18 +115,66 @@ exports.getRequestOrderById = asyncHandler(async (req, res) => {
 // PATCH /api/laboratory/request-orders/:id/confirm
 exports.confirmRequestOrder = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { requestId } = req.params;
+  const { id: requestId } = req.params;
 
-  const request = await Request.findOne({
-    _id: requestId,
-    type: 'book_test_visit',
-    'adminResponse.tests.labId': id,
-  });
+  // Debug: Log incoming request
+  console.log(`[Lab] Confirming order for request ID: "${requestId}" by lab ${id}`);
+  console.log(`[Lab] Type of requestId: ${typeof requestId}`);
+  console.log(`[Lab] Length of requestId: ${requestId ? requestId.length : 'null'}`);
+
+  // 1. Find request by ID first (relaxed query)
+  let request;
+  try {
+    request = await Request.findById(requestId).populate('patientId');
+    console.log(`[Lab] DB Find Result: ${request ? 'Found' : 'Null'}`);
+    if (!request) {
+      // Try finding by string ID if ObjectId fails (rare but possible with some setups)
+      console.log('[Lab] Trying findOne with string ID...');
+      request = await Request.findOne({ _id: requestId }).populate('patientId');
+    }
+  } catch (err) {
+    console.error(`[Lab] DB Error: ${err.message}`);
+    return res.status(500).json({ success: false, message: `DB Error: ${err.message}` });
+  }
 
   if (!request) {
+    console.log(`[Lab] Request ${requestId} not found in DB`);
+    // List all requests to debug if DB is empty or has different IDs
+    // const allRequests = await Request.find({}, '_id').limit(5);
+    // console.log('[Lab] Available Request IDs sample:', allRequests.map(r => r._id.toString()));
+
     return res.status(404).json({
       success: false,
-      message: 'Request order not found',
+      message: 'Request not found',
+    });
+  }
+
+  // 2. Validate Type
+  if (!['book_test_visit', 'lab'].includes(request.type)) {
+    console.log(`[Lab] Invalid request type: ${request.type}`);
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid request type',
+    });
+  }
+
+  // 3. Validate Lab Authorization
+  // Check if this lab is in the adminResponse
+  const adminResponse = request.adminResponse || {};
+  const labs = adminResponse.labs || [];
+  const tests = adminResponse.tests || [];
+
+  const isLabAuthorized =
+    labs.some(lab => lab.toString() === id.toString()) ||
+    tests.some(test => test.labId?.toString() === id.toString());
+
+  if (!isLabAuthorized) {
+    console.log(`[Lab] Lab ${id} is not authorized for request ${requestId}`);
+    console.log('Labs in request:', labs);
+    console.log('Tests in request:', tests);
+    return res.status(403).json({
+      success: false,
+      message: 'You are not authorized to confirm this request',
     });
   }
 
@@ -136,21 +187,32 @@ exports.confirmRequestOrder = asyncHandler(async (req, res) => {
 
   if (!order) {
     // Create order from request tests for this laboratory
-    const labTests = request.adminResponse.tests.filter(
-      test => test.labId.toString() === id.toString()
-    );
+    // Filter tests for this specific lab
+    const labTests = tests.filter(test => test.labId?.toString() === id.toString());
 
-    const items = labTests.map(test => ({
+    // If no specific tests found for lab (maybe explicit lab assignment without specific tests listing), 
+    // try to find generic tests or handle empty
+    const items = labTests.length > 0 ? labTests.map(test => ({
       name: test.testName,
       quantity: 1,
       price: test.price,
       total: test.price,
-    }));
+    })) : [{
+      name: request.testName || 'Lab Test',
+      quantity: 1,
+      price: request.totalAmount || 0,
+      total: request.totalAmount || 0
+    }]; // Fallback if tests array struct doesn't match
 
     const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 
+
+
+    const patientIdToSave = request.patientId?._id || request.patientId;
+    console.log('[Laboratory] Creating order for patientId:', patientIdToSave);
+
     order = await Order.create({
-      patientId: request.patientId,
+      patientId: patientIdToSave,
       providerId: id,
       providerType: 'laboratory',
       requestId: request._id,
@@ -245,13 +307,16 @@ exports.confirmRequestOrder = asyncHandler(async (req, res) => {
 // POST /api/laboratory/request-orders/:id/bill
 exports.generateBill = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { requestId } = req.params;
+  const { id: requestId } = req.params;
   const { testAmount, deliveryCharge, additionalCharges } = req.body;
 
   const request = await Request.findOne({
     _id: requestId,
-    type: 'book_test_visit',
-    'adminResponse.tests.labId': id,
+    type: { $in: ['book_test_visit', 'lab'] },
+    $or: [
+      { 'adminResponse.tests.labId': id },
+      { 'adminResponse.labs': id },
+    ],
   });
 
   if (!request) {
@@ -287,24 +352,83 @@ exports.generateBill = asyncHandler(async (req, res) => {
 // PATCH /api/laboratory/request-orders/:id/status
 exports.updateRequestOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { requestId } = req.params;
+  const { id: requestId } = req.params;
   const { status } = req.body;
 
-  const order = await Order.findOne({
+  // Valid statuses for laboratory orders
+  const validStatuses = [
+    // Common statuses
+    'pending', 'accepted', 'processing', 'ready', 'delivered', 'cancelled', 'completed',
+    // Lab visit flow statuses
+    'visit_time', 'sample_collected', 'being_tested', 'reports_being_generated', 'test_successful', 'reports_updated'
+  ];
+
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Valid status is required. Valid statuses: ' + validStatuses.join(', '),
+    });
+  }
+
+  // Try to find order by requestId first, if not found, try by order _id
+  let order = await Order.findOne({
     requestId,
     providerId: id,
     providerType: 'laboratory',
   });
 
+  // If not found by requestId, try finding by order _id (in case frontend passes order ID directly)
   if (!order) {
-    return res.status(404).json({
-      success: false,
-      message: 'Order not found',
+    order = await Order.findOne({
+      _id: requestId,
+      providerId: id,
+      providerType: 'laboratory',
     });
   }
 
+  if (!order) {
+    console.log(`[Lab Order Status] Order not found for requestId: ${requestId}, labId: ${id}`);
+    // Log available orders for debugging
+    const availableOrders = await Order.find({ providerId: id, providerType: 'laboratory' }).select('_id requestId status').limit(5);
+    console.log(`[Lab Order Status] Available orders for this lab:`, availableOrders);
+
+    return res.status(404).json({
+      success: false,
+      message: 'Order not found. Please ensure the order has been created from the request.',
+    });
+  }
+
+  // Store old status for logging
+  const oldStatus = order.status;
   order.status = status;
+
+  // Set timestamps for specific statuses
+  if (status === 'reports_updated' || status === 'completed') {
+    order.deliveredAt = new Date();
+  }
+
   await order.save();
+
+  // Get patient and laboratory data for notifications
+  const Patient = require('../../models/Patient');
+  const Laboratory = require('../../models/Laboratory');
+  const { createOrderNotification } = require('../../services/notificationService');
+
+  const patient = await Patient.findById(order.patientId);
+  const laboratory = await Laboratory.findById(id);
+
+  // Status label mapping for notifications
+  const statusLabels = {
+    pending: 'Pending',
+    visit_time: 'You can now visit the lab',
+    sample_collected: 'Sample Collected',
+    being_tested: 'Being Tested',
+    reports_being_generated: 'Reports Being Generated',
+    test_successful: 'Test Successful',
+    reports_updated: 'Reports Updated',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+  };
 
   // Emit real-time event
   try {
@@ -312,14 +436,48 @@ exports.updateRequestOrderStatus = asyncHandler(async (req, res) => {
     io.to(`patient-${order.patientId}`).emit('order:status:updated', {
       orderId: order._id,
       status,
+      oldStatus,
+      message: `Order status updated to ${statusLabels[status] || status}`,
     });
   } catch (error) {
     console.error('Socket.IO error:', error);
   }
 
+  // Create in-app notification for patient
+  try {
+    await createOrderNotification({
+      userId: order.patientId,
+      userType: 'patient',
+      order,
+      eventType: status === 'reports_updated' ? 'completed' : 'status_updated',
+      laboratory,
+      patient,
+      status, // Pass status for proper message generation
+    });
+  } catch (error) {
+    console.error('Error creating order notification:', error);
+  }
+
+  // Send email notification if status is important
+  if (['reports_updated', 'test_successful', 'sample_collected'].includes(status)) {
+    try {
+      const { sendOrderStatusUpdateEmail } = require('../../services/notificationService');
+      await sendOrderStatusUpdateEmail({
+        patient,
+        laboratory,
+        order,
+        status: statusLabels[status] || status,
+      });
+    } catch (error) {
+      console.error('Error sending order status email:', error);
+    }
+  }
+
+  console.log(`[Lab Order] Status updated: ${oldStatus} -> ${status} for order ${order._id}, patient ${patient?.phone || 'unknown'}`);
+
   return res.status(200).json({
     success: true,
-    message: 'Order status updated',
+    message: 'Order status updated successfully',
     data: order,
   });
 });
