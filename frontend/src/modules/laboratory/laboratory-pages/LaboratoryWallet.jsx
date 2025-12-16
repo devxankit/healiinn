@@ -47,18 +47,21 @@ const LaboratoryWallet = () => {
         setError(null)
         const response = await getLaboratoryWalletBalance()
         
-        if (response.success && response.data) {
+        if (response?.success && response.data) {
           const data = response.data
           setWalletData({
-            totalBalance: data.totalBalance || data.balance || 0,
-            availableBalance: data.availableBalance || data.available || 0,
-            pendingBalance: data.pendingBalance || data.pending || 0,
-            thisMonthEarnings: data.thisMonthEarnings || 0,
-            lastMonthEarnings: data.lastMonthEarnings || 0,
-            totalEarnings: data.totalEarnings || 0,
-            totalWithdrawals: data.totalWithdrawals || 0,
-            totalTransactions: data.totalTransactions || 0,
+            totalBalance: Number(data.totalBalance ?? data.balance ?? 0),
+            availableBalance: Number(data.availableBalance ?? data.available ?? 0),
+            pendingBalance: Number(data.pendingBalance ?? data.pendingWithdrawals ?? data.pending ?? 0),
+            thisMonthEarnings: Number(data.thisMonthEarnings ?? 0),
+            lastMonthEarnings: Number(data.lastMonthEarnings ?? 0),
+            totalEarnings: Number(data.totalEarnings ?? 0),
+            totalWithdrawals: Number(data.totalWithdrawals ?? 0),
+            totalTransactions: Number(data.totalTransactions ?? 0),
           })
+        } else {
+          setError('Failed to load wallet data')
+          toast.error('Failed to load wallet data')
         }
       } catch (err) {
         console.error('Error fetching wallet data:', err)

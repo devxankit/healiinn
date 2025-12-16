@@ -16,6 +16,7 @@ import {
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
 import { getUsers, updateUserStatus, deleteUser } from '../admin-services/adminService'
+import Pagination from '../../../components/Pagination'
 
 const AdminUsers = () => {
   const toast = useToast()
@@ -24,6 +25,10 @@ const AdminUsers = () => {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [allUsers, setAllUsers] = useState([]) // Store all users for stats
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [formData, setFormData] = useState({
@@ -36,12 +41,20 @@ const AdminUsers = () => {
 
   // Load users from API
   useEffect(() => {
+    setCurrentPage(1) // Reset to page 1 when filter changes
+  }, [statusFilter, searchTerm])
+
+  useEffect(() => {
     loadUsers()
-  }, [statusFilter])
+  }, [statusFilter, searchTerm, currentPage])
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      loadUsers()
+      if (currentPage === 1) {
+        loadUsers()
+      } else {
+        setCurrentPage(1) // Reset to page 1 when search changes
+      }
     }, 500)
     return () => clearTimeout(timeoutId)
   }, [searchTerm])
@@ -66,7 +79,7 @@ const AdminUsers = () => {
         setAllUsers(allTransformed)
       }
       
-      // Then, load filtered users for display
+      // Then, load filtered users for display with pagination
       const filters = {}
       if (statusFilter !== 'all') {
         filters.status = statusFilter
@@ -74,8 +87,8 @@ const AdminUsers = () => {
       if (searchTerm && searchTerm.trim()) {
         filters.search = searchTerm.trim()
       }
-      filters.page = 1
-      filters.limit = 100
+      filters.page = currentPage
+      filters.limit = itemsPerPage
       
       console.log('🔍 Loading users with filters:', filters) // Debug log
       const response = await getUsers(filters)
@@ -83,8 +96,12 @@ const AdminUsers = () => {
       
       if (response.success && response.data) {
         const usersData = response.data.items || response.data || []
+        const pagination = response.data.pagination || {}
+        
         console.log('📋 Raw users data from API:', usersData) // Debug log
         console.log('📋 Transformed users count:', usersData.length) // Debug log
+        console.log('📋 Pagination info:', pagination) // Debug log
+        
         const transformedUsers = usersData.map(user => ({
           id: user._id || user.id,
           firstName: user.firstName || '',
@@ -97,9 +114,15 @@ const AdminUsers = () => {
         }))
         console.log('📋 Transformed users:', transformedUsers) // Debug log
         setUsers(transformedUsers)
+        
+        // Update pagination state
+        setTotalPages(pagination.totalPages || 1)
+        setTotalItems(pagination.total || 0)
       } else {
         console.error('❌ Invalid response from API:', response) // Debug log
         setUsers([])
+        setTotalPages(1)
+        setTotalItems(0)
       }
     } catch (error) {
       console.error('Error loading users:', error)
@@ -109,31 +132,7 @@ const AdminUsers = () => {
     }
   }
 
-  const filteredUsers = users.filter((user) => {
-    // Filter by status first
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter
-    
-    // If no search term, return status match
-    if (!searchTerm.trim()) {
-      return matchesStatus
-    }
-    
-    // Search in multiple fields
-    const searchLower = searchTerm.toLowerCase().trim()
-    const fullName = `${user.firstName} ${user.lastName}`.toLowerCase()
-    const phoneNormalized = user.phone.replace(/\s+/g, '').replace(/[-\+()]/g, '')
-    const searchNormalized = searchTerm.trim().replace(/\s+/g, '').replace(/[-\+()]/g, '')
-    
-    const matchesSearch =
-      fullName.includes(searchLower) ||
-      user.firstName.toLowerCase().includes(searchLower) ||
-      user.lastName.toLowerCase().includes(searchLower) ||
-      user.email.toLowerCase().includes(searchLower) ||
-      user.phone.toLowerCase().includes(searchLower) ||
-      phoneNormalized.includes(searchNormalized)
-    
-    return matchesSearch && matchesStatus
-  })
+  // No need for client-side filtering - backend handles it
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
@@ -314,12 +313,12 @@ const AdminUsers = () => {
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">Loading users...</p>
           </div>
-        ) : filteredUsers.length === 0 ? (
+        ) : users.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No users found</p>
           </div>
         ) : (
-          filteredUsers.map((user) => (
+          users.map((user) => (
             <article
               key={user.id}
               className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
@@ -378,6 +377,20 @@ const AdminUsers = () => {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && users.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* Edit/Create Modal */}
       {showEditModal && (

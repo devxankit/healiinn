@@ -20,15 +20,14 @@ import NotificationBell from '../../../components/NotificationBell'
 const sidebarNavItems = [
   { id: 'home', label: 'Home', to: '/pharmacy/dashboard', Icon: IoHomeOutline },
   { id: 'orders', label: 'Orders', to: '/pharmacy/orders', Icon: IoBagHandleOutline },
-  { id: 'prescriptions', label: 'Prescriptions', to: '/pharmacy/prescriptions', Icon: IoDocumentTextOutline },
   { id: 'medicines', label: 'Medicines', to: '/pharmacy/medicines', Icon: IoMedicalOutline },
-  { id: 'wallet', label: 'Wallet', to: '/pharmacy/wallet', Icon: IoWalletOutline },
+  { id: 'wallet', label: 'Wallet', to: '/pharmacy/prescriptions', Icon: IoWalletOutline },
   { id: 'support', label: 'Support', to: '/pharmacy/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/pharmacy/profile', Icon: IoPersonCircleOutline },
 ]
 
-// Bottom nav items (without Support and Wallet)
-const navItems = sidebarNavItems.filter((item) => item.id !== 'support' && item.id !== 'wallet')
+// Bottom nav items (without Support only, Wallet included)
+const navItems = sidebarNavItems.filter((item) => item.id !== 'support')
 
 const PharmacyNavbar = () => {
   const { isSidebarOpen, toggleSidebar, closeSidebar } = usePharmacySidebar()

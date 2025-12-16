@@ -28,12 +28,13 @@ const statusFlowLab = [
 
 const statusFlowPharmacy = [
   'pending',
-  'payment_pending',
-  'accepted',
-  'processing',
-  'ready',
-  'delivery_requested',
+  'prescription_received',
+  'medicine_collected',
+  'packed',
+  'ready_to_be_picked',
+  'picked_up',
   'delivered',
+  'completed',
 ]
 
 const getStatusColor = (status) => {
@@ -45,6 +46,16 @@ const getStatusColor = (status) => {
     case 'pending':
     case 'new':
       return 'bg-[rgba(17,73,108,0.15)] text-[#11496c]'
+    case 'prescription_received':
+      return 'bg-blue-100 text-blue-700'
+    case 'medicine_collected':
+      return 'bg-indigo-100 text-indigo-700'
+    case 'packed':
+      return 'bg-purple-100 text-purple-700'
+    case 'ready_to_be_picked':
+      return 'bg-cyan-100 text-cyan-700'
+    case 'picked_up':
+      return 'bg-emerald-100 text-emerald-700'
     case 'accepted':
       return 'bg-indigo-100 text-indigo-700'
     case 'visit_time':
@@ -80,6 +91,16 @@ const getStatusLabel = (status) => {
     case 'pending':
     case 'new':
       return 'Pending'
+    case 'prescription_received':
+      return 'Prescription Received'
+    case 'medicine_collected':
+      return 'Medicine Collected'
+    case 'packed':
+      return 'Packed'
+    case 'ready_to_be_picked':
+      return 'Ready to be Picked'
+    case 'picked_up':
+      return 'Picked Up'
     case 'visit_time':
       return 'You can now visit the lab'
     case 'lab_assistant_is_arriving':

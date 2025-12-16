@@ -373,6 +373,20 @@ export const getLaboratoryWalletTransactions = async (filters = {}) => {
 }
 
 /**
+ * Get laboratory withdrawals
+ * @param {object} filters - Optional filters (status, page, limit)
+ * @returns {Promise<object>} Withdrawals data
+ */
+export const getLaboratoryWithdrawals = async (filters = {}) => {
+  try {
+    return await apiClient.get('/laboratory/wallet/withdrawals', filters)
+  } catch (error) {
+    console.error('Error fetching withdrawals:', error)
+    throw error
+  }
+}
+
+/**
  * Request withdrawal
  * @param {object} withdrawalData - Withdrawal request data
  * @returns {Promise<object>} Created withdrawal request data

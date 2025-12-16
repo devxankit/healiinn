@@ -17,6 +17,7 @@ import {
   getSupportTickets,
   updateSupportTicketStatus,
 } from '../admin-services/adminService'
+import Pagination from '../../../components/Pagination'
 
 const AdminSupport = () => {
   const [supportRequests, setSupportRequests] = useState([])
@@ -31,11 +32,19 @@ const AdminSupport = () => {
   const [isUpdating, setIsUpdating] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Load support tickets from API
   useEffect(() => {
+    setCurrentPage(1) // Reset to page 1 when filters change
+  }, [statusFilter, roleFilter, searchTerm])
+
+  useEffect(() => {
     loadSupportTickets()
-  }, [])
+  }, [statusFilter, roleFilter])
 
   const loadSupportTickets = async () => {
     try {
@@ -47,12 +56,17 @@ const AdminSupport = () => {
         filters.status = statusFilter === 'pending' ? 'open' : statusFilter
       }
       if (roleFilter !== 'all') filters.userType = roleFilter
+      // Load all tickets for client-side filtering and search
+      filters.page = 1
+      filters.limit = 1000
 
       const response = await getSupportTickets(filters)
       if (response.success && response.data) {
         // Transform API data to match component structure
         const tickets = response.data.items || response.data || []
+        const pagination = response.data.pagination || {}
         console.log('📋 Raw support tickets from API:', tickets) // Debug log
+        console.log('📋 Pagination info:', pagination) // Debug log
         
         const transformedTickets = tickets.map((ticket) => {
           // userId is now a populated object, not just an ID
@@ -141,22 +155,21 @@ const AdminSupport = () => {
         
         console.log('✅ Transformed support tickets:', transformedTickets) // Debug log
         setSupportRequests(transformedTickets)
+      } else {
+        setSupportRequests([])
+        setTotalPages(1)
+        setTotalItems(0)
       }
     } catch (err) {
       console.error('Error loading support tickets:', err)
       setError(err.message || 'Failed to load support tickets')
       setSupportRequests([])
+      setTotalPages(1)
+      setTotalItems(0)
     } finally {
       setLoading(false)
     }
   }
-
-  // Reload when filters change
-  useEffect(() => {
-    if (!loading) {
-      loadSupportTickets()
-    }
-  }, [statusFilter, roleFilter])
 
   useEffect(() => {
     let filtered = [...supportRequests]
@@ -185,7 +198,12 @@ const AdminSupport = () => {
     }
 
     setFilteredRequests(filtered)
-  }, [searchTerm, statusFilter, roleFilter, supportRequests])
+    
+    // Update pagination based on filtered results
+    const totalFiltered = filtered.length
+    setTotalPages(Math.ceil(totalFiltered / itemsPerPage) || 1)
+    setTotalItems(totalFiltered)
+  }, [searchTerm, statusFilter, roleFilter, supportRequests, itemsPerPage])
 
   const getRoleIcon = (role) => {
     switch (role) {
@@ -325,13 +343,20 @@ const AdminSupport = () => {
               Retry
             </button>
           </div>
-        ) : filteredRequests.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-            <p className="text-sm font-medium text-slate-600">No support requests found</p>
-            <p className="mt-1 text-xs text-slate-500">Try adjusting your filters</p>
-          </div>
-        ) : (
-          filteredRequests.map((request) => (
+        ) : (() => {
+          // Paginate filtered requests
+          const startIndex = (currentPage - 1) * itemsPerPage
+          const endIndex = startIndex + itemsPerPage
+          const paginatedRequests = filteredRequests.slice(startIndex, endIndex)
+          
+          return paginatedRequests.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+              <p className="text-sm font-medium text-slate-600">No support requests found</p>
+              <p className="mt-1 text-xs text-slate-500">Try adjusting your filters</p>
+            </div>
+          ) : (
+            <>
+              {paginatedRequests.map((request) => (
             <div
               key={request.id}
               className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md"
@@ -425,8 +450,23 @@ const AdminSupport = () => {
                 </div>
               </div>
             </div>
-          ))
-        )}
+              ))}
+              {/* Pagination */}
+              {filteredRequests.length > itemsPerPage && (
+                <div className="mt-4">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                    loading={loading}
+                  />
+                </div>
+              )}
+            </>
+          )
+        })()}
       </div>
 
       {/* Status Update Modal */}

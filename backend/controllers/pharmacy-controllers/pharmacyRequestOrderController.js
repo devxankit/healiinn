@@ -18,9 +18,11 @@ exports.getRequestOrders = asyncHandler(async (req, res) => {
   const { page, limit, skip } = buildPagination(req);
 
   // Find requests where this pharmacy is in admin response
+  // Include 'confirmed' status (payment confirmed) so pharmacy can see and accept paid requests
   const filter = {
     type: 'order_medicine',
     status: { $in: ['accepted', 'confirmed'] },
+    paymentConfirmed: true, // Only show requests where payment is confirmed
     'adminResponse.medicines.pharmacyId': id,
   };
 
@@ -74,6 +76,7 @@ exports.getRequestOrderById = asyncHandler(async (req, res) => {
   const request = await Request.findOne({
     _id: requestId,
     type: 'order_medicine',
+    paymentConfirmed: true, // Only show requests with confirmed payment
     'adminResponse.medicines.pharmacyId': id,
   })
     .populate('patientId')
@@ -117,6 +120,7 @@ exports.confirmRequestOrder = asyncHandler(async (req, res) => {
   const request = await Request.findOne({
     _id: requestId,
     type: 'order_medicine',
+    paymentConfirmed: true, // Only allow confirming requests with confirmed payment
     'adminResponse.medicines.pharmacyId': id,
   });
 
@@ -159,7 +163,7 @@ exports.confirmRequestOrder = asyncHandler(async (req, res) => {
       deliveryOption: 'home_delivery',
       deliveryAddress: request.patientAddress,
       status: 'pending',
-      paymentStatus: request.paymentStatus,
+      paymentStatus: request.paymentStatus || 'paid', // Use paid status since payment is already confirmed
     });
 
     // Add order to request

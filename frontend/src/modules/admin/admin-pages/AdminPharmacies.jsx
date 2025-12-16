@@ -24,6 +24,7 @@ import {
   verifyPharmacy,
   rejectPharmacy,
 } from '../admin-services/adminService'
+import Pagination from '../../../components/Pagination'
 
 // Mock data removed - using real API now
 
@@ -50,36 +51,45 @@ const AdminPharmacies = () => {
     licenseNumber: '',
     status: 'pending',
   })
+  const [allPharmacies, setAllPharmacies] = useState([]) // Store all pharmacies for stats
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Load pharmacies from API
+  useEffect(() => {
+    setCurrentPage(1) // Reset to page 1 when filter/search changes
+  }, [statusFilter, searchTerm])
+
   useEffect(() => {
     // Check token before making any API calls
     const token = getAuthToken('admin')
     if (!token) {
       console.warn('No authentication token found. Redirecting to login...')
-      // Redirect immediately
       window.location.href = '/admin/login'
       return
     }
     loadPharmacies()
-  }, [statusFilter])
+  }, [statusFilter, searchTerm, currentPage])
 
   useEffect(() => {
     // Check token before making any API calls
     const token = getAuthToken('admin')
     if (!token) {
       console.warn('No authentication token found. Redirecting to login...')
-      // Redirect immediately
       window.location.href = '/admin/login'
       return
     }
     const timeoutId = setTimeout(() => {
-      loadPharmacies()
+      if (currentPage === 1) {
+        loadPharmacies()
+      } else {
+        setCurrentPage(1) // Reset to page 1 when search changes
+      }
     }, 500)
     return () => clearTimeout(timeoutId)
   }, [searchTerm])
-
-  const [allPharmacies, setAllPharmacies] = useState([]) // Store all pharmacies for stats
 
   const loadPharmacies = async () => {
     // Check if user is authenticated before making API calls
@@ -113,7 +123,7 @@ const AdminPharmacies = () => {
         setAllPharmacies(allTransformed)
       }
       
-      // Then, load filtered pharmacies for display
+      // Then, load filtered pharmacies for display with pagination
       const filters = {}
       if (statusFilter !== 'all') {
         // Map 'verified' to 'approved' for backend compatibility
@@ -122,8 +132,8 @@ const AdminPharmacies = () => {
       if (searchTerm && searchTerm.trim()) {
         filters.search = searchTerm.trim()
       }
-      filters.page = 1
-      filters.limit = 100
+      filters.page = currentPage
+      filters.limit = itemsPerPage
       
       console.log('🔍 Loading pharmacies with filters:', filters) // Debug log
       const response = await getPharmacies(filters)
@@ -131,8 +141,12 @@ const AdminPharmacies = () => {
       
       if (response.success && response.data) {
         const pharmaciesData = response.data.items || response.data || []
+        const pagination = response.data.pagination || {}
+        
         console.log('📋 Raw pharmacies data from API:', pharmaciesData) // Debug log
         console.log('📋 Transformed pharmacies count:', pharmaciesData.length) // Debug log
+        console.log('📋 Pagination info:', pagination) // Debug log
+        
         const transformedPharmacies = pharmaciesData.map(pharmacy => ({
           id: pharmacy._id || pharmacy.id,
           name: pharmacy.pharmacyName || '',
@@ -148,9 +162,15 @@ const AdminPharmacies = () => {
         }))
         console.log('📋 Transformed pharmacies:', transformedPharmacies) // Debug log
         setPharmacies(transformedPharmacies)
+        
+        // Update pagination state
+        setTotalPages(pagination.totalPages || 1)
+        setTotalItems(pagination.total || 0)
       } else {
         console.error('❌ Invalid response from API:', response) // Debug log
         setPharmacies([])
+        setTotalPages(1)
+        setTotalItems(0)
       }
     } catch (error) {
       // Don't log or show errors if it's an authentication error (redirect is happening)
@@ -232,25 +252,7 @@ const AdminPharmacies = () => {
     }
   }
 
-  const filteredPharmacies = pharmacies.filter((pharmacy) => {
-    // Filter by status first
-    const matchesStatus = statusFilter === 'all' || pharmacy.status === statusFilter || (statusFilter === 'verified' && pharmacy.status === 'approved')
-    
-    // If no search term, return status match
-    if (!searchTerm.trim()) {
-      return matchesStatus
-    }
-    
-    // Search in multiple fields
-    const searchLower = searchTerm.toLowerCase().trim()
-    const matchesSearch =
-      pharmacy.name.toLowerCase().includes(searchLower) ||
-      pharmacy.ownerName.toLowerCase().includes(searchLower) ||
-      pharmacy.email.toLowerCase().includes(searchLower) ||
-      pharmacy.address.toLowerCase().includes(searchLower)
-    
-    return matchesSearch && matchesStatus
-  })
+  // No need for client-side filtering - backend handles it
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
@@ -433,12 +435,12 @@ const AdminPharmacies = () => {
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">Loading pharmacies...</p>
           </div>
-        ) : filteredPharmacies.length === 0 ? (
+        ) : pharmacies.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No pharmacies found</p>
           </div>
         ) : (
-          filteredPharmacies.map((pharmacy) => (
+          pharmacies.map((pharmacy) => (
             <article
               key={pharmacy.id}
               className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
@@ -521,6 +523,20 @@ const AdminPharmacies = () => {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && pharmacies.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* Edit/Create Modal */}
       {showEditModal && (

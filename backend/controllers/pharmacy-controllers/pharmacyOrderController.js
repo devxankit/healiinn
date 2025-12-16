@@ -89,10 +89,27 @@ exports.getOrderById = asyncHandler(async (req, res) => {
 // PATCH /api/pharmacy/orders/:id/status
 exports.updateOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { orderId } = req.params;
+  const { id: orderId } = req.params;
   const { status } = req.body;
 
-  if (!status || !['pending', 'accepted', 'processing', 'ready', 'delivered', 'cancelled'].includes(status)) {
+  // Valid statuses for pharmacy orders
+  const validStatuses = [
+    'pending',
+    'prescription_received',
+    'medicine_collected',
+    'packed',
+    'ready_to_be_picked',
+    'picked_up',
+    'delivered',
+    'completed',
+    'cancelled',
+    // Legacy statuses for backward compatibility
+    'accepted',
+    'processing',
+    'ready',
+  ];
+
+  if (!status || !validStatuses.includes(status)) {
     return res.status(400).json({
       success: false,
       message: 'Valid status is required',
@@ -112,16 +129,16 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
     });
   }
 
-  if (order.status === 'delivered' || order.status === 'cancelled') {
+  if (order.status === 'completed' || order.status === 'cancelled') {
     return res.status(400).json({
       success: false,
-      message: 'Cannot update delivered or cancelled order',
+      message: 'Cannot update completed or cancelled order',
     });
   }
 
   const oldStatus = order.status;
   order.status = status;
-  if (status === 'delivered') {
+  if (status === 'delivered' || status === 'completed') {
     order.deliveredAt = new Date();
   }
   await order.save();
@@ -147,9 +164,8 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
       await sendOrderStatusUpdateEmail({
         patient,
         order,
-        provider: pharmacy,
-        providerType: 'pharmacy',
-        newStatus: status,
+        pharmacy,
+        status,
       }).catch((error) => console.error('Error sending order status update email:', error));
     } catch (error) {
       console.error('Error sending email notifications:', error);
@@ -159,10 +175,15 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
     try {
       const { createOrderNotification } = require('../../services/notificationService');
       let eventType = status;
-      if (status === 'accepted' || status === 'processing') {
-        eventType = 'confirmed';
-      } else if (status === 'ready' || status === 'delivered') {
+      // Map new pharmacy statuses to notification event types
+      if (status === 'prescription_received' || status === 'medicine_collected' || status === 'packed') {
+        eventType = 'processing';
+      } else if (status === 'ready_to_be_picked' || status === 'picked_up') {
+        eventType = 'ready';
+      } else if (status === 'delivered' || status === 'completed') {
         eventType = 'completed';
+      } else if (status === 'accepted' || status === 'processing') {
+        eventType = 'confirmed';
       }
 
       // Notify patient

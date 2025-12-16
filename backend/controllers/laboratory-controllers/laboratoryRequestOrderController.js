@@ -28,7 +28,7 @@ exports.getRequestOrders = asyncHandler(async (req, res) => {
 
   const [requests, total] = await Promise.all([
     Request.find(filter)
-      .populate('patientId', 'firstName lastName phone address')
+      .populate('patientId', 'firstName lastName phone email address')
       .populate({
         path: 'prescriptionId',
         populate: [

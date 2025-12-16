@@ -185,7 +185,7 @@ export const deletePharmacyMedicine = async (medicineId) => {
  */
 export const updateOrderStatus = async (orderId, status) => {
   try {
-    return await apiClient.patch(`/pharmacy/orders/${orderId}`, { status })
+    return await apiClient.patch(`/pharmacy/orders/${orderId}/status`, { status })
   } catch (error) {
     console.error('Error updating order status:', error)
     throw error
@@ -312,7 +312,7 @@ export const uploadProfileImage = async (file) => {
   try {
     const formData = new FormData()
     formData.append('image', file)
-    
+
     const data = await apiClient.upload('/pharmacy/upload/profile-image', formData)
     return data
   } catch (error) {
@@ -328,6 +328,8 @@ export const getPharmacyPatients = async (filters = {}) => {
   try {
     const queryParams = new URLSearchParams()
     if (filters.search) queryParams.append('search', filters.search)
+    if (filters.limit) queryParams.append('limit', filters.limit)
+    if (filters.page) queryParams.append('page', filters.page)
 
     const response = await fetch(`${API_BASE_URL}/pharmacy/patients?${queryParams}`, {
       method: 'GET',
@@ -528,10 +530,10 @@ export const logoutPharmacy = async () => {
       // Even if backend call fails, we still clear tokens on frontend
       console.error('Error calling logout API:', error)
     })
-    
+
     // Clear all tokens from storage
     clearPharmacyTokens()
-    
+
     return { success: true, message: 'Logout successful' }
   } catch (error) {
     console.error('Error logging out:', error)

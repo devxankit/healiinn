@@ -8,8 +8,10 @@ import {
   IoReceiptOutline,
   IoArrowForwardOutline,
   IoShieldCheckmarkOutline,
+  IoCheckmarkCircleOutline,
+  IoTimeOutline,
 } from 'react-icons/io5'
-import { getPharmacyWalletBalance } from '../pharmacy-services/pharmacyService'
+import { getPharmacyWalletBalance, getPharmacyWalletTransactions } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
 
 // Default wallet data (will be replaced by API data)
@@ -22,6 +24,23 @@ const defaultWalletData = {
   totalEarnings: 0,
   totalWithdrawals: 0,
   totalTransactions: 0,
+  recentActivity: [],
+}
+
+const formatDateTime = (dateString) => {
+  try {
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return '—'
+  }
 }
 
 const formatCurrency = (amount) => {
@@ -46,20 +65,116 @@ const PharmacyWallet = () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getPharmacyWalletBalance()
+        const [balanceResponse, transactionsResponse] = await Promise.all([
+          getPharmacyWalletBalance(),
+          getPharmacyWalletTransactions({ limit: 5 }),
+        ])
         
-        if (response.success && response.data) {
-          const data = response.data
+        console.log('Pharmacy Wallet Balance Response:', balanceResponse)
+        console.log('Pharmacy Wallet Transactions Response:', transactionsResponse)
+        
+        if (balanceResponse?.success && balanceResponse.data) {
+          const data = balanceResponse.data
+          console.log('Pharmacy Wallet Data:', data)
+          
+          // Parse recent activity from transactions
+          const recentActivity = transactionsResponse?.success && transactionsResponse.data
+            ? (Array.isArray(transactionsResponse.data)
+                ? transactionsResponse.data
+                : transactionsResponse.data.items || transactionsResponse.data.transactions || [])
+                .slice(0, 5)
+                .map(txn => {
+                  // Extract patient name from populated orderId or requestId
+                  let patientName = ''
+                  if (txn.orderId && txn.orderId.patientId) {
+                    const patient = txn.orderId.patientId
+                    if (typeof patient === 'object') {
+                      patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Patient'
+                    }
+                  } else if (txn.requestId && txn.requestId.patientId) {
+                    const patient = txn.requestId.patientId
+                    if (typeof patient === 'object') {
+                      patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Patient'
+                    }
+                  }
+                  
+                  // Extract transaction ID
+                  const transactionId = txn._id?.toString() || txn.id?.toString() || ''
+                  
+                  // Extract request/order ID
+                  const requestId = txn.requestId?._id?.toString() || 
+                                  txn.requestId?.toString() || 
+                                  txn.orderId?._id?.toString() || 
+                                  txn.orderId?.toString() || ''
+                  
+                  // Build description from transaction data
+                  let description = txn.description || txn.notes || ''
+                  
+                  // Extract commission from description if present, or from metadata
+                  let commissionInfo = ''
+                  if (txn.metadata?.commissionRate) {
+                    commissionInfo = `(Commission: ${(txn.metadata.commissionRate * 100).toFixed(1)}%)`
+                  } else if (description.includes('Commission:')) {
+                    // Extract commission from description
+                    const commissionMatch = description.match(/\(Commission:\s*([^)]+)\)/)
+                    if (commissionMatch) {
+                      commissionInfo = commissionMatch[0]
+                    }
+                  }
+                  
+                  // Clean description - remove request ID and commission from main description for cleaner display
+                  if (description) {
+                    // Remove request ID pattern if present
+                    description = description.replace(/\s*-\s*Request\s+[a-f0-9]+/gi, '')
+                    // Remove commission info from description (we'll show it separately)
+                    description = description.replace(/\s*\(Commission:[^)]+\)/gi, '').trim()
+                  }
+                  
+                  // Build clean description based on type
+                  if (!description || description === 'Transaction') {
+                    if (txn.type === 'earning') {
+                      description = patientName 
+                        ? `Payment received for medicines from patient ${patientName}`
+                        : 'Payment received for medicines'
+                    } else if (txn.type === 'withdrawal') {
+                      description = 'Withdrawal request'
+                    } else {
+                      description = description || 'Transaction'
+                    }
+                  }
+                  
+                  return {
+                    id: txn._id || txn.id,
+                    type: txn.type === 'earning' ? 'available' : txn.status === 'pending' ? 'pending' : 'available',
+                    amount: Number(txn.amount ?? 0),
+                    description,
+                    commission: commissionInfo,
+                    date: txn.createdAt || txn.date || new Date().toISOString(),
+                    status: txn.status || 'completed',
+                    patientName,
+                    transactionId: transactionId ? transactionId.substring(0, 8) : '',
+                    requestId: requestId ? requestId.substring(0, 8) : '',
+                  }
+                })
+            : []
+          
+          console.log('Pharmacy Wallet Recent Activity:', recentActivity)
+          
           setWalletData({
-            totalBalance: data.totalBalance || data.balance || 0,
-            availableBalance: data.availableBalance || data.available || 0,
-            pendingBalance: data.pendingBalance || data.pending || 0,
-            thisMonthEarnings: data.thisMonthEarnings || 0,
-            lastMonthEarnings: data.lastMonthEarnings || 0,
-            totalEarnings: data.totalEarnings || 0,
-            totalWithdrawals: data.totalWithdrawals || 0,
-            totalTransactions: data.totalTransactions || 0,
+            totalBalance: Number(data.totalBalance ?? data.balance ?? 0),
+            availableBalance: Number(data.availableBalance ?? data.available ?? 0),
+            pendingBalance: Number(data.pendingBalance ?? data.pendingWithdrawals ?? data.pending ?? 0),
+            thisMonthEarnings: Number(data.thisMonthEarnings ?? 0),
+            lastMonthEarnings: Number(data.lastMonthEarnings ?? 0),
+            totalEarnings: Number(data.totalEarnings ?? 0),
+            totalWithdrawals: Number(data.totalWithdrawals ?? 0),
+            totalTransactions: Number(data.totalTransactions ?? 0),
+            recentActivity,
           })
+        } else {
+          console.error('Pharmacy Wallet Balance Error:', balanceResponse)
+          setError('Failed to load wallet data')
+          toast.error('Failed to load wallet data')
         }
       } catch (err) {
         console.error('Error fetching wallet data:', err)
@@ -201,6 +316,126 @@ const PharmacyWallet = () => {
           </div>
         </button>
       </div>
+
+      {/* Recent Activity Section */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900">Recent Activity</h2>
+          <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+            {walletData.recentActivity.length} {walletData.recentActivity.length === 1 ? 'transaction' : 'transactions'}
+          </span>
+        </div>
+        <div className="space-y-3">
+          {loading ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+              <p className="text-sm text-slate-500">Loading recent activity...</p>
+            </div>
+          ) : walletData.recentActivity.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+              <IoReceiptOutline className="mx-auto h-16 w-16 text-slate-300" />
+              <p className="mt-4 text-base font-semibold text-slate-600">No recent activity</p>
+              <p className="mt-1 text-sm text-slate-500">Your recent transactions will appear here</p>
+            </div>
+          ) : (
+            walletData.recentActivity.map((activity) => (
+              <article
+                key={activity.id}
+                className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
+              >
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm ${
+                      activity.type === 'available'
+                        ? 'bg-emerald-50 border border-emerald-100'
+                        : 'bg-amber-50 border border-amber-100'
+                    }`}
+                  >
+                    {activity.type === 'available' ? (
+                      <IoCheckmarkCircleOutline className="h-6 w-6 text-emerald-600" />
+                    ) : (
+                      <IoTimeOutline className="h-6 w-6 text-amber-600" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        {/* Patient Name and Transaction Type */}
+                        {activity.patientName && (
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <p className="text-sm font-semibold text-slate-900">{activity.patientName}</p>
+                            <span className="text-xs text-slate-400">•</span>
+                            <span className="text-xs text-slate-500 capitalize">
+                              {activity.type === 'available' ? 'Payment' : 'Transaction'}
+                            </span>
+                          </div>
+                        )}
+                        {/* Description */}
+                        <div className="space-y-1">
+                          <p className={`text-sm ${activity.patientName ? 'text-slate-600' : 'font-semibold text-slate-900'}`}>
+                            {activity.description}
+                          </p>
+                          {/* Commission and Request ID */}
+                          {(activity.commission || activity.requestId) && (
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              {activity.commission && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 font-medium border border-blue-200">
+                                  {activity.commission}
+                                </span>
+                              )}
+                              {activity.requestId && (
+                                <span className="text-slate-400">
+                                  Request: {activity.requestId}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {/* Transaction Details */}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <IoReceiptOutline className="h-3.5 w-3.5" />
+                            {formatDateTime(activity.date)}
+                          </span>
+                          {activity.transactionId && (
+                            <span className="text-slate-400">
+                              Txn ID: {activity.transactionId.substring(0, 8)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2.5">
+                          {activity.status === 'pending' && (
+                            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200">
+                              <IoTimeOutline className="h-3.5 w-3.5" />
+                              Processing
+                            </div>
+                          )}
+                          {activity.status === 'completed' && (
+                            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
+                              <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                              Completed
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end">
+                        <p
+                          className={`text-xl font-bold ${
+                            activity.type === 'available'
+                              ? 'text-emerald-600'
+                              : 'text-amber-600'
+                          }`}
+                        >
+                          {activity.type === 'available' ? '+' : ''}{formatCurrency(activity.amount)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      </section>
     </section>
   )
 }

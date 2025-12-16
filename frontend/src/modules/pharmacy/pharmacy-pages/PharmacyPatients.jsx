@@ -13,6 +13,7 @@ import {
 } from 'react-icons/io5'
 import { getPharmacyPatients } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Removed mock data - now using backend API
 
@@ -52,6 +53,15 @@ const PharmacyPatients = () => {
   const [patients, setPatients] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
 
   // Fetch patients from API
   useEffect(() => {
@@ -59,12 +69,25 @@ const PharmacyPatients = () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getPharmacyPatients({ search: searchTerm || undefined })
+        const response = await getPharmacyPatients({ 
+          search: searchTerm || undefined,
+          page: currentPage,
+          limit: itemsPerPage
+        })
         
         if (response.success && response.data) {
           const patientsData = Array.isArray(response.data) 
             ? response.data 
             : response.data.items || []
+          
+          // Extract pagination info
+          if (response.data.pagination) {
+            setTotalPages(response.data.pagination.totalPages || 1)
+            setTotalItems(response.data.pagination.total || 0)
+          } else {
+            setTotalPages(1)
+            setTotalItems(patientsData.length)
+          }
           
           // Transform API data to match component structure
           const transformed = patientsData.map(patient => {
@@ -87,18 +110,30 @@ const PharmacyPatients = () => {
           })
           
           setPatients(transformed)
+        } else {
+          setPatients([])
+          setTotalPages(1)
+          setTotalItems(0)
         }
       } catch (err) {
         console.error('Error fetching patients:', err)
         setError(err.message || 'Failed to load patients')
         toast.error('Failed to load patients')
+        setPatients([])
+        setTotalPages(1)
+        setTotalItems(0)
       } finally {
         setLoading(false)
       }
     }
 
     fetchPatients()
-  }, [searchTerm, toast])
+  }, [searchTerm, toast, currentPage])
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const filteredPatients = useMemo(() => {
     return patients
@@ -135,15 +170,16 @@ const PharmacyPatients = () => {
         </div>
       )}
 
-      {/* Patients List */}
+      {/* Patients List - Scrollable Container */}
       {!loading && !error && (
-        <div className="space-y-3">
-          {filteredPatients.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 text-center">
-            No patients found matching your search.
-          </p>
-        ) : (
-          filteredPatients.map((patient) => (
+        <div className="space-y-4">
+          <div className="max-h-[60vh] md:max-h-[65vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+            {patients.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 text-center">
+                No patients found matching your search.
+              </p>
+            ) : (
+              patients.map((patient) => (
             <article
               key={patient.id}
               className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-[rgba(17,73,108,0.2)] hover:shadow-md sm:p-5"
@@ -258,8 +294,23 @@ const PharmacyPatients = () => {
                   View Orders
                 </button>
               </div>
-            </article>
-          ))
+              </article>
+              ))
+            )}
+          </div>
+
+          {/* Pagination */}
+          {!loading && !error && patients.length > 0 && totalPages > 1 && (
+            <div className="pt-4 border-t border-slate-200">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={handlePageChange}
+                loading={loading}
+              />
+            </div>
           )}
         </div>
       )}

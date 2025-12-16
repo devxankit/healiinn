@@ -52,7 +52,9 @@ const orderSchema = new mongoose.Schema(
         // Common statuses
         'pending', 'accepted', 'processing', 'ready', 'delivered', 'cancelled', 'completed',
         // Lab visit flow statuses
-        'visit_time', 'sample_collected', 'being_tested', 'reports_being_generated', 'test_successful', 'reports_updated'
+        'visit_time', 'sample_collected', 'being_tested', 'reports_being_generated', 'test_successful', 'reports_updated',
+        // Pharmacy order flow statuses
+        'prescription_received', 'medicine_collected', 'packed', 'ready_to_be_picked', 'picked_up'
       ],
       default: 'pending',
       index: true,

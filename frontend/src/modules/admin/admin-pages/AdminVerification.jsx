@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   IoSearchOutline,
   IoFilterOutline,
@@ -33,6 +33,7 @@ import {
   verifyNurse,
   rejectNurse,
 } from '../admin-services/adminService'
+import Pagination from '../../../components/Pagination'
 
 // Helper to transform backend data to frontend format
 const transformVerification = (item, type) => {
@@ -326,22 +327,31 @@ const AdminVerification = () => {
   const [rejectionReason, setRejectionReason] = useState('')
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Load verifications from API
   useEffect(() => {
+    setCurrentPage(1) // Reset to page 1 when filters change
+  }, [typeFilter, statusFilter, searchTerm])
+
+  useEffect(() => {
     loadVerifications()
-  }, [])
+  }, [typeFilter, statusFilter, currentPage])
 
   const loadVerifications = async () => {
     try {
       setLoading(true)
       
-      // Fetch all doctors, pharmacies, laboratories, and nurses (not just pending)
+      // Fetch all doctors, pharmacies, laboratories, and nurses with pagination
+      // Load all for stats, but paginate the combined list display
       const [doctorsResponse, pharmaciesResponse, laboratoriesResponse, nursesResponse] = await Promise.allSettled([
-        getDoctors({ limit: 1000 }), // Get all doctors
-        getPharmacies({ limit: 1000 }), // Get all pharmacies
-        getLaboratories({ limit: 1000 }), // Get all laboratories
-        getNurses({ limit: 1000 }), // Get all nurses
+        getDoctors({ page: 1, limit: 1000 }), // Get all doctors for stats
+        getPharmacies({ page: 1, limit: 1000 }), // Get all pharmacies for stats
+        getLaboratories({ page: 1, limit: 1000 }), // Get all laboratories for stats
+        getNurses({ page: 1, limit: 1000 }), // Get all nurses for stats
       ])
       
       const allVerifications = []
@@ -408,6 +418,20 @@ const AdminVerification = () => {
     const matchesStatus = statusFilter === 'all' || verification.status === statusFilter
     return matchesSearch && matchesType && matchesStatus
   })
+
+  // Paginated filtered verifications
+  const paginatedFilteredVerifications = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredVerifications.slice(startIndex, endIndex)
+  }, [filteredVerifications, currentPage, itemsPerPage])
+
+  // Update pagination state
+  useEffect(() => {
+    const totalFiltered = filteredVerifications.length
+    setTotalPages(Math.ceil(totalFiltered / itemsPerPage) || 1)
+    setTotalItems(totalFiltered)
+  }, [filteredVerifications, itemsPerPage])
 
   const handleApprove = async (id) => {
     const verification = verifications.find(v => v.id === id)
@@ -760,7 +784,7 @@ const AdminVerification = () => {
             <p className="text-slate-600">No verification requests found</p>
           </div>
         ) : (
-          filteredVerifications.map((verification) => {
+          paginatedFilteredVerifications.map((verification) => {
             const TypeIcon = getTypeIcon(verification.type)
             return (
               <article
@@ -905,6 +929,20 @@ const AdminVerification = () => {
           })
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && paginatedFilteredVerifications.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* View Verification Details Modal */}
       {viewingVerification && (

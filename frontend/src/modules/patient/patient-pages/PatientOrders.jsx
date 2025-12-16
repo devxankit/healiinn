@@ -49,7 +49,7 @@ const PatientOrders = () => {
               ? (order.providerId?.labName || order.providerId?.name || 'Laboratory')
               : undefined,
             pharmacyName: order.providerType === 'pharmacy'
-              ? (order.providerId?.pharmacyName || order.providerId?.name || 'Pharmacy')
+              ? 'Prescription Medicines'
               : undefined,
             testName: order.providerType === 'laboratory' && order.items?.length > 0
               ? order.items.map(item => item.name || item.testName).join(', ')
@@ -64,6 +64,9 @@ const PatientOrders = () => {
             collectionType: order.deliveryOption === 'pickup' ? 'lab' : 'home',
             deliveryType: order.deliveryOption === 'home_delivery' ? 'home' : (order.deliveryOption === 'pickup' ? 'pickup' : 'home'),
             address: (() => {
+              // Hide address for pharmacy orders completely
+              if (order.providerType === 'pharmacy') return ''
+
               // Prefer delivery address, then order address, then provider address
               const formatAddr = (addr) => {
                 if (!addr) return ''
@@ -106,9 +109,9 @@ const PatientOrders = () => {
         case 'lab':
           return order.type === 'lab'
         case 'active':
-          return ['new', 'accepted', 'confirmed', 'processing', 'ready', 'payment_pending', 'payment_confirmed'].includes(order.status)
+          return ['new', 'accepted', 'confirmed', 'processing', 'ready', 'payment_pending', 'payment_confirmed', 'prescription_received', 'medicine_collected', 'packed', 'ready_to_be_picked'].includes(order.status)
         case 'completed':
-          return ['delivered', 'test_completed', 'report_uploaded', 'completed'].includes(order.status)
+          return ['delivered', 'test_completed', 'report_uploaded', 'completed', 'picked_up'].includes(order.status)
         default:
           return true
       }
@@ -149,6 +152,16 @@ const PatientOrders = () => {
       case 'new':
       case 'pending':
         return 'bg-[rgba(17,73,108,0.15)] text-[#11496c]'
+      case 'prescription_received':
+        return 'bg-blue-100 text-blue-700'
+      case 'medicine_collected':
+        return 'bg-indigo-100 text-indigo-700'
+      case 'packed':
+        return 'bg-purple-100 text-purple-700'
+      case 'ready_to_be_picked':
+        return 'bg-cyan-100 text-cyan-700'
+      case 'picked_up':
+        return 'bg-emerald-100 text-emerald-700'
       case 'accepted':
         return 'bg-indigo-100 text-indigo-700'
       case 'visit_time':
@@ -189,6 +202,16 @@ const PatientOrders = () => {
       case 'new':
       case 'pending':
         return 'Pending'
+      case 'prescription_received':
+        return 'Prescription Received'
+      case 'medicine_collected':
+        return 'Medicine Collected'
+      case 'packed':
+        return 'Packed'
+      case 'ready_to_be_picked':
+        return 'Ready to be Picked'
+      case 'picked_up':
+        return 'Picked Up'
       case 'accepted':
         return 'Order Accepted'
       case 'visit_time':
@@ -369,11 +392,10 @@ const PatientOrders = () => {
                     </span>
                     {/* Visit Type Badge */}
                     {order.type === 'lab' && (
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        order.collectionType === 'home' 
-                          ? 'bg-blue-100 text-blue-700' 
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.collectionType === 'home'
+                          ? 'bg-blue-100 text-blue-700'
                           : 'bg-purple-100 text-purple-700'
-                      }`}>
+                        }`}>
                         {order.collectionType === 'home' ? '🏠 Home Visit' : '🏥 Lab Visit'}
                       </span>
                     )}
@@ -393,10 +415,12 @@ const PatientOrders = () => {
 
                   {/* Address and Type */}
                   <div className="space-y-0.5 pt-0.5">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                      <IoLocationOutline className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{order.address}</span>
-                    </div>
+                    {order.address && (
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <IoLocationOutline className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{order.address}</span>
+                      </div>
+                    )}
                     <p className="text-xs text-slate-400">
                       {order.type === 'lab'
                         ? `Collection: ${order.collectionType === 'home' ? 'Home Collection' : 'Lab Visit'}`

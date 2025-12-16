@@ -10,7 +10,7 @@ import {
   IoWalletOutline,
   IoPhonePortraitOutline,
 } from 'react-icons/io5'
-import { getLaboratoryWalletBalance, requestLaboratoryWithdrawal } from '../laboratory-services/laboratoryService'
+import { getLaboratoryWalletBalance, getLaboratoryWithdrawals, requestLaboratoryWithdrawal } from '../laboratory-services/laboratoryService'
 import { useToast } from '../../../contexts/ToastContext'
 
 // Default withdraw data (will be replaced by API data)
@@ -71,13 +71,49 @@ const WalletWithdraw = () => {
         setLoading(true)
         const balanceResponse = await getLaboratoryWalletBalance()
         
-        if (balanceResponse.success && balanceResponse.data) {
+        console.log('Laboratory Wallet Withdraw Balance Response:', balanceResponse)
+        console.log('Laboratory Wallet Withdrawals Response:', withdrawalsResponse)
+        
+        if (balanceResponse?.success && balanceResponse.data) {
           const balance = balanceResponse.data
+          const withdrawalsData = withdrawalsResponse?.success && withdrawalsResponse.data
+            ? (Array.isArray(withdrawalsResponse.data) 
+                ? withdrawalsResponse.data 
+                : withdrawalsResponse.data.items || [])
+            : []
+          
+          console.log('Laboratory Withdrawals Data:', withdrawalsData)
+          
+          // Use backend aggregated totals if available, otherwise calculate from items
+          const totalWithdrawals = Number(withdrawalsResponse?.data?.totalWithdrawals ?? 0) || 
+            withdrawalsData.reduce((sum, w) => sum + Number(w.amount ?? 0), 0)
+          const thisMonthWithdrawals = Number(withdrawalsResponse?.data?.thisMonthWithdrawals ?? 0) || 
+            (() => {
+              const thisMonth = new Date()
+              thisMonth.setDate(1)
+              thisMonth.setHours(0, 0, 0, 0)
+              return withdrawalsData
+                .filter(w => new Date(w.createdAt || w.date) >= thisMonth)
+                .reduce((sum, w) => sum + Number(w.amount ?? 0), 0)
+            })()
+          
+          console.log('Laboratory Withdraw Totals:', { totalWithdrawals, thisMonthWithdrawals })
+          
           setWithdrawData({
-            availableBalance: balance.availableBalance || balance.available || 0,
-            totalWithdrawals: balance.totalWithdrawals || 0,
-            thisMonthWithdrawals: balance.thisMonthWithdrawals || 0,
-            withdrawalHistory: [], // Will be fetched separately if needed
+            availableBalance: Number(balance.availableBalance ?? balance.available ?? 0),
+            totalWithdrawals: Number(totalWithdrawals),
+            thisMonthWithdrawals: Number(thisMonthWithdrawals),
+            withdrawalHistory: withdrawalsData.map(wd => ({
+              id: wd._id || wd.id,
+              amount: Number(wd.amount ?? 0),
+              description: wd.description || 'Withdrawal',
+              date: wd.createdAt || wd.date || new Date().toISOString(),
+              status: wd.status || 'pending',
+              paymentMethod: wd.payoutMethod?.type || wd.paymentMethod || 'Bank Account',
+              accountNumber: wd.payoutMethod?.details?.accountNumber || wd.accountNumber || '****',
+              upiId: wd.payoutMethod?.details?.upiId || wd.upiId || '',
+              walletNumber: wd.payoutMethod?.details?.paytmNumber || wd.payoutMethod?.details?.walletNumber || wd.walletNumber || '',
+            })),
           })
         }
       } catch (err) {
@@ -88,7 +124,7 @@ const WalletWithdraw = () => {
     }
 
     fetchWithdrawData()
-  }, [])
+  }, [toast])
 
   const validatePaymentMethod = () => {
     if (selectedPaymentMethod === 'bank') {
@@ -157,13 +193,58 @@ const WalletWithdraw = () => {
       setWalletNumber('')
       
       // Refresh withdraw data
-      const balanceResponse = await getLaboratoryWalletBalance()
+      const [balanceResponse, withdrawalsResponse] = await Promise.all([
+        getLaboratoryWalletBalance(),
+        getLaboratoryWithdrawals(),
+      ])
+      
       if (balanceResponse.success && balanceResponse.data) {
         const balance = balanceResponse.data
-        setWithdrawData(prev => ({
-          ...prev,
-          availableBalance: balance.availableBalance || balance.available || 0,
-        }))
+        const withdrawalsData = withdrawalsResponse.success && withdrawalsResponse.data
+          ? (Array.isArray(withdrawalsResponse.data) 
+              ? withdrawalsResponse.data 
+              : withdrawalsResponse.data.items || [])
+          : []
+        
+        const withdrawalHistory = withdrawalsData.map(wd => {
+          const payoutMethod = wd.payoutMethod
+          let paymentMethod = 'Bank Account'
+          let accountNumber = '****'
+          let upiId = ''
+          let walletNumber = ''
+          
+          if (payoutMethod) {
+            if (payoutMethod.type === 'bank_transfer') {
+              paymentMethod = 'Bank Transfer'
+              accountNumber = payoutMethod.details?.accountNumber || '****'
+            } else if (payoutMethod.type === 'upi') {
+              paymentMethod = 'UPI'
+              upiId = payoutMethod.details?.upiId || ''
+            } else if (payoutMethod.type === 'paytm') {
+              paymentMethod = 'Paytm'
+              walletNumber = payoutMethod.details?.paytmNumber || ''
+            }
+          }
+          
+          return {
+            id: wd._id || wd.id,
+            amount: Number(wd.amount ?? 0),
+            description: wd.description || 'Withdrawal',
+            date: wd.createdAt || wd.date || new Date().toISOString(),
+            status: wd.status || 'pending',
+            paymentMethod: paymentMethod,
+            accountNumber: accountNumber,
+            upiId: upiId,
+            walletNumber: walletNumber,
+          }
+        })
+        
+        setWithdrawData({
+          availableBalance: Number(balance.availableBalance ?? balance.available ?? 0),
+          totalWithdrawals: Number(balance.totalWithdrawals ?? 0),
+          thisMonthWithdrawals: Number(balance.thisMonthWithdrawals ?? 0),
+          withdrawalHistory,
+        })
       }
     } catch (error) {
       console.error('Error requesting withdrawal:', error)
@@ -247,7 +328,7 @@ const WalletWithdraw = () => {
                           {withdrawal.description}
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          {withdrawal.paymentMethod === 'Bank Account' && withdrawal.accountNumber && (
+                          {(withdrawal.paymentMethod === 'Bank Account' || withdrawal.paymentMethod === 'Bank Transfer') && withdrawal.accountNumber && (
                             <span className="flex items-center gap-1">
                               <IoCardOutline className="h-3.5 w-3.5" />
                               {withdrawal.accountNumber}
@@ -259,7 +340,7 @@ const WalletWithdraw = () => {
                               {withdrawal.upiId}
                             </span>
                           )}
-                          {withdrawal.paymentMethod === 'Wallet' && withdrawal.walletNumber && (
+                          {(withdrawal.paymentMethod === 'Wallet' || withdrawal.paymentMethod === 'Paytm') && withdrawal.walletNumber && (
                             <span className="flex items-center gap-1">
                               <IoWalletOutline className="h-3.5 w-3.5" />
                               {withdrawal.walletNumber}

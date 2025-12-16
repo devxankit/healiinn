@@ -18,6 +18,7 @@ import {
   verifyNurse,
   rejectNurse,
 } from '../admin-services/adminService'
+import Pagination from '../../../components/Pagination'
 
 const AdminNurses = () => {
   const toast = useToast()
@@ -30,8 +31,16 @@ const AdminNurses = () => {
   const [rejectingNurseId, setRejectingNurseId] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [allNurses, setAllNurses] = useState([]) // Store all nurses for stats
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Load nurses from API
+  useEffect(() => {
+    setCurrentPage(1) // Reset to page 1 when filter/search changes
+  }, [statusFilter, searchTerm])
+
   useEffect(() => {
     const token = getAuthToken('admin')
     if (!token) {
@@ -40,7 +49,7 @@ const AdminNurses = () => {
       return
     }
     loadNurses()
-  }, [statusFilter])
+  }, [statusFilter, searchTerm, currentPage])
 
   useEffect(() => {
     const token = getAuthToken('admin')
@@ -50,7 +59,11 @@ const AdminNurses = () => {
       return
     }
     const timeoutId = setTimeout(() => {
-      loadNurses()
+      if (currentPage === 1) {
+        loadNurses()
+      } else {
+        setCurrentPage(1) // Reset to page 1 when search changes
+      }
     }, 500)
     return () => clearTimeout(timeoutId)
   }, [searchTerm])
@@ -84,7 +97,7 @@ const AdminNurses = () => {
         setAllNurses(allTransformed)
       }
       
-      // Then, load filtered nurses for display
+      // Then, load filtered nurses for display with pagination
       const filters = {}
       if (statusFilter !== 'all') {
         filters.status = statusFilter === 'verified' ? 'approved' : statusFilter
@@ -92,8 +105,8 @@ const AdminNurses = () => {
       if (searchTerm && searchTerm.trim()) {
         filters.search = searchTerm.trim()
       }
-      filters.page = 1
-      filters.limit = 100
+      filters.page = currentPage
+      filters.limit = itemsPerPage
       
       console.log('🔍 Loading nurses with filters:', filters)
       const response = await getNurses(filters)
@@ -101,7 +114,11 @@ const AdminNurses = () => {
       
       if (response.success && response.data) {
         const nursesData = response.data.items || response.data || []
+        const pagination = response.data.pagination || {}
+        
         console.log('📋 Raw nurses data from API:', nursesData)
+        console.log('📋 Pagination info:', pagination)
+        
         const transformedNurses = nursesData.map(nurse => ({
           id: nurse._id || nurse.id,
           name: nurse.name || nurse.fullName || '',
@@ -116,9 +133,15 @@ const AdminNurses = () => {
         }))
         console.log('📋 Transformed nurses:', transformedNurses)
         setNurses(transformedNurses)
+        
+        // Update pagination state
+        setTotalPages(pagination.totalPages || 1)
+        setTotalItems(pagination.total || 0)
       } else {
         console.error('❌ Invalid response from API:', response)
         setNurses([])
+        setTotalPages(1)
+        setTotalItems(0)
       }
     } catch (error) {
       if (error.message && error.message.includes('Authentication token missing')) {
@@ -181,22 +204,7 @@ const AdminNurses = () => {
     }
   }
 
-  const filteredNurses = nurses.filter((nurse) => {
-    const matchesStatus = statusFilter === 'all' || nurse.status === statusFilter || (statusFilter === 'verified' && nurse.status === 'approved')
-    
-    if (!searchTerm.trim()) {
-      return matchesStatus
-    }
-    
-    const searchLower = searchTerm.toLowerCase().trim()
-    const matchesSearch =
-      nurse.name.toLowerCase().includes(searchLower) ||
-      nurse.email.toLowerCase().includes(searchLower) ||
-      nurse.phone.toLowerCase().includes(searchLower) ||
-      (nurse.address && nurse.address.toLowerCase().includes(searchLower))
-    
-    return matchesSearch && matchesStatus
-  })
+  // No need for client-side filtering - backend handles it
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
@@ -306,12 +314,12 @@ const AdminNurses = () => {
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">Loading nurses...</p>
           </div>
-        ) : filteredNurses.length === 0 ? (
+        ) : nurses.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No nurses found</p>
           </div>
         ) : (
-          filteredNurses.map((nurse) => (
+          nurses.map((nurse) => (
             <article
               key={nurse.id}
               className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
@@ -386,6 +394,20 @@ const AdminNurses = () => {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && nurses.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* Reject Nurse Modal */}
       {showRejectModal && (

@@ -28,6 +28,7 @@ import {
 } from 'react-icons/io5'
 import { getAdminRequests, acceptAdminRequest, respondToAdminRequest, cancelAdminRequest, getPharmacies, getLaboratories, getLaboratoryTestsByLaboratory, getPharmacyMedicinesByPharmacy } from '../admin-services/adminService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -74,6 +75,14 @@ const AdminRequests = () => {
   const [requestToCancel, setRequestToCancel] = useState(null) // Request to cancel
   const [selectedMedicinesFromPharmacy, setSelectedMedicinesFromPharmacy] = useState([]) // {pharmacyId, pharmacyName, medicine, quantity, price}
   const [selectedTestsFromLab, setSelectedTestsFromLab] = useState([]) // {labId, labName, test, price}
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
+
+  useEffect(() => {
+    setCurrentPage(1) // Reset to page 1 when filter or activeSection changes
+  }, [filter, activeSection])
 
   useEffect(() => {
     loadRequests()
@@ -270,12 +279,22 @@ const AdminRequests = () => {
       setLoading(true)
       setError(null)
 
-      const response = await getAdminRequests()
+      // Load all requests (filtering by activeSection happens client-side)
+      const filters = {
+        page: 1,
+        limit: 1000, // Load all for client-side filtering by activeSection
+      }
+      if (filter !== 'all') {
+        filters.status = filter
+      }
+
+      const response = await getAdminRequests(filters)
 
       if (response.success && response.data) {
         const requestsData = Array.isArray(response.data)
           ? response.data
           : response.data.items || []
+        const pagination = response.data.pagination || {}
 
         // Helper function to format patient address
         const formatPatientAddress = (req) => {
@@ -408,6 +427,8 @@ const AdminRequests = () => {
       toast.error('Failed to load requests')
       setLabRequests([])
       setPharmacyRequests([])
+      setTotalPages(1)
+      setTotalItems(0)
     } finally {
       setLoading(false)
     }
@@ -592,7 +613,7 @@ const AdminRequests = () => {
                   dosage: med.dosage || '',
                   manufacturer: med.manufacturer || '',
                 },
-                quantity: med.quantity || 1,
+                quantity: med.quantity !== undefined && med.quantity !== null ? med.quantity : '',
                 price: med.price || 0,
               }
             })
@@ -753,12 +774,12 @@ const AdminRequests = () => {
       return
     }
 
-    // Add new medicine with default quantity 1
+    // Add new medicine with empty quantity (admin will type it)
     const newMedicine = {
       pharmacyId,
       pharmacyName,
       medicine: pharmacyMed,
-      quantity: 1,
+      quantity: '',
       price: parseFloat(pharmacyMed.price) || 0,
     }
     setSelectedMedicinesFromPharmacy([...selectedMedicinesFromPharmacy, newMedicine])
@@ -767,7 +788,13 @@ const AdminRequests = () => {
   // Update medicine quantity
   const handleUpdateMedicineQuantity = (index, quantity) => {
     const updated = [...selectedMedicinesFromPharmacy]
-    updated[index].quantity = Math.max(1, parseInt(quantity) || 1)
+    // Allow empty string, but validate when calculating totals
+    if (quantity === '' || quantity === null || quantity === undefined) {
+      updated[index].quantity = ''
+    } else {
+      const numValue = parseInt(quantity) || 0
+      updated[index].quantity = Math.max(1, numValue)
+    }
     setSelectedMedicinesFromPharmacy(updated)
   }
 
@@ -1850,6 +1877,20 @@ const AdminRequests = () => {
 
   const currentRequests = activeSection === 'lab' ? labRequests : pharmacyRequests
   const filteredRequests = getFilteredRequests(currentRequests)
+  
+  // Paginated filtered requests
+  const paginatedFilteredRequests = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredRequests.slice(startIndex, endIndex)
+  }, [filteredRequests, currentPage, itemsPerPage])
+  
+  // Update pagination when filtered requests change
+  useEffect(() => {
+    const totalFiltered = filteredRequests.length
+    setTotalPages(Math.ceil(totalFiltered / itemsPerPage) || 1)
+    setTotalItems(totalFiltered)
+  }, [filteredRequests, itemsPerPage])
 
   // Debug: Log to console
   useEffect(() => {
@@ -1978,7 +2019,7 @@ const AdminRequests = () => {
         </div>
 
         {/* Requests List */}
-        {filteredRequests.length === 0 ? (
+        {paginatedFilteredRequests.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             {activeSection === 'pharmacy' ? (
               <IoBagHandleOutline className="mx-auto h-12 w-12 text-slate-400" />
@@ -1994,7 +2035,7 @@ const AdminRequests = () => {
           </div>
         ) : (
           <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredRequests.map((request) => (
+            {paginatedFilteredRequests.map((request) => (
               <article
                 key={request.id}
                 className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
@@ -2215,6 +2256,20 @@ const AdminRequests = () => {
                 </div>
               </article>
             ))}
+          </div>
+        )}
+        
+        {/* Pagination */}
+        {!loading && paginatedFilteredRequests.length > 0 && (
+          <div className="mt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              loading={loading}
+            />
           </div>
         )}
       </div>
@@ -2749,7 +2804,8 @@ const AdminRequests = () => {
                                                           type="number"
                                                           min="1"
                                                           max={med.quantity || 999}
-                                                          value={selectedItem.quantity}
+                                                          value={selectedItem.quantity || ''}
+                                                          placeholder="Qty"
                                                           onChange={(e) => {
                                                             const index = selectedMedicinesFromPharmacy.findIndex(
                                                               item => item.medicine.name.toLowerCase() === med.name.toLowerCase() &&
@@ -2761,10 +2817,10 @@ const AdminRequests = () => {
                                                             }
                                                           }}
                                                           onClick={(e) => e.stopPropagation()}
-                                                          className="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#11496c]"
+                                                          className="w-16 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#11496c]"
                                                         />
                                                         <span className="text-[9px] font-semibold text-[#11496c]">
-                                                          = ₹{(selectedItem.quantity * selectedItem.price).toFixed(2)}
+                                                          = ₹{((selectedItem.quantity || 0) * selectedItem.price).toFixed(2)}
                                                         </span>
                                                       </div>
                                                     )}
@@ -3198,28 +3254,6 @@ const AdminRequests = () => {
                     return null
                   })()}
 
-                  {/* Show selected pharmacies - with fallback to selectedPharmacies if adminResponse doesn't have it */}
-                  {(() => {
-                    const pharmaciesToShow = selectedRequest.adminResponse.pharmacies && selectedRequest.adminResponse.pharmacies.length > 0
-                      ? selectedRequest.adminResponse.pharmacies
-                      : (activeSection === 'pharmacy' && selectedPharmacies.length > 0 ? selectedPharmacies.map(p => ({ name: p.pharmacyName, id: p.pharmacyId })) : [])
-
-                    if (pharmaciesToShow.length > 0) {
-                      return (
-                        <div className="mt-2 mb-2">
-                          <p className="text-[10px] font-semibold text-slate-600 mb-1">Selected Pharmacies:</p>
-                          <div className="space-y-1">
-                            {pharmaciesToShow.map((pharm, idx) => (
-                              <div key={idx} className="text-[10px] text-slate-600 bg-white rounded px-2 py-1">
-                                {pharm.name || pharm.pharmacyName}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    }
-                    return null
-                  })()}
 
                   {/* Show selected tests/investigations - with fallback to selectedTestsFromLab if adminResponse doesn't have it */}
                   {(() => {
@@ -3245,32 +3279,115 @@ const AdminRequests = () => {
                     return null
                   })()}
 
-                  {/* Show selected medicines - with fallback to selectedMedicinesFromPharmacy if adminResponse doesn't have it */}
+                  {/* Show selected medicines grouped by pharmacy */}
                   {(() => {
+                    // Get medicines with pharmacy info
                     const medicinesToShow = selectedRequest.adminResponse.medicines && selectedRequest.adminResponse.medicines.length > 0
-                      ? selectedRequest.adminResponse.medicines
+                      ? selectedRequest.adminResponse.medicines.map(med => ({
+                        name: med.name,
+                        dosage: med.dosage,
+                        quantity: med.quantity,
+                        price: med.price,
+                        pharmacyId: med.pharmacyId || '',
+                        pharmacyName: med.pharmacyName || ''
+                      }))
                       : (activeSection === 'pharmacy' && selectedMedicinesFromPharmacy.length > 0 ? selectedMedicinesFromPharmacy.map(item => ({
                         name: item.medicine.name,
                         dosage: item.medicine.dosage,
                         quantity: item.quantity,
-                        price: item.price
+                        price: item.price,
+                        pharmacyId: item.pharmacyId || '',
+                        pharmacyName: item.pharmacyName || ''
                       })) : [])
 
                     if (medicinesToShow.length > 0) {
+                      // Get unique pharmacies - try to match with pharmacies list first
+                      const pharmaciesMap = new Map()
+                      const pharmaciesList = selectedRequest.adminResponse.pharmacies || []
+                      
+                      medicinesToShow.forEach(med => {
+                        // Try to find pharmacy name from pharmacies list
+                        let pharmId = med.pharmacyId || ''
+                        let pharmName = med.pharmacyName || ''
+                        
+                        // If no pharmacy info in medicine, try to find from pharmacies list
+                        if (!pharmId && pharmaciesList.length > 0) {
+                          // If only one pharmacy, assign to it
+                          if (pharmaciesList.length === 1) {
+                            pharmId = pharmaciesList[0].id || pharmaciesList[0].pharmacyId || 'unknown'
+                            pharmName = pharmaciesList[0].name || pharmaciesList[0].pharmacyName || 'Unknown Pharmacy'
+                          } else {
+                            // Multiple pharmacies - use 'unknown' as fallback
+                            pharmId = 'unknown'
+                            pharmName = 'Unknown Pharmacy'
+                          }
+                        }
+                        
+                        // Use pharmacy name from list if available
+                        if (pharmId && pharmaciesList.length > 0) {
+                          const matchedPharm = pharmaciesList.find(p => 
+                            (p.id || p.pharmacyId) === pharmId
+                          )
+                          if (matchedPharm) {
+                            pharmName = matchedPharm.name || matchedPharm.pharmacyName || pharmName
+                          }
+                        }
+                        
+                        if (!pharmId) pharmId = 'unknown'
+                        if (!pharmName) pharmName = 'Unknown Pharmacy'
+                        
+                        if (!pharmaciesMap.has(pharmId)) {
+                          pharmaciesMap.set(pharmId, {
+                            id: pharmId,
+                            name: pharmName,
+                            medicines: []
+                          })
+                        }
+                        pharmaciesMap.get(pharmId).medicines.push(med)
+                      })
+
+                      const groupedPharmacies = Array.from(pharmaciesMap.values())
+                      let calculatedGrandTotal = 0
+
                       return (
                         <div className="mt-2 mb-2">
-                          <p className="text-[10px] font-semibold text-slate-600 mb-1">Selected Medicines:</p>
-                          <div className="space-y-1 max-h-32 overflow-y-auto">
-                            {medicinesToShow.map((med, idx) => (
-                              <div key={idx} className="flex items-center justify-between bg-white rounded px-2 py-1 text-[10px]">
+                          <p className="text-[10px] font-semibold text-slate-600 mb-2">Selected Medicines:</p>
+                          <div className="space-y-3 max-h-64 overflow-y-auto">
+                            {groupedPharmacies.map((pharmacy, pharmIdx) => {
+                              const pharmacySubtotal = pharmacy.medicines.reduce((sum, med) => {
+                                return sum + ((Number(med.price) || 0) * (Number(med.quantity) || 1))
+                              }, 0)
+                              calculatedGrandTotal += pharmacySubtotal
+
+                              return (
+                                <div key={pharmIdx} className="rounded-lg border border-green-200 bg-white p-2">
+                                  {/* Pharmacy Header */}
+                                  <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-green-100">
+                                    <h4 className="text-[11px] font-bold text-slate-900 flex items-center gap-1.5">
+                                      <IoBagHandleOutline className="h-3.5 w-3.5 text-green-600" />
+                                      {pharmacy.name}
+                                    </h4>
+                                    <span className="text-[10px] font-semibold text-green-700">
+                                      Subtotal: ₹{pharmacySubtotal.toFixed(2)}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Medicines under this pharmacy */}
+                                  <div className="space-y-1">
+                                    {pharmacy.medicines.map((med, medIdx) => (
+                                      <div key={medIdx} className="flex items-center justify-between bg-green-50 rounded px-2 py-1 text-[10px]">
                                 <div className="flex-1 min-w-0">
-                                  <span className="text-slate-700">{med.name}</span>
+                                          <span className="text-slate-700 font-medium">{med.name}</span>
                                   {med.dosage && <span className="text-slate-500 ml-1">({med.dosage})</span>}
                                   {med.quantity && <span className="text-slate-500 ml-1">x{med.quantity}</span>}
                                 </div>
                                 <span className="font-semibold text-[#11496c]">₹{((Number(med.price) || 0) * (Number(med.quantity) || 1)).toFixed(2)}</span>
                               </div>
                             ))}
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       )

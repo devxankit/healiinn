@@ -647,8 +647,8 @@ exports.updateWithdrawalStatus = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
-  // Send email notification to provider
-  if (provider) {
+  // Send email notification to provider (only for approved and paid statuses)
+  if (provider && (status === 'approved' || status === 'paid')) {
     try {
       await sendWithdrawalStatusUpdateEmail({
         provider,
@@ -680,6 +680,8 @@ exports.updateWithdrawalStatus = asyncHandler(async (req, res) => {
         amount: withdrawal.amount,
         eventType,
         withdrawal,
+        // Send email only for approved and paid statuses
+        sendEmail: status === 'approved' || status === 'paid',
       }).catch((error) => console.error('Error creating withdrawal status notification:', error));
     }
   } catch (error) {

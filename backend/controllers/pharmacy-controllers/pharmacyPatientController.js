@@ -44,10 +44,58 @@ exports.getPatients = asyncHandler(async (req, res) => {
     Patient.countDocuments(finalFilter),
   ]);
 
+  // Get order statistics for each patient
+  const patientIdsArray = patients.map(p => p._id);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  // Aggregate order statistics for each patient
+  const orderStats = await Order.aggregate([
+    {
+      $match: {
+        providerId: id,
+        providerType: 'pharmacy',
+        patientId: { $in: patientIdsArray },
+      },
+    },
+    {
+      $group: {
+        _id: '$patientId',
+        totalOrders: { $sum: 1 },
+        lastOrderDate: { $max: '$createdAt' },
+      },
+    },
+  ]);
+
+  // Create a map for quick lookup
+  const statsMap = new Map();
+  orderStats.forEach(stat => {
+    statsMap.set(stat._id.toString(), {
+      totalOrders: stat.totalOrders,
+      lastOrderDate: stat.lastOrderDate,
+      status: stat.lastOrderDate && new Date(stat.lastOrderDate) >= thirtyDaysAgo ? 'active' : 'inactive',
+    });
+  });
+
+  // Enrich patients with order statistics
+  const enrichedPatients = patients.map(patient => {
+    const stats = statsMap.get(patient._id.toString()) || {
+      totalOrders: 0,
+      lastOrderDate: null,
+      status: 'inactive',
+    };
+
+    return {
+      ...patient.toObject(),
+      totalOrders: stats.totalOrders,
+      lastOrderDate: stats.lastOrderDate,
+      status: stats.status,
+    };
+  });
+
   return res.status(200).json({
     success: true,
     data: {
-      items: patients,
+      items: enrichedPatients,
       pagination: {
         page,
         limit,

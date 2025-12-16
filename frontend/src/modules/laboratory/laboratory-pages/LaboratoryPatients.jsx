@@ -1214,7 +1214,7 @@ const LaboratoryPatients = () => {
                     <div>
                       <h3 className="text-base font-bold text-slate-900 mb-0.5 group-hover:text-[#11496c] transition-colors duration-300">{request.patient.name}</h3>
                       <p className="text-xs text-slate-600 group-hover:text-slate-700 transition-colors">
-                        {request.patient.age} years, {request.patient.gender}
+                        {request.patient.age ? `${request.patient.age} years` : '—'}{request.patient.gender ? `, ${request.patient.gender}` : ''}
                       </p>
                       <p className="text-[10px] text-slate-500 mt-0.5 group-hover:text-slate-600 transition-colors">Request ID: {request.requestId}</p>
                     </div>
@@ -1343,77 +1343,59 @@ const LaboratoryPatients = () => {
                 </div>
               </div>
 
-              {/* Bill Information - Always show section, but content based on status */}
-              <div className={`rounded-lg border-2 p-3 lg:p-2.5 transition-all duration-300 ${
-                request.bill 
-                  ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200 shadow-sm' 
-                  : 'bg-slate-50 border-slate-200 border-dashed'
-              }`}>
-                {request.bill ? (
-                  <>
-                    <div className="flex items-center justify-between mb-2 lg:mb-1.5">
-                      <p className="text-sm font-bold text-emerald-800 flex items-center gap-2 lg:text-xs lg:gap-1.5">
-                        <IoReceiptOutline className="h-4 w-4 lg:h-3 lg:w-3" />
-                        Bill Generated
-                      </p>
-                      {request.billSent && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-200 px-2 py-1 text-[10px] font-semibold text-emerald-800 border border-emerald-300 lg:px-1.5 lg:py-0.5 lg:text-[8px] lg:gap-0.5">
-                          <IoCheckmarkCircleOutline className="h-3 w-3 lg:h-2 lg:w-2" />
-                          Sent
-                        </span>
-                      )}
-                    </div>
-                    <div className="space-y-1.5 lg:space-y-1 text-sm lg:text-xs">
-                      {request.bill.testsAmount !== undefined && request.bill.testsAmount > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-700 lg:text-[10px]">Tests Amount:</span>
-                          <span className="font-semibold text-slate-900 lg:text-[10px]">{formatCurrency(request.bill.testsAmount)}</span>
-                        </div>
-                      )}
-                      {request.bill.deliveryCharge !== undefined && request.bill.deliveryCharge > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-700 lg:text-[10px]">Delivery Charge:</span>
-                          <span className="font-semibold text-slate-900 lg:text-[10px]">{formatCurrency(request.bill.deliveryCharge)}</span>
-                        </div>
-                      )}
-                      {request.bill.additionalCharges !== undefined && request.bill.additionalCharges > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-700 lg:text-[10px]">Additional Charges:</span>
-                          <span className="font-semibold text-slate-900 lg:text-[10px]">{formatCurrency(request.bill.additionalCharges)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center pt-1.5 mt-1.5 border-t-2 border-emerald-300 lg:pt-1 lg:mt-1">
-                        <span className="text-base font-bold text-emerald-900 lg:text-xs">Total:</span>
-                        <span className="text-base font-bold text-emerald-900 lg:text-xs">{formatCurrency(request.bill.totalAmount)}</span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center py-2 lg:py-1">
-                    <p className="text-xs text-slate-500 lg:text-[10px]">No bill generated yet</p>
+              {/* Bill Information - only when available */}
+              {request.bill && (
+                <div className="rounded-lg border-2 p-3 lg:p-2.5 transition-all duration-300 bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200 shadow-sm">
+                  <div className="flex items-center justify-between mb-2 lg:mb-1.5">
+                    <p className="text-sm font-bold text-emerald-800 flex items-center gap-2 lg:text-xs lg:gap-1.5">
+                      <IoReceiptOutline className="h-4 w-4 lg:h-3 lg:w-3" />
+                      Bill Generated
+                    </p>
+                    {request.billSent && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-200 px-2 py-1 text-[10px] font-semibold text-emerald-800 border border-emerald-300 lg:px-1.5 lg:py-0.5 lg:text-[8px] lg:gap-0.5">
+                        <IoCheckmarkCircleOutline className="h-3 w-3 lg:h-2 lg:w-2" />
+                        Sent
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
+                  <div className="space-y-1.5 lg:space-y-1 text-sm lg:text-xs">
+                    {request.bill.testsAmount !== undefined && request.bill.testsAmount > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-700 lg:text-[10px]">Tests Amount:</span>
+                        <span className="font-semibold text-slate-900 lg:text-[10px]">{formatCurrency(request.bill.testsAmount)}</span>
+                      </div>
+                    )}
+                    {request.bill.deliveryCharge !== undefined && request.bill.deliveryCharge > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-700 lg:text-[10px]">Delivery Charge:</span>
+                        <span className="font-semibold text-slate-900 lg:text-[10px]">{formatCurrency(request.bill.deliveryCharge)}</span>
+                      </div>
+                    )}
+                    {request.bill.additionalCharges !== undefined && request.bill.additionalCharges > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-700 lg:text-[10px]">Additional Charges:</span>
+                        <span className="font-semibold text-slate-900 lg:text-[10px]">{formatCurrency(request.bill.additionalCharges)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-1.5 mt-1.5 border-t-2 border-emerald-300 lg:pt-1 lg:mt-1">
+                      <span className="text-base font-bold text-emerald-900 lg:text-xs">Total:</span>
+                      <span className="text-base font-bold text-emerald-900 lg:text-xs">{formatCurrency(request.bill.totalAmount)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              {/* Order Information - Always show section, but content based on status */}
-              <div className={`rounded-lg p-3 lg:p-2.5 border transition-all duration-300 ${
-                request.orderId 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-slate-50 border-slate-200 border-dashed'
-              }`}>
-                {request.orderId ? (
+              {/* Order Information - only when available */}
+              {request.orderId && (
+                <div className="rounded-lg p-3 lg:p-2.5 border transition-all duration-300 bg-green-50 border-green-200">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5 lg:text-[10px] lg:gap-1">
                       <IoCheckmarkCircleOutline className="h-3.5 w-3.5 lg:h-3 lg:w-3" />
                       Order Created: <span className="font-bold">{request.orderId}</span>
                     </p>
                   </div>
-                ) : (
-                  <div className="text-center py-1">
-                    <p className="text-xs text-slate-500 lg:text-[10px]">No order created yet</p>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Action Buttons - PDF View/Download with Text - Smaller */}
               <div className="relative flex items-center gap-2 pt-3 border-t border-slate-200 group-hover:border-[#11496c]/30 transition-colors duration-300">

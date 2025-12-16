@@ -12,6 +12,7 @@ import {
 } from 'react-icons/io5'
 import { getPharmacyWalletBalance, getPharmacyWithdrawals, requestPharmacyWithdrawal } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Default withdraw data (will be replaced by API data)
 const defaultWithdrawData = {
@@ -52,6 +53,10 @@ const WalletWithdraw = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [withdrawData, setWithdrawData] = useState(defaultWithdrawData)
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
   
   // Payment method details
   const [bankDetails, setBankDetails] = useState({
@@ -69,41 +74,88 @@ const WalletWithdraw = () => {
         setLoading(true)
         const [balanceResponse, withdrawalsResponse] = await Promise.all([
           getPharmacyWalletBalance(),
-          getPharmacyWithdrawals(),
+          getPharmacyWithdrawals({ page: currentPage, limit: itemsPerPage }),
         ])
+        
+        console.log('Pharmacy Wallet Withdraw Balance Response:', balanceResponse)
+        console.log('Pharmacy Wallet Withdrawals Response:', withdrawalsResponse)
         
         if (balanceResponse.success && balanceResponse.data) {
           const balance = balanceResponse.data
-          const withdrawals = withdrawalsResponse.success && withdrawalsResponse.data
-            ? (Array.isArray(withdrawalsResponse.data) 
-                ? withdrawalsResponse.data 
-                : withdrawalsResponse.data.items || [])
+          const withdrawalsData = withdrawalsResponse.success && withdrawalsResponse.data
+            ? withdrawalsResponse.data
+            : {}
+          
+          const withdrawals = Array.isArray(withdrawalsData.items)
+            ? withdrawalsData.items
+            : Array.isArray(withdrawalsData)
+            ? withdrawalsData
             : []
           
-          // Calculate totals
-          const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0)
-          const thisMonth = new Date()
-          thisMonth.setDate(1)
-          thisMonth.setHours(0, 0, 0, 0)
-          const thisMonthWithdrawals = withdrawals
-            .filter(w => new Date(w.createdAt || w.date) >= thisMonth)
-            .reduce((sum, w) => sum + (w.amount || 0), 0)
+          console.log('Pharmacy Withdrawals Data:', withdrawalsData)
+          console.log('Pharmacy Withdrawals Items:', withdrawals)
+          
+          // Extract pagination info
+          if (withdrawalsData.pagination) {
+            setTotalPages(withdrawalsData.pagination.totalPages || 1)
+            setTotalItems(withdrawalsData.pagination.total || 0)
+          } else {
+            setTotalPages(1)
+            setTotalItems(withdrawals.length)
+          }
+          
+          // Use backend aggregated totals if available, otherwise calculate from items
+          const totalWithdrawals = Number(withdrawalsData.totalWithdrawals ?? 0) || 
+            withdrawals.reduce((sum, w) => sum + Number(w.amount ?? 0), 0)
+          const thisMonthWithdrawals = Number(withdrawalsData.thisMonthWithdrawals ?? 0) || 
+            (() => {
+              const thisMonth = new Date()
+              thisMonth.setDate(1)
+              thisMonth.setHours(0, 0, 0, 0)
+              return withdrawals
+                .filter(w => new Date(w.createdAt || w.date) >= thisMonth)
+                .reduce((sum, w) => sum + Number(w.amount ?? 0), 0)
+            })()
+          
+          console.log('Pharmacy Withdraw Totals:', { totalWithdrawals, thisMonthWithdrawals })
           
           setWithdrawData({
-            availableBalance: balance.availableBalance || balance.available || 0,
-            totalWithdrawals,
-            thisMonthWithdrawals,
-            withdrawalHistory: withdrawals.map(wd => ({
-              id: wd._id || wd.id,
-              amount: wd.amount || 0,
-              description: wd.description || 'Withdrawal',
-              date: wd.createdAt || wd.date || new Date().toISOString(),
-              status: wd.status || 'pending',
-              paymentMethod: wd.payoutMethod?.type || wd.paymentMethod || 'Bank Account',
-              accountNumber: wd.payoutMethod?.details?.accountNumber || wd.accountNumber || '****',
-              upiId: wd.payoutMethod?.details?.upiId || wd.upiId || '',
-              walletNumber: wd.payoutMethod?.details?.walletNumber || wd.walletNumber || '',
-            })),
+            availableBalance: Number(balance.availableBalance ?? balance.available ?? 0),
+            totalWithdrawals: Number(totalWithdrawals),
+            thisMonthWithdrawals: Number(thisMonthWithdrawals),
+            withdrawalHistory: withdrawals.map(wd => {
+              // Extract payment method details from payoutMethod
+              const payoutMethod = wd.payoutMethod
+              let paymentMethod = 'Bank Account'
+              let accountNumber = '****'
+              let upiId = ''
+              let walletNumber = ''
+              
+              if (payoutMethod) {
+                if (payoutMethod.type === 'bank_transfer') {
+                  paymentMethod = 'Bank Transfer'
+                  accountNumber = payoutMethod.details?.accountNumber || '****'
+                } else if (payoutMethod.type === 'upi') {
+                  paymentMethod = 'UPI'
+                  upiId = payoutMethod.details?.upiId || ''
+                } else if (payoutMethod.type === 'paytm') {
+                  paymentMethod = 'Paytm'
+                  walletNumber = payoutMethod.details?.paytmNumber || ''
+                }
+              }
+              
+              return {
+                id: wd._id || wd.id,
+                amount: Number(wd.amount ?? 0),
+                description: wd.description || 'Withdrawal',
+                date: wd.createdAt || wd.date || new Date().toISOString(),
+                status: wd.status || 'pending',
+                paymentMethod: paymentMethod,
+                accountNumber: accountNumber,
+                upiId: upiId,
+                walletNumber: walletNumber,
+              }
+            }),
           })
         }
       } catch (err) {
@@ -184,13 +236,59 @@ const WalletWithdraw = () => {
       setWalletNumber('')
       
       // Refresh withdraw data
-      const balanceResponse = await getPharmacyWalletBalance()
+      const [balanceResponse, withdrawalsResponse] = await Promise.all([
+        getPharmacyWalletBalance(),
+        getPharmacyWithdrawals({ page: currentPage, limit: itemsPerPage }),
+      ])
+      
       if (balanceResponse.success && balanceResponse.data) {
         const balance = balanceResponse.data
-        setWithdrawData(prev => ({
-          ...prev,
-          availableBalance: balance.availableBalance || balance.available || 0,
-        }))
+        const withdrawalsData = withdrawalsResponse.success && withdrawalsResponse.data
+          ? (Array.isArray(withdrawalsResponse.data) 
+              ? withdrawalsResponse.data 
+              : withdrawalsResponse.data.items || [])
+          : []
+        
+          const withdrawalHistory = withdrawalsData.map(wd => {
+            // Extract payment method details from payoutMethod
+            const payoutMethod = wd.payoutMethod
+            let paymentMethod = 'Bank Account'
+            let accountNumber = '****'
+            let upiId = ''
+            let walletNumber = ''
+            
+            if (payoutMethod) {
+              if (payoutMethod.type === 'bank_transfer') {
+                paymentMethod = 'Bank Transfer'
+                accountNumber = payoutMethod.details?.accountNumber || '****'
+              } else if (payoutMethod.type === 'upi') {
+                paymentMethod = 'UPI'
+                upiId = payoutMethod.details?.upiId || ''
+              } else if (payoutMethod.type === 'paytm') {
+                paymentMethod = 'Paytm'
+                walletNumber = payoutMethod.details?.paytmNumber || ''
+              }
+            }
+            
+            return {
+              id: wd._id || wd.id,
+              amount: Number(wd.amount ?? 0),
+              description: wd.description || 'Withdrawal',
+              date: wd.createdAt || wd.date || new Date().toISOString(),
+              status: wd.status || 'pending',
+              paymentMethod: paymentMethod,
+              accountNumber: accountNumber,
+              upiId: upiId,
+              walletNumber: walletNumber,
+            }
+          })
+        
+        setWithdrawData({
+          availableBalance: Number(balance.availableBalance ?? balance.available ?? 0),
+          totalWithdrawals: Number(balance.totalWithdrawals ?? 0),
+          thisMonthWithdrawals: Number(balance.thisMonthWithdrawals ?? 0),
+          withdrawalHistory,
+        })
       }
     } catch (error) {
       console.error('Error requesting withdrawal:', error)
@@ -270,16 +368,21 @@ const WalletWithdraw = () => {
         </div>
       </div>
 
-      {/* Withdrawal History */}
+      {/* Withdrawal History - Scrollable Container */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg sm:text-xl font-bold text-slate-900">Withdrawal History</h2>
           <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-            {withdrawData.withdrawalHistory.length} {withdrawData.withdrawalHistory.length === 1 ? 'withdrawal' : 'withdrawals'}
+            {totalItems} {totalItems === 1 ? 'withdrawal' : 'withdrawals'}
           </span>
         </div>
-        <div className="space-y-3">
-          {withdrawData.withdrawalHistory.length === 0 ? (
+        <div className="max-h-[60vh] md:max-h-[65vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-amber-500 border-r-transparent"></div>
+              <p className="mt-4 text-sm text-slate-500">Loading withdrawals...</p>
+            </div>
+          ) : withdrawData.withdrawalHistory.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
               <IoCashOutline className="mx-auto h-16 w-16 text-slate-300" />
               <p className="mt-4 text-base font-semibold text-slate-600">No withdrawals found</p>
@@ -302,7 +405,7 @@ const WalletWithdraw = () => {
                           {withdrawal.description}
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          {withdrawal.paymentMethod === 'Bank Account' && withdrawal.accountNumber && (
+                          {(withdrawal.paymentMethod === 'Bank Account' || withdrawal.paymentMethod === 'Bank Transfer') && withdrawal.accountNumber && (
                             <span className="flex items-center gap-1">
                               <IoCardOutline className="h-3.5 w-3.5" />
                               {withdrawal.accountNumber}
@@ -314,7 +417,7 @@ const WalletWithdraw = () => {
                               {withdrawal.upiId}
                             </span>
                           )}
-                          {withdrawal.paymentMethod === 'Wallet' && withdrawal.walletNumber && (
+                          {(withdrawal.paymentMethod === 'Wallet' || withdrawal.paymentMethod === 'Paytm') && withdrawal.walletNumber && (
                             <span className="flex items-center gap-1">
                               <IoWalletOutline className="h-3.5 w-3.5" />
                               {withdrawal.walletNumber}
@@ -362,6 +465,20 @@ const WalletWithdraw = () => {
             ))
           )}
         </div>
+
+        {/* Pagination */}
+        {!loading && withdrawData.withdrawalHistory.length > 0 && totalPages > 1 && (
+          <div className="pt-4 border-t border-slate-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={handlePageChange}
+              loading={loading}
+            />
+          </div>
+        )}
       </section>
 
       {/* Withdraw Modal */}

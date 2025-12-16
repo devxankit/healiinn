@@ -10,6 +10,7 @@ import {
 } from 'react-icons/io5'
 import { getAdminAppointments } from '../admin-services/adminService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Helper function to format date as YYYY-MM-DD
 const formatDate = (date) => {
@@ -167,6 +168,11 @@ const AdminAppointments = () => {
       window.removeEventListener('appointmentBooked', handleAppointmentBooked)
     }
   }, [searchTerm, toast])
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, periodFilter])
 
   const filteredAppointments = useMemo(() => {
     let filtered = appointments
@@ -353,6 +359,20 @@ const AdminAppointments = () => {
     return doctors.sort((a, b) => b.totalAppointments - a.totalAppointments)
   }, [filteredAppointments, searchTerm])
 
+  // Paginated doctor aggregation
+  const paginatedDoctorAggregation = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return doctorAggregation.slice(startIndex, endIndex)
+  }, [doctorAggregation, currentPage, itemsPerPage])
+
+  // Update pagination state
+  useEffect(() => {
+    const totalDoctors = doctorAggregation.length
+    setTotalPages(Math.ceil(totalDoctors / itemsPerPage) || 1)
+    setTotalItems(totalDoctors)
+  }, [doctorAggregation, itemsPerPage])
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'confirmed':
@@ -505,7 +525,7 @@ const AdminAppointments = () => {
 
       {/* Doctor List */}
       <div className="space-y-3">
-        {doctorAggregation.length === 0 ? (
+        {paginatedDoctorAggregation.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-12 text-center">
             <IoCalendarOutline className="mx-auto h-12 w-12 text-slate-300 mb-3" />
             <p className="text-sm font-medium text-slate-600">No doctors found</p>
@@ -516,7 +536,7 @@ const AdminAppointments = () => {
             </p>
           </div>
         ) : (
-          doctorAggregation.map((doctor) => {
+          paginatedDoctorAggregation.map((doctor) => {
             return (
               <article
                 key={`${doctor.doctorName}_${doctor.specialty}`}
@@ -566,6 +586,20 @@ const AdminAppointments = () => {
           })
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && paginatedDoctorAggregation.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
+        </div>
+      )}
     </section>
   )
 }

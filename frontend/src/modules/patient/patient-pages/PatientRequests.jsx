@@ -132,7 +132,7 @@ const PatientRequests = () => {
               type: isLab ? 'lab' : isPharmacy ? 'pharmacy' : request.type,
               providerName: isLab
                 ? (request.adminResponse?.lab?.labName || request.adminResponse?.labs?.[0]?.labName || 'Laboratory')
-                : (request.adminResponse?.pharmacy?.pharmacyName || request.adminResponse?.pharmacies?.[0]?.pharmacyName || 'Pharmacy'),
+                : 'Prescription Medicines', // Don't show pharmacy name to patients
               providerId: isLab
                 ? (request.adminResponse?.lab?.labId || request.adminResponse?.labs?.[0]?.labId)
                 : (request.adminResponse?.pharmacy?.pharmacyId || request.adminResponse?.pharmacies?.[0]?.pharmacyId),
@@ -146,9 +146,21 @@ const PatientRequests = () => {
               prescriptionId: request.prescriptionId?._id || request.prescriptionId || null,
               visitType: request.visitType || null,
               // Store lab info for conditional display
-              labInfo: isLab && request.adminResponse?.labs && request.adminResponse.labs.length > 0
-                ? request.adminResponse.labs[0]
-                : (isLab && request.adminResponse?.lab ? request.adminResponse.lab : null),
+              // For lab visits: get from adminResponse
+              // For home collection: get from accepted orders (when lab accepts)
+              labInfo: isLab ? (
+                request.adminResponse?.labs && request.adminResponse.labs.length > 0
+                  ? request.adminResponse.labs[0]
+                  : (request.adminResponse?.lab ? request.adminResponse.lab : null)
+              ) : null,
+
+              // For home collection, get lab info from accepted orders
+              homeCollectionLabInfo: request.visitType === 'home' && orders.some(o => ['accepted', 'confirmed', 'completed'].includes(o.status))
+                ? (() => {
+                    const acceptedOrder = orders.find(o => ['accepted', 'confirmed', 'completed'].includes(o.status))
+                    return acceptedOrder?.providerId || null
+                  })()
+                : null,
               // Grouped data
               medicinesByPharmacy: Object.values(medicinesByPharmacy),
               testsByLab: Object.values(testsByLab),
@@ -279,7 +291,7 @@ const PatientRequests = () => {
             type: isLab ? 'lab' : isPharmacy ? 'pharmacy' : request.type,
             providerName: isLab
               ? (request.adminResponse?.lab?.labName || request.adminResponse?.labs?.[0]?.labName || 'Laboratory')
-              : (request.adminResponse?.pharmacy?.pharmacyName || request.adminResponse?.pharmacies?.[0]?.pharmacyName || 'Pharmacy'),
+              : 'Prescription Medicines', // Don't show pharmacy name to patients
             providerId: isLab
               ? (request.adminResponse?.lab?.labId || request.adminResponse?.labs?.[0]?.labId)
               : (request.adminResponse?.pharmacy?.pharmacyId || request.adminResponse?.pharmacies?.[0]?.pharmacyId),
@@ -806,7 +818,9 @@ const PatientRequests = () => {
                       <div className="mb-2">
                         <div className="flex items-start justify-between gap-2 mb-1">
                           <h3 className="flex-1 min-w-0 text-sm font-bold text-slate-900 leading-tight pr-2 line-clamp-1">
-                            {request.providerName || 'Healiinn'}
+                            {request.type === 'lab' || request.type === 'book_test_visit' 
+                              ? (request.providerName || 'Laboratory')
+                              : 'Prescription Medicines'}
                           </h3>
                           <div className="shrink-0">
                             <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${getStatusColor(request.status)}`}>
@@ -945,9 +959,10 @@ const PatientRequests = () => {
                   {/* Lab Information and Tests - Only for lab requests */}
                   {(request.type === 'lab' || request.type === 'book_test_visit') && request.totalAmount && request.totalAmount > 0 && (
                     <>
-                      {/* Lab Name and Address - Only show when visitType === 'lab' AND order is accepted by provider */}
-                      {request.visitType === 'lab' && (request.labInfo || request.providerName) && request.status === 'confirmed' &&
-                        request.orders?.some(o => ['accepted', 'confirmed', 'completed'].includes(o.status)) && (
+                      {/* Lab Name and Address - Show for lab visits when order is accepted, or for home collection when lab accepts */}
+                      {((request.visitType === 'lab' && request.orders?.some(o => ['accepted', 'confirmed', 'completed'].includes(o.status))) ||
+                        (request.visitType === 'home' && request.orders?.some(o => ['accepted', 'confirmed', 'completed'].includes(o.status)))) &&
+                        ((request.labInfo || request.homeCollectionLabInfo || request.providerName)) && request.status === 'confirmed' && (
                           <div className="mt-2 rounded-lg border border-[rgba(17,73,108,0.2)] bg-[rgba(17,73,108,0.05)] p-2">
                             <div className="flex items-center gap-1.5 mb-1.5">
                               <IoFlaskOutline className="h-3 w-3 text-[#11496c] shrink-0" />
@@ -955,16 +970,21 @@ const PatientRequests = () => {
                             </div>
                             <div className="space-y-1 text-[9px]">
                               <div className="font-semibold text-slate-900">
-                                {request.labInfo?.labName || request.labInfo?.name || request.providerName}
+                                {request.visitType === 'lab'
+                                  ? (request.labInfo?.labName || request.labInfo?.name || request.providerName)
+                                  : (request.homeCollectionLabInfo?.labName || request.homeCollectionLabInfo?.name || request.providerName || 'Laboratory')
+                                }
                               </div>
-                              {request.labInfo?.address && (
+                              {(request.visitType === 'lab' ? request.labInfo?.address : request.homeCollectionLabInfo?.address) && (
                                 <div className="flex items-start gap-1 mt-0.5 text-slate-600">
                                   <IoLocationOutline className="h-2.5 w-2.5 shrink-0 mt-0.5" />
                                   <span className="leading-tight">
-                                    {request.labInfo.address && typeof request.labInfo.address === 'object'
-                                      ? `${request.labInfo.address.line1 || ''}${request.labInfo.address.line1 && request.labInfo.address.city ? ', ' : ''}${request.labInfo.address.city || ''}${request.labInfo.address.city && request.labInfo.address.state ? ', ' : ''}${request.labInfo.address.state || ''}${request.labInfo.address.postalCode ? ` ${request.labInfo.address.postalCode}` : ''}`.trim()
-                                      : (request.labInfo.address || '')
-                                    }
+                                    {(() => {
+                                      const address = request.visitType === 'lab' ? request.labInfo?.address : request.homeCollectionLabInfo?.address;
+                                      return address && typeof address === 'object'
+                                        ? `${address.line1 || ''}${address.line1 && address.city ? ', ' : ''}${address.city || ''}${address.city && address.state ? ', ' : ''}${address.state || ''}${address.postalCode ? ` ${address.postalCode}` : ''}`.trim()
+                                        : (address || '')
+                                    })()}
                                   </span>
                                 </div>
                               )}

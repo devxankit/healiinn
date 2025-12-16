@@ -9,6 +9,7 @@ import {
   IoTimeOutline,
 } from 'react-icons/io5'
 import { getPharmacyMedicines } from '../admin-services/adminService'
+import Pagination from '../../../components/Pagination'
 
 const AdminPharmacyMedicines = () => {
   const [pharmacyList, setPharmacyList] = useState([])
@@ -16,6 +17,12 @@ const AdminPharmacyMedicines = () => {
   const [selectedPharmacy, setSelectedPharmacy] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [currentMedicinePage, setCurrentMedicinePage] = useState(1)
+  const [totalMedicinePages, setTotalMedicinePages] = useState(1)
+  const itemsPerPage = 10
 
   useEffect(() => {
     loadPharmacyAvailability()
@@ -89,6 +96,38 @@ const AdminPharmacyMedicines = () => {
       med.dosage.toLowerCase().includes(searchTerm.toLowerCase())
     )
   )
+
+  // Paginated filtered pharmacies
+  const paginatedFilteredPharmacies = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredPharmacies.slice(startIndex, endIndex)
+  }, [filteredPharmacies, currentPage, itemsPerPage])
+
+  // Paginated selected pharmacy medicines
+  const paginatedSelectedPharmacyMedicines = useMemo(() => {
+    if (!selectedPharmacy) return []
+    const startIndex = (currentMedicinePage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return selectedPharmacy.medicines.slice(startIndex, endIndex)
+  }, [selectedPharmacy, currentMedicinePage, itemsPerPage])
+
+  // Update pagination state
+  useEffect(() => {
+    if (selectedPharmacy) {
+      const totalMedicines = selectedPharmacy.medicines.length
+      setTotalMedicinePages(Math.ceil(totalMedicines / itemsPerPage) || 1)
+    } else {
+      const totalPharmacies = filteredPharmacies.length
+      setTotalPages(Math.ceil(totalPharmacies / itemsPerPage) || 1)
+      setTotalItems(totalPharmacies)
+    }
+  }, [filteredPharmacies, selectedPharmacy, itemsPerPage])
+
+  // Reset medicine page when pharmacy changes
+  useEffect(() => {
+    setCurrentMedicinePage(1)
+  }, [selectedPharmacy])
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -187,6 +226,20 @@ const AdminPharmacyMedicines = () => {
             ))
           )}
         </div>
+        
+        {/* Pagination for Selected Pharmacy Medicines */}
+        {selectedPharmacy.medicines.length > itemsPerPage && (
+          <div className="mt-4">
+            <Pagination
+              currentPage={currentMedicinePage}
+              totalPages={totalMedicinePages}
+              totalItems={selectedPharmacy.medicines.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentMedicinePage}
+              loading={loading}
+            />
+          </div>
+        )}
       </section>
     )
   }
@@ -345,6 +398,20 @@ const AdminPharmacyMedicines = () => {
           ))
         )}
       </div>
+      
+      {/* Pagination */}
+      {!loading && paginatedFilteredPharmacies.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
+        </div>
+      )}
     </section>
   )
 }

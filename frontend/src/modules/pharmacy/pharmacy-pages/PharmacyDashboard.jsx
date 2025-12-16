@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoBagHandleOutline,
-  IoDocumentTextOutline,
   IoCalendarOutline,
   IoNotificationsOutline,
   IoMenuOutline,
@@ -13,9 +12,10 @@ import {
   IoWalletOutline,
   IoMedicalOutline,
   IoListOutline,
+  IoPersonOutline,
 } from 'react-icons/io5'
 import { usePharmacySidebar } from '../pharmacy-components/PharmacySidebarContext'
-import { getPharmacyDashboard, getPharmacyOrders, getPharmacyRequestOrders, getPharmacyMedicines, getPharmacyPatients, getPharmacyProfile } from '../pharmacy-services/pharmacyService'
+import { getPharmacyDashboard, getPharmacyOrders, getPharmacyRequestOrders, getPharmacyMedicines, getPharmacyPatients, getPharmacyProfile, getPharmacyWalletBalance } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
 import NotificationBell from '../../../components/NotificationBell'
 
@@ -25,6 +25,7 @@ const defaultStats = {
   activePatients: 0,
   inactivePatients: 0,
   pendingPrescriptions: 0,
+  walletBalance: 0,
 }
 
 // Mock data removed - using API data now
@@ -79,7 +80,6 @@ const PharmacyDashboard = () => {
   const toast = useToast()
   const [availableMedicinesCount, setAvailableMedicinesCount] = useState(0)
   const [todayOrders, setTodayOrders] = useState([])
-  const [recentOrders, setRecentOrders] = useState([])
   const [recentPatients, setRecentPatients] = useState([])
   const [requestOrdersCount, setRequestOrdersCount] = useState(0)
   const [stats, setStats] = useState(defaultStats)
@@ -114,15 +114,23 @@ const PharmacyDashboard = () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getPharmacyDashboard()
+        const [dashboardResponse, walletResponse] = await Promise.all([
+          getPharmacyDashboard(),
+          getPharmacyWalletBalance().catch(() => ({ success: false, data: null })) // Don't fail if wallet fails
+        ])
         
-        if (response.success && response.data) {
-          const data = response.data
+        if (dashboardResponse.success && dashboardResponse.data) {
+          const data = dashboardResponse.data
+          const walletBalance = walletResponse.success && walletResponse.data 
+            ? (walletResponse.data.availableBalance || walletResponse.data.balance || 0)
+            : 0
+          
           setStats({
             totalOrders: data.totalOrders || 0,
             activePatients: data.activePatients || 0,
             inactivePatients: data.inactivePatients || 0,
             pendingPrescriptions: data.pendingPrescriptions || 0,
+            walletBalance: walletBalance,
           })
         }
       } catch (err) {
@@ -141,57 +149,54 @@ const PharmacyDashboard = () => {
   useEffect(() => {
     const fetchDashboardDetails = async () => {
       try {
-        // Fetch today's orders
-        const today = new Date().toISOString().split('T')[0]
-        const ordersResponse = await getPharmacyOrders({ date: today, limit: 10 })
+        // Fetch today's orders - filter by today's date
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const todayEnd = new Date(today)
+        todayEnd.setHours(23, 59, 59, 999)
+        
+        const ordersResponse = await getPharmacyOrders({ limit: 100 })
         if (ordersResponse.success && ordersResponse.data) {
           const ordersData = Array.isArray(ordersResponse.data) 
             ? ordersResponse.data 
-            : ordersResponse.data.orders || []
+            : ordersResponse.data.orders || ordersResponse.data.items || []
           
-          const transformed = ordersData.map(order => ({
+          // Filter orders created today
+          const todayOrdersFiltered = ordersData.filter(order => {
+            if (!order.createdAt) return false
+            const orderDate = new Date(order.createdAt)
+            return orderDate >= today && orderDate <= todayEnd
+          })
+          
+          const transformed = todayOrdersFiltered.map(order => ({
             id: order._id || order.id,
             patientName: order.patientId?.firstName && order.patientId?.lastName
               ? `${order.patientId.firstName} ${order.patientId.lastName}`
               : order.patientId?.name || order.patientName || 'Unknown Patient',
             patientImage: order.patientId?.profileImage || order.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientId?.firstName || order.patientName || 'Patient')}&background=3b82f6&color=fff&size=128`,
             time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
+            date: order.createdAt ? new Date(order.createdAt) : new Date(),
             status: order.status || 'pending',
-            totalAmount: order.totalAmount || order.amount || 0,
+            totalAmount: Number(order.totalAmount ?? order.amount ?? 0),
             deliveryType: order.deliveryType || order.deliveryOption || 'home',
             prescriptionId: order.prescriptionId?._id || order.prescriptionId || '',
           }))
           setTodayOrders(transformed)
         }
 
-        // Fetch recent orders (last 5 orders regardless of date)
-        const recentOrdersResponse = await getPharmacyOrders({ limit: 5 })
-        if (recentOrdersResponse.success && recentOrdersResponse.data) {
-          const recentOrdersData = Array.isArray(recentOrdersResponse.data) 
-            ? recentOrdersResponse.data 
-            : recentOrdersResponse.data.orders || []
-          
-          const transformed = recentOrdersData.map(order => ({
-            id: order._id || order.id,
-            patientName: order.patientId?.firstName && order.patientId?.lastName
-              ? `${order.patientId.firstName} ${order.patientId.lastName}`
-              : order.patientId?.name || order.patientName || 'Unknown Patient',
-            patientImage: order.patientId?.profileImage || order.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientId?.firstName || order.patientName || 'Patient')}&background=3b82f6&color=fff&size=128`,
-            time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '10:00 AM',
-            status: order.status || 'pending',
-            totalAmount: order.totalAmount || order.amount || 0,
-            deliveryType: order.deliveryType || order.deliveryOption || 'home',
-            prescriptionId: order.prescriptionId?._id || order.prescriptionId || '',
-          }))
-          setRecentOrders(transformed)
-        }
-
         // Fetch recent patients (last 5 patients)
         const patientsResponse = await getPharmacyPatients({ limit: 5 })
-        if (patientsResponse.success && patientsResponse.data) {
+        console.log('Pharmacy Patients Response:', patientsResponse)
+        if (patientsResponse?.success && patientsResponse.data) {
           const patientsData = Array.isArray(patientsResponse.data.items) 
             ? patientsResponse.data.items 
-            : patientsResponse.data.patients || []
+            : Array.isArray(patientsResponse.data.patients)
+            ? patientsResponse.data.patients
+            : Array.isArray(patientsResponse.data)
+            ? patientsResponse.data
+            : []
+          
+          console.log('Pharmacy Patients Data:', patientsData)
           
           const transformed = patientsData.map(patient => ({
             id: patient._id || patient.id,
@@ -199,10 +204,12 @@ const PharmacyDashboard = () => {
               ? `${patient.firstName} ${patient.lastName}`
               : patient.name || 'Unknown Patient',
             image: patient.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.firstName || patient.name || 'Patient')}&background=3b82f6&color=fff&size=128`,
-            totalOrders: patient.totalOrders || 0,
-            lastOrderDate: patient.lastOrderDate || null,
+            totalOrders: Number(patient.totalOrders ?? 0),
+            lastOrderDate: patient.lastOrderDate || patient.lastOrder || null,
             status: patient.status || 'active',
           }))
+          
+          console.log('Pharmacy Transformed Patients:', transformed)
           setRecentPatients(transformed)
         }
 
@@ -216,10 +223,14 @@ const PharmacyDashboard = () => {
           setAvailableMedicinesCount(totalCount)
         }
 
-        // Fetch request orders count
-        const requestsResponse = await getPharmacyRequestOrders({ status: 'pending', limit: 1 })
+        // Fetch request orders count (all visible requests, not just pending)
+        const requestsResponse = await getPharmacyRequestOrders({ limit: 1 })
         if (requestsResponse.success && requestsResponse.data) {
-          setRequestOrdersCount(requestsResponse.data.total || 0)
+          const totalCount = requestsResponse.data.pagination?.total || 
+                            requestsResponse.data.total || 
+                            (requestsResponse.data.items?.length || 0)
+          console.log('Pharmacy Request Orders Count:', { totalCount, data: requestsResponse.data })
+          setRequestOrdersCount(totalCount)
         }
       } catch (err) {
         console.error('Error fetching dashboard details:', err)
@@ -290,18 +301,18 @@ const PharmacyDashboard = () => {
           <p className="text-[10px] text-slate-600 leading-tight">This month</p>
         </article>
 
-        {/* Prescription Card */}
+        {/* Wallet Card */}
         <article
           onClick={() => navigate('/pharmacy/prescriptions')}
-          className="relative overflow-hidden rounded-xl border border-teal-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+          className="relative overflow-hidden rounded-xl border border-[#11496c]/20 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
         >
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-teal-700 leading-tight mb-1">Prescription</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : stats.pendingPrescriptions}</p>
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1">Wallet</p>
+              <p className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : formatCurrency(stats.walletBalance || 0)}</p>
             </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500 text-white">
-              <IoDocumentTextOutline className="text-base" aria-hidden="true" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#11496c] text-white">
+              <IoWalletOutline className="text-base" aria-hidden="true" />
             </div>
           </div>
           <p className="text-[10px] text-slate-600 leading-tight">Active</p>
@@ -363,7 +374,14 @@ const PharmacyDashboard = () => {
         </header>
 
         <div className="space-y-3">
-          {todayOrders.map((order) => {
+          {todayOrders.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+              <IoBagHandleOutline className="mx-auto h-16 w-16 text-slate-300" />
+              <p className="mt-4 text-base font-semibold text-slate-600">No orders today</p>
+              <p className="mt-1 text-sm text-slate-500">Today's orders will appear here</p>
+            </div>
+          ) : (
+            todayOrders.map((order) => {
             const StatusIcon = getStatusIcon(order.status)
             return (
               <article
@@ -418,83 +436,13 @@ const PharmacyDashboard = () => {
                 </div>
               </article>
             )
-          })}
-        </div>
-      </section>
-
-      {/* Recent Orders & Recent Patients Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Recent Orders */}
-        <section aria-labelledby="recent-orders-title" className="space-y-3">
-          <header className="flex items-center justify-between">
-            <h2 id="recent-orders-title" className="text-base font-semibold text-slate-900">
-              Recent Orders
-            </h2>
-            <button
-              type="button"
-              onClick={() => navigate('/pharmacy/orders')}
-              className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
-            >
-              See all
-            </button>
-          </header>
-
-          <div className="space-y-3">
-            {recentOrders.map((order) => {
-              const StatusIcon = getStatusIcon(order.status)
-              return (
-                <article
-                  key={order.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
-                >
-                  <div className="flex items-start gap-3">
-                    <img
-                      src={order.patientImage}
-                      alt={order.patientName}
-                      className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-slate-900">{order.patientName}</h3>
-                          <p className="mt-0.5 text-xs text-slate-600">Prescription: {order.prescriptionId}</p>
-                        </div>
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(order.status)}`}>
-                          <StatusIcon className="h-3 w-3" />
-                          {order.status}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                        <div className="flex items-center gap-1">
-                          <IoCalendarOutline className="h-3.5 w-3.5" />
-                          <span>{formatDate(order.date)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <IoTimeOutline className="h-3.5 w-3.5" />
-                          <span>{order.time}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <IoLocationOutline className="h-3.5 w-3.5" />
-                          <span>{order.deliveryType === 'home' ? 'Home' : 'Pickup'}</span>
-                        </div>
-                        <div className="flex items-center gap-1 font-semibold text-emerald-600">
-                          <IoWalletOutline className="h-3.5 w-3.5" />
-                          <span>{formatCurrency(order.totalAmount)}</span>
-                        </div>
-            </div>
-            </div>
-          </div>
-        </article>
-              )
-            })}
+            })
+          )}
           </div>
         </section>
 
         {/* Recent Patients */}
+      <div className="grid grid-cols-1 gap-6">
         <section aria-labelledby="patients-title" className="space-y-3">
           <header className="flex items-center justify-between">
             <h2 id="patients-title" className="text-base font-semibold text-slate-900">
@@ -503,42 +451,62 @@ const PharmacyDashboard = () => {
           </header>
 
           <div className="space-y-3">
-            {recentPatients.map((patient) => (
+            {recentPatients.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+                <IoPersonOutline className="mx-auto h-16 w-16 text-slate-300" />
+                <p className="mt-4 text-base font-semibold text-slate-600">No patients found</p>
+                <p className="mt-1 text-sm text-slate-500">Patient data will appear here</p>
+              </div>
+            ) : (
+              recentPatients.map((patient) => (
         <article
                 key={patient.id}
-                onClick={() => navigate(`/pharmacy/patients/${patient.id}`)}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md cursor-pointer active:scale-[0.98]"
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="relative shrink-0">
                   <img
                     src={patient.image}
                     alt={patient.name}
-                    className="h-12 w-12 shrink-0 rounded-full object-cover ring-2 ring-slate-100"
+                      className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
                     onError={(e) => {
                       e.target.onerror = null
                       e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name)}&background=3b82f6&color=fff&size=128&bold=true`
                     }}
                   />
+                    {patient.status === 'active' && (
+                      <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
+                        <IoCheckmarkCircleOutline className="h-3 w-3 text-white" />
+                      </div>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-semibold text-slate-900">{patient.name}</h3>
-                        <p className="mt-0.5 text-xs text-slate-600">Last order: {formatDate(patient.lastOrderDate)}</p>
+                        <p className="mt-0.5 text-xs text-slate-600">
+                          {patient.lastOrderDate ? `Last order: ${formatDate(patient.lastOrderDate)}` : 'No orders yet'}
+                        </p>
                       </div>
-                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                      <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold capitalize ${
+                        patient.status === 'active' 
+                          ? 'bg-emerald-50 text-emerald-700' 
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
                         {patient.status}
                       </span>
                     </div>
                     <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
                       <div className="flex items-center gap-1">
                         <IoBagHandleOutline className="h-3.5 w-3.5" />
-                        <span>{patient.totalOrders} orders</span>
+                        <span className="font-medium">{patient.totalOrders} {patient.totalOrders === 1 ? 'order' : 'orders'}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </article>
-            ))}
+              ))
+            )}
           </div>
         </section>
       </div>

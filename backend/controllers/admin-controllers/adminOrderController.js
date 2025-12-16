@@ -22,7 +22,7 @@ exports.getOrders = asyncHandler(async (req, res) => {
   const [orders, total] = await Promise.all([
     Order.find(filter)
       .populate('patientId', 'firstName lastName phone')
-      .populate('providerId', type === 'pharmacy' ? 'pharmacyName' : 'labName')
+      .populate('providerId', 'pharmacyName labName name')
       .populate('prescriptionId')
       .sort({ createdAt: -1 })
       .skip(skip)

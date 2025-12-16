@@ -9,6 +9,7 @@ import {
 } from 'react-icons/io5'
 import { getPharmacyWalletEarnings } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Default earning data (will be replaced by API data)
 const defaultEarningData = {
@@ -48,6 +49,10 @@ const WalletEarning = () => {
   const [filterType, setFilterType] = useState('all') // all, today, year, month
   const [earningData, setEarningData] = useState(defaultEarningData)
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Fetch earnings from API
   useEffect(() => {
@@ -56,36 +61,104 @@ const WalletEarning = () => {
         setLoading(true)
         const response = await getPharmacyWalletEarnings()
         
-        if (response.success && response.data) {
+        console.log('Pharmacy Wallet Earnings Response:', response)
+        
+        if (response?.success && response.data) {
           const data = response.data
+          console.log('Pharmacy Wallet Earnings Data:', data)
+          const items = Array.isArray(data.items ?? data.earnings) ? (data.items ?? data.earnings) : []
+          console.log('Pharmacy Wallet Earnings Items:', items)
           setEarningData({
-            totalEarnings: data.totalEarnings || 0,
-            thisMonthEarnings: data.thisMonthEarnings || 0,
-            lastMonthEarnings: data.lastMonthEarnings || 0,
-            thisYearEarnings: data.thisYearEarnings || 0,
-            todayEarnings: data.todayEarnings || 0,
-            earnings: Array.isArray(data.earnings) 
-              ? data.earnings.map(earn => ({
-                  id: earn._id || earn.id,
-                  amount: earn.amount || 0,
-                  description: earn.description || earn.notes || 'Earning',
-                  date: earn.createdAt || earn.date || new Date().toISOString(),
-                  status: earn.status || 'completed',
-                  category: earn.category || 'Order Payment',
-                }))
-              : [],
+            totalEarnings: Number(data.totalEarnings ?? 0),
+            thisMonthEarnings: Number(data.thisMonthEarnings ?? 0),
+            lastMonthEarnings: Number(data.lastMonthEarnings ?? 0),
+            thisYearEarnings: Number(data.thisYearEarnings ?? 0),
+            todayEarnings: Number(data.todayEarnings ?? 0),
+            earnings: items.map((earn) => {
+              // Extract patient name from populated orderId or requestId
+              let patientName = ''
+              if (earn.orderId && earn.orderId.patientId) {
+                const patient = earn.orderId.patientId
+                if (typeof patient === 'object') {
+                  patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || ''
+                }
+              } else if (earn.requestId && earn.requestId.patientId) {
+                const patient = earn.requestId.patientId
+                if (typeof patient === 'object') {
+                  patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || ''
+                }
+              }
+              
+              // Extract commission from description or metadata
+              let commissionInfo = ''
+              if (earn.metadata?.commissionRate) {
+                commissionInfo = `Commission: ${(earn.metadata.commissionRate * 100).toFixed(1)}%`
+              } else if (earn.description && earn.description.includes('Commission:')) {
+                const commissionMatch = earn.description.match(/\(Commission:\s*([^)]+)\)/)
+                if (commissionMatch) {
+                  commissionInfo = commissionMatch[0].replace(/[()]/g, '')
+                }
+              }
+              
+              // Clean description
+              let description = earn.description || earn.notes || ''
+              if (description) {
+                description = description.replace(/\s*-\s*Request\s+[a-f0-9]+/gi, '')
+                description = description.replace(/\s*\(Commission:[^)]+\)/gi, '').trim()
+              }
+              
+              // Build clean description if empty
+              if (!description || description === 'Earning' || description === 'Transaction') {
+                description = patientName 
+                  ? `Payment received for medicines from patient ${patientName}`
+                  : 'Payment received for medicines'
+              }
+              
+              return {
+                id: earn._id || earn.id,
+                amount: Number(earn.amount ?? 0),
+                description,
+                commission: commissionInfo,
+                date: earn.createdAt || earn.date || new Date().toISOString(),
+                status: earn.status || 'completed',
+                category: earn.category || 'Order Payment',
+                patientName,
+              }
+            }),
           })
+          console.log('Pharmacy Wallet Earnings State Set:', {
+            totalEarnings: Number(data.totalEarnings ?? 0),
+            thisMonthEarnings: Number(data.thisMonthEarnings ?? 0),
+            lastMonthEarnings: Number(data.lastMonthEarnings ?? 0),
+            thisYearEarnings: Number(data.thisYearEarnings ?? 0),
+            todayEarnings: Number(data.todayEarnings ?? 0),
+            earningsCount: items.length,
+          })
+        } else {
+          console.error('Pharmacy Wallet Earnings Error:', response)
+          toast.error('Failed to load earnings')
+          setEarningData(defaultEarningData)
+          setTotalPages(1)
+          setTotalItems(0)
         }
       } catch (err) {
         console.error('Error fetching earnings:', err)
         toast.error('Failed to load earnings')
+        setEarningData(defaultEarningData)
+        setTotalPages(1)
+        setTotalItems(0)
       } finally {
         setLoading(false)
       }
     }
 
     fetchEarnings()
-  }, [toast])
+  }, [toast, currentPage])
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const earningsChange = earningData.lastMonthEarnings > 0
     ? ((earningData.thisMonthEarnings - earningData.lastMonthEarnings) / earningData.lastMonthEarnings) * 100
@@ -229,16 +302,21 @@ const WalletEarning = () => {
         </button>
       </div>
 
-      {/* Earnings List */}
+      {/* Earnings List - Scrollable Container */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg sm:text-xl font-bold text-slate-900">Earning History</h2>
           <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-            {filteredEarnings.length} {filteredEarnings.length === 1 ? 'transaction' : 'transactions'}
+            {totalItems} {totalItems === 1 ? 'transaction' : 'transactions'}
           </span>
         </div>
-        <div className="space-y-3">
-          {filteredEarnings.length === 0 ? (
+        <div className="max-h-[60vh] md:max-h-[65vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-emerald-500 border-r-transparent"></div>
+              <p className="mt-4 text-sm text-slate-500">Loading earnings...</p>
+            </div>
+          ) : filteredEarnings.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
               <IoArrowDownOutline className="mx-auto h-16 w-16 text-slate-300" />
               <p className="mt-4 text-base font-semibold text-slate-600">No earnings found</p>
@@ -257,9 +335,26 @@ const WalletEarning = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900">
+                        {/* Patient Name */}
+                        {earning.patientName && (
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <p className="text-sm font-semibold text-slate-900">{earning.patientName}</p>
+                            <span className="text-xs text-slate-400">•</span>
+                            <span className="text-xs text-slate-500 capitalize">Patient</span>
+                          </div>
+                        )}
+                        {/* Description */}
+                        <p className={`text-sm ${earning.patientName ? 'text-slate-600' : 'font-semibold text-slate-900'}`}>
                           {earning.description}
                         </p>
+                        {/* Commission */}
+                        {earning.commission && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 font-medium border border-blue-200">
+                              {earning.commission}
+                            </span>
+                          </div>
+                        )}
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium border border-slate-200">
                             {earning.category}
@@ -296,6 +391,20 @@ const WalletEarning = () => {
             ))
           )}
         </div>
+
+        {/* Pagination */}
+        {!loading && filteredEarnings.length > 0 && totalPages > 1 && (
+          <div className="pt-4 border-t border-slate-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={handlePageChange}
+              loading={loading}
+            />
+          </div>
+        )}
       </section>
     </section>
   )

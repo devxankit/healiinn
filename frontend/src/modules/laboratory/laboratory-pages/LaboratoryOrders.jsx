@@ -368,13 +368,13 @@ const LaboratoryOrders = () => {
                     
                     const nextStatusConfig = statusConfig[nextStatus]
                     return (
-                      <button
+                    <button
                         onClick={() => handleStatusUpdate(orderId, nextStatus)}
-                        className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95 group-hover:scale-105 lg:px-2 lg:py-1.5 lg:text-[10px]"
-                      >
+                      className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95 group-hover:scale-105 lg:px-2 lg:py-1.5 lg:text-[10px]"
+                    >
                         <span className="lg:hidden">Next: {nextStatusConfig.label}</span>
                         <span className="hidden lg:inline">{nextStatusConfig.label}</span>
-                      </button>
+                    </button>
                     )
                   })()}
                   <button

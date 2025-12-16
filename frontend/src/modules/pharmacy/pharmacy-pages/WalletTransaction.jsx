@@ -14,6 +14,7 @@ import {
 } from 'react-icons/io5'
 import { getPharmacyWalletTransactions } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -43,43 +44,150 @@ const WalletTransaction = () => {
   const toast = useToast()
   const [filterType, setFilterType] = useState('all') // all, earnings, withdrawals
   const [transactions, setTransactions] = useState([])
+  const [totalTransactions, setTotalTransactions] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filterType])
 
   // Fetch transactions from API
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
         setLoading(true)
-        const response = await getPharmacyWalletTransactions()
+        const response = await getPharmacyWalletTransactions({ 
+          page: currentPage,
+          limit: itemsPerPage
+        })
         
-        if (response.success && response.data) {
-          const transactionsData = Array.isArray(response.data) 
-            ? response.data 
-            : response.data.transactions || []
+        console.log('Pharmacy Wallet Transactions Response:', response)
+        
+        if (response?.success && response.data) {
+          const transactionsData = Array.isArray(response.data)
+            ? response.data
+            : response.data.items || response.data.transactions || []
           
-          const transformed = transactionsData.map(txn => ({
-            id: txn._id || txn.id,
-            type: txn.type || 'earning',
-            amount: txn.amount || 0,
-            description: txn.description || txn.notes || 'Transaction',
-            date: txn.createdAt || txn.date || new Date().toISOString(),
-            status: txn.status || 'completed',
-            category: txn.category || 'Transaction',
-            originalData: txn,
-          }))
+          console.log('Pharmacy Transactions Data:', transactionsData)
           
+          // Extract pagination info
+          if (response.data.pagination) {
+            setTotalPages(response.data.pagination.totalPages || 1)
+            setTotalItems(response.data.pagination.total || 0)
+            setTotalTransactions(response.data.pagination.total || 0)
+          } else {
+            setTotalPages(1)
+            setTotalItems(transactionsData.length)
+            setTotalTransactions(transactionsData.length)
+          }
+          
+          const transformed = transactionsData.map(txn => {
+            // Extract patient name from populated orderId or requestId
+            let patientName = ''
+            if (txn.orderId && txn.orderId.patientId) {
+              const patient = txn.orderId.patientId
+              if (typeof patient === 'object') {
+                patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || ''
+              }
+            } else if (txn.requestId && txn.requestId.patientId) {
+              const patient = txn.requestId.patientId
+              if (typeof patient === 'object') {
+                patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || ''
+              }
+            }
+            
+            // Extract transaction ID
+            const transactionId = txn._id?.toString() || txn.id?.toString() || ''
+            
+            // Extract request/order ID
+            const requestId = txn.requestId?._id?.toString() || 
+                            txn.requestId?.toString() || 
+                            txn.orderId?._id?.toString() || 
+                            txn.orderId?.toString() || ''
+            
+            // Extract commission from description or metadata
+            let commissionInfo = ''
+            if (txn.metadata?.commissionRate) {
+              commissionInfo = `Commission: ${(txn.metadata.commissionRate * 100).toFixed(1)}%`
+            } else if (txn.description && txn.description.includes('Commission:')) {
+              const commissionMatch = txn.description.match(/\(Commission:\s*([^)]+)\)/)
+              if (commissionMatch) {
+                commissionInfo = commissionMatch[0].replace(/[()]/g, '')
+              }
+            }
+            
+            // Clean description - remove request ID and commission
+            let description = txn.description || txn.notes || ''
+            if (description) {
+              // Remove request ID pattern
+              description = description.replace(/\s*-\s*Request\s+[a-f0-9]+/gi, '')
+              // Remove commission info
+              description = description.replace(/\s*\(Commission:[^)]+\)/gi, '').trim()
+            }
+            
+            // Build clean description if empty
+            if (!description || description === 'Transaction') {
+              if (txn.type === 'earning') {
+                description = patientName 
+                  ? `Payment received for medicines from patient ${patientName}`
+                  : 'Payment received for medicines'
+              } else if (txn.type === 'withdrawal') {
+                description = 'Withdrawal request'
+              } else {
+                description = description || 'Transaction'
+              }
+            }
+            
+            return {
+              id: txn._id || txn.id,
+              type: txn.type || 'earning',
+              amount: Number(txn.amount ?? 0),
+              description,
+              commission: commissionInfo,
+              date: txn.createdAt || txn.date || new Date().toISOString(),
+              status: txn.status || 'completed',
+              category: txn.category || (txn.type === 'earning' ? 'Earning' : txn.type === 'withdrawal' ? 'Withdrawal' : 'Transaction'),
+              patientName,
+              transactionId: transactionId ? transactionId.substring(0, 8) : '',
+              requestId: requestId ? requestId.substring(0, 8) : '',
+              originalData: txn,
+            }
+          })
+          
+          console.log('Pharmacy Transformed Transactions:', transformed)
           setTransactions(transformed)
+        } else {
+          console.error('Pharmacy Wallet Transactions Error:', response)
+          toast.error('Failed to load transactions')
+          setTransactions([])
+          setTotalPages(1)
+          setTotalItems(0)
+          setTotalTransactions(0)
         }
       } catch (err) {
         console.error('Error fetching transactions:', err)
         toast.error('Failed to load transactions')
+        setTransactions([])
+        setTotalPages(1)
+        setTotalItems(0)
+        setTotalTransactions(0)
       } finally {
         setLoading(false)
       }
     }
 
     fetchTransactions()
-  }, [toast])
+  }, [toast, currentPage])
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const filteredTransactions = transactions.filter((txn) => {
     if (filterType === 'all') return true
@@ -109,7 +217,7 @@ const WalletTransaction = () => {
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1">
               <p className="text-sm font-medium text-white/80 mb-1">Total Transactions</p>
-              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{transactions.length}</p>
+              <p className="text-4xl sm:text-5xl font-bold tracking-tight">{loading ? '...' : totalTransactions || transactions.length}</p>
             </div>
             <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
               <IoReceiptOutline className="h-8 w-8 sm:h-10 sm:w-10" />
@@ -156,19 +264,19 @@ const WalletTransaction = () => {
         </button>
       </div>
 
-      {/* Transactions List */}
+      {/* Transactions List - Scrollable Container */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg sm:text-xl font-bold text-slate-900">Transaction History</h2>
           <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-            {filteredTransactions.length} {filteredTransactions.length === 1 ? 'transaction' : 'transactions'}
+            {totalItems} {totalItems === 1 ? 'transaction' : 'transactions'}
           </span>
         </div>
-        <div className="space-y-3">
+        <div className="max-h-[60vh] md:max-h-[65vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
           {loading ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+            <div className="text-center py-12">
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-purple-500 border-r-transparent"></div>
-              <p className="mt-4 text-base font-semibold text-slate-600">Loading transactions...</p>
+              <p className="mt-4 text-sm text-slate-500">Loading transactions...</p>
             </div>
           ) : filteredTransactions.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
@@ -199,13 +307,35 @@ const WalletTransaction = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <p className="text-sm font-semibold text-slate-900">{transaction.patientName || 'Patient'}</p>
-                          <span className="text-xs text-slate-400">•</span>
-                          <span className="text-xs text-slate-500 capitalize">Patient</span>
-                        </div>
-                        <p className="text-xs text-slate-600 mb-2">{transaction.description}</p>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        {/* Patient Name */}
+                        {transaction.patientName && (
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <p className="text-sm font-semibold text-slate-900">{transaction.patientName}</p>
+                            <span className="text-xs text-slate-400">•</span>
+                            <span className="text-xs text-slate-500 capitalize">Patient</span>
+                          </div>
+                        )}
+                        {/* Description */}
+                        <p className={`text-sm ${transaction.patientName ? 'text-slate-600' : 'font-semibold text-slate-900'}`}>
+                          {transaction.description}
+                        </p>
+                        {/* Commission and Request ID */}
+                        {(transaction.commission || transaction.requestId) && (
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                            {transaction.commission && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 font-medium border border-blue-200">
+                                {transaction.commission}
+                              </span>
+                            )}
+                            {transaction.requestId && (
+                              <span className="text-slate-500">
+                                Request: {transaction.requestId}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {/* Transaction Details */}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium">
                             {transaction.category}
                           </span>
@@ -214,10 +344,9 @@ const WalletTransaction = () => {
                             {formatDateTime(transaction.date)}
                           </span>
                           {transaction.transactionId && (
-                            <span className="text-xs text-slate-400">Transaction ID: {transaction.transactionId}</span>
-                          )}
-                          {transaction.requestId && (
-                            <span className="text-xs text-slate-400">Order: {transaction.requestId}</span>
+                            <span className="text-slate-400">
+                              Txn ID: {transaction.transactionId}
+                            </span>
                           )}
                         </div>
                         {transaction.status === 'pending' && (
@@ -250,6 +379,20 @@ const WalletTransaction = () => {
             ))
           )}
         </div>
+
+        {/* Pagination */}
+        {!loading && filteredTransactions.length > 0 && totalPages > 1 && (
+          <div className="pt-4 border-t border-slate-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={handlePageChange}
+              loading={loading}
+            />
+          </div>
+        )}
       </section>
     </section>
   )

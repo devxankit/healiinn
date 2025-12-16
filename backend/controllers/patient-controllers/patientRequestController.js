@@ -160,7 +160,13 @@ exports.getRequests = asyncHandler(async (req, res) => {
       .populate('adminResponse.labs')
       .populate('adminResponse.pharmacies')
       .populate('adminResponse.tests.labId')
-      .populate('orders')
+      .populate({
+        path: 'orders',
+        populate: {
+          path: 'providerId',
+          select: 'labName pharmacyName name address phone email'
+        }
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -207,7 +213,13 @@ exports.getRequestById = asyncHandler(async (req, res) => {
         },
       ],
     })
-    .populate('orders')
+    .populate({
+      path: 'orders',
+      populate: {
+        path: 'providerId',
+        select: 'labName pharmacyName name address phone email'
+      }
+    })
     .populate('adminResponse.labs')
     .populate('adminResponse.pharmacies')
     .populate('adminResponse.tests.labId');
@@ -378,10 +390,15 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
   const io = getIO();
 
   // Group medicines by pharmacy and distribute money
+  let totalPharmacyCommission = 0; // Track total commission from all pharmacies
   if (request.adminResponse.medicines && request.adminResponse.medicines.length > 0) {
     const pharmacyGroups = {};
     request.adminResponse.medicines.forEach((med) => {
       const pharmId = med.pharmacyId?.toString() || med.pharmacyId;
+      if (!pharmId) {
+        console.warn('Medicine missing pharmacyId:', med);
+        return;
+      }
       if (!pharmacyGroups[pharmId]) {
         pharmacyGroups[pharmId] = [];
       }
@@ -390,7 +407,7 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
 
     for (const [pharmacyId, medicines] of Object.entries(pharmacyGroups)) {
       // Calculate pharmacy's total amount
-      const pharmacyTotal = medicines.reduce((sum, med) => sum + (med.price * med.quantity), 0);
+      const pharmacyTotal = medicines.reduce((sum, med) => sum + ((med.price || 0) * (med.quantity || 1)), 0);
 
       // Calculate pharmacy earning after commission using .env config
       const { calculateProviderEarning } = require('../../utils/commissionConfig');
@@ -398,6 +415,9 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
         pharmacyTotal,
         'pharmacy'
       );
+
+      // Accumulate commission for admin
+      totalPharmacyCommission += commission || 0;
 
       // Get pharmacy's current wallet balance
       const latestTransaction = await WalletTransaction.findOne({
@@ -410,14 +430,16 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
       const newBalance = currentBalance + pharmacyEarning;
 
       // Ensure pharmacyId is valid before creating transaction
-      if (!pharmacyId) {
-        console.error('Missing pharmacyId for wallet transaction', { pharmacyGroup: medicines });
+      if (!pharmacyId || !mongoose.Types.ObjectId.isValid(pharmacyId)) {
+        console.error('Invalid pharmacyId for wallet transaction', { pharmacyId, pharmacyGroup: medicines });
         continue;
       }
 
+      const pharmacyObjectId = new mongoose.Types.ObjectId(pharmacyId);
+
       // Create wallet transaction for pharmacy earning
       await WalletTransaction.create({
-        userId: pharmacyId,
+        userId: pharmacyObjectId,
         userType: 'pharmacy',
         type: 'earning',
         amount: pharmacyEarning,
@@ -431,13 +453,9 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
           commission,
           commissionRate,
           earning: pharmacyEarning,
+          medicinesCount: medicines.length,
         },
       });
-
-      // Note: Commission deduction transaction is NOT created in pharmacy's wallet
-      // because pharmacy already receives commission-deducted amount (earning)
-      // Admin commission is tracked separately through request/order records
-      // No need to create a deduction transaction that would incorrectly reduce pharmacy's balance
 
       // Emit real-time event to pharmacy
       try {
@@ -447,19 +465,62 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
           requestId: request._id,
           commission,
           commissionRate,
+          pharmacyTotal,
         });
+        // Notify pharmacy that a paid request is available in their request order section
         io.to(`pharmacy-${pharmacyId}`).emit('request:assigned', {
           request: await Request.findById(request._id)
             .populate('patientId', 'firstName lastName phone address'),
         });
+        io.to(`pharmacy-${pharmacyId}`).emit('request:payment:confirmed', {
+          requestId: request._id,
+          pharmacyTotal,
+          pharmacyEarning,
+        });
       } catch (error) {
         console.error('Socket.IO error:', error);
+      }
+
+      // Create in-app notification for pharmacy about new paid request
+      try {
+        const { createRequestNotification } = require('../../services/notificationService');
+        const populatedRequest = await Request.findById(request._id)
+          .populate('patientId', 'firstName lastName phone email')
+          .populate({
+            path: 'prescriptionId',
+            populate: [
+              {
+                path: 'doctorId',
+                select: 'firstName lastName specialization',
+              },
+              {
+                path: 'patientId',
+                select: 'firstName lastName',
+              },
+            ],
+          });
+
+        const patientName = patient.firstName && patient.lastName
+          ? `${patient.firstName} ${patient.lastName}`
+          : patient.firstName || 'Patient';
+
+        await createRequestNotification({
+          userId: pharmacyId,
+          userType: 'pharmacy',
+          request: populatedRequest,
+          eventType: 'assigned',
+          pharmacy: await require('../../models/Pharmacy').findById(pharmacyId).select('pharmacyName email'),
+          patient,
+        }).catch((error) => console.error('Error creating pharmacy request notification:', error));
+      } catch (error) {
+        console.error('Error creating pharmacy notification:', error);
       }
     }
   }
 
   // Group tests by lab and distribute money
   // Check both 'tests' and 'investigations' for backward compatibility
+  let totalLabCommission = 0; // Track total commission from all labs
   const labTests = request.adminResponse.tests || request.adminResponse.investigations || [];
   if (labTests.length > 0) {
     const labGroups = {};
@@ -503,6 +564,9 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
         'laboratory'
       );
 
+      // Accumulate commission for admin
+      totalLabCommission += commission || 0;
+
       // Get lab's current wallet balance
       const latestTransaction = await WalletTransaction.findOne({
         userId: labId,
@@ -514,14 +578,16 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
       const newBalance = currentBalance + labEarning;
 
       // Ensure labId is valid before creating transaction
-      if (!labId) {
-        console.error('Missing labId for wallet transaction', { labGroup: tests });
+      if (!labId || !mongoose.Types.ObjectId.isValid(labId)) {
+        console.error('Invalid labId for wallet transaction', { labId, labGroup: tests });
         continue;
       }
 
+      const labObjectId = new mongoose.Types.ObjectId(labId);
+
       // Create wallet transaction for lab earning
       await WalletTransaction.create({
-        userId: labId,
+        userId: labObjectId,
         userType: 'laboratory',
         type: 'earning',
         amount: labEarning,
@@ -535,13 +601,9 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
           commission,
           commissionRate,
           earning: labEarning,
+          testsCount: tests.length,
         },
       });
-
-      // Note: Commission deduction transaction is NOT created in laboratory's wallet
-      // because laboratory already receives commission-deducted amount (earning)
-      // Admin commission is tracked separately through request/order records
-      // No need to create a deduction transaction that would incorrectly reduce laboratory's balance
 
       // Emit real-time event to lab
       try {
@@ -551,6 +613,7 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
           requestId: request._id,
           commission,
           commissionRate,
+          labTotal,
         });
         io.to(`laboratory-${labId}`).emit('request:assigned', {
           request: await Request.findById(request._id)
@@ -587,82 +650,78 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
     },
   });
 
-  // Create orders for pharmacies and labs (so revenue reports can pick them up)
+  // Don't create orders immediately - orders will be created when pharmacy/lab accepts the request
+  // This follows the same flow as labs: request goes to provider's request order section first
   const ordersCreated = []
-  const addOrderIfNeeded = async ({ providerId, providerType, items, totalAmount }) => {
-    if (!providerId || !totalAmount) return null
-    if (!mongoose.Types.ObjectId.isValid(providerId)) return null
-    const providerObjectId = new mongoose.Types.ObjectId(providerId)
-    const existing = await Order.findOne({
-      requestId: request._id,
-      providerId: providerObjectId,
-      providerType,
-    })
-    if (existing) return existing
-    const newOrder = await Order.create({
-      patientId: request.patientId,
-      providerId: providerObjectId,
-      providerType,
-      requestId: request._id,
-      items,
-      totalAmount,
-      status: 'ready',
-      paymentStatus: 'paid',
-      paymentMethod: paymentMethod || 'razorpay',
-      paymentId: paymentId || null,
-    })
-    ordersCreated.push(newOrder._id)
-    return newOrder
-  }
 
-  const pharmacyGroups = {}
-    ; (request.adminResponse?.medicines || []).forEach((med) => {
-      const pharmId = med.pharmacyId
-      if (!pharmId) return
-      if (!pharmacyGroups[pharmId]) {
-        pharmacyGroups[pharmId] = []
+  // Only create lab orders immediately for lab visits, not home collection
+  // For home collection and pharmacy orders, they will be created when provider accepts the request
+  if (request.visitType === 'lab') {
+    const labGroups = {}
+    labTests.forEach((test) => {
+      const labId = test.labId
+      if (!labId) return
+      if (!labGroups[labId]) {
+        labGroups[labId] = []
       }
-      pharmacyGroups[pharmId].push(med)
+      labGroups[labId].push(test)
     })
-  for (const [pharmacyId, meds] of Object.entries(pharmacyGroups)) {
-    const items = meds.map(med => ({
-      name: med.name,
-      quantity: med.quantity || 1,
-      price: med.price || 0,
-      total: ((med.price || 0) * (med.quantity || 1)),
-    }))
-    const totalAmount = items.reduce((s, item) => s + (item.total || 0), 0)
-    await addOrderIfNeeded({ providerId: pharmacyId, providerType: 'pharmacy', items, totalAmount })
+    for (const [labId, tests] of Object.entries(labGroups)) {
+      const items = tests.map(test => ({
+        name: test.test?.name || test.name || test.testName || 'Investigation',
+        quantity: test.quantity || 1,
+        price: test.price || test.test?.price || 0,
+        total: (test.price || test.test?.price || 0) * (test.quantity || 1),
+      }))
+      const totalAmount = items.reduce((s, item) => s + (item.total || 0), 0)
+      
+      // Create order for lab visit (not home collection)
+      if (!mongoose.Types.ObjectId.isValid(labId)) continue
+      const labObjectId = new mongoose.Types.ObjectId(labId)
+      const existing = await Order.findOne({
+        requestId: request._id,
+        providerId: labObjectId,
+        providerType: 'laboratory',
+      })
+      if (!existing) {
+        const newOrder = await Order.create({
+          patientId: request.patientId,
+          providerId: labObjectId,
+          providerType: 'laboratory',
+          requestId: request._id,
+          items,
+          totalAmount,
+          status: 'pending',
+          paymentStatus: 'paid',
+          paymentMethod: paymentMethod || 'razorpay',
+          paymentId: paymentId || null,
+        })
+        ordersCreated.push(newOrder._id)
+    }
+  }
   }
 
-  const labGroups = {}
-  labTests.forEach((test) => {
-    const labId = test.labId
-    if (!labId) return
-    if (!labGroups[labId]) {
-      labGroups[labId] = []
-    }
-    labGroups[labId].push(test)
-  })
-  for (const [labId, tests] of Object.entries(labGroups)) {
-    const items = tests.map(test => ({
-      name: test.test?.name || test.name || test.testName || 'Investigation',
-      quantity: test.quantity || 1,
-      price: test.price || test.test?.price || 0,
-      total: (test.price || test.test?.price || 0) * (test.quantity || 1),
-    }))
-    const totalAmount = items.reduce((s, item) => s + (item.total || 0), 0)
-    await addOrderIfNeeded({ providerId: labId, providerType: 'laboratory', items, totalAmount })
-  }
+  // Note: Pharmacy orders will be created when pharmacy accepts the request via confirmRequestOrder endpoint
+  // This ensures requests appear in pharmacy's request order section first (same flow as labs)
 
   if (ordersCreated.length > 0) {
     request.orders = Array.from(new Set([...(request.orders || []), ...ordersCreated]))
     await request.save()
   }
 
-  // Create admin transaction (payment goes to admin wallet)
+  // Create admin transactions (payment received + commission earned)
+  // Fetch an admin to associate the transaction with
+  const Admin = require('../../models/Admin');
+  const admin = await Admin.findOne();
+  // If no admin found, we still need a valid ObjectId for the required userId field
+  const adminId = admin ? admin._id : new mongoose.Types.ObjectId();
+
+  // Calculate total commission from all providers
+  const totalCommission = totalPharmacyCommission + totalLabCommission;
+
+  // Create admin transaction for full payment received (for revenue tracking)
   await Transaction.create({
-    userId: null, // Admin doesn't have a specific user ID
+    userId: adminId,
     userType: 'admin',
     type: 'payment',
     amount: totalAmount,
@@ -678,8 +737,57 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
       orderId: req.body.orderId || null,
       razorpayPaymentId: paymentId || null,
       totalAmount: totalAmount,
+      totalCommission: totalCommission,
+      pharmacyCommission: totalPharmacyCommission,
+      labCommission: totalLabCommission,
     },
   });
+
+  // Create admin commission transaction (if commission exists)
+  if (totalCommission > 0) {
+    // Get admin's current wallet balance
+    const latestAdminTransaction = await WalletTransaction.findOne({
+      userId: adminId,
+      userType: 'admin',
+      status: 'completed',
+    }).sort({ createdAt: -1 });
+
+    const adminCurrentBalance = latestAdminTransaction?.balance || 0;
+    const adminNewBalance = adminCurrentBalance + totalCommission;
+
+    // Create wallet transaction for admin commission
+    await WalletTransaction.create({
+      userId: adminId,
+      userType: 'admin',
+      type: 'commission',
+      amount: totalCommission,
+      balance: adminNewBalance,
+      status: 'completed',
+      description: `Commission earned from ${request.type === 'order_medicine' ? 'pharmacy order' : 'lab booking'} - Request ${request._id} (Pharmacy: ₹${totalPharmacyCommission.toFixed(2)}, Lab: ₹${totalLabCommission.toFixed(2)})`,
+      referenceId: request._id.toString(),
+      requestId: request._id,
+      metadata: {
+        totalCommission,
+        pharmacyCommission: totalPharmacyCommission,
+        labCommission: totalLabCommission,
+        totalAmount: totalAmount,
+        patientId: id,
+      },
+    });
+
+    // Emit real-time event to admins
+    try {
+      io.to('admins').emit('wallet:commission:credited', {
+        amount: totalCommission,
+        balance: adminNewBalance,
+        requestId: request._id,
+        pharmacyCommission: totalPharmacyCommission,
+        labCommission: totalLabCommission,
+      });
+    } catch (error) {
+      console.error('Socket.IO error for admin commission:', error);
+    }
+  }
 
   // Create in-app notifications
   try {

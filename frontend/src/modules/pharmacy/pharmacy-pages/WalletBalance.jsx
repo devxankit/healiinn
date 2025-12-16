@@ -56,29 +56,89 @@ const WalletBalance = () => {
           getPharmacyWalletTransactions({ limit: 5 }),
         ])
         
-        if (balanceResponse.success && balanceResponse.data) {
+        console.log('Pharmacy Wallet Balance Response:', balanceResponse)
+        console.log('Pharmacy Wallet Transactions Response:', transactionsResponse)
+        
+        if (balanceResponse?.success && balanceResponse.data) {
           const balance = balanceResponse.data
-          const recentActivity = transactionsResponse.success && transactionsResponse.data
-            ? (Array.isArray(transactionsResponse.data) 
-                ? transactionsResponse.data 
-                : transactionsResponse.data.transactions || [])
+          console.log('Pharmacy Balance Data:', balance)
+          
+          // Parse recent activity from transactions
+          const recentActivity = transactionsResponse?.success && transactionsResponse.data
+            ? (Array.isArray(transactionsResponse.data)
+                ? transactionsResponse.data
+                : transactionsResponse.data.items || transactionsResponse.data.transactions || [])
                 .slice(0, 5)
-                .map(txn => ({
-                  id: txn._id || txn.id,
-                  type: txn.type === 'earning' ? 'available' : txn.status === 'pending' ? 'pending' : 'available',
-                  amount: txn.amount || 0,
-                  description: txn.description || txn.notes || 'Transaction',
-                  date: txn.createdAt || txn.date || new Date().toISOString(),
-                  status: txn.status || 'completed',
-                }))
+                .map(txn => {
+                  // Extract patient name from populated orderId or requestId
+                  let patientName = ''
+                  if (txn.orderId && txn.orderId.patientId) {
+                    const patient = txn.orderId.patientId
+                    if (typeof patient === 'object') {
+                      patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || ''
+                    }
+                  } else if (txn.requestId && txn.requestId.patientId) {
+                    const patient = txn.requestId.patientId
+                    if (typeof patient === 'object') {
+                      patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || ''
+                    }
+                  }
+                  
+                  // Extract commission from description or metadata
+                  let commissionInfo = ''
+                  if (txn.metadata?.commissionRate) {
+                    commissionInfo = `Commission: ${(txn.metadata.commissionRate * 100).toFixed(1)}%`
+                  } else if (txn.description && txn.description.includes('Commission:')) {
+                    const commissionMatch = txn.description.match(/\(Commission:\s*([^)]+)\)/)
+                    if (commissionMatch) {
+                      commissionInfo = commissionMatch[0].replace(/[()]/g, '')
+                    }
+                  }
+                  
+                  // Clean description
+                  let description = txn.description || txn.notes || ''
+                  if (description) {
+                    description = description.replace(/\s*-\s*Request\s+[a-f0-9]+/gi, '')
+                    description = description.replace(/\s*\(Commission:[^)]+\)/gi, '').trim()
+                  }
+                  
+                  // Build clean description if empty
+                  if (!description || description === 'Transaction') {
+                    if (txn.type === 'earning') {
+                      description = patientName 
+                        ? `Payment received for medicines from patient ${patientName}`
+                        : 'Payment received for medicines'
+                    } else if (txn.type === 'withdrawal') {
+                      description = 'Withdrawal request'
+                    } else {
+                      description = description || 'Transaction'
+                    }
+                  }
+                  
+                  return {
+                    id: txn._id || txn.id,
+                    type: txn.type === 'earning' ? 'available' : txn.status === 'pending' ? 'pending' : 'available',
+                    amount: Number(txn.amount ?? 0),
+                    description,
+                    commission: commissionInfo,
+                    date: txn.createdAt || txn.date || new Date().toISOString(),
+                    status: txn.status || 'completed',
+                    patientName,
+                  }
+                })
             : []
           
+          console.log('Pharmacy Recent Activity:', recentActivity)
+          
           setBalanceData({
-            totalBalance: balance.totalBalance || balance.balance || 0,
-            availableBalance: balance.availableBalance || balance.available || 0,
-            pendingBalance: balance.pendingBalance || balance.pending || 0,
+            totalBalance: Number(balance.totalBalance ?? balance.balance ?? 0),
+            availableBalance: Number(balance.availableBalance ?? balance.available ?? 0),
+            pendingBalance: Number(balance.pendingBalance ?? balance.pendingWithdrawals ?? balance.pending ?? 0),
             recentActivity,
           })
+        } else {
+          console.error('Pharmacy Wallet Balance Error:', balanceResponse)
+          toast.error('Failed to load balance data')
         }
       } catch (err) {
         console.error('Error fetching balance data:', err)
@@ -180,7 +240,18 @@ const WalletBalance = () => {
           </span>
         </div>
         <div className="space-y-3">
-          {balanceData.recentActivity.map((activity) => (
+          {loading ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+              <p className="text-sm text-slate-500">Loading recent activity...</p>
+            </div>
+          ) : balanceData.recentActivity.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+              <IoWalletOutline className="mx-auto h-16 w-16 text-slate-300" />
+              <p className="mt-4 text-base font-semibold text-slate-600">No recent activity</p>
+              <p className="mt-1 text-sm text-slate-500">Your recent transactions will appear here</p>
+            </div>
+          ) : (
+            balanceData.recentActivity.map((activity) => (
             <article
               key={activity.id}
               className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
@@ -204,9 +275,27 @@ const WalletBalance = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">
+                      {/* Patient Name */}
+                      {activity.patientName && (
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <p className="text-sm font-semibold text-slate-900">{activity.patientName}</p>
+                          <span className="text-xs text-slate-400">•</span>
+                          <span className="text-xs text-slate-500 capitalize">Patient</span>
+                        </div>
+                      )}
+                      {/* Description */}
+                      <p className={`text-sm ${activity.patientName ? 'text-slate-600' : 'font-semibold text-slate-900'}`}>
                         {activity.description}
                       </p>
+                      {/* Commission */}
+                      {activity.commission && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 font-medium border border-blue-200">
+                            {activity.commission}
+                          </span>
+                        </div>
+                      )}
+                      {/* Date */}
                       <p className="mt-1.5 text-xs text-slate-500">
                         {formatDateTime(activity.date)}
                       </p>
@@ -240,7 +329,8 @@ const WalletBalance = () => {
                 </div>
               </div>
             </article>
-          ))}
+            ))
+          )}
         </div>
       </section>
     </section>

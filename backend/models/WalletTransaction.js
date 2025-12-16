@@ -9,13 +9,13 @@ const walletTransactionSchema = new mongoose.Schema(
     },
     userType: {
       type: String,
-      enum: ['doctor', 'pharmacy', 'laboratory'],
+      enum: ['doctor', 'pharmacy', 'laboratory', 'admin'],
       required: true,
       index: true,
     },
     type: {
       type: String,
-      enum: ['earning', 'withdrawal', 'commission_deduction', 'refund'],
+      enum: ['earning', 'withdrawal', 'commission_deduction', 'refund', 'commission'],
       required: true,
       index: true,
     },
@@ -54,6 +54,13 @@ const walletTransactionSchema = new mongoose.Schema(
     withdrawalRequestId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'WithdrawalRequest',
+    },
+    requestId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Request',
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
     },
   },
   {

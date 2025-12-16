@@ -25,6 +25,7 @@ import {
   rejectLaboratory,
   getLaboratoryTestsByLaboratory,
 } from '../admin-services/adminService'
+import Pagination from '../../../components/Pagination'
 
 // Mock data removed - using real API now
 
@@ -40,8 +41,11 @@ const AdminLaboratories = () => {
   const [rejectionReason, setRejectionReason] = useState('')
   const [viewingLaboratory, setViewingLaboratory] = useState(null)
   const [loadingLaboratoryDetails, setLoadingLaboratoryDetails] = useState(false)
-
   const [allLaboratories, setAllLaboratories] = useState([]) // Store all laboratories for stats
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   const loadLaboratories = async () => {
     // Check if user is authenticated before making API calls
@@ -105,7 +109,7 @@ const AdminLaboratories = () => {
         setAllLaboratories(allLabsWithTests)
       }
       
-      // Then, load filtered laboratories for display
+      // Then, load filtered laboratories for display with pagination
       const filters = {}
       if (statusFilter !== 'all') {
         // Map 'verified' to 'approved' for backend compatibility
@@ -114,8 +118,8 @@ const AdminLaboratories = () => {
       if (searchTerm && searchTerm.trim()) {
         filters.search = searchTerm.trim()
       }
-      filters.page = 1
-      filters.limit = 100
+      filters.page = currentPage
+      filters.limit = itemsPerPage
       
       console.log('🔍 Loading laboratories with filters:', filters) // Debug log
       const response = await getLaboratories(filters)
@@ -123,8 +127,11 @@ const AdminLaboratories = () => {
       
       if (response.success && response.data) {
         const labsData = response.data.items || response.data || []
+        const pagination = response.data.pagination || {}
+        
         console.log('📋 Raw laboratories data from API:', labsData) // Debug log
         console.log('📋 Transformed laboratories count:', labsData.length) // Debug log
+        console.log('📋 Pagination info:', pagination) // Debug log
         
         // Load tests for each laboratory
         const labsWithTests = await Promise.all(
@@ -171,9 +178,15 @@ const AdminLaboratories = () => {
         
         console.log('📋 Transformed laboratories:', labsWithTests) // Debug log
         setLaboratories(labsWithTests)
+        
+        // Update pagination state
+        setTotalPages(pagination.totalPages || 1)
+        setTotalItems(pagination.total || 0)
       } else {
         console.error('❌ Invalid response from API:', response) // Debug log
         setLaboratories([])
+        setTotalPages(1)
+        setTotalItems(0)
       }
     } catch (error) {
       // Don't log or show errors if it's an authentication error (redirect is happening)
@@ -184,6 +197,8 @@ const AdminLaboratories = () => {
       console.error('Error loading laboratories:', error)
       toast.error(error.message || 'Failed to load laboratories')
       setLaboratories([])
+      setTotalPages(1)
+      setTotalItems(0)
     } finally {
       setLoading(false)
     }
@@ -191,29 +206,35 @@ const AdminLaboratories = () => {
 
   // Load laboratories from API
   useEffect(() => {
-    // Check token before making any API calls
-    const token = getAuthToken('admin')
-    if (!token) {
-      console.warn('No authentication token found. Redirecting to login...')
-      // Redirect immediately
-      window.location.href = '/admin/login'
-      return
-    }
-    loadLaboratories()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter])
+    setCurrentPage(1) // Reset to page 1 when filter/search changes
+  }, [statusFilter, searchTerm])
 
   useEffect(() => {
     // Check token before making any API calls
     const token = getAuthToken('admin')
     if (!token) {
       console.warn('No authentication token found. Redirecting to login...')
-      // Redirect immediately
+      window.location.href = '/admin/login'
+      return
+    }
+    loadLaboratories()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, searchTerm, currentPage])
+
+  useEffect(() => {
+    // Check token before making any API calls
+    const token = getAuthToken('admin')
+    if (!token) {
+      console.warn('No authentication token found. Redirecting to login...')
       window.location.href = '/admin/login'
       return
     }
     const timeoutId = setTimeout(() => {
-      loadLaboratories()
+      if (currentPage === 1) {
+        loadLaboratories()
+      } else {
+        setCurrentPage(1) // Reset to page 1 when search changes
+      }
     }, 500)
     return () => clearTimeout(timeoutId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -285,25 +306,7 @@ const AdminLaboratories = () => {
     }
   }
 
-  const filteredLaboratories = laboratories.filter((lab) => {
-    // Filter by status first
-    const matchesStatus = statusFilter === 'all' || lab.status === statusFilter || (statusFilter === 'verified' && lab.status === 'approved')
-    
-    // If no search term, return status match
-    if (!searchTerm.trim()) {
-      return matchesStatus
-    }
-    
-    // Search in multiple fields
-    const searchLower = searchTerm.toLowerCase().trim()
-    const matchesSearch =
-      lab.name.toLowerCase().includes(searchLower) ||
-      lab.ownerName.toLowerCase().includes(searchLower) ||
-      lab.email.toLowerCase().includes(searchLower) ||
-      lab.address.toLowerCase().includes(searchLower)
-    
-    return matchesSearch && matchesStatus
-  })
+  // No need for client-side filtering - backend handles it
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
@@ -415,12 +418,12 @@ const AdminLaboratories = () => {
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">Loading laboratories...</p>
           </div>
-        ) : filteredLaboratories.length === 0 ? (
+        ) : laboratories.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No laboratories found</p>
           </div>
         ) : (
-          filteredLaboratories.map((lab) => (
+          laboratories.map((lab) => (
             <article
               key={lab.id}
               className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
@@ -503,6 +506,20 @@ const AdminLaboratories = () => {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && laboratories.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* Reject Laboratory Modal */}
       {showRejectModal && (

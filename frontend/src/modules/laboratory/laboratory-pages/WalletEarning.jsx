@@ -58,25 +58,26 @@ const WalletEarning = () => {
         setLoading(true)
         const response = await getLaboratoryWalletEarnings()
         
-        if (response.success && response.data) {
+        if (response?.success && response.data) {
           const data = response.data
+          const items = Array.isArray(data.items ?? data.earnings) ? (data.items ?? data.earnings) : []
           setEarningData({
-            totalEarnings: data.totalEarnings || 0,
-            thisMonthEarnings: data.thisMonthEarnings || 0,
-            lastMonthEarnings: data.lastMonthEarnings || 0,
-            thisYearEarnings: data.thisYearEarnings || 0,
-            todayEarnings: data.todayEarnings || 0,
-            earnings: Array.isArray(data.earnings) 
-              ? data.earnings.map(earn => ({
+            totalEarnings: Number(data.totalEarnings ?? 0),
+            thisMonthEarnings: Number(data.thisMonthEarnings ?? 0),
+            lastMonthEarnings: Number(data.lastMonthEarnings ?? 0),
+            thisYearEarnings: Number(data.thisYearEarnings ?? 0),
+            todayEarnings: Number(data.todayEarnings ?? 0),
+            earnings: items.map((earn) => ({
                   id: earn._id || earn.id,
-                  amount: earn.amount || 0,
+              amount: Number(earn.amount ?? 0),
                   description: earn.description || earn.notes || 'Earning',
                   date: earn.createdAt || earn.date || new Date().toISOString(),
                   status: earn.status || 'completed',
                   category: earn.category || 'Test Order Payment',
-                }))
-              : [],
+            })),
           })
+        } else {
+          toast.error('Failed to load earnings')
         }
       } catch (err) {
         console.error('Error fetching earnings:', err)

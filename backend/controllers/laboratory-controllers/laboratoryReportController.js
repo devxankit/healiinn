@@ -85,6 +85,8 @@ exports.createReport = asyncHandler(async (req, res) => {
     });
   }
 
+  const prescriptionId = order.prescriptionId || null;
+
   // Check if report already exists
   // Check if report already exists
   let report = await LabReport.findOne({ orderId });
@@ -123,7 +125,6 @@ exports.createReport = asyncHandler(async (req, res) => {
   // Get laboratory and patient data (needed for PDF and notifications)
   const laboratory = await Laboratory.findById(id);
   const patient = await Patient.findById(order.patientId);
-  const prescriptionId = order.prescriptionId || null;
 
   // Handle PDF: Use uploaded file if provided, otherwise generate
   let pdfUrl = pdfFileUrl || null;

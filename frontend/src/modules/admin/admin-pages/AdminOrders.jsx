@@ -15,6 +15,7 @@ import {
 } from 'react-icons/io5'
 import { getAdminOrders } from '../admin-services/adminService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Helper function to format date as YYYY-MM-DD
 const formatDate = (date) => {
@@ -80,10 +81,13 @@ const AdminOrders = () => {
         setLoading(true)
         setError(null)
 
-        // Build filters
+        // Build filters - load all orders for provider aggregation
         const filters = {}
         if (searchTerm) filters.search = searchTerm
         if (typeFilter !== 'all') filters.type = typeFilter
+        // Load all orders for provider aggregation (stats need all data)
+        filters.page = 1
+        filters.limit = 1000
 
         const response = await getAdminOrders(filters)
 
@@ -91,13 +95,14 @@ const AdminOrders = () => {
           const ordersData = Array.isArray(response.data)
             ? response.data
             : response.data.items || []
+          const pagination = response.data.pagination || {}
 
           // Transform API data to match component structure
           const transformed = ordersData.map(order => {
             // Determine order type
             const orderType = order.providerType || order.type ||
-              (order.pharmacyId || order.pharmacyName) ? 'pharmacy' :
-              (order.labId || order.labName || order.laboratoryId) ? 'laboratory' : 'pharmacy'
+              (order.pharmacyId || order.pharmacyName || order.providerId?.pharmacyName) ? 'pharmacy' :
+              (order.labId || order.labName || order.laboratoryId || order.providerId?.labName) ? 'laboratory' : 'pharmacy'
 
             return {
               id: order._id || order.id,
@@ -108,11 +113,12 @@ const AdminOrders = () => {
                 ? `${order.patientId.firstName} ${order.patientId.lastName}`
                 : order.patientId?.name || order.patientName || 'Unknown Patient',
               providerName: orderType === 'pharmacy'
-                ? (order.pharmacyId?.pharmacyName || order.pharmacyId?.name || order.pharmacyName || 'Pharmacy')
-                : (order.labId?.labName || order.labId?.name || order.labName || order.laboratoryId?.labName || 'Laboratory'),
-              providerId: orderType === 'pharmacy'
-                ? (order.pharmacyId?._id || order.pharmacyId?.id || order.pharmacyId || 'pharmacy-unknown')
-                : (order.labId?._id || order.labId?.id || order.labId || order.laboratoryId || 'lab-unknown'),
+                ? (order.providerId?.pharmacyName || order.providerId?.name || order.pharmacyId?.pharmacyName || order.pharmacyId?.name || order.pharmacyName || 'Pharmacy')
+                : (order.providerId?.labName || order.providerId?.name || order.labId?.labName || order.labId?.name || order.labName || order.laboratoryId?.labName || 'Laboratory'),
+              providerId: order.providerId?._id || order.providerId?.id || (typeof order.providerId === 'string' ? order.providerId : null) ||
+                (orderType === 'pharmacy'
+                  ? (order.pharmacyId?._id || order.pharmacyId?.id || order.pharmacyId || 'pharmacy-unknown')
+                  : (order.labId?._id || order.labId?.id || order.labId || order.laboratoryId || 'lab-unknown')),
               date: order.createdAt ? new Date(order.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
               time: order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
               status: order.status || 'pending',
@@ -132,6 +138,8 @@ const AdminOrders = () => {
           })
 
           setOrders(transformed)
+        } else {
+          setOrders([])
         }
       } catch (err) {
         console.error('Error loading orders:', err)
@@ -147,6 +155,13 @@ const AdminOrders = () => {
     const interval = setInterval(loadOrders, 30000)
     return () => clearInterval(interval)
   }, [searchTerm, typeFilter, toast])
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+    setCurrentPharmacyPage(1)
+    setCurrentLabPage(1)
+  }, [searchTerm, typeFilter, periodFilter, selectedProvider])
 
   const filteredOrders = useMemo(() => {
     let filtered = orders
@@ -243,6 +258,21 @@ const AdminOrders = () => {
     return providers.sort((a, b) => b.revenue - a.revenue)
   }, [filteredOrders, typeFilter, searchTerm])
 
+  // Paginated provider aggregation
+  const paginatedProviderAggregation = useMemo(() => {
+    const startIndex = (currentProviderPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return providerAggregation.slice(startIndex, endIndex)
+  }, [providerAggregation, currentProviderPage, itemsPerPage])
+
+  // Paginated selected provider orders
+  const paginatedSelectedProviderOrders = useMemo(() => {
+    if (!selectedProvider) return []
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return selectedProviderOrders.slice(startIndex, endIndex)
+  }, [selectedProviderOrders, currentPage, itemsPerPage, selectedProvider])
+
   // Get orders for selected provider
   const selectedProviderOrders = useMemo(() => {
     if (!selectedProvider) return []
@@ -252,6 +282,21 @@ const AdminOrders = () => {
         order.type === selectedProvider.type
     )
   }, [filteredOrders, selectedProvider])
+
+  // Paginated selected provider orders
+  const paginatedSelectedProviderOrders = useMemo(() => {
+    if (!selectedProvider) return []
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return selectedProviderOrders.slice(startIndex, endIndex)
+  }, [selectedProviderOrders, currentPage, itemsPerPage, selectedProvider])
+
+  // Paginated provider aggregation
+  const paginatedProviderAggregation = useMemo(() => {
+    const startIndex = (currentProviderPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return providerAggregation.slice(startIndex, endIndex)
+  }, [providerAggregation, currentProviderPage, itemsPerPage])
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -328,8 +373,8 @@ const AdminOrders = () => {
             key={period}
             onClick={() => setPeriodFilter(period)}
             className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${periodFilter === period
-                ? 'bg-[#11496c] text-white shadow-sm'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              ? 'bg-[#11496c] text-white shadow-sm'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
               }`}
           >
             {period}
@@ -338,7 +383,7 @@ const AdminOrders = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-xl border border-slate-200 bg-white p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total</p>
           <p className="mt-1 text-2xl font-bold text-slate-900">{stats.providerStats.totalProviders}</p>
@@ -358,10 +403,6 @@ const AdminOrders = () => {
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Pending</p>
           <p className="mt-1 text-2xl font-bold text-amber-700">{stats.providerStats.totalPending}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Revenue</p>
-          <p className="mt-1 text-lg font-bold text-slate-900">{formatCurrency(stats.providerStats.totalRevenue)}</p>
         </div>
       </div>
 
@@ -385,12 +426,12 @@ const AdminOrders = () => {
               key={type}
               onClick={() => setTypeFilter(type)}
               className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${typeFilter === type
-                  ? type === 'all'
-                    ? 'bg-[#11496c] text-white'
-                    : type === 'pharmacy'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-amber-600 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? type === 'all'
+                  ? 'bg-[#11496c] text-white'
+                  : type === 'pharmacy'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-amber-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
             >
               {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -459,13 +500,13 @@ const AdminOrders = () => {
           {/* Orders List for Selected Provider */}
           <div className="space-y-3">
             <h3 className="text-base font-semibold text-slate-900">Orders ({selectedProviderOrders.length})</h3>
-            {selectedProviderOrders.length === 0 ? (
+            {paginatedSelectedProviderOrders.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                 <IoBagHandleOutline className="mx-auto h-10 w-10 text-slate-300 mb-2" />
                 <p className="text-sm font-medium text-slate-600">No orders found for this provider</p>
               </div>
             ) : (
-              selectedProviderOrders.map((order) => {
+              paginatedSelectedProviderOrders.map((order) => {
                 const StatusIcon = getStatusIcon(order.status)
                 return (
                   <article
@@ -518,8 +559,8 @@ const AdminOrders = () => {
                               <span
                                 key={idx}
                                 className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-medium ${order.type === 'pharmacy'
-                                    ? 'bg-slate-100 text-slate-700'
-                                    : 'bg-amber-100 text-amber-700'
+                                  ? 'bg-slate-100 text-slate-700'
+                                  : 'bg-amber-100 text-amber-700'
                                   }`}
                               >
                                 {item}
@@ -527,8 +568,8 @@ const AdminOrders = () => {
                             ))}
                             {order.items.length > 3 && (
                               <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[10px] font-medium ${order.type === 'pharmacy'
-                                  ? 'bg-slate-100 text-slate-500'
-                                  : 'bg-amber-100 text-amber-600'
+                                ? 'bg-slate-100 text-slate-500'
+                                : 'bg-amber-100 text-amber-600'
                                 }`}>
                                 +{order.items.length - 3} more
                               </span>
@@ -572,8 +613,9 @@ const AdminOrders = () => {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {providerAggregation.filter(p => p.type === 'pharmacy').map((provider) => {
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {paginatedPharmacyProviders.map((provider) => {
                     const TypeIcon = getTypeIcon(provider.type)
                     return (
                       <article
@@ -619,6 +661,20 @@ const AdminOrders = () => {
                     )
                   })}
                 </div>
+                {/* Pagination for Pharmacy Providers */}
+                {providerAggregation.filter(p => p.type === 'pharmacy').length > itemsPerPage && (
+                  <div className="mt-4">
+                    <Pagination
+                      currentPage={currentPharmacyPage}
+                      totalPages={Math.ceil(providerAggregation.filter(p => p.type === 'pharmacy').length / itemsPerPage)}
+                      totalItems={providerAggregation.filter(p => p.type === 'pharmacy').length}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={setCurrentPharmacyPage}
+                      loading={loading}
+                    />
+                  </div>
+                )}
+                </>
               )}
             </section>
           )}
@@ -645,8 +701,9 @@ const AdminOrders = () => {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {providerAggregation.filter(p => p.type === 'laboratory').map((provider) => {
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {paginatedLabProviders.map((provider) => {
                     const TypeIcon = getTypeIcon(provider.type)
                     return (
                       <article
@@ -692,9 +749,37 @@ const AdminOrders = () => {
                     )
                   })}
                 </div>
+                {/* Pagination for Laboratory Providers */}
+                {providerAggregation.filter(p => p.type === 'laboratory').length > itemsPerPage && (
+                  <div className="mt-4">
+                    <Pagination
+                      currentPage={currentLabPage}
+                      totalPages={Math.ceil(providerAggregation.filter(p => p.type === 'laboratory').length / itemsPerPage)}
+                      totalItems={providerAggregation.filter(p => p.type === 'laboratory').length}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={setCurrentLabPage}
+                      loading={loading}
+                    />
+                  </div>
+                )}
+                </>
               )}
             </section>
           )}
+        </div>
+      )}
+
+      {/* Pagination for Selected Provider Orders */}
+      {selectedProvider && !loading && paginatedSelectedProviderOrders.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
         </div>
       )}
     </section>

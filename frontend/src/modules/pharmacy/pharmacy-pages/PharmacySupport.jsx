@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { IoCloseOutline, IoCheckmarkCircleOutline, IoTimeOutline, IoCheckmarkCircle, IoCloseCircle, IoHourglassOutline } from 'react-icons/io5'
 import { createSupportTicket, getSupportTickets, getSupportHistory } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const PharmacySupport = () => {
   const toast = useToast()
@@ -19,6 +20,15 @@ const PharmacySupport = () => {
   const [history, setHistory] = useState([])
   const [loadingTickets, setLoadingTickets] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
+  // Pagination state for tickets
+  const [ticketsCurrentPage, setTicketsCurrentPage] = useState(1)
+  const [ticketsTotalPages, setTicketsTotalPages] = useState(1)
+  const [ticketsTotalItems, setTicketsTotalItems] = useState(0)
+  // Pagination state for history
+  const [historyCurrentPage, setHistoryCurrentPage] = useState(1)
+  const [historyTotalPages, setHistoryTotalPages] = useState(1)
+  const [historyTotalItems, setHistoryTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -66,27 +76,50 @@ const PharmacySupport = () => {
     }
   }
 
+  // Reset to page 1 when tab changes
+  useEffect(() => {
+    setTicketsCurrentPage(1)
+    setHistoryCurrentPage(1)
+  }, [activeTab])
+
   // Fetch support tickets
   useEffect(() => {
     const fetchTickets = async () => {
       try {
         setLoadingTickets(true)
         console.log('📋 Fetching pharmacy support tickets...')
-        const response = await getSupportTickets()
+        const response = await getSupportTickets({ 
+          page: ticketsCurrentPage,
+          limit: itemsPerPage
+        })
         console.log('📋 Pharmacy support tickets response:', response)
         
         if (response.success && response.data) {
           // Backend returns { items: [...], pagination: {...} }
           const ticketsData = response.data.items || response.data || []
           console.log('✅ Processed pharmacy tickets:', ticketsData)
+          
+          // Extract pagination info
+          if (response.data.pagination) {
+            setTicketsTotalPages(response.data.pagination.totalPages || 1)
+            setTicketsTotalItems(response.data.pagination.total || 0)
+          } else {
+            setTicketsTotalPages(1)
+            setTicketsTotalItems(ticketsData.length)
+          }
+          
           setTickets(ticketsData)
         } else {
           console.warn('⚠️ Invalid response format:', response)
           setTickets([])
+          setTicketsTotalPages(1)
+          setTicketsTotalItems(0)
         }
       } catch (error) {
         console.error('❌ Error fetching pharmacy support tickets:', error)
         setTickets([])
+        setTicketsTotalPages(1)
+        setTicketsTotalItems(0)
       } finally {
         setLoadingTickets(false)
       }
@@ -95,7 +128,7 @@ const PharmacySupport = () => {
     if (activeTab === 'tickets') {
       fetchTickets()
     }
-  }, [activeTab])
+  }, [activeTab, ticketsCurrentPage])
 
   // Fetch support history
   useEffect(() => {
@@ -103,21 +136,40 @@ const PharmacySupport = () => {
       try {
         setLoadingHistory(true)
         console.log('📜 Fetching pharmacy support history...')
-        const response = await getSupportHistory()
+        const response = await getSupportHistory({ 
+          page: historyCurrentPage,
+          limit: itemsPerPage
+        })
         console.log('📜 Pharmacy support history response:', response)
         
         if (response.success && response.data) {
-          // Backend returns array directly in data
-          const historyData = Array.isArray(response.data) ? response.data : []
+          // Backend returns { items: [...], pagination: {...} } or array directly
+          const historyData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || []
           console.log('✅ Processed pharmacy history:', historyData)
+          
+          // Extract pagination info
+          if (response.data.pagination) {
+            setHistoryTotalPages(response.data.pagination.totalPages || 1)
+            setHistoryTotalItems(response.data.pagination.total || 0)
+          } else {
+            setHistoryTotalPages(1)
+            setHistoryTotalItems(historyData.length)
+          }
+          
           setHistory(historyData)
         } else {
           console.warn('⚠️ Invalid response format:', response)
           setHistory([])
+          setHistoryTotalPages(1)
+          setHistoryTotalItems(0)
         }
       } catch (error) {
         console.error('❌ Error fetching pharmacy support history:', error)
         setHistory([])
+        setHistoryTotalPages(1)
+        setHistoryTotalItems(0)
       } finally {
         setLoadingHistory(false)
       }
@@ -126,7 +178,17 @@ const PharmacySupport = () => {
     if (activeTab === 'history') {
       fetchHistory()
     }
-  }, [activeTab])
+  }, [activeTab, historyCurrentPage])
+
+  const handleTicketsPageChange = (page) => {
+    setTicketsCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleHistoryPageChange = (page) => {
+    setHistoryCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const getStatusIcon = (status) => {
     switch (status?.toLowerCase()) {
@@ -334,19 +396,20 @@ const PharmacySupport = () => {
             <p className="mt-1 lg:mt-1 text-sm lg:text-xs text-slate-600">View and track your support requests</p>
           </div>
 
-          {loadingTickets ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#11496c] border-t-transparent" />
-            </div>
-          ) : tickets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <IoTimeOutline className="h-12 w-12 text-slate-400 mb-4" />
-              <p className="text-lg font-semibold text-slate-700">No support tickets</p>
-              <p className="text-sm text-slate-500 mt-2">You haven't submitted any support requests yet</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {tickets.map((ticket) => (
+          <div className="space-y-4">
+            <div className="max-h-[60vh] md:max-h-[65vh] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+              {loadingTickets ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#11496c] border-t-transparent" />
+                </div>
+              ) : tickets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <IoTimeOutline className="h-12 w-12 text-slate-400 mb-4" />
+                  <p className="text-lg font-semibold text-slate-700">No support tickets</p>
+                  <p className="text-sm text-slate-500 mt-2">You haven't submitted any support requests yet</p>
+                </div>
+              ) : (
+                tickets.map((ticket) => (
                 <div
                   key={ticket._id || ticket.id}
                   className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:shadow-md transition"
@@ -386,9 +449,24 @@ const PharmacySupport = () => {
                     </div>
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
+
+            {/* Pagination for Tickets */}
+            {!loadingTickets && tickets.length > 0 && ticketsTotalPages > 1 && (
+              <div className="pt-4 border-t border-slate-200">
+                <Pagination
+                  currentPage={ticketsCurrentPage}
+                  totalPages={ticketsTotalPages}
+                  totalItems={ticketsTotalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={handleTicketsPageChange}
+                  loading={loadingTickets}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -400,19 +478,20 @@ const PharmacySupport = () => {
             <p className="mt-1 lg:mt-1 text-sm lg:text-xs text-slate-600">View your past support requests</p>
           </div>
 
-          {loadingHistory ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#11496c] border-t-transparent" />
-            </div>
-          ) : history.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <IoTimeOutline className="h-12 w-12 text-slate-400 mb-4" />
-              <p className="text-lg font-semibold text-slate-700">No history</p>
-              <p className="text-sm text-slate-500 mt-2">You don't have any past support requests</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {history.map((item) => (
+          <div className="space-y-4">
+            <div className="max-h-[60vh] md:max-h-[65vh] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#11496c] border-t-transparent" />
+                </div>
+              ) : history.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <IoTimeOutline className="h-12 w-12 text-slate-400 mb-4" />
+                  <p className="text-lg font-semibold text-slate-700">No history</p>
+                  <p className="text-sm text-slate-500 mt-2">You don't have any past support requests</p>
+                </div>
+              ) : (
+                history.map((item) => (
                 <div
                   key={item._id || item.id}
                   className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
@@ -452,9 +531,24 @@ const PharmacySupport = () => {
                     </div>
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
+
+            {/* Pagination for History */}
+            {!loadingHistory && history.length > 0 && historyTotalPages > 1 && (
+              <div className="pt-4 border-t border-slate-200">
+                <Pagination
+                  currentPage={historyCurrentPage}
+                  totalPages={historyTotalPages}
+                  totalItems={historyTotalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={handleHistoryPageChange}
+                  loading={loadingHistory}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
 

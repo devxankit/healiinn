@@ -54,23 +54,36 @@ const WalletTransaction = () => {
         setLoading(true)
         const response = await getLaboratoryWalletTransactions()
         
-        if (response.success && response.data) {
-          const transactionsData = Array.isArray(response.data) 
+        if (response?.success && response.data) {
+          const transactionsData = Array.isArray(response.data.items) 
+            ? response.data.items 
+            : Array.isArray(response.data)
             ? response.data 
             : response.data.transactions || []
           
-          const transformed = transactionsData.map(txn => ({
+          const transformed = transactionsData.map(txn => {
+            const order = txn.orderId || {}
+            const patient = order.patientId || {}
+            const withdrawal = txn.withdrawalRequestId || {}
+            
+            return {
             id: txn._id || txn.id,
             type: txn.type || 'earning',
-            amount: txn.amount || 0,
-            description: txn.description || txn.notes || 'Transaction',
+              amount: Number(txn.amount || 0),
+              description: txn.description || txn.notes || (txn.type === 'earning' ? 'Test Order Payment' : 'Withdrawal'),
             date: txn.createdAt || txn.date || new Date().toISOString(),
             status: txn.status || 'completed',
-            category: txn.category || 'Transaction',
+              category: txn.type === 'earning' ? 'Test Order Payment' : 'Withdrawal',
+              patientName: patient.name || 'Patient',
+              transactionId: txn._id?.toString() || '',
+              requestId: order._id?.toString() || withdrawal._id?.toString() || '',
             originalData: txn,
-          }))
+            }
+          })
           
           setTransactions(transformed)
+        } else {
+          toast.error('Failed to load transactions')
         }
       } catch (err) {
         console.error('Error fetching transactions:', err)

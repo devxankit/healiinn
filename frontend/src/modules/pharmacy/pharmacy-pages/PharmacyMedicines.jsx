@@ -12,6 +12,7 @@ import {
 } from 'react-icons/io5'
 import { getPharmacyMedicines, addPharmacyMedicine, updatePharmacyMedicine, deletePharmacyMedicine } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const PharmacyMedicines = () => {
   const toast = useToast()
@@ -20,6 +21,10 @@ const PharmacyMedicines = () => {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingMedicine, setEditingMedicine] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
   const [formData, setFormData] = useState({
     name: '',
     dosage: '',
@@ -28,18 +33,35 @@ const PharmacyMedicines = () => {
     manufacturer: '',
   })
 
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
+
   // Fetch medicines from API
   useEffect(() => {
     const fetchMedicines = async () => {
       try {
         setLoading(true)
-        const response = await getPharmacyMedicines()
+        const response = await getPharmacyMedicines({ 
+          page: currentPage,
+          limit: itemsPerPage
+        })
         
         if (response.success && response.data) {
           // Backend returns medicines in data.items (with pagination)
           const medicinesData = Array.isArray(response.data) 
             ? response.data 
             : response.data.items || response.data.medicines || []
+          
+          // Extract pagination info
+          if (response.data.pagination) {
+            setTotalPages(response.data.pagination.totalPages || 1)
+            setTotalItems(response.data.pagination.total || 0)
+          } else {
+            setTotalPages(1)
+            setTotalItems(medicinesData.length)
+          }
           
           const transformed = medicinesData.map(med => ({
             id: med._id || med.id,
@@ -53,17 +75,29 @@ const PharmacyMedicines = () => {
           }))
           
           setMedicines(transformed)
+        } else {
+          setMedicines([])
+          setTotalPages(1)
+          setTotalItems(0)
         }
       } catch (err) {
         console.error('Error fetching medicines:', err)
         toast.error('Failed to load medicines')
+        setMedicines([])
+        setTotalPages(1)
+        setTotalItems(0)
       } finally {
         setLoading(false)
       }
     }
 
     fetchMedicines()
-  }, [toast])
+  }, [toast, currentPage])
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const handleAddMedicine = () => {
     setEditingMedicine(null)
@@ -233,20 +267,26 @@ const PharmacyMedicines = () => {
         </div>
       </div>
 
-      {/* Medicines List */}
-      <div className="space-y-2.5">
-        {filteredMedicines.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-            <IoMedicalOutline className="mx-auto h-12 w-12 text-slate-400" />
-            <p className="mt-4 text-sm font-medium text-slate-600">
-              {searchTerm ? 'No medicines found' : 'No medicines added yet'}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {searchTerm ? 'Try a different search term' : 'Click "Add Medicine" to get started'}
-            </p>
-          </div>
-        ) : (
-          filteredMedicines.map((medicine) => {
+      {/* Medicines List - Scrollable Container */}
+      <div className="space-y-4">
+        <div className="max-h-[60vh] md:max-h-[65vh] overflow-y-auto space-y-2.5 pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#11496c] border-r-transparent"></div>
+              <p className="mt-4 text-sm text-slate-500">Loading medicines...</p>
+            </div>
+          ) : filteredMedicines.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+              <IoMedicalOutline className="mx-auto h-12 w-12 text-slate-400" />
+              <p className="mt-4 text-sm font-medium text-slate-600">
+                {searchTerm ? 'No medicines found' : 'No medicines added yet'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {searchTerm ? 'Try a different search term' : 'Click "Add Medicine" to get started'}
+              </p>
+            </div>
+          ) : (
+            filteredMedicines.map((medicine) => {
             const stockStatus = getStockStatus(medicine.quantity)
             const StatusIcon = stockStatus.icon
             
@@ -337,6 +377,21 @@ const PharmacyMedicines = () => {
               </article>
             )
           })
+          )}
+        </div>
+
+        {/* Pagination */}
+        {!loading && filteredMedicines.length > 0 && totalPages > 1 && (
+          <div className="pt-4 border-t border-slate-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={handlePageChange}
+              loading={loading}
+            />
+          </div>
         )}
       </div>
 

@@ -15,6 +15,7 @@ import {
 } from 'react-icons/io5'
 import { getPharmacyServices, addPharmacyService, updatePharmacyService, deletePharmacyService, togglePharmacyService } from '../pharmacy-services/pharmacyService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Removed mock data - now using backend API
 
@@ -32,6 +33,10 @@ const PharmacyServices = () => {
   const [error, setError] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingService, setEditingService] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -49,25 +54,50 @@ const PharmacyServices = () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getPharmacyServices()
+        const response = await getPharmacyServices({ 
+          page: currentPage,
+          limit: itemsPerPage
+        })
         
         if (response.success && response.data) {
           const servicesData = Array.isArray(response.data) 
             ? response.data 
             : response.data.items || []
+          
+          // Extract pagination info
+          if (response.data.pagination) {
+            setTotalPages(response.data.pagination.totalPages || 1)
+            setTotalItems(response.data.pagination.total || 0)
+          } else {
+            setTotalPages(1)
+            setTotalItems(servicesData.length)
+          }
+          
           setServices(servicesData)
+        } else {
+          setServices([])
+          setTotalPages(1)
+          setTotalItems(0)
         }
       } catch (err) {
         console.error('Error fetching services:', err)
         setError(err.message || 'Failed to load services')
         toast.error('Failed to load services')
+        setServices([])
+        setTotalPages(1)
+        setTotalItems(0)
       } finally {
         setLoading(false)
       }
     }
 
     fetchServices()
-  }, [toast])
+  }, [toast, currentPage])
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -213,16 +243,17 @@ const PharmacyServices = () => {
         </div>
       )}
 
-      {/* Services List */}
+      {/* Services List - Scrollable Container */}
       {!loading && !error && (
-        <div className="space-y-3">
-          {services.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-              <p className="text-sm font-medium text-slate-600">No services found</p>
-              <p className="mt-1 text-xs text-slate-500">Add your first service to get started.</p>
-            </div>
-          ) : (
-            services.map((service) => {
+        <div className="space-y-4">
+          <div className="max-h-[60vh] md:max-h-[65vh] overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+            {services.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <p className="text-sm font-medium text-slate-600">No services found</p>
+                <p className="mt-1 text-xs text-slate-500">Add your first service to get started.</p>
+              </div>
+            ) : (
+              services.map((service) => {
           const categoryInfo = categoryConfig[service.category] || categoryConfig.prescription
           const CategoryIcon = categoryInfo.icon
 
@@ -328,6 +359,21 @@ const PharmacyServices = () => {
             </article>
             )
           })
+          )}
+          </div>
+
+          {/* Pagination */}
+          {!loading && !error && services.length > 0 && totalPages > 1 && (
+            <div className="pt-4 border-t border-slate-200">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={handlePageChange}
+                loading={loading}
+              />
+            </div>
           )}
         </div>
       )}

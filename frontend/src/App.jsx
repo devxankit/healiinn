@@ -55,7 +55,6 @@ import { PharmacySidebarProvider } from './modules/pharmacy/pharmacy-components/
 import PharmacyDashboard from './modules/pharmacy/pharmacy-pages/PharmacyDashboard'
 import PharmacyList from './modules/pharmacy/pharmacy-pages/PharmacyList'
 import PharmacyOrders from './modules/pharmacy/pharmacy-pages/PharmacyOrders'
-import PharmacyPrescriptions from './modules/pharmacy/pharmacy-pages/PharmacyPrescriptions'
 import PharmacyPatients from './modules/pharmacy/pharmacy-pages/PharmacyPatients'
 import PharmacyMedicines from './modules/pharmacy/pharmacy-pages/PharmacyMedicines'
 import PharmacyPatientStatistics from './modules/pharmacy/pharmacy-pages/PharmacyPatientStatistics'
@@ -543,7 +542,7 @@ function PharmacyRoutes() {
             path="/prescriptions"
             element={
               <ProtectedRoute module="pharmacy">
-                <PharmacyPrescriptions />
+                <PharmacyWallet />
               </ProtectedRoute>
             }
           />

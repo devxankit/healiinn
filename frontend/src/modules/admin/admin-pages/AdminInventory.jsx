@@ -15,6 +15,7 @@ import {
   getPharmacyMedicinesByPharmacy,
   getLaboratoryTestsByLaboratory,
 } from '../admin-services/adminService'
+import Pagination from '../../../components/Pagination'
 
 const AdminInventory = () => {
   const [pharmacyList, setPharmacyList] = useState([])
@@ -374,6 +375,43 @@ const AdminInventory = () => {
       )
     }
   })
+
+  // Paginated filtered inventory items
+  const paginatedFilteredInventoryItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredInventoryItems.slice(startIndex, endIndex)
+  }, [filteredInventoryItems, currentPage, itemsPerPage])
+
+  // Paginated filtered pharmacies
+  const paginatedFilteredPharmacies = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredPharmacies.slice(startIndex, endIndex)
+  }, [filteredPharmacies, currentPage, itemsPerPage])
+
+  // Paginated filtered labs
+  const paginatedFilteredLabs = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredLabs.slice(startIndex, endIndex)
+  }, [filteredLabs, currentPage, itemsPerPage])
+
+  // Update pagination state based on active tab
+  useEffect(() => {
+    let total = 0
+    if (activeTab === 'total') {
+      total = filteredInventoryItems.length
+    } else if (activeTab === 'pharmacy') {
+      total = filteredPharmacies.length
+    } else if (activeTab === 'laboratory') {
+      total = filteredLabs.length
+    }
+    setTotalPages(Math.ceil(total / itemsPerPage) || 1)
+    setTotalItems(total)
+    // Reset to page 1 when tab or search changes
+    setCurrentPage(1)
+  }, [activeTab, filteredInventoryItems, filteredPharmacies, filteredLabs, itemsPerPage, searchTerm])
 
 
 
@@ -808,7 +846,7 @@ const AdminInventory = () => {
       {activeTab === 'total' ? (
         /* Total Inventory Tab - Shows all medicines and tests side by side */
         <div className="space-y-3">
-          {filteredInventoryItems.length === 0 ? (
+          {paginatedFilteredInventoryItems.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
               <IoMedicalOutline className="mx-auto h-12 w-12 text-slate-400" />
               <p className="mt-4 text-sm font-medium text-slate-600">
@@ -822,14 +860,14 @@ const AdminInventory = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Medicines Section - Left Side */}
               <div className="space-y-2">
-                {filteredInventoryItems.filter(item => item.type === 'medicine').length > 0 ? (
+                {paginatedFilteredInventoryItems.filter(item => item.type === 'medicine').length > 0 ? (
                   <>
                     <h3 className="text-sm font-semibold text-slate-700 px-1 flex items-center gap-2 sticky top-0 bg-white py-2 z-10">
                       <IoMedicalOutline className="h-4 w-4 text-blue-600" />
                       Medicines ({filteredInventoryItems.filter(item => item.type === 'medicine').length})
                     </h3>
                     <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                      {filteredInventoryItems
+                      {paginatedFilteredInventoryItems
                         .filter(item => item.type === 'medicine')
                         .map((medicine, index) => {
                           const quantity = parseInt(medicine.quantity) || 0
@@ -956,11 +994,25 @@ const AdminInventory = () => {
               </div>
             </div>
           )}
+          
+          {/* Pagination for Total Inventory */}
+          {filteredInventoryItems.length > itemsPerPage && (
+            <div className="mt-4">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                loading={loading}
+              />
+            </div>
+          )}
         </div>
       ) : activeTab === 'pharmacy' ? (
         /* Pharmacy Inventory Tab */
         <div className="space-y-3">
-          {filteredPharmacies.length === 0 ? (
+          {paginatedFilteredPharmacies.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
               <IoMedicalOutline className="mx-auto h-12 w-12 text-slate-400" />
               <p className="mt-4 text-sm font-medium text-slate-600">
@@ -1045,11 +1097,25 @@ const AdminInventory = () => {
               )
             })
           )}
+          
+          {/* Pagination for Pharmacy Inventory */}
+          {filteredPharmacies.length > itemsPerPage && (
+            <div className="mt-4">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                loading={loading}
+              />
+            </div>
+          )}
         </div>
       ) : (
         /* Laboratory Inventory Tab */
         <div className="space-y-3">
-          {filteredLabs.length === 0 ? (
+          {paginatedFilteredLabs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
               <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-400" />
               <p className="mt-4 text-sm font-medium text-slate-600">
@@ -1126,6 +1192,20 @@ const AdminInventory = () => {
                 </article>
               )
             })
+          )}
+          
+          {/* Pagination for Laboratory Inventory */}
+          {filteredLabs.length > itemsPerPage && (
+            <div className="mt-4">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                loading={loading}
+              />
+            </div>
           )}
         </div>
       )}

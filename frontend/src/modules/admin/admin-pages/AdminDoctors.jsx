@@ -24,6 +24,7 @@ import {
   verifyDoctor,
   rejectDoctor,
 } from '../admin-services/adminService'
+import Pagination from '../../../components/Pagination'
 
 // Mock data removed - using real API now
 
@@ -50,13 +51,20 @@ const AdminDoctors = () => {
     location: '',
     status: 'pending',
   })
+  const [allDoctors, setAllDoctors] = useState([]) // Store all doctors for stats
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Load doctors from API
   useEffect(() => {
-    loadDoctors()
-  }, [statusFilter, searchTerm]) // Added searchTerm to dependencies
+    setCurrentPage(1) // Reset to page 1 when filter/search changes
+  }, [statusFilter, searchTerm])
 
-  const [allDoctors, setAllDoctors] = useState([]) // Store all doctors for stats
+  useEffect(() => {
+    loadDoctors()
+  }, [statusFilter, searchTerm, currentPage])
 
   const loadDoctors = async () => {
     try {
@@ -100,7 +108,7 @@ const AdminDoctors = () => {
         setAllDoctors(allTransformed)
       }
       
-      // Then, load filtered doctors for display
+      // Then, load filtered doctors for display with pagination
       const filters = {}
       if (statusFilter !== 'all') {
         // Map 'verified' to 'approved' for backend compatibility
@@ -109,8 +117,8 @@ const AdminDoctors = () => {
       if (searchTerm && searchTerm.trim()) {
         filters.search = searchTerm.trim()
       }
-      filters.page = 1
-      filters.limit = 100
+      filters.page = currentPage
+      filters.limit = itemsPerPage
       
       console.log('🔍 Loading doctors with filters:', filters) // Debug log
       const response = await getDoctors(filters)
@@ -118,8 +126,11 @@ const AdminDoctors = () => {
       
       if (response.success && response.data) {
         const doctorsData = response.data.items || response.data || []
+        const pagination = response.data.pagination || {}
+        
         console.log('📋 Raw doctors data from API:', doctorsData) // Debug log
         console.log('📋 Transformed doctors count:', doctorsData.length) // Debug log
+        console.log('📋 Pagination info:', pagination) // Debug log
         
         // Helper function to format full address
         const formatFullAddress = (clinicDetails) => {
@@ -155,9 +166,15 @@ const AdminDoctors = () => {
         }))
         console.log('📋 Transformed doctors:', transformedDoctors) // Debug log
         setDoctors(transformedDoctors)
+        
+        // Update pagination state
+        setTotalPages(pagination.totalPages || 1)
+        setTotalItems(pagination.total || 0)
       } else {
         console.error('❌ Invalid response from API:', response) // Debug log
         setDoctors([])
+        setTotalPages(1)
+        setTotalItems(0)
       }
     } catch (error) {
       console.error('Error loading doctors:', error)
@@ -236,31 +253,16 @@ const AdminDoctors = () => {
   // Update doctors when search term changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      loadDoctors()
+      if (currentPage === 1) {
+        loadDoctors()
+      } else {
+        setCurrentPage(1) // Reset to page 1 when search changes
+      }
     }, 500)
     return () => clearTimeout(timeoutId)
   }, [searchTerm])
 
-  const filteredDoctors = doctors.filter((doctor) => {
-    // Filter by status first
-    const matchesStatus = statusFilter === 'all' || doctor.status === statusFilter || (statusFilter === 'verified' && doctor.status === 'approved')
-    
-    // If no search term, return status match
-    if (!searchTerm.trim()) {
-      return matchesStatus
-    }
-    
-    // Search in multiple fields
-    const searchLower = searchTerm.toLowerCase().trim()
-    const matchesSearch =
-      doctor.name.toLowerCase().includes(searchLower) ||
-      doctor.email.toLowerCase().includes(searchLower) ||
-      doctor.specialty.toLowerCase().includes(searchLower) ||
-      doctor.clinic.toLowerCase().includes(searchLower) ||
-      doctor.location.toLowerCase().includes(searchLower)
-    
-    return matchesSearch && matchesStatus
-  })
+  // No need for client-side filtering - backend handles it
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
@@ -461,12 +463,12 @@ const AdminDoctors = () => {
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">Loading doctors...</p>
           </div>
-        ) : filteredDoctors.length === 0 ? (
+        ) : doctors.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
             <p className="text-slate-600">No doctors found</p>
           </div>
         ) : (
-          filteredDoctors.map((doctor) => (
+          doctors.map((doctor) => (
             <article
               key={doctor.id}
               className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-all hover:shadow-md"
@@ -560,6 +562,20 @@ const AdminDoctors = () => {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && doctors.length > 0 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* Edit/Create Modal */}
       {showEditModal && (

@@ -287,7 +287,7 @@ const createPrescriptionNotification = async ({ userId, userType, prescription, 
 /**
  * Create notification for wallet events
  */
-const createWalletNotification = async ({ userId, userType, amount, eventType, withdrawal = null }) => {
+const createWalletNotification = async ({ userId, userType, amount, eventType, withdrawal = null, sendEmail = false }) => {
   let title, message, priority, actionUrl;
 
   switch (eventType) {
@@ -305,7 +305,7 @@ const createWalletNotification = async ({ userId, userType, amount, eventType, w
       break;
     case 'withdrawal_approved':
       title = 'Withdrawal Approved';
-      message = `Your withdrawal request of ₹${amount} has been approved`;
+      message = `Your withdrawal request of ₹${amount} has been approved by admin`;
       priority = 'high';
       actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
       break;
@@ -338,10 +338,13 @@ const createWalletNotification = async ({ userId, userType, amount, eventType, w
       amount,
       eventType,
       withdrawalId: withdrawal?._id || withdrawal?.id,
+      payoutReference: withdrawal?.payoutReference,
+      rejectionReason: withdrawal?.rejectionReason,
     },
     priority,
     actionUrl,
     icon: 'wallet',
+    sendEmail, // Only send email if explicitly requested (for withdrawal approved/paid)
   });
 };
 
@@ -362,15 +365,16 @@ const createOrderNotification = async ({ userId, userType, order, eventType, pha
     case 'confirmed':
       title = 'Order Confirmed';
       message = pharmacy
-        ? `Your order has been confirmed by ${pharmacy.pharmacyName || 'Pharmacy'}`
+        ? 'Your order has been confirmed'
         : laboratory
         ? `Your order has been confirmed by ${laboratory.labName || 'Laboratory'}`
         : 'Order has been confirmed';
       actionUrl = '/patient/orders';
       break;
     case 'status_updated':
-      // Handle new lab visit flow statuses
+      // Handle new lab visit flow statuses and pharmacy order statuses
       const statusMessages = {
+        // Lab visit flow statuses
         visit_time: laboratory
           ? `You can now visit ${laboratory.labName || 'the lab'}`
           : 'You can now visit the lab',
@@ -389,9 +393,18 @@ const createOrderNotification = async ({ userId, userType, order, eventType, pha
         reports_updated: laboratory
           ? `Your test reports are ready from ${laboratory.labName || 'Laboratory'}`
           : 'Your test reports are ready',
+        // Pharmacy order flow statuses (no pharmacy name shown)
+        prescription_received: 'Your prescription has been received',
+        medicine_collected: 'Medicines are being collected',
+        packed: 'Your order has been packed',
+        ready_to_be_picked: 'Your order is ready to be picked',
+        picked_up: 'Your order has been picked up',
+        delivered: 'Your order has been delivered',
       };
       title = status === 'reports_updated' ? 'Reports Ready' : 'Order Status Updated';
-      message = statusMessages[status] || (laboratory
+      message = statusMessages[status] || (pharmacy
+        ? 'Your order status has been updated'
+        : laboratory
         ? `Order status updated by ${laboratory.labName || 'Laboratory'}`
         : 'Your order status has been updated');
       actionUrl = '/patient/orders';
@@ -399,7 +412,7 @@ const createOrderNotification = async ({ userId, userType, order, eventType, pha
     case 'completed':
       title = 'Order Completed';
       message = pharmacy
-        ? `Your order has been completed by ${pharmacy.pharmacyName || 'Pharmacy'}`
+        ? 'Your order has been completed'
         : laboratory
         ? `Your test report is ready from ${laboratory.labName || 'Laboratory'}`
         : 'Order has been completed';
@@ -435,7 +448,7 @@ const createOrderNotification = async ({ userId, userType, order, eventType, pha
 /**
  * Create notification for request events
  */
-const createRequestNotification = async ({ userId, userType, request, eventType, admin, pharmacy, laboratory }) => {
+const createRequestNotification = async ({ userId, userType, request, eventType, admin, pharmacy, laboratory, patient }) => {
   let title, message, actionUrl;
 
   switch (eventType) {
@@ -452,13 +465,26 @@ const createRequestNotification = async ({ userId, userType, request, eventType,
       actionUrl = '/patient/requests';
       break;
     case 'assigned':
-      title = 'Request Assigned';
-      message = pharmacy
-        ? `Request assigned to ${pharmacy.pharmacyName || 'Pharmacy'}`
-        : laboratory
-        ? `Request assigned to ${laboratory.labName || 'Laboratory'}`
-        : 'Request has been assigned';
-      actionUrl = userType === 'pharmacy' ? '/pharmacy/orders' : '/laboratory/orders';
+      if (userType === 'pharmacy') {
+        // Pharmacy notification when patient makes payment
+        const patientName = patient?.firstName && patient?.lastName
+          ? `${patient.firstName} ${patient.lastName}`
+          : patient?.firstName || request?.patientId?.firstName || 'Patient';
+        const requestAmount = request?.adminResponse?.totalAmount || request?.totalAmount || 0;
+        title = 'New Order Request';
+        message = `Payment received! New order request from ${patientName}${requestAmount > 0 ? ` (₹${requestAmount})` : ''}. Please check your request orders.`;
+        actionUrl = '/pharmacy/request-orders';
+      } else if (userType === 'laboratory') {
+        title = 'Request Assigned';
+        message = laboratory
+          ? `Request assigned to ${laboratory.labName || 'Laboratory'}`
+          : 'Request has been assigned';
+        actionUrl = '/laboratory/orders';
+      } else {
+        title = 'Request Assigned';
+        message = 'Request has been assigned';
+        actionUrl = '/pharmacy/orders';
+      }
       break;
     case 'confirmed':
       title = 'Request Confirmed';
@@ -480,8 +506,10 @@ const createRequestNotification = async ({ userId, userType, request, eventType,
     data: {
       requestId: request._id || request.id,
       eventType,
+      patientId: patient?._id || request?.patientId?._id || request?.patientId,
+      amount: request?.adminResponse?.totalAmount || request?.totalAmount || 0,
     },
-    priority: 'medium',
+    priority: 'high',
     actionUrl,
     icon: 'request',
   });
@@ -743,7 +771,11 @@ const sendOrderStatusUpdateEmail = async ({ patient, pharmacy, laboratory, order
   const patientName = patient.firstName
     ? `${patient.firstName} ${patient.lastName || ''}`.trim()
     : 'Patient';
-  const providerName = pharmacy?.pharmacyName || laboratory?.labName || 'Provider';
+  
+  // Don't show pharmacy name to patients, use generic text
+  const providerName = pharmacy 
+    ? 'Prescription Medicines' 
+    : laboratory?.labName || 'Provider';
 
   const statusMessages = {
     confirmed: 'has been confirmed',
@@ -758,15 +790,31 @@ const sendOrderStatusUpdateEmail = async ({ patient, pharmacy, laboratory, order
     reports_being_generated: 'reports are being generated',
     test_successful: 'test has been completed successfully',
     reports_updated: 'reports are ready',
+    // Pharmacy order flow statuses
+    prescription_received: 'prescription has been received',
+    medicine_collected: 'medicines are being collected',
+    packed: 'order has been packed',
+    ready_to_be_picked: 'order is ready to be picked',
+    picked_up: 'order has been picked up',
+    delivered: 'order has been delivered',
   };
 
   const message = statusMessages[status] || 'has been updated';
 
+  // For pharmacy orders, don't include "by Provider" in the message
+  const emailText = pharmacy
+    ? `Hello ${patientName},\n\nYour order ${message}.\n\nOrder ID: ${order._id || order.id}\nStatus: ${status}\n\nThank you,\nTeam Healiinn`
+    : `Hello ${patientName},\n\nYour order ${message} by ${providerName}.\n\nOrder ID: ${order._id || order.id}\nStatus: ${status}\n\nThank you,\nTeam Healiinn`;
+  
+  const emailHtml = pharmacy
+    ? `<p>Hello ${patientName},</p><p>Your order ${message}.</p><ul><li><strong>Order ID:</strong> ${order._id || order.id}</li><li><strong>Status:</strong> ${status}</li></ul><p>Thank you,<br/>Team Healiinn</p>`
+    : `<p>Hello ${patientName},</p><p>Your order ${message} by <strong>${providerName}</strong>.</p><ul><li><strong>Order ID:</strong> ${order._id || order.id}</li><li><strong>Status:</strong> ${status}</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
+
   return sendEmail({
     to: patient.email,
-    subject: `Order Update - ${providerName} | Healiinn`,
-    text: `Hello ${patientName},\n\nYour order ${message} by ${providerName}.\n\nOrder ID: ${order._id || order.id}\nStatus: ${status}\n\nThank you,\nTeam Healiinn`,
-    html: `<p>Hello ${patientName},</p><p>Your order ${message} by <strong>${providerName}</strong>.</p><ul><li><strong>Order ID:</strong> ${order._id || order.id}</li><li><strong>Status:</strong> ${status}</li></ul><p>Thank you,<br/>Team Healiinn</p>`,
+    subject: pharmacy ? `Order Update | Healiinn` : `Order Update - ${providerName} | Healiinn`,
+    text: emailText,
+    html: emailHtml,
   });
 };
 
@@ -940,6 +988,97 @@ const sendSupportTicketNotification = async ({ user, ticket, userType, isRespons
 };
 
 /**
+ * Send withdrawal request confirmation email to provider (pharmacy/lab/doctor)
+ */
+const sendWithdrawalRequestNotification = async ({ provider, withdrawal, providerType }) => {
+  if (!(await isEmailNotificationsEnabled())) return null;
+  if (!provider?.email) return null;
+
+  let providerName = '';
+  if (providerType === 'pharmacy') {
+    providerName = provider.pharmacyName || provider.ownerName || provider.email || 'Pharmacy';
+  } else if (providerType === 'laboratory') {
+    providerName = provider.labName || provider.ownerName || provider.email || 'Laboratory';
+  } else if (providerType === 'doctor') {
+    providerName = provider.firstName && provider.lastName
+      ? `Dr. ${provider.firstName} ${provider.lastName}`.trim()
+      : provider.email || 'Doctor';
+  } else {
+    providerName = provider.email || 'Provider';
+  }
+
+  const withdrawalAmount = withdrawal.amount || 0;
+  const withdrawalId = withdrawal._id || withdrawal.id;
+  const payoutMethodType = withdrawal.payoutMethod?.type || 'N/A';
+
+  return sendEmail({
+    to: provider.email,
+    subject: `Withdrawal Request Submitted - ₹${withdrawalAmount} | Healiinn`,
+    text: `Hello ${providerName},\n\nYour withdrawal request has been submitted successfully.\n\nWithdrawal Details:\n- Amount: ₹${withdrawalAmount}\n- Withdrawal ID: ${withdrawalId}\n- Payment Method: ${payoutMethodType}\n- Status: Pending\n\nYour request is under review. You will be notified once it's processed.\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello ${providerName},</p><p>Your withdrawal request has been submitted successfully.</p><ul><li><strong>Amount:</strong> ₹${withdrawalAmount}</li><li><strong>Withdrawal ID:</strong> ${withdrawalId}</li><li><strong>Payment Method:</strong> ${payoutMethodType}</li><li><strong>Status:</strong> Pending</li></ul><p>Your request is under review. You will be notified once it's processed.</p><p>Thank you,<br/>Team Healiinn</p>`,
+  });
+};
+
+/**
+ * Send withdrawal status update email to provider (pharmacy/lab/doctor)
+ */
+const sendWithdrawalStatusUpdateEmail = async ({ provider, withdrawal, providerType }) => {
+  if (!(await isEmailNotificationsEnabled())) return null;
+  if (!provider?.email) return null;
+
+  let providerName = '';
+  if (providerType === 'pharmacy') {
+    providerName = provider.pharmacyName || provider.ownerName || provider.email || 'Pharmacy';
+  } else if (providerType === 'laboratory') {
+    providerName = provider.labName || provider.ownerName || provider.email || 'Laboratory';
+  } else if (providerType === 'doctor') {
+    providerName = provider.firstName && provider.lastName
+      ? `Dr. ${provider.firstName} ${provider.lastName}`.trim()
+      : provider.email || 'Doctor';
+  } else {
+    providerName = provider.email || 'Provider';
+  }
+
+  const withdrawalAmount = withdrawal.amount || 0;
+  const withdrawalStatus = withdrawal.status || 'pending';
+  const payoutReference = withdrawal.payoutReference || '';
+  const rejectionReason = withdrawal.rejectionReason || '';
+
+  let subject = '';
+  let message = '';
+  let htmlMessage = '';
+
+  switch (withdrawalStatus) {
+    case 'approved':
+      subject = `Withdrawal Request Approved - ₹${withdrawalAmount} | Healiinn`;
+      message = `Hello ${providerName},\n\nYour withdrawal request of ₹${withdrawalAmount} has been approved by admin.\n\nWithdrawal ID: ${withdrawal._id || withdrawal.id}\nStatus: Approved\n\nPayment will be processed shortly.\n\nThank you,\nTeam Healiinn`;
+      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request of <strong>₹${withdrawalAmount}</strong> has been approved by admin.</p><ul><li><strong>Withdrawal ID:</strong> ${withdrawal._id || withdrawal.id}</li><li><strong>Status:</strong> Approved</li></ul><p>Payment will be processed shortly.</p><p>Thank you,<br/>Team Healiinn</p>`;
+      break;
+    case 'paid':
+      subject = `Withdrawal Payment Processed - ₹${withdrawalAmount} | Healiinn`;
+      message = `Hello ${providerName},\n\nYour withdrawal request of ₹${withdrawalAmount} has been processed and payment has been sent.${payoutReference ? `\n\nPayout Reference: ${payoutReference}` : ''}\n\nWithdrawal ID: ${withdrawal._id || withdrawal.id}\nStatus: Paid\n\nThank you,\nTeam Healiinn`;
+      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request of <strong>₹${withdrawalAmount}</strong> has been processed and payment has been sent.${payoutReference ? `<p><strong>Payout Reference:</strong> ${payoutReference}</p>` : ''}</p><ul><li><strong>Withdrawal ID:</strong> ${withdrawal._id || withdrawal.id}</li><li><strong>Status:</strong> Paid</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
+      break;
+    case 'rejected':
+      subject = `Withdrawal Request Rejected - ₹${withdrawalAmount} | Healiinn`;
+      message = `Hello ${providerName},\n\nYour withdrawal request of ₹${withdrawalAmount} has been rejected.${rejectionReason ? `\n\nReason: ${rejectionReason}` : ''}\n\nWithdrawal ID: ${withdrawal._id || withdrawal.id}\nStatus: Rejected\n\nThank you,\nTeam Healiinn`;
+      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request of <strong>₹${withdrawalAmount}</strong> has been rejected.${rejectionReason ? `<p><strong>Reason:</strong> ${rejectionReason}</p>` : ''}</p><ul><li><strong>Withdrawal ID:</strong> ${withdrawal._id || withdrawal.id}</li><li><strong>Status:</strong> Rejected</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
+      break;
+    default:
+      subject = `Withdrawal Status Update - ₹${withdrawalAmount} | Healiinn`;
+      message = `Hello ${providerName},\n\nYour withdrawal request status has been updated.\n\nWithdrawal ID: ${withdrawal._id || withdrawal.id}\nStatus: ${withdrawalStatus}\nAmount: ₹${withdrawalAmount}\n\nThank you,\nTeam Healiinn`;
+      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request status has been updated.</p><ul><li><strong>Withdrawal ID:</strong> ${withdrawal._id || withdrawal.id}</li><li><strong>Status:</strong> ${withdrawalStatus}</li><li><strong>Amount:</strong> ₹${withdrawalAmount}</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
+  }
+
+  return sendEmail({
+    to: provider.email,
+    subject,
+    text: message,
+    html: htmlMessage,
+  });
+};
+
+/**
  * Send support ticket notification email to admin
  */
 const sendAdminSupportTicketNotification = async ({ admin, ticket, user, userType }) => {
@@ -1053,6 +1192,8 @@ module.exports = {
   sendLabReportReadyEmail,
   sendOrderStatusUpdateEmail,
   sendPaymentConfirmationEmail,
+  sendWithdrawalRequestNotification,
+  sendWithdrawalStatusUpdateEmail,
   // Re-export email service functions
   sendEmail,
   sendRoleApprovalEmail,
