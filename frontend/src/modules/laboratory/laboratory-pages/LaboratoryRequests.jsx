@@ -16,6 +16,7 @@ import {
   IoWalletOutline,
 } from 'react-icons/io5'
 import { getLaboratoryRequests } from '../laboratory-services/laboratoryService'
+import Pagination from '../../../components/Pagination'
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -48,22 +49,45 @@ const LaboratoryRequests = () => {
   const [responseMessage, setResponseMessage] = useState('')
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   useEffect(() => {
     fetchRequests()
-  }, [])
+  }, [currentPage])
 
   const fetchRequests = async () => {
     try {
       setIsLoading(true)
-      const response = await getLaboratoryRequests()
+      const response = await getLaboratoryRequests({ 
+        page: currentPage, 
+        limit: itemsPerPage 
+      })
+      
       // Transform backend response to match frontend structure
-      const transformedRequests = Array.isArray(response) ? response : (response.data || response.requests || [])
-      setRequests(transformedRequests)
+      if (response.success && response.data) {
+        const requestsData = Array.isArray(response.data) 
+          ? response.data 
+          : response.data.items || response.data.requests || []
+        const pagination = response.data.pagination || {}
+        
+        setRequests(requestsData)
+        setTotalPages(pagination.totalPages || Math.ceil((pagination.total || requestsData.length) / itemsPerPage) || 1)
+        setTotalItems(pagination.total || requestsData.length)
+      } else {
+        const transformedRequests = Array.isArray(response) ? response : (response.data || response.requests || [])
+        setRequests(transformedRequests)
+        setTotalPages(Math.ceil(transformedRequests.length / itemsPerPage) || 1)
+        setTotalItems(transformedRequests.length)
+      }
     } catch (error) {
       console.error('Error fetching requests:', error)
       toast.error('Failed to load requests')
       setRequests([])
+      setTotalPages(1)
+      setTotalItems(0)
     } finally {
       setIsLoading(false)
     }
@@ -450,6 +474,23 @@ const LaboratoryRequests = () => {
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-500">
               <p className="font-semibold">No requests found.</p>
               <p className="mt-1 text-sm">Requests from patients will appear here.</p>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!isLoading && totalPages > 1 && (
+            <div className="mt-6">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={(page) => {
+                  setCurrentPage(page)
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                loading={isLoading}
+              />
             </div>
           )}
         </div>

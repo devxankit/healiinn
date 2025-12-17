@@ -258,21 +258,6 @@ const AdminOrders = () => {
     return providers.sort((a, b) => b.revenue - a.revenue)
   }, [filteredOrders, typeFilter, searchTerm])
 
-  // Paginated provider aggregation
-  const paginatedProviderAggregation = useMemo(() => {
-    const startIndex = (currentProviderPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    return providerAggregation.slice(startIndex, endIndex)
-  }, [providerAggregation, currentProviderPage, itemsPerPage])
-
-  // Paginated selected provider orders
-  const paginatedSelectedProviderOrders = useMemo(() => {
-    if (!selectedProvider) return []
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    return selectedProviderOrders.slice(startIndex, endIndex)
-  }, [selectedProviderOrders, currentPage, itemsPerPage, selectedProvider])
-
   // Get orders for selected provider
   const selectedProviderOrders = useMemo(() => {
     if (!selectedProvider) return []
@@ -787,5 +772,4 @@ const AdminOrders = () => {
 }
 
 export default AdminOrders
-
 

@@ -107,16 +107,27 @@ const PharmacyOrders = () => {
               patientId: order.patientId?._id || order.patientId?.id || order.patientId || 'pat-unknown',
               patientName: patientName,
               patientPhone: order.patientId?.phone || order.patientPhone || '',
-              patientEmail: order.patientId?.email || order.patientEmail || '',
+              patientEmail: (() => {
+                // Try multiple possible locations for email
+                return order.patientId?.email || 
+                       order.patientEmail || 
+                       order.patient?.email ||
+                       order.originalData?.patientId?.email ||
+                       order.originalData?.patientEmail ||
+                       ''
+              })(),
               status: order.status || 'pending',
               createdAt: order.createdAt || new Date().toISOString(),
               prescriptionId: order.prescriptionId?._id || order.prescriptionId?.id || order.prescriptionId || null,
               medicines: (order.items || order.medicines || []).map(med => ({
                 name: typeof med === 'string' ? med : med.name || 'Medicine',
-                dosage: typeof med === 'object' ? med.dosage : null,
+                dosage: typeof med === 'object' 
+                  ? (med.dosage || med.dose || (med.medicineId && typeof med.medicineId === 'object' ? med.medicineId.dosage : null) || null) 
+                  : null,
                 quantity: typeof med === 'object' ? med.quantity : 1,
                 price: typeof med === 'object' ? med.price : 0,
-                brand: typeof med === 'object' ? med.brand : null,
+                brand: typeof med === 'object' ? (med.brand || (med.medicineId && typeof med.medicineId === 'object' ? med.medicineId.brand : null) || null) : null,
+                medicineId: typeof med === 'object' ? med.medicineId : null, // Preserve medicineId for modal access
               })),
               totalAmount: order.totalAmount || order.amount || 0,
               deliveryType: (() => {
@@ -130,7 +141,20 @@ const PharmacyOrders = () => {
               })(),
               address: order.patientId?.address
                 ? typeof order.patientId.address === 'object'
-                  ? `${order.patientId.address.line1 || ''} ${order.patientId.address.city || ''} ${order.patientId.address.state || ''}`.trim() || 'Address not provided'
+                  ? (() => {
+                      const addr = order.patientId.address
+                      const pincode = addr.pincode || addr.postalCode || addr.pinCode
+                      const parts = [
+                        addr.line1,
+                        addr.line2,
+                        addr.landmark,
+                        addr.city,
+                        addr.state,
+                        pincode,
+                        addr.country
+                      ].filter(Boolean)
+                      return parts.length > 0 ? parts.join(', ') : 'Address not provided'
+                    })()
                   : order.patientId.address
                 : order.deliveryAddress || order.address || 'Address not provided',
               originalData: order,
@@ -538,7 +562,7 @@ const PharmacyOrders = () => {
               totalPages={totalPages}
               totalItems={totalItems}
               itemsPerPage={itemsPerPage}
-              onPageChange={handlePageChange}
+              onPageChange={setCurrentPage}
               loading={loading}
             />
           </div>
@@ -565,31 +589,218 @@ const PharmacyOrders = () => {
               </button>
             </div>
             <div className="p-4 space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2">Patient Information</h3>
-                <div className="space-y-1 text-sm">
-                  <p><span className="font-medium">Name:</span> {selectedOrder.patientName}</p>
-                  <p><span className="font-medium">Phone:</span> {selectedOrder.patientPhone}</p>
-                  <p><span className="font-medium">Email:</span> {selectedOrder.patientEmail}</p>
+              {/* Patient Information */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <IoPersonOutline className="h-4 w-4 text-[#11496c]" />
+                  Patient Information
+                </h3>
+                <div className="space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <IoPersonOutline className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-500 mb-0.5">Name</p>
+                      <p className="text-sm font-semibold text-slate-900">{selectedOrder.patientName || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <IoCallOutline className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-500 mb-0.5">Phone</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        <a href={`tel:${selectedOrder.patientPhone}`} className="hover:text-[#11496c] transition-colors">
+                          {selectedOrder.patientPhone || 'N/A'}
+                        </a>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <IoMailOutline className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-500 mb-0.5">Email</p>
+                      <p className="text-sm font-medium text-slate-900 break-all">
+                        {(() => {
+                          // Try multiple possible locations for email in modal
+                          const email = selectedOrder.patientEmail || 
+                                       selectedOrder.originalData?.patientId?.email ||
+                                       selectedOrder.originalData?.patientEmail ||
+                                       selectedOrder.originalData?.patient?.email ||
+                                       ''
+                          return email ? (
+                            <a href={`mailto:${email}`} className="hover:text-[#11496c] transition-colors">
+                              {email}
+                            </a>
+                          ) : (
+                            'N/A'
+                          )
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <IoLocationOutline className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-500 mb-0.5">Delivery Address</p>
+                      <p className="text-sm font-medium text-slate-900 leading-relaxed">
+                        {(() => {
+                          const originalData = selectedOrder.originalData
+                          if (originalData?.patientId?.address && typeof originalData.patientId.address === 'object') {
+                            const addr = originalData.patientId.address
+                            const pincode = addr.pincode || addr.postalCode || addr.pinCode
+                            const parts = [
+                              addr.line1,
+                              addr.line2,
+                              addr.landmark,
+                              addr.city,
+                              addr.state,
+                              pincode,
+                              addr.country
+                            ].filter(Boolean)
+                            return parts.length > 0 ? parts.join(', ') : selectedOrder.address
+                          }
+                          // Also check if address is in patientId directly
+                          if (selectedOrder.originalData?.patientId && typeof selectedOrder.originalData.patientId === 'object') {
+                            const patient = selectedOrder.originalData.patientId
+                            if (patient.address && typeof patient.address === 'object') {
+                              const addr = patient.address
+                              const pincode = addr.pincode || addr.postalCode || addr.pinCode
+                              const parts = [
+                                addr.line1,
+                                addr.line2,
+                                addr.landmark,
+                                addr.city,
+                                addr.state,
+                                pincode,
+                                addr.country
+                              ].filter(Boolean)
+                              if (parts.length > 0) return parts.join(', ')
+                            }
+                          }
+                          // Fallback to selectedOrder.address which might already have pincode
+                          return selectedOrder.address || 'Address not provided'
+                        })()}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2">Medicines</h3>
-                <ul className="space-y-2">
-                  {selectedOrder.medicines.map((medicine, idx) => (
-                    <li key={idx} className="flex justify-between text-sm border-b border-slate-100 pb-2">
-                      <div>
-                        <p className="font-medium">{medicine.name} {medicine.brand && `(${medicine.brand})`}</p>
-                        <p className="text-xs text-slate-500">{medicine.dosage} x {medicine.quantity}</p>
-                      </div>
-                      <p className="font-semibold">{formatCurrency(medicine.price)}</p>
-                    </li>
-                  ))}
-                </ul>
+
+              {/* Medicines */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <IoBagHandleOutline className="h-4 w-4 text-[#11496c]" />
+                  Medicines ({selectedOrder.medicines?.length || 0})
+                </h3>
+                <div className="space-y-3">
+                  {selectedOrder.medicines && selectedOrder.medicines.length > 0 ? (
+                    selectedOrder.medicines.map((medicine, idx) => {
+                      const quantity = medicine.quantity || 1
+                      const unitPrice = medicine.price || 0
+                      const subtotal = unitPrice * quantity
+                      
+                      // Extract dosage from multiple possible locations
+                      const originalItem = selectedOrder.originalData?.items?.[idx] || selectedOrder.originalData?.medicines?.[idx]
+                      
+                      // Check medicineId - could be object (populated) or string (ObjectId)
+                      let medicineIdDosage = null
+                      if (medicine.medicineId) {
+                        if (typeof medicine.medicineId === 'object' && medicine.medicineId.dosage) {
+                          medicineIdDosage = medicine.medicineId.dosage
+                        }
+                      }
+                      
+                      // Check originalItem medicineId
+                      let originalItemMedicineIdDosage = null
+                      if (originalItem && typeof originalItem === 'object' && originalItem.medicineId) {
+                        if (typeof originalItem.medicineId === 'object' && originalItem.medicineId.dosage) {
+                          originalItemMedicineIdDosage = originalItem.medicineId.dosage
+                        }
+                      }
+                      
+                      const dosage = medicine.dosage || 
+                                     medicine.dose ||
+                                     medicineIdDosage ||
+                                     (originalItem && typeof originalItem === 'object' ? originalItem.dosage : null) ||
+                                     (originalItem && typeof originalItem === 'object' ? originalItem.dose : null) ||
+                                     originalItemMedicineIdDosage ||
+                                     null
+                      
+                      return (
+                        <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-slate-900 mb-1">
+                                {medicine.name || 'Medicine'}
+                                {dosage && (
+                                  <span className="text-xs font-normal text-slate-600 ml-1.5">({dosage})</span>
+                                )}
+                                {medicine.brand && (
+                                  <span className="text-xs font-normal text-slate-500 ml-1">- {medicine.brand}</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                            <div className="text-xs text-slate-600">
+                              <span className="font-medium">Quantity:</span> {quantity} × <span className="font-medium">Price:</span> {formatCurrency(unitPrice)}
+                            </div>
+                            <p className="text-sm font-bold text-slate-900">
+                              {formatCurrency(subtotal)}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <p className="text-sm text-slate-500 text-center py-4">No medicines in this order</p>
+                  )}
+                </div>
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                <span className="font-bold text-slate-900">Total</span>
-                <span className="font-bold text-lg text-slate-900">{formatCurrency(selectedOrder.totalAmount)}</span>
+
+              {/* Order Summary */}
+              <div className="rounded-xl border-2 border-[#11496c]/20 bg-gradient-to-br from-[#11496c]/5 to-white p-4">
+                <h3 className="text-sm font-semibold text-slate-900 mb-3">Order Summary</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600">Subtotal ({selectedOrder.medicines?.length || 0} items)</span>
+                    <span className="font-medium text-slate-900">
+                      {formatCurrency(
+                        selectedOrder.medicines?.reduce((sum, med) => {
+                          const qty = med.quantity || 1
+                          const price = med.price || 0
+                          return sum + (price * qty)
+                        }, 0) || 0
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-200">
+                    <span className="font-bold text-base text-slate-900">Total Amount</span>
+                    <span className="font-bold text-lg text-[#11496c]">{formatCurrency(selectedOrder.totalAmount || 0)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Delivery Information */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <IoLocationOutline className="h-4 w-4 text-[#11496c]" />
+                  Delivery Information
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      selectedOrder.deliveryType === 'home'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {selectedOrder.deliveryType === 'home' ? '🏠 Home Delivery' : '📦 Pickup'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-600">
+                    <IoCalendarOutline className="h-3.5 w-3.5 text-slate-400" />
+                    <span>Order Date: {formatDateTime(selectedOrder.createdAt)}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

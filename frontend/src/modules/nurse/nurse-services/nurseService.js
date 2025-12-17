@@ -100,3 +100,182 @@ export const logoutNurse = async () => {
   }
 }
 
+/**
+ * Get nurse bookings with pagination
+ * @param {Object} params - { page, limit, period, search }
+ * @returns {Promise<{success: boolean, data?: any}>}
+ */
+export const getNurseBookings = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/nurses/bookings', params)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching bookings:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch bookings.',
+    }
+  }
+}
+
+/**
+ * Get nurse transactions with pagination
+ * @param {Object} params - { page, limit, type }
+ * @returns {Promise<{success: boolean, data?: any}>}
+ */
+export const getNurseTransactions = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/nurses/transactions', params)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching transactions:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch transactions.',
+    }
+  }
+}
+
+/**
+ * Get nurse wallet balance
+ * @returns {Promise<{success: boolean, data?: any}>}
+ */
+export const getNurseWalletBalance = async () => {
+  try {
+    const response = await apiClient.get('/nurses/wallet/balance')
+    return response.data
+  } catch (error) {
+    console.error('Error fetching wallet balance:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch wallet balance.',
+    }
+  }
+}
+
+/**
+ * Get nurse wallet transactions with pagination
+ * @param {Object} params - { page, limit }
+ * @returns {Promise<{success: boolean, data?: any}>}
+ */
+export const getNurseWalletTransactions = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/nurses/wallet/transactions', params)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching wallet transactions:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch wallet transactions.',
+    }
+  }
+}
+
+/**
+ * Get nurse wallet earnings with pagination
+ * @param {Object} params - { page, limit, filter }
+ * @returns {Promise<{success: boolean, data?: any}>}
+ */
+export const getNurseWalletEarnings = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/nurses/wallet/earnings', params)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching wallet earnings:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch wallet earnings.',
+    }
+  }
+}
+
+/**
+ * Get nurse withdrawal history with pagination
+ * @param {Object} params - { page, limit }
+ * @returns {Promise<{success: boolean, data?: any}>}
+ */
+export const getNurseWithdrawalHistory = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/nurses/wallet/withdrawals', params)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching withdrawal history:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch withdrawal history.',
+    }
+  }
+}
+
+/**
+ * Request withdrawal
+ * @param {Object} withdrawalData - { amount, paymentMethod, ... }
+ * @returns {Promise<{success: boolean, message?: string, data?: any}>}
+ */
+export const requestNurseWithdrawal = async (withdrawalData) => {
+  try {
+    const response = await apiClient.post('/nurses/wallet/withdraw', withdrawalData)
+    return response.data
+  } catch (error) {
+    console.error('Error requesting withdrawal:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to request withdrawal.',
+    }
+  }
+}
+
+/**
+ * Get support tickets with pagination
+ * @param {Object} params - { page, limit }
+ * @returns {Promise<{success: boolean, data?: any}>}
+ */
+export const getSupportTickets = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/nurses/support/tickets', params)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching support tickets:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch support tickets.',
+    }
+  }
+}
+
+/**
+ * Get support history with pagination
+ * @param {Object} params - { page, limit }
+ * @returns {Promise<{success: boolean, data?: any}>}
+ */
+export const getSupportHistory = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/nurses/support/history', params)
+    return response.data
+  } catch (error) {
+    console.error('Error fetching support history:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch support history.',
+    }
+  }
+}
+
+/**
+ * Create support ticket
+ * @param {Object} ticketData - { subject, message, priority }
+ * @returns {Promise<{success: boolean, message?: string, data?: any}>}
+ */
+export const createSupportTicket = async (ticketData) => {
+  try {
+    const response = await apiClient.post('/nurses/support/tickets', ticketData)
+    return response.data
+  } catch (error) {
+    console.error('Error creating support ticket:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to create support ticket.',
+    }
+  }
+}
+

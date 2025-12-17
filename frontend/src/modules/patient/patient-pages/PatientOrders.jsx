@@ -12,6 +12,7 @@ import {
 } from 'react-icons/io5'
 import { getPatientOrders } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Default orders (will be replaced by API data)
 const defaultOrders = []
@@ -23,6 +24,8 @@ const PatientOrders = () => {
   const [orders, setOrders] = useState(defaultOrders)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Fetch orders from API
   useEffect(() => {
@@ -117,6 +120,21 @@ const PatientOrders = () => {
       }
     })
   }, [orders, filter])
+
+  // Calculate paginated orders
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredOrders.slice(startIndex, endIndex)
+  }, [filteredOrders, currentPage])
+
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage)
+  const totalItems = filteredOrders.length
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
 
   // Show loading state
   if (loading) {
@@ -321,7 +339,7 @@ const PatientOrders = () => {
 
       {/* Orders List */}
       <div className="space-y-3">
-        {filteredOrders.map((order) => (
+        {paginatedOrders.map((order) => (
           <article
             key={order.id}
             className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
@@ -455,6 +473,18 @@ const PatientOrders = () => {
           <p className="text-lg font-semibold text-slate-700">No orders found</p>
           <p className="text-sm text-slate-500">Try selecting a different filter</p>
         </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && filteredOrders.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          loading={loading}
+        />
       )}
     </section>
   )

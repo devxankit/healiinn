@@ -15,6 +15,7 @@ import {
   IoInformationCircleOutline,
 } from 'react-icons/io5'
 import { getDoctorAppointments, cancelDoctorAppointment, getPatientById, getConsultationById, getDoctorConsultations } from '../doctor-services/doctorService'
+import Pagination from '../../../components/Pagination'
 
 // Default appointments (will be replaced by API data)
 const defaultAppointments = []
@@ -102,6 +103,14 @@ const DoctorAppointments = () => {
   const [cancelReason, setCancelReason] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [page, setPage] = useState(1)
+  const [limit] = useState(20)
+  const [pagination, setPagination] = useState(null)
+
+  // Reset page when period filter or search changes
+  useEffect(() => {
+    setPage(1)
+  }, [filterPeriod, searchTerm])
 
   // Fetch appointments from API
   useEffect(() => {
@@ -109,13 +118,23 @@ const DoctorAppointments = () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getDoctorAppointments()
+        const params = {
+          page,
+          limit,
+          ...(searchTerm && { search: searchTerm }), // Note: Backend may not support search, keeping for future compatibility
+        }
+        const response = await getDoctorAppointments(params)
         
         if (response && response.success && response.data) {
           // Handle both array and object with items/appointments property
           const appointmentsData = Array.isArray(response.data) 
             ? response.data 
             : response.data.items || response.data.appointments || []
+          
+          // Set pagination data
+          if (response.data.pagination) {
+            setPagination(response.data.pagination)
+          }
           
           // Store statistics from backend if available
           if (response.data.statistics) {
@@ -205,7 +224,7 @@ const DoctorAppointments = () => {
     // Refresh every 30 seconds to get new appointments
     const interval = setInterval(fetchAppointments, 30000)
     return () => clearInterval(interval)
-  }, [toast])
+  }, [toast, page, limit, searchTerm])
 
   // Get today's date for filtering
   const today = new Date()
@@ -757,6 +776,23 @@ const DoctorAppointments = () => {
             })
           )}
         </div>
+
+        {/* Pagination */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="mt-4">
+            <Pagination
+              currentPage={pagination.page || page}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.total}
+              itemsPerPage={pagination.limit || limit}
+              onPageChange={(newPage) => {
+                setPage(newPage)
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+              loading={loading}
+            />
+          </div>
+        )}
       </section>
 
       {/* Cancel Appointment Modal */}

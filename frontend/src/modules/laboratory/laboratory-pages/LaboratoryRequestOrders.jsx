@@ -8,6 +8,7 @@ import {
   updateLaboratoryRequestOrderStatus,
 } from '../laboratory-services/laboratoryService'
 import { getAuthToken, getFileUrl } from '../../../utils/apiClient'
+import Pagination from '../../../components/Pagination'
 import {
   IoDocumentTextOutline,
   IoCalendarOutline,
@@ -74,6 +75,10 @@ const LaboratoryRequestOrders = () => {
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [filter, setFilter] = useState('all') // all, pending, completed
   const [isLoading, setIsLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   const loadRequests = useCallback(async () => {
     try {
@@ -82,6 +87,7 @@ const LaboratoryRequestOrders = () => {
 
       if (response.success && response.data) {
         const requestsData = response.data.items || response.data || []
+        const pagination = response.data.pagination || {}
 
         // Transform backend data to match frontend format
         const transformedRequests = requestsData.map(req => {
@@ -150,17 +156,23 @@ const LaboratoryRequestOrders = () => {
         })
 
         setRequests(transformedRequests)
+        setTotalPages(pagination.totalPages || Math.ceil((pagination.total || transformedRequests.length) / itemsPerPage) || 1)
+        setTotalItems(pagination.total || transformedRequests.length)
       } else {
         setRequests([])
+        setTotalPages(1)
+        setTotalItems(0)
       }
     } catch (error) {
       console.error('Error loading requests:', error)
       setRequests([])
+      setTotalPages(1)
+      setTotalItems(0)
       toast.error('Failed to load request orders')
     } finally {
       setIsLoading(false)
     }
-  }, [toast])
+  }, [toast, currentPage])
 
   useEffect(() => {
     const token = getAuthToken('laboratory')
@@ -177,6 +189,11 @@ const LaboratoryRequestOrders = () => {
     }, 30000)
     return () => clearInterval(interval)
   }, [loadRequests])
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
 
   const handleRejectOrder = async (requestId) => {
     try {
@@ -643,6 +660,23 @@ const LaboratoryRequestOrders = () => {
           })
         )}
       </div>
+
+      {/* Pagination */}
+      {!isLoading && totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={(page) => {
+              setCurrentPage(page)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            loading={isLoading}
+          />
+        </div>
+      )}
 
       {/* Request Details Modal */}
       {selectedRequest && (

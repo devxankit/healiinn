@@ -650,9 +650,23 @@ exports.updateWithdrawalStatus = asyncHandler(async (req, res) => {
   // Send email notification to provider (only for approved and paid statuses)
   if (provider && (status === 'approved' || status === 'paid')) {
     try {
+      const Admin = require('../../models/Admin');
+      const admin = await Admin.findById(req.auth.id).select('name email');
+      
+      // Enhance withdrawal object with admin details for email
+      const withdrawalForEmail = {
+        ...withdrawal.toObject(),
+        adminName: admin?.name || 'Admin',
+        adminNote: withdrawal.adminNote,
+        payoutReference: withdrawal.payoutReference,
+        rejectionReason: withdrawal.rejectionReason,
+        payoutMethod: withdrawal.payoutMethod, // Include payout method details
+        processedAt: withdrawal.processedAt,
+      };
+
       await sendWithdrawalStatusUpdateEmail({
         provider,
-        withdrawal,
+        withdrawal: withdrawalForEmail,
         providerType: withdrawal.userType,
       }).catch((error) => console.error('Error sending withdrawal status update email:', error));
     } catch (error) {
@@ -663,6 +677,9 @@ exports.updateWithdrawalStatus = asyncHandler(async (req, res) => {
   // Create in-app notifications
   try {
     const { createWalletNotification } = require('../../services/notificationService');
+    const Admin = require('../../models/Admin');
+    const admin = await Admin.findById(req.auth.id).select('name email');
+    
     let eventType = null;
     
     if (status === 'approved') {
@@ -674,12 +691,24 @@ exports.updateWithdrawalStatus = asyncHandler(async (req, res) => {
     }
 
     if (eventType && provider) {
+      // Enhance withdrawal object with admin details for notification
+      const withdrawalWithAdmin = {
+        ...withdrawal.toObject(),
+        adminName: admin?.name || 'Admin',
+        adminId: req.auth.id,
+        adminNote: withdrawal.adminNote,
+        payoutReference: withdrawal.payoutReference,
+        rejectionReason: withdrawal.rejectionReason,
+        payoutMethod: withdrawal.payoutMethod, // Include payout method details
+        processedAt: withdrawal.processedAt,
+      };
+
       await createWalletNotification({
         userId: withdrawal.userId,
         userType: withdrawal.userType,
         amount: withdrawal.amount,
         eventType,
-        withdrawal,
+        withdrawal: withdrawalWithAdmin,
         // Send email only for approved and paid statuses
         sendEmail: status === 'approved' || status === 'paid',
       }).catch((error) => console.error('Error creating withdrawal status notification:', error));

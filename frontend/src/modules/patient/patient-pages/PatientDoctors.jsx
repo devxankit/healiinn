@@ -11,6 +11,7 @@ import { TbStethoscope } from 'react-icons/tb'
 import { MdOutlineEscalatorWarning } from 'react-icons/md'
 import { getDiscoveryDoctors, getSpecialties } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Default specialties (will be replaced by API data)
 const defaultSpecialties = [
@@ -104,6 +105,8 @@ const PatientDoctors = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const sortBy = 'relevance' // Default sort: by rating (highest first)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Debug: Log doctors state changes
   useEffect(() => {
@@ -490,6 +493,21 @@ const PatientDoctors = () => {
     })
   }, [doctors, searchTerm, selectedSpecialty, sortBy, specialtiesList])
 
+  // Calculate paginated doctors
+  const paginatedDoctors = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredDoctors.slice(startIndex, endIndex)
+  }, [filteredDoctors, currentPage])
+
+  const totalPages = Math.ceil(filteredDoctors.length / itemsPerPage)
+  const totalItems = filteredDoctors.length
+
+  // Reset to page 1 when search or specialty changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, selectedSpecialty])
+
   const handleCardClick = (doctorId) => {
     navigate(`/patient/doctors/${doctorId}`)
   }
@@ -586,7 +604,7 @@ const PatientDoctors = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredDoctors.map((doctor) => (
+          {paginatedDoctors.map((doctor) => (
             <div
               key={doctor.id}
               onClick={() => handleCardClick(doctor.id)}
@@ -671,6 +689,18 @@ const PatientDoctors = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && filteredDoctors.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          loading={loading}
+        />
       )}
     </section>
   )

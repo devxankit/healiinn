@@ -83,7 +83,7 @@ const AdminPharmacies = () => {
     }
     const timeoutId = setTimeout(() => {
       if (currentPage === 1) {
-        loadPharmacies()
+      loadPharmacies()
       } else {
         setCurrentPage(1) // Reset to page 1 when search changes
       }

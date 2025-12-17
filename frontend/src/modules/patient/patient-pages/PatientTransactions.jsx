@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   IoReceiptOutline,
   IoCheckmarkCircleOutline,
@@ -11,6 +11,7 @@ import {
 } from 'react-icons/io5'
 import { getPatientTransactions } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Default transactions (will be replaced by API data)
 const defaultTransactions = []
@@ -21,6 +22,8 @@ const PatientTransactions = () => {
   const [transactions, setTransactions] = useState(defaultTransactions)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Fetch transactions from API
   useEffect(() => {
@@ -132,6 +135,21 @@ const PatientTransactions = () => {
   const filteredTransactions = filter === 'all' 
     ? completedTransactions 
     : completedTransactions.filter(txn => txn.status === filter)
+
+  // Calculate paginated transactions
+  const paginatedTransactions = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredTransactions.slice(startIndex, endIndex)
+  }, [filteredTransactions, currentPage])
+
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage)
+  const totalItems = filteredTransactions.length
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
 
   // Show loading state
   if (loading) {
@@ -267,7 +285,7 @@ const PatientTransactions = () => {
 
       {/* Transactions List */}
       <div className="space-y-3">
-        {filteredTransactions.map((transaction) => (
+        {paginatedTransactions.map((transaction) => (
           <article
             key={transaction.id}
             className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
@@ -359,6 +377,18 @@ const PatientTransactions = () => {
           <p className="text-lg font-semibold text-slate-700">No transactions found</p>
           <p className="text-sm text-slate-500">Try selecting a different filter</p>
         </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && filteredTransactions.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          loading={loading}
+        />
       )}
     </section>
   )

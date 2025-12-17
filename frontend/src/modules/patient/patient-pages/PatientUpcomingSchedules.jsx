@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoArrowBackOutline,
@@ -10,6 +10,7 @@ import {
 } from 'react-icons/io5'
 import { getUpcomingAppointments } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const PatientUpcomingSchedules = () => {
   const navigate = useNavigate()
@@ -17,6 +18,8 @@ const PatientUpcomingSchedules = () => {
   const [appointments, setAppointments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   useEffect(() => {
     const fetchUpcomingAppointments = async () => {
@@ -86,6 +89,16 @@ const PatientUpcomingSchedules = () => {
     }
     return timeString
   }
+
+  // Calculate paginated appointments
+  const paginatedAppointments = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return appointments.slice(startIndex, endIndex)
+  }, [appointments, currentPage])
+
+  const totalPages = Math.ceil(appointments.length / itemsPerPage)
+  const totalItems = appointments.length
 
   return (
     <section className="flex flex-col gap-4 pb-4">
@@ -266,6 +279,18 @@ const PatientUpcomingSchedules = () => {
             )
           })}
         </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && appointments.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          loading={loading}
+        />
       )}
     </section>
   )

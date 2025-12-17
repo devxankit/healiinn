@@ -595,6 +595,18 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     console.error('Error sending email notifications:', error);
   }
 
+  // Send email notification to admins
+  try {
+    const { notifyAdminsOfWithdrawalRequest } = require('../../services/adminNotificationService');
+    await notifyAdminsOfWithdrawalRequest({
+      withdrawal: withdrawalRequest,
+      provider: pharmacy,
+      providerType: 'pharmacy',
+    }).catch((error) => console.error('Error sending admin withdrawal notification email:', error));
+  } catch (error) {
+    console.error('Error sending admin email notifications:', error);
+  }
+
   // Create in-app notifications
   try {
     const { createWalletNotification, createAdminNotification } = require('../../services/notificationService');
@@ -611,6 +623,7 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     // Notify all admins
     const Admin = require('../../models/Admin');
     const admins = await Admin.find({});
+    
     for (const admin of admins) {
       await createAdminNotification({
         userId: admin._id,
@@ -618,9 +631,17 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
         eventType: 'withdrawal_requested',
         data: {
           withdrawalId: withdrawalRequest._id,
-          pharmacyId: id,
+          providerId: id,
+          providerType: 'pharmacy',
+          providerName: pharmacy.pharmacyName,
+          providerEmail: pharmacy.email,
+          providerPhone: pharmacy.phone,
           amount,
-          payoutMethod: payoutMethod.type,
+          payoutMethod: {
+            type: payoutMethod.type,
+            details: payoutMethod.details,
+          },
+          requestDate: withdrawalRequest.createdAt,
         },
         actionUrl: `/admin/wallet/withdrawals/${withdrawalRequest._id}`,
       }).catch((error) => console.error('Error creating admin withdrawal notification:', error));

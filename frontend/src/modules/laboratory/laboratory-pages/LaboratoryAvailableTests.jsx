@@ -10,6 +10,7 @@ import {
 } from 'react-icons/io5'
 import { getLaboratoryTests, addLaboratoryTest, updateLaboratoryTest, deleteLaboratoryTest } from '../laboratory-services/laboratoryService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const LaboratoryAvailableTests = () => {
   const navigate = useNavigate()
@@ -17,6 +18,10 @@ const LaboratoryAvailableTests = () => {
   const [tests, setTests] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Fetch tests from API
   useEffect(() => {
@@ -26,9 +31,11 @@ const LaboratoryAvailableTests = () => {
         
         console.log('🔍 Fetching laboratory tests...') // Debug log
         
-        // Pass a high limit to fetch all tests (backend default is 20, max is 10000)
-        // Fetch all tests at once to avoid pagination issues
-        const response = await getLaboratoryTests({ limit: 10000, page: 1 })
+        // Use pagination with 10 items per page
+        const response = await getLaboratoryTests({ 
+          page: currentPage, 
+          limit: itemsPerPage 
+        })
         
         console.log('📊 Laboratory tests API response:', response) // Debug log
         
@@ -38,10 +45,13 @@ const LaboratoryAvailableTests = () => {
             ? response.data 
             : response.data.items || response.data.tests || []
           
+          const pagination = response.data.pagination || {}
+          
           console.log('✅ Tests received:', {
             count: testsData.length,
-            total: response.data.pagination?.total || testsData.length,
-            firstTest: testsData[0],
+            total: pagination.total || testsData.length,
+            totalPages: pagination.totalPages || 1,
+            currentPage: pagination.currentPage || currentPage,
           }) // Debug log
           
           const transformed = testsData.map(test => ({
@@ -54,27 +64,28 @@ const LaboratoryAvailableTests = () => {
             sampleType: test.sampleType || '',
           }))
           
-          console.log('💰 Setting tests:', {
-            count: transformed.length,
-            totalValue: transformed.reduce((sum, t) => sum + (Number(t.price) || 0), 0),
-          }) // Debug log
-          
           setTests(transformed)
+          setTotalPages(pagination.totalPages || Math.ceil((pagination.total || testsData.length) / itemsPerPage) || 1)
+          setTotalItems(pagination.total || testsData.length)
         } else {
           console.error('❌ Invalid API response:', response) // Debug log
           setTests([])
+          setTotalPages(1)
+          setTotalItems(0)
         }
       } catch (err) {
         console.error('❌ Error fetching tests:', err)
         toast.error('Failed to load tests')
         setTests([])
+        setTotalPages(1)
+        setTotalItems(0)
       } finally {
         setLoading(false)
       }
     }
 
     fetchTests()
-  }, [toast])
+  }, [toast, currentPage])
 
   const handleAddTest = () => {
     navigate('/laboratory/available-tests/add')
@@ -91,13 +102,51 @@ const LaboratoryAvailableTests = () => {
 
     try {
       await deleteLaboratoryTest(testId)
-      setTests(prev => prev.filter(test => test.id !== testId))
+      
+      // If current page becomes empty and not on first page, go to previous page
+      if (tests.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1)
+      } else {
+        // Refresh current page data
+        const response = await getLaboratoryTests({ 
+          page: currentPage, 
+          limit: itemsPerPage 
+        })
+        
+        if (response && response.success && response.data) {
+          const testsData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data.items || response.data.tests || []
+          
+          const pagination = response.data.pagination || {}
+          
+          const transformed = testsData.map(test => ({
+            id: test._id || test.id,
+            name: test.name || '',
+            price: Number(test.price || 0),
+            description: test.description || '',
+            category: test.category || '',
+            duration: test.duration || '',
+            sampleType: test.sampleType || '',
+          }))
+          
+          setTests(transformed)
+          setTotalPages(pagination.totalPages || Math.ceil((pagination.total || testsData.length) / itemsPerPage) || 1)
+          setTotalItems(pagination.total || testsData.length)
+        }
+      }
+      
       toast.success('Test deleted successfully')
     } catch (err) {
       console.error('Error deleting test:', err)
       toast.error(err.message || 'Failed to delete test')
     }
   }
+
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
 
   const filteredTests = tests.filter(test =>
     test.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -111,16 +160,16 @@ const LaboratoryAvailableTests = () => {
     }).format(amount)
   }
 
-  // Calculate statistics
+  // Calculate statistics - use totalItems for accurate count
   const statistics = useMemo(() => {
-    const totalTests = tests.length
+    const totalTests = totalItems
     const totalValue = tests.reduce((sum, test) => {
       const price = parseFloat(test.price) || 0
       return sum + price
     }, 0)
 
     return { totalTests, totalValue }
-  }, [tests])
+  }, [tests, totalItems])
 
   return (
     <section className="flex flex-col gap-4 pb-4">
@@ -226,6 +275,23 @@ const LaboratoryAvailableTests = () => {
           })
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={(page) => {
+              setCurrentPage(page)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            loading={loading}
+          />
+        </div>
+      )}
     </section>
   )
 }

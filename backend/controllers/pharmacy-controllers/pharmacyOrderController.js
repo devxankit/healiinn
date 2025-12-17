@@ -37,8 +37,13 @@ exports.getOrders = asyncHandler(async (req, res) => {
 
   const [orders, total] = await Promise.all([
     Order.find(filter)
-      .populate('patientId', 'firstName lastName phone address')
+      .populate('patientId', 'firstName lastName phone email address')
       .populate('prescriptionId')
+      .populate({
+        path: 'items.medicineId',
+        select: 'name dosage brand',
+        model: 'Medicine'
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -62,7 +67,7 @@ exports.getOrders = asyncHandler(async (req, res) => {
 // GET /api/pharmacy/orders/:id
 exports.getOrderById = asyncHandler(async (req, res) => {
   const { id } = req.auth;
-  const { orderId } = req.params;
+  const { id: orderId } = req.params;
 
   const order = await Order.findOne({
     _id: orderId,

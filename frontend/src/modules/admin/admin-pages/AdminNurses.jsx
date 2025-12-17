@@ -60,7 +60,7 @@ const AdminNurses = () => {
     }
     const timeoutId = setTimeout(() => {
       if (currentPage === 1) {
-        loadNurses()
+      loadNurses()
       } else {
         setCurrentPage(1) // Reset to page 1 when search changes
       }

@@ -569,7 +569,7 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
 
   // Send email notification to laboratory
   try {
-    const { sendWithdrawalRequestNotification } = require('../../services/emailService');
+    const { sendWithdrawalRequestNotification } = require('../../services/notificationService');
     await sendWithdrawalRequestNotification({
       provider: laboratory,
       withdrawal: withdrawalRequest,
@@ -577,6 +577,18 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     }).catch((error) => console.error('Error sending withdrawal request email:', error));
   } catch (error) {
     console.error('Error sending email notifications:', error);
+  }
+
+  // Send email notification to admins
+  try {
+    const { notifyAdminsOfWithdrawalRequest } = require('../../services/adminNotificationService');
+    await notifyAdminsOfWithdrawalRequest({
+      withdrawal: withdrawalRequest,
+      provider: laboratory,
+      providerType: 'laboratory',
+    }).catch((error) => console.error('Error sending admin withdrawal notification email:', error));
+  } catch (error) {
+    console.error('Error sending admin email notifications:', error);
   }
 
   // Create in-app notifications
@@ -595,6 +607,7 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
     // Notify all admins
     const Admin = require('../../models/Admin');
     const admins = await Admin.find({});
+    
     for (const admin of admins) {
       await createAdminNotification({
         userId: admin._id,
@@ -602,9 +615,17 @@ exports.requestWithdrawal = asyncHandler(async (req, res) => {
         eventType: 'withdrawal_requested',
         data: {
           withdrawalId: withdrawalRequest._id,
-          laboratoryId: id,
+          providerId: id,
+          providerType: 'laboratory',
+          providerName: laboratory.labName,
+          providerEmail: laboratory.email,
+          providerPhone: laboratory.phone,
           amount,
-          payoutMethod: payoutMethod.type,
+          payoutMethod: {
+            type: payoutMethod.type,
+            details: payoutMethod.details,
+          },
+          requestDate: withdrawalRequest.createdAt,
         },
         actionUrl: `/admin/wallet/withdrawals/${withdrawalRequest._id}`,
       }).catch((error) => console.error('Error creating admin withdrawal notification:', error));

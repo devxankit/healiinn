@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import NurseNavbar from '../nurse-components/NurseNavbar'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 import {
   IoArrowBackOutline,
   IoReceiptOutline,
@@ -51,6 +52,10 @@ const NurseTransactions = () => {
   const [transactions, setTransactions] = useState(defaultTransactions)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Fetch transactions from API
   useEffect(() => {
@@ -59,15 +64,27 @@ const NurseTransactions = () => {
         setLoading(true)
         setError(null)
         // TODO: Import nurse transactions service when available
-        // const response = await getNurseTransactions()
+        // const response = await getNurseTransactions({ 
+        //   page: currentPage, 
+        //   limit: itemsPerPage,
+        //   type: filterType !== 'all' ? filterType : undefined
+        // })
         // if (response && response.success && response.data) {
         //   const data = response.data
         //   const transactionsData = Array.isArray(data) 
         //     ? data 
         //     : (data.items || data.transactions || [])
+        //   
+        //   // Extract pagination info
+        //   const pagination = response.data.pagination || {}
+        //   setTotalPages(pagination.totalPages || Math.ceil((pagination.total || transactionsData.length) / itemsPerPage) || 1)
+        //   setTotalItems(pagination.total || transactionsData.length)
+        //   
         //   setTransactions(transactionsData)
         // }
         setTransactions([])
+        setTotalPages(1)
+        setTotalItems(0)
         setLoading(false)
       } catch (err) {
         console.error('Error fetching transactions:', err)
@@ -78,9 +95,14 @@ const NurseTransactions = () => {
     }
 
     fetchTransactions()
-  }, [toast])
+  }, [toast, currentPage, filterType])
 
-  // Filter transactions
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filterType])
+
+  // Filter transactions (client-side filtering for now, should be done on backend when API is connected)
   const filteredTransactions = transactions.filter((txn) => {
     if (filterType === 'all') return true
     return txn.type === filterType
@@ -257,6 +279,20 @@ const NurseTransactions = () => {
             ))
           )}
         </div>
+
+        {/* Pagination */}
+        {!loading && !error && filteredTransactions.length > 0 && (
+          <div className="mt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              loading={loading}
+            />
+          </div>
+        )}
       </section>
     </>
   )

@@ -231,7 +231,7 @@ const AdminLaboratories = () => {
     }
     const timeoutId = setTimeout(() => {
       if (currentPage === 1) {
-        loadLaboratories()
+      loadLaboratories()
       } else {
         setCurrentPage(1) // Reset to page 1 when search changes
       }

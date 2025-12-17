@@ -4,6 +4,7 @@ import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
 import { getLaboratoryRequestOrders, generateLaboratoryBill } from '../laboratory-services/laboratoryService'
 import { getAuthToken } from '../../../utils/apiClient'
+import Pagination from '../../../components/Pagination'
 import {
   IoPeopleOutline,
   IoSearchOutline,
@@ -131,7 +132,10 @@ const LaboratoryPatients = () => {
         return
       }
 
-      const response = await getLaboratoryRequestOrders({ limit: 100 })
+      const response = await getLaboratoryRequestOrders({ 
+        page: currentPage, 
+        limit: itemsPerPage 
+      })
       
       if (response.success && response.data) {
         const requestsData = response.data.items || response.data || []
@@ -260,17 +264,23 @@ const LaboratoryPatients = () => {
         })
         
         setTestRequests(transformedRequests)
+        setTotalPages(pagination.totalPages || Math.ceil((pagination.total || transformedRequests.length) / itemsPerPage) || 1)
+        setTotalItems(pagination.total || transformedRequests.length)
       } else {
         setTestRequests([])
+        setTotalPages(1)
+        setTotalItems(0)
       }
     } catch (error) {
       console.error('Error loading test requests:', error)
       setTestRequests([])
+      setTotalPages(1)
+      setTotalItems(0)
       toast.error('Failed to load test requests')
     } finally {
       setIsLoading(false)
     }
-  }, [toast])
+  }, [toast, currentPage])
 
   useEffect(() => {
     const token = getAuthToken('laboratory')
@@ -287,6 +297,11 @@ const LaboratoryPatients = () => {
     }, 30000)
     return () => clearInterval(interval)
   }, [loadTestRequests])
+
+  // Reset to page 1 when search term or filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, collectionFilter])
 
   const filteredRequests = useMemo(() => {
     let filtered = testRequests
@@ -1421,6 +1436,23 @@ const LaboratoryPatients = () => {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!isLoading && totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={(page) => {
+              setCurrentPage(page)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            loading={isLoading}
+          />
+        </div>
+      )}
 
       {/* Request Details Modal */}
       {selectedRequest && (

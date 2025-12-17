@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import NurseNavbar from '../nurse-components/NurseNavbar'
+import Pagination from '../../../components/Pagination'
 import {
   IoWalletOutline,
   IoArrowBackOutline,
@@ -50,6 +51,10 @@ const NurseWalletBalance = () => {
   const [balanceData, setBalanceData] = useState(defaultBalanceData)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Fetch balance and recent activity from API
   useEffect(() => {
@@ -60,8 +65,35 @@ const NurseWalletBalance = () => {
         // TODO: Import nurse wallet service when available
         // const [balanceResponse, transactionsResponse] = await Promise.all([
         //   getNurseWalletBalance(),
-        //   getNurseWalletTransactions({ limit: 5 }),
+        //   getNurseWalletTransactions({ page: currentPage, limit: itemsPerPage }),
         // ])
+        // 
+        // if (balanceResponse && balanceResponse.success && balanceResponse.data) {
+        //   const walletData = balanceResponse.data
+        //   setBalanceData(prev => ({
+        //     ...prev,
+        //     totalBalance: Number(walletData.totalBalance || 0),
+        //     availableBalance: Number(walletData.availableBalance || 0),
+        //     pendingBalance: Number(walletData.pendingBalance || 0),
+        //   }))
+        // }
+        // 
+        // if (transactionsResponse && transactionsResponse.success && transactionsResponse.data) {
+        //   const transactionsData = transactionsResponse.data
+        //   const activities = Array.isArray(transactionsData) 
+        //     ? transactionsData 
+        //     : (transactionsData.items || transactionsData.activities || [])
+        //   
+        //   setBalanceData(prev => ({
+        //     ...prev,
+        //     recentActivity: activities
+        //   }))
+        //   
+        //   // Extract pagination info
+        //   const pagination = transactionsResponse.data.pagination || {}
+        //   setTotalPages(pagination.totalPages || Math.ceil((pagination.total || activities.length) / itemsPerPage) || 1)
+        //   setTotalItems(pagination.total || activities.length)
+        // }
         setLoading(false)
       } catch (err) {
         console.error('Error fetching balance data:', err)
@@ -72,7 +104,7 @@ const NurseWalletBalance = () => {
     }
 
     fetchBalanceData()
-  }, [toast])
+  }, [toast, currentPage])
 
   return (
     <>
@@ -161,7 +193,7 @@ const NurseWalletBalance = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">Recent Activity</h2>
               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {loading ? '...' : balanceData.recentActivity.length} transactions
+                {loading ? '...' : totalItems} transactions
               </span>
             </div>
             <div className="space-y-3">
@@ -235,6 +267,20 @@ const NurseWalletBalance = () => {
                 ))
               )}
             </div>
+
+            {/* Pagination */}
+            {!loading && !error && balanceData.recentActivity.length > 0 && (
+              <div className="mt-4">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  loading={loading}
+                />
+              </div>
+            )}
           </section>
       </section>
     </>

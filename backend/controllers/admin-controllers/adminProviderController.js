@@ -123,16 +123,55 @@ exports.verifyDoctor = asyncHandler(async (req, res) => {
 
   await doctor.save();
 
-  // Send approval email to doctor
+  // Get admin details for notifications
+  const Admin = require('../../models/Admin');
+  const admin = await Admin.findById(adminId).select('name email');
+
+  // Send approval email to doctor with admin details
   if (doctor.email) {
     sendRoleApprovalEmail({
       role: 'doctor',
       email: doctor.email,
       status: APPROVAL_STATUS.APPROVED,
+      adminName: admin?.name || 'Admin',
+      doctorName: `${doctor.firstName} ${doctor.lastName || ''}`.trim(),
+      specialization: doctor.specialization,
+      approvedAt: doctor.approvedAt,
     }).catch((error) => {
       console.error('Failed to send approval email to doctor:', error);
       // Don't fail the request if email fails
     });
+  }
+
+  // Create in-app notification for doctor
+  try {
+    const { createNotification } = require('../../services/notificationService');
+    const doctorName = `${doctor.firstName} ${doctor.lastName || ''}`.trim();
+    const adminName = admin?.name || 'Admin';
+    
+    await createNotification({
+      userId: id,
+      userType: 'doctor',
+      type: 'system',
+      title: 'Account Approved',
+      message: `Your registration has been approved by ${adminName}. You can now sign in and start using the platform.`,
+      data: {
+        adminId: adminId,
+        adminName: adminName,
+        approvedAt: doctor.approvedAt,
+        specialization: doctor.specialization,
+        doctorName: doctorName,
+      },
+      priority: 'high',
+      actionUrl: '/doctor/dashboard',
+      icon: 'approval',
+      sendEmail: false, // Email already sent above
+      emitSocket: true,
+    }).catch((error) => {
+      console.error('Error creating doctor approval notification:', error);
+    });
+  } catch (error) {
+    console.error('Error creating doctor approval notification:', error);
   }
 
   return res.status(200).json({
@@ -288,6 +327,34 @@ exports.verifyPharmacy = asyncHandler(async (req, res) => {
     });
   }
 
+  // Create in-app notification for pharmacy approval
+  try {
+    const { createNotification } = require('../../services/notificationService');
+    const Admin = require('../../models/Admin');
+    const admin = await Admin.findById(adminId).select('name email');
+    
+    await createNotification({
+      userId: id,
+      userType: 'pharmacy',
+      type: 'approval',
+      title: 'Account Approved',
+      message: `Your pharmacy account has been approved by admin${admin?.name ? ` ${admin.name}` : ''}. You can now access all features.`,
+      data: {
+        approvedBy: adminId,
+        approvedAt: pharmacy.approvedAt,
+        adminName: admin?.name || 'Admin',
+        pharmacyName: pharmacy.pharmacyName,
+      },
+      priority: 'high',
+      actionUrl: '/pharmacy/dashboard',
+      icon: 'approval',
+      sendEmail: true,
+      user: pharmacy,
+    }).catch((error) => console.error('Error creating pharmacy approval notification:', error));
+  } catch (error) {
+    console.error('Error creating pharmacy approval notification:', error);
+  }
+
   return res.status(200).json({
     success: true,
     message: 'Pharmacy approved successfully.',
@@ -439,6 +506,34 @@ exports.verifyLaboratory = asyncHandler(async (req, res) => {
       console.error('Failed to send approval email to laboratory:', error);
       // Don't fail the request if email fails
     });
+  }
+
+  // Create in-app notification for laboratory approval
+  try {
+    const { createNotification } = require('../../services/notificationService');
+    const Admin = require('../../models/Admin');
+    const admin = await Admin.findById(adminId).select('name email');
+    
+    await createNotification({
+      userId: id,
+      userType: 'laboratory',
+      type: 'approval',
+      title: 'Account Approved',
+      message: `Your laboratory account has been approved by admin${admin?.name ? ` ${admin.name}` : ''}. You can now access all features.`,
+      data: {
+        approvedBy: adminId,
+        approvedAt: laboratory.approvedAt,
+        adminName: admin?.name || 'Admin',
+        labName: laboratory.labName,
+      },
+      priority: 'high',
+      actionUrl: '/laboratory/dashboard',
+      icon: 'approval',
+      sendEmail: true,
+      user: laboratory,
+    }).catch((error) => console.error('Error creating laboratory approval notification:', error));
+  } catch (error) {
+    console.error('Error creating laboratory approval notification:', error);
   }
 
   return res.status(200).json({

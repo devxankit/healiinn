@@ -303,7 +303,7 @@ const PharmacyDashboard = () => {
 
         {/* Wallet Card */}
         <article
-          onClick={() => navigate('/pharmacy/prescriptions')}
+          onClick={() => navigate('/pharmacy/wallet')}
           className="relative overflow-hidden rounded-xl border border-[#11496c]/20 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
         >
           <div className="flex items-start justify-between mb-2">

@@ -21,7 +21,7 @@ const sidebarNavItems = [
   { id: 'home', label: 'Home', to: '/pharmacy/dashboard', Icon: IoHomeOutline },
   { id: 'orders', label: 'Orders', to: '/pharmacy/orders', Icon: IoBagHandleOutline },
   { id: 'medicines', label: 'Medicines', to: '/pharmacy/medicines', Icon: IoMedicalOutline },
-  { id: 'wallet', label: 'Wallet', to: '/pharmacy/prescriptions', Icon: IoWalletOutline },
+  { id: 'wallet', label: 'Wallet', to: '/pharmacy/wallet', Icon: IoWalletOutline },
   { id: 'support', label: 'Support', to: '/pharmacy/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/pharmacy/profile', Icon: IoPersonCircleOutline },
 ]

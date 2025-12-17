@@ -539,14 +539,6 @@ function PharmacyRoutes() {
             }
           />
           <Route
-            path="/prescriptions"
-            element={
-              <ProtectedRoute module="pharmacy">
-                <PharmacyWallet />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/medicines"
             element={
               <ProtectedRoute module="pharmacy">

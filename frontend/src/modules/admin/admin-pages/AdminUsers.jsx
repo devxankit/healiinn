@@ -51,7 +51,7 @@ const AdminUsers = () => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (currentPage === 1) {
-        loadUsers()
+      loadUsers()
       } else {
         setCurrentPage(1) // Reset to page 1 when search changes
       }

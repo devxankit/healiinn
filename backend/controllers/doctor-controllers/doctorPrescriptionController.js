@@ -188,6 +188,7 @@ exports.createPrescription = asyncHandler(async (req, res) => {
       userType: 'patient',
       prescription: populatedPrescription,
       doctor: populatedPrescription.doctorId,
+      patient: populatedPrescription.patientId,
     }).catch((error) => console.error('Error creating patient prescription notification:', error));
   } catch (error) {
     console.error('Error creating notifications:', error);

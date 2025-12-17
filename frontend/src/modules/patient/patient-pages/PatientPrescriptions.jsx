@@ -11,6 +11,7 @@ import {
   getPatientReports,
 } from '../patient-services/patientService'
 import { getFileUrl } from '../../../utils/apiClient'
+import Pagination from '../../../components/Pagination'
 import {
   IoDocumentTextOutline,
   IoCalendarOutline,
@@ -107,6 +108,9 @@ const PatientPrescriptions = () => {
   const [prescriptions, setPrescriptions] = useState(defaultPrescriptions)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [currentLabReportsPage, setCurrentLabReportsPage] = useState(1)
+  const itemsPerPage = 10
 
   // Fetch prescriptions from API
   useEffect(() => {
@@ -204,6 +208,21 @@ const PatientPrescriptions = () => {
     if (filter === 'all') return true
     return presc.status === filter
   })
+
+  // Calculate paginated prescriptions
+  const paginatedPrescriptions = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredPrescriptions.slice(startIndex, endIndex)
+  }, [filteredPrescriptions, currentPage])
+
+  const prescriptionsTotalPages = Math.ceil(filteredPrescriptions.length / itemsPerPage)
+  const prescriptionsTotalItems = filteredPrescriptions.length
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
 
   const currentPrescription = prescriptions.find((p) => p.id === sharePrescriptionId)
 
@@ -1078,6 +1097,16 @@ const PatientPrescriptions = () => {
   // Calculate lab reports count
   const labReportsCount = labReports.length
 
+  // Calculate paginated lab reports
+  const paginatedLabReports = useMemo(() => {
+    const startIndex = (currentLabReportsPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return labReports.slice(startIndex, endIndex)
+  }, [labReports, currentLabReportsPage])
+
+  const labReportsTotalPages = Math.ceil(labReports.length / itemsPerPage)
+  const labReportsTotalItems = labReports.length
+
   // State for patient appointments
   const [patientAppointments, setPatientAppointments] = useState([])
 
@@ -1461,7 +1490,7 @@ const PatientPrescriptions = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredPrescriptions.map((prescription) => (
+                {paginatedPrescriptions.map((prescription) => (
                   <article
                     key={prescription.id}
                     className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-lg"
@@ -1555,6 +1584,18 @@ const PatientPrescriptions = () => {
                 ))}
               </div>
             )}
+
+            {/* Pagination for Prescriptions */}
+            {filteredPrescriptions.length > 0 && prescriptionsTotalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={prescriptionsTotalPages}
+                totalItems={prescriptionsTotalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                loading={loading}
+              />
+            )}
           </div>
         </>
       )}
@@ -1575,7 +1616,7 @@ const PatientPrescriptions = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {labReports.map((report) => (
+              {paginatedLabReports.map((report) => (
                 <article
                   key={report.id}
                   className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md flex flex-col min-h-[180px]"
@@ -1637,6 +1678,18 @@ const PatientPrescriptions = () => {
                 </article>
               ))}
             </div>
+          )}
+
+          {/* Pagination for Lab Reports */}
+          {labReports.length > 0 && labReportsTotalPages > 1 && (
+            <Pagination
+              currentPage={currentLabReportsPage}
+              totalPages={labReportsTotalPages}
+              totalItems={labReportsTotalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentLabReportsPage}
+              loading={loadingReports}
+            />
           )}
         </div>
       )}

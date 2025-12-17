@@ -14,6 +14,7 @@ import {
 import { getPatientReports, downloadReport, shareLabReport } from '../patient-services/patientService'
 import { getFileUrl } from '../../../utils/apiClient'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Default reports (will be replaced by API data)
 const defaultReports = []
@@ -40,6 +41,8 @@ const PatientReports = () => {
   const [showViewModal, setShowViewModal] = useState(false)
   const [selectedReport, setSelectedReport] = useState(null)
   const [isSharing, setIsSharing] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Fetch reports from API
   useEffect(() => {
@@ -85,6 +88,16 @@ const PatientReports = () => {
 
     fetchReports()
   }, [toast])
+
+  // Calculate paginated reports
+  const paginatedReports = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return reports.slice(startIndex, endIndex)
+  }, [reports, currentPage])
+
+  const totalPages = Math.ceil(reports.length / itemsPerPage)
+  const totalItems = reports.length
 
   // Get doctors for sharing (using discovery API)
   const [doctors, setDoctors] = useState([])
@@ -443,7 +456,7 @@ const PatientReports = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            {reports.map((report) => (
+            {paginatedReports.map((report) => (
               <article
                 key={report.id}
                 className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md flex flex-col min-h-[180px]"
@@ -505,6 +518,18 @@ const PatientReports = () => {
               </article>
             ))}
           </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && reports.length > 0 && totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
         )}
       </main>
 

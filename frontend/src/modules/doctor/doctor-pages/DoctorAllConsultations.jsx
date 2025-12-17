@@ -11,8 +11,9 @@ import {
   IoCalendarOutline,
   IoMedicalOutline,
 } from 'react-icons/io5'
-import { getDoctorConsultations } from '../doctor-services/doctorService'
+import { getAllDoctorConsultations } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A'
@@ -75,18 +76,36 @@ const DoctorAllConsultations = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPeriod, setFilterPeriod] = useState('today') // 'today', 'monthly', 'yearly', 'all'
   const [filterStatus, setFilterStatus] = useState('all') // 'all', 'completed', 'in-progress', 'pending'
+  const [page, setPage] = useState(1)
+  const [limit] = useState(20)
+  const [pagination, setPagination] = useState(null)
+
+  // Reset page when filters or search change
+  useEffect(() => {
+    setPage(1)
+  }, [filterPeriod, filterStatus, searchTerm])
 
   // Fetch consultations from API
   useEffect(() => {
     const fetchConsultations = async () => {
       try {
         setLoading(true)
-        const response = await getDoctorConsultations({ limit: 100 })
+        const params = {
+          page,
+          limit,
+          ...(filterStatus !== 'all' && { status: filterStatus }),
+        }
+        const response = await getAllDoctorConsultations(params)
         
         if (response.success && response.data) {
           const consultationsData = Array.isArray(response.data) 
             ? response.data 
             : response.data.consultations || response.data.items || []
+          
+          // Set pagination data
+          if (response.data.pagination) {
+            setPagination(response.data.pagination)
+          }
           
           const transformed = consultationsData.map(consultation => ({
             id: consultation._id || consultation.id,
@@ -117,7 +136,7 @@ const DoctorAllConsultations = () => {
 
     fetchConsultations()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [page, limit, filterStatus])
 
   // Get today's date for filtering
   const today = new Date()
@@ -439,6 +458,23 @@ const DoctorAllConsultations = () => {
             })
           )}
         </div>
+
+        {/* Pagination */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="mt-4">
+            <Pagination
+              currentPage={pagination.page || page}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.total}
+              itemsPerPage={pagination.limit || limit}
+              onPageChange={(newPage) => {
+                setPage(newPage)
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+              loading={loading}
+            />
+          </div>
+        )}
       </section>
     </>
   )

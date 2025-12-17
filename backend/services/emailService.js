@@ -87,10 +87,41 @@ const sendEmail = async ({ to, subject, text, html }, retries = 3) => {
 
 const formatRoleName = (role) => role.charAt(0).toUpperCase() + role.slice(1);
 
-const sendRoleApprovalEmail = async ({ role, email, status, reason }) => {
+const sendRoleApprovalEmail = async ({ role, email, status, reason, adminName, doctorName, specialization, approvedAt }) => {
   const readableRole = formatRoleName(role);
 
   if (status === APPROVAL_STATUS.APPROVED) {
+    // Enhanced email for doctors with full details
+    if (role === 'doctor' && doctorName) {
+      const adminNameText = adminName ? ` by ${adminName}` : '';
+      const approvedDateText = approvedAt 
+        ? new Date(approvedAt).toLocaleDateString('en-IN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : new Date().toLocaleDateString('en-IN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+      const specializationText = specialization ? ` (${specialization})` : '';
+      
+      const text = `Hello Dr. ${doctorName},\n\nYour registration with Healiinn has been approved${adminNameText}.\n\nAccount Details:\n- Name: Dr. ${doctorName}${specializationText}\n- Approval Date: ${approvedDateText}\n- Approved By: ${adminName || 'Admin'}\n\nYou can now sign in using your credentials and start providing services to patients.\n\nThank you,\nTeam Healiinn`;
+      
+      const html = `<p>Hello Dr. ${doctorName},</p><p>Your registration with <strong>Healiinn</strong> has been approved${adminNameText ? ` by <strong>${adminName}</strong>` : ''}.</p><ul><li><strong>Name:</strong> Dr. ${doctorName}${specializationText}</li><li><strong>Approval Date:</strong> ${approvedDateText}</li><li><strong>Approved By:</strong> ${adminName || 'Admin'}</li></ul><p>You can now sign in using your credentials and start providing services to patients.</p><p>Thank you,<br/>Team Healiinn</p>`;
+      
+      return sendEmail({
+        to: email,
+        subject: `Doctor account approved${adminNameText} | Healiinn`,
+        text,
+        html,
+      });
+    }
+    
+    // Standard email for other roles
     return sendEmail({
       to: email,
       subject: `${readableRole} account approved | Healiinn`,
@@ -338,6 +369,149 @@ Team Healiinn`;
   return null;
 };
 
+/**
+ * Send withdrawal request email to admin
+ */
+const sendAdminWithdrawalRequestEmail = async ({ admin, withdrawal, provider, providerType }) => {
+  if (!admin?.email) return null;
+
+  let providerName = '';
+  if (providerType === 'pharmacy') {
+    providerName = provider?.pharmacyName || provider?.ownerName || provider?.email || 'Pharmacy';
+  } else if (providerType === 'laboratory') {
+    providerName = provider?.labName || provider?.ownerName || provider?.email || 'Laboratory';
+  } else if (providerType === 'doctor') {
+    providerName = provider?.firstName && provider?.lastName
+      ? `Dr. ${provider.firstName} ${provider.lastName}`.trim()
+      : provider?.email || 'Doctor';
+  } else {
+    providerName = provider?.email || 'Provider';
+  }
+
+  const providerTypeLabel = providerType === 'doctor' ? 'Doctor' : providerType === 'pharmacy' ? 'Pharmacy' : providerType === 'laboratory' ? 'Laboratory' : 'Provider';
+  const withdrawalAmount = withdrawal?.amount || 0;
+  const withdrawalId = withdrawal?._id || withdrawal?.id;
+  const payoutMethodType = withdrawal?.payoutMethod?.type || 'N/A';
+  const payoutMethodDetails = withdrawal?.payoutMethod?.details || {};
+  
+  // Format payout method details
+  let payoutDetailsText = '';
+  if (payoutMethodType === 'bank_transfer') {
+    payoutDetailsText = `\nAccount Number: ${payoutMethodDetails.accountNumber || 'N/A'}\nIFSC Code: ${payoutMethodDetails.ifscCode || 'N/A'}\nBank Name: ${payoutMethodDetails.bankName || 'N/A'}\nAccount Holder: ${payoutMethodDetails.accountHolderName || 'N/A'}`;
+  } else if (payoutMethodType === 'upi') {
+    payoutDetailsText = `\nUPI ID: ${payoutMethodDetails.upiId || 'N/A'}`;
+  } else if (payoutMethodType === 'paytm') {
+    payoutDetailsText = `\nPaytm Number: ${payoutMethodDetails.paytmNumber || 'N/A'}`;
+  }
+
+  const providerEmail = provider?.email || 'N/A';
+  const providerPhone = provider?.phone || 'N/A';
+
+  const text = `Hello ${admin.name || 'Admin'},
+
+A new withdrawal request has been submitted:
+
+Provider Type: ${providerTypeLabel}
+Provider Name: ${providerName}
+Provider Email: ${providerEmail}
+Provider Phone: ${providerPhone}
+Withdrawal Amount: ₹${withdrawalAmount}
+Payment Method: ${payoutMethodType}${payoutDetailsText}
+Withdrawal ID: ${withdrawalId}
+Request Date: ${withdrawal?.createdAt ? new Date(withdrawal.createdAt).toLocaleString('en-IN') : 'N/A'}
+
+Please review and process this withdrawal request in the admin panel.
+
+Thank you,
+Healiinn Platform`;
+
+  const html = `<p>Hello ${admin.name || 'Admin'},</p>
+<p>A new <strong>withdrawal request</strong> has been submitted:</p>
+<ul>
+  <li><strong>Provider Type:</strong> ${providerTypeLabel}</li>
+  <li><strong>Provider Name:</strong> ${providerName}</li>
+  <li><strong>Provider Email:</strong> ${providerEmail}</li>
+  <li><strong>Provider Phone:</strong> ${providerPhone}</li>
+  <li><strong>Withdrawal Amount:</strong> ₹${withdrawalAmount}</li>
+  <li><strong>Payment Method:</strong> ${payoutMethodType}</li>
+  ${payoutMethodType === 'bank_transfer' ? `<li><strong>Account Number:</strong> ${payoutMethodDetails.accountNumber || 'N/A'}</li><li><strong>IFSC Code:</strong> ${payoutMethodDetails.ifscCode || 'N/A'}</li><li><strong>Bank Name:</strong> ${payoutMethodDetails.bankName || 'N/A'}</li><li><strong>Account Holder:</strong> ${payoutMethodDetails.accountHolderName || 'N/A'}</li>` : ''}
+  ${payoutMethodType === 'upi' ? `<li><strong>UPI ID:</strong> ${payoutMethodDetails.upiId || 'N/A'}</li>` : ''}
+  ${payoutMethodType === 'paytm' ? `<li><strong>Paytm Number:</strong> ${payoutMethodDetails.paytmNumber || 'N/A'}</li>` : ''}
+  <li><strong>Withdrawal ID:</strong> ${withdrawalId}</li>
+  <li><strong>Request Date:</strong> ${withdrawal?.createdAt ? new Date(withdrawal.createdAt).toLocaleString('en-IN') : 'N/A'}</li>
+</ul>
+<p>Please review and process this withdrawal request in the admin panel.</p>
+<p>Thank you,<br/>Healiinn Platform</p>`;
+
+  return sendEmail({
+    to: admin.email,
+    subject: `Withdrawal Request - ${providerTypeLabel} ${providerName} | ₹${withdrawalAmount} | Healiinn`,
+    text,
+    html,
+  });
+};
+
+/**
+ * Send patient request email to admin
+ */
+const sendAdminPatientRequestEmail = async ({ admin, request, patient }) => {
+  if (!admin?.email) return null;
+
+  const patientName = patient?.firstName && patient?.lastName
+    ? `${patient.firstName} ${patient.lastName}`.trim()
+    : patient?.email || 'Patient';
+  const patientEmail = patient?.email || 'N/A';
+  const patientPhone = patient?.phone || request?.patientPhone || 'N/A';
+  const requestType = request?.type || 'N/A';
+  const requestTypeLabel = requestType === 'order_medicine' ? 'Medicine Order' : requestType === 'book_test_visit' ? 'Test Visit Booking' : 'Request';
+  const requestId = request?._id || request?.id;
+  const patientAddress = request?.patientAddress || patient?.address || {};
+  const addressText = patientAddress ? 
+    `${patientAddress.line1 || ''}${patientAddress.line2 ? `, ${patientAddress.line2}` : ''}${patientAddress.city ? `, ${patientAddress.city}` : ''}${patientAddress.state ? `, ${patientAddress.state}` : ''}${patientAddress.postalCode ? ` - ${patientAddress.postalCode}` : ''}`.replace(/^,\s*|,\s*$/g, '') || 'N/A' : 'N/A';
+  const visitType = request?.visitType || null;
+  const prescriptionId = request?.prescriptionId || null;
+
+  const text = `Hello ${admin.name || 'Admin'},
+
+A new patient request has been submitted:
+
+Patient Name: ${patientName}
+Patient Email: ${patientEmail}
+Patient Phone: ${patientPhone}
+Request Type: ${requestTypeLabel}
+${visitType ? `Visit Type: ${visitType}\n` : ''}${prescriptionId ? `Prescription ID: ${prescriptionId}\n` : ''}Patient Address: ${addressText}
+Request ID: ${requestId}
+Request Date: ${request?.createdAt ? new Date(request.createdAt).toLocaleString('en-IN') : 'N/A'}
+
+Please review and respond to this request in the admin panel.
+
+Thank you,
+Healiinn Platform`;
+
+  const html = `<p>Hello ${admin.name || 'Admin'},</p>
+<p>A new <strong>patient request</strong> has been submitted:</p>
+<ul>
+  <li><strong>Patient Name:</strong> ${patientName}</li>
+  <li><strong>Patient Email:</strong> ${patientEmail}</li>
+  <li><strong>Patient Phone:</strong> ${patientPhone}</li>
+  <li><strong>Request Type:</strong> ${requestTypeLabel}</li>
+  ${visitType ? `<li><strong>Visit Type:</strong> ${visitType}</li>` : ''}
+  ${prescriptionId ? `<li><strong>Prescription ID:</strong> ${prescriptionId}</li>` : ''}
+  <li><strong>Patient Address:</strong> ${addressText}</li>
+  <li><strong>Request ID:</strong> ${requestId}</li>
+  <li><strong>Request Date:</strong> ${request?.createdAt ? new Date(request.createdAt).toLocaleString('en-IN') : 'N/A'}</li>
+</ul>
+<p>Please review and respond to this request in the admin panel.</p>
+<p>Thank you,<br/>Healiinn Platform</p>`;
+
+  return sendEmail({
+    to: admin.email,
+    subject: `New Patient Request - ${requestTypeLabel} from ${patientName} | Healiinn`,
+    text,
+    html,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendRoleApprovalEmail,
@@ -346,6 +520,8 @@ module.exports = {
   sendPasswordResetOtpEmail,
   sendAppointmentReminderEmail,
   sendPrescriptionEmail,
+  sendAdminWithdrawalRequestEmail,
+  sendAdminPatientRequestEmail,
 };
 
 

@@ -350,11 +350,11 @@ const AdminSupport = () => {
           const paginatedRequests = filteredRequests.slice(startIndex, endIndex)
           
           return paginatedRequests.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-              <p className="text-sm font-medium text-slate-600">No support requests found</p>
-              <p className="mt-1 text-xs text-slate-500">Try adjusting your filters</p>
-            </div>
-          ) : (
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+            <p className="text-sm font-medium text-slate-600">No support requests found</p>
+            <p className="mt-1 text-xs text-slate-500">Try adjusting your filters</p>
+          </div>
+        ) : (
             <>
               {paginatedRequests.map((request) => (
             <div

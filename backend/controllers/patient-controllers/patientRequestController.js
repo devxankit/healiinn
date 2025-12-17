@@ -6,7 +6,7 @@ const Patient = require('../../models/Patient');
 const Order = require('../../models/Order');
 const { createOrder } = require('../../services/paymentService');
 const { getIO } = require('../../config/socket');
-const { notifyAdminsOfPendingSignup } = require('../../services/adminNotificationService');
+// Admin notification service - using notifyAdminsOfPatientRequest for patient requests
 
 // Helper functions
 const buildPagination = (req) => {
@@ -78,12 +78,13 @@ exports.createRequest = asyncHandler(async (req, res) => {
     console.error('Socket.IO error:', error);
   }
 
-  // Send email notification to admin (using existing admin notification service)
+  // Send email notification to admin
   try {
-    await notifyAdminsOfPendingSignup({
-      role: 'request',
-      entity: request,
-    }).catch((error) => console.error('Error sending admin request notification:', error));
+    const { notifyAdminsOfPatientRequest } = require('../../services/adminNotificationService');
+    await notifyAdminsOfPatientRequest({
+      request,
+      patient,
+    }).catch((error) => console.error('Error sending admin patient request notification:', error));
   } catch (error) {
     console.error('Error sending email notifications:', error);
   }
@@ -105,6 +106,9 @@ exports.createRequest = asyncHandler(async (req, res) => {
     // Notify all admins
     const Admin = require('../../models/Admin');
     const admins = await Admin.find({});
+    const patientName = `${patient.firstName} ${patient.lastName}`.trim();
+    const requestTypeLabel = type === 'order_medicine' ? 'Medicine Order' : 'Test Visit Booking';
+    
     for (const admin of admins) {
       await createAdminNotification({
         userId: admin._id,
@@ -113,7 +117,17 @@ exports.createRequest = asyncHandler(async (req, res) => {
         data: {
           requestId: request._id,
           patientId: id,
+          patientName: patientName,
+          patientEmail: patient.email,
+          patientPhone: patient.phone,
+          requestType: type,
+          requestTypeLabel: requestTypeLabel,
+          patientAddress: request.patientAddress || patient.address,
+          prescriptionId: prescriptionId || null,
+          visitType: type === 'book_test_visit' ? visitType : null,
+          requestDate: request.createdAt,
         },
+        actionUrl: `/admin/requests`,
       }).catch((error) => console.error('Error creating admin notification:', error));
     }
   } catch (error) {
@@ -457,6 +471,22 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
         },
       });
 
+      // Create wallet credit notification for pharmacy
+      try {
+        const { createWalletNotification } = require('../../services/notificationService');
+        const pharmacyData = await Pharmacy.findById(pharmacyId).select('pharmacyName email');
+        await createWalletNotification({
+          userId: pharmacyId,
+          userType: 'pharmacy',
+          amount: pharmacyEarning,
+          eventType: 'payment_received',
+          sendEmail: true,
+          user: pharmacyData,
+        }).catch((error) => console.error('Error creating pharmacy payment credit notification:', error));
+      } catch (error) {
+        console.error('Error creating pharmacy wallet credit notification:', error);
+      }
+
       // Emit real-time event to pharmacy
       try {
         io.to(`pharmacy-${pharmacyId}`).emit('wallet:credited', {
@@ -604,6 +634,22 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
           testsCount: tests.length,
         },
       });
+
+      // Create wallet credit notification for laboratory
+      try {
+        const { createWalletNotification } = require('../../services/notificationService');
+        const labData = await Laboratory.findById(labId).select('labName email');
+        await createWalletNotification({
+          userId: labId,
+          userType: 'laboratory',
+          amount: labEarning,
+          eventType: 'payment_received',
+          sendEmail: true,
+          user: labData,
+        }).catch((error) => console.error('Error creating laboratory payment credit notification:', error));
+      } catch (error) {
+        console.error('Error creating laboratory wallet credit notification:', error);
+      }
 
       // Emit real-time event to lab
       try {
@@ -791,7 +837,7 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
 
   // Create in-app notifications
   try {
-    const { createRequestNotification, createAdminNotification } = require('../../services/notificationService');
+    const { createRequestNotification, createAdminNotification, sendNotificationEmail } = require('../../services/notificationService');
     const populatedRequest = await Request.findById(request._id)
       .populate('patientId', 'firstName lastName phone email');
 
@@ -828,6 +874,76 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
           patientId: id,
         },
       }).catch((error) => console.error('Error creating admin payment notification:', error));
+    }
+
+    // Notify pharmacies assigned to this request when payment is confirmed
+    if (request.adminResponse?.pharmacies && request.adminResponse.pharmacies.length > 0) {
+      for (const pharmId of request.adminResponse.pharmacies) {
+        try {
+          const pharmacy = await Pharmacy.findById(pharmId).select('pharmacyName email');
+          if (pharmacy) {
+            const patientName = patient.firstName && patient.lastName
+              ? `${patient.firstName} ${patient.lastName}`
+              : patient.firstName || 'Patient';
+            
+            // Create in-app notification
+            await createRequestNotification({
+              userId: pharmId,
+              userType: 'pharmacy',
+              request: populatedRequest,
+              eventType: 'payment_received',
+              patient,
+              pharmacy,
+            }).catch((error) => console.error('Error creating pharmacy payment notification:', error));
+            
+            // Send email notification
+            await sendNotificationEmail({
+              userId: pharmId,
+              userType: 'pharmacy',
+              title: 'Payment Received - New Order',
+              message: `Payment of ₹${totalAmount} received from ${patientName} for order request (Request ID: ${request._id}). Please check your request orders.`,
+              user: pharmacy,
+            }).catch((error) => console.error('Error sending pharmacy payment email:', error));
+          }
+        } catch (error) {
+          console.error(`Error notifying pharmacy ${pharmId}:`, error);
+        }
+      }
+    }
+
+    // Notify laboratories assigned to this request when payment is confirmed
+    if (request.adminResponse?.labs && request.adminResponse.labs.length > 0) {
+      for (const labId of request.adminResponse.labs) {
+        try {
+          const laboratory = await Laboratory.findById(labId).select('labName email');
+          if (laboratory) {
+            const patientName = patient.firstName && patient.lastName
+              ? `${patient.firstName} ${patient.lastName}`
+              : patient.firstName || 'Patient';
+            
+            // Create in-app notification
+            await createRequestNotification({
+              userId: labId,
+              userType: 'laboratory',
+              request: populatedRequest,
+              eventType: 'payment_received',
+              patient,
+              laboratory,
+            }).catch((error) => console.error('Error creating laboratory payment notification:', error));
+            
+            // Send email notification
+            await sendNotificationEmail({
+              userId: labId,
+              userType: 'laboratory',
+              title: 'Payment Received - New Test Booking',
+              message: `Payment of ₹${totalAmount} received from ${patientName} for test booking request (Request ID: ${request._id}). Please check your request orders.`,
+              user: laboratory,
+            }).catch((error) => console.error('Error sending laboratory payment email:', error));
+          }
+        } catch (error) {
+          console.error(`Error notifying laboratory ${labId}:`, error);
+        }
+      }
     }
   } catch (error) {
     console.error('Error creating notifications:', error);

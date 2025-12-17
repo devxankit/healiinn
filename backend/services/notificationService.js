@@ -149,6 +149,37 @@ const createNotification = async ({
 };
 
 /**
+ * Helper function to format appointment date
+ */
+const formatAppointmentDate = (date) => {
+  if (!date) return 'N/A';
+  try {
+    const dateObj = date instanceof Date ? date : new Date(date);
+    return dateObj.toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  } catch (error) {
+    return 'N/A';
+  }
+};
+
+/**
+ * Helper function to extract appointment date from appointment object
+ */
+const getAppointmentDate = (appointment) => {
+  if (appointment.appointmentDate) {
+    return appointment.appointmentDate;
+  }
+  if (appointment.sessionId && appointment.sessionId.date) {
+    return appointment.sessionId.date;
+  }
+  return null;
+};
+
+/**
  * Create notification for appointment events
  */
 const createAppointmentNotification = async ({ userId, userType, appointment, eventType, doctor, patient, sendEmail = true }) => {
@@ -157,10 +188,17 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
   switch (eventType) {
     case 'created':
       if (userType === 'doctor') {
+        // Only handle 'created' for doctors - include patient name and date
+        const appointmentDate = getAppointmentDate(appointment);
+        const formattedDate = formatAppointmentDate(appointmentDate);
+        
         title = 'New Appointment Booking';
-        message = patient
-          ? `New appointment booked by ${patient.firstName} ${patient.lastName || ''}${appointment.tokenNumber ? ` (Token: ${appointment.tokenNumber})` : ''}`
-          : 'New appointment has been booked';
+        if (patient) {
+          const patientName = `${patient.firstName} ${patient.lastName || ''}`.trim();
+          message = `New appointment booked by ${patientName} for ${formattedDate}${appointment.tokenNumber ? ` (Token: ${appointment.tokenNumber})` : ''}`;
+        } else {
+          message = `New appointment booked for ${formattedDate}`;
+        }
         actionUrl = '/doctor/patients';
       } else {
         title = 'New Appointment';
@@ -171,6 +209,10 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
       }
       break;
     case 'cancelled':
+      // Doctors don't receive cancelled notifications (only patients)
+      if (userType === 'doctor') {
+        return null; // Skip notification for doctors
+      }
       title = 'Appointment Cancelled';
       message = doctor
         ? `Your appointment with Dr. ${doctor.firstName} ${doctor.lastName || ''} has been cancelled`
@@ -178,28 +220,84 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
       actionUrl = '/patient/appointments';
       break;
     case 'rescheduled':
-      title = 'Appointment Rescheduled';
-      message = doctor
-        ? `Your appointment with Dr. ${doctor.firstName} ${doctor.lastName || ''} has been rescheduled`
-        : 'Appointment has been rescheduled';
-      actionUrl = '/patient/appointments';
+      if (userType === 'doctor') {
+        // Only handle 'rescheduled' for doctors - include patient name and both old/new dates
+        const appointmentDate = getAppointmentDate(appointment);
+        const formattedNewDate = formatAppointmentDate(appointmentDate);
+        
+        title = 'Appointment Rescheduled';
+        if (patient) {
+          const patientName = `${patient.firstName} ${patient.lastName || ''}`.trim();
+          
+          // Try to extract old date from rescheduleReason if available
+          let formattedOldDate = null;
+          if (appointment.rescheduleReason) {
+            // rescheduleReason format: "Rescheduled from [oldDate] to [newDate]" or "Appointment rebooked after cancellation. New date: [newDate]"
+            const reasonMatch = appointment.rescheduleReason.match(/Rescheduled from (.+?) to/);
+            if (reasonMatch && reasonMatch[1]) {
+              try {
+                // Parse the old date from the reschedule reason
+                const oldDateStr = reasonMatch[1].trim();
+                const oldDateObj = new Date(oldDateStr);
+                if (!isNaN(oldDateObj.getTime())) {
+                  formattedOldDate = formatAppointmentDate(oldDateObj);
+                }
+              } catch (error) {
+                // If parsing fails, ignore and just show new date
+                console.error('Error parsing old date from rescheduleReason:', error);
+              }
+            }
+          }
+          
+          if (formattedOldDate) {
+            message = `Appointment rescheduled by ${patientName} from ${formattedOldDate} to ${formattedNewDate}`;
+          } else {
+            message = `Appointment rescheduled by ${patientName} for ${formattedNewDate}`;
+          }
+        } else {
+          message = `Appointment rescheduled for ${formattedNewDate}`;
+        }
+        actionUrl = '/doctor/patients';
+      } else {
+        title = 'Appointment Rescheduled';
+        message = doctor
+          ? `Your appointment with Dr. ${doctor.firstName} ${doctor.lastName || ''} has been rescheduled`
+          : 'Appointment has been rescheduled';
+        actionUrl = '/patient/appointments';
+      }
       break;
     case 'payment_confirmed':
+      // Doctors don't receive payment_confirmed notifications (only patients)
+      if (userType === 'doctor') {
+        return null; // Skip notification for doctors
+      }
       title = 'Payment Confirmed';
       message = `Payment of ₹${appointment.fee || 0} confirmed for your appointment`;
       actionUrl = '/patient/appointments';
       break;
     case 'token_called':
+      // Doctors don't receive token_called notifications (only patients)
+      if (userType === 'doctor') {
+        return null; // Skip notification for doctors
+      }
       title = 'Your Turn';
       message = `Token ${appointment.tokenNumber} has been called. Please proceed to consultation room.`;
       actionUrl = '/patient/appointments';
       break;
     case 'token_recalled':
+      // Doctors don't receive token_recalled notifications (only patients)
+      if (userType === 'doctor') {
+        return null; // Skip notification for doctors
+      }
       title = 'Token Recalled';
       message = `Your token ${appointment.tokenNumber} has been recalled. Please wait for your turn.`;
       actionUrl = '/patient/appointments';
       break;
     case 'completed':
+      // Doctors don't receive completed notifications (only patients)
+      if (userType === 'doctor') {
+        return null; // Skip notification for doctors
+      }
       title = 'Consultation Completed';
       message = doctor
         ? `Your consultation with Dr. ${doctor.firstName} ${doctor.lastName || ''} has been completed`
@@ -207,6 +305,10 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
       actionUrl = '/patient/appointments';
       break;
     default:
+      // Doctors don't receive default appointment update notifications
+      if (userType === 'doctor') {
+        return null; // Skip notification for doctors
+      }
       title = 'Appointment Update';
       message = 'Your appointment has been updated';
       actionUrl = '/patient/appointments';
@@ -240,17 +342,43 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
     }
   }
 
+  // Include appointment date in data for doctor notifications
+  const appointmentDate = getAppointmentDate(appointment);
+  const notificationData = {
+    appointmentId: appointment._id || appointment.id,
+    eventType,
+    tokenNumber: appointment.tokenNumber,
+  };
+  
+  // Add date information for doctor notifications
+  if (userType === 'doctor' && (eventType === 'created' || eventType === 'rescheduled')) {
+    notificationData.appointmentDate = appointmentDate;
+    notificationData.formattedDate = formatAppointmentDate(appointmentDate);
+    if (eventType === 'rescheduled' && appointment.rescheduleReason) {
+      notificationData.rescheduleReason = appointment.rescheduleReason;
+      // Try to extract old date from rescheduleReason for better display
+      const reasonMatch = appointment.rescheduleReason.match(/Rescheduled from (.+?) to/);
+      if (reasonMatch && reasonMatch[1]) {
+        try {
+          const oldDateObj = new Date(reasonMatch[1].trim());
+          if (!isNaN(oldDateObj.getTime())) {
+            notificationData.oldAppointmentDate = oldDateObj;
+            notificationData.formattedOldDate = formatAppointmentDate(oldDateObj);
+          }
+        } catch (error) {
+          // Ignore parsing errors
+        }
+      }
+    }
+  }
+
   return createNotification({
     userId,
     userType,
     type: 'appointment',
     title,
     message,
-    data: {
-      appointmentId: appointment._id || appointment.id,
-      eventType,
-      tokenNumber: appointment.tokenNumber,
-    },
+    data: notificationData,
     priority: eventType === 'token_called' ? 'urgent' : 'medium',
     actionUrl,
     icon: 'appointment',
@@ -264,9 +392,18 @@ const createAppointmentNotification = async ({ userId, userType, appointment, ev
  */
 const createPrescriptionNotification = async ({ userId, userType, prescription, doctor, patient }) => {
   const title = 'New Prescription';
-  const message = doctor
-    ? `Prescription received from Dr. ${doctor.firstName} ${doctor.lastName || ''}`
+  const doctorName = doctor
+    ? `Dr. ${doctor.firstName} ${doctor.lastName || ''}`.trim()
+    : 'Doctor';
+  const message = userType === 'patient'
+    ? `Prescription received from ${doctorName}`
     : `Prescription created for ${patient.firstName} ${patient.lastName || ''}`;
+  
+  // Get patient data for email if userType is patient
+  let user = null;
+  if (userType === 'patient' && patient) {
+    user = patient;
+  }
   
   return createNotification({
     userId,
@@ -277,10 +414,13 @@ const createPrescriptionNotification = async ({ userId, userType, prescription, 
     data: {
       prescriptionId: prescription._id || prescription.id,
       consultationId: prescription.consultationId,
+      doctorName,
     },
     priority: 'high',
     actionUrl: userType === 'patient' ? '/patient/prescriptions' : '/doctor/consultations',
     icon: 'prescription',
+    sendEmail: userType === 'patient', // Send email to patients
+    user,
   });
 };
 
@@ -297,6 +437,12 @@ const createWalletNotification = async ({ userId, userType, amount, eventType, w
       priority = 'high';
       actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
       break;
+    case 'payment_received':
+      title = 'Payment Received';
+      message = `₹${amount} has been credited to your wallet from patient payment`;
+      priority = 'high';
+      actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
+      break;
     case 'withdrawal_requested':
       title = 'Withdrawal Requested';
       message = `Withdrawal request of ₹${amount} has been submitted`;
@@ -305,19 +451,36 @@ const createWalletNotification = async ({ userId, userType, amount, eventType, w
       break;
     case 'withdrawal_approved':
       title = 'Withdrawal Approved';
-      message = `Your withdrawal request of ₹${amount} has been approved by admin`;
+      const adminNameApproved = withdrawal?.adminName || 'Admin';
+      const withdrawalIdApproved = withdrawal?._id || withdrawal?.id || 'N/A';
+      let approvedMessage = `Your withdrawal request of ₹${amount} has been approved by ${adminNameApproved}`;
+      if (withdrawal?.adminNote) {
+        approvedMessage += `. Admin Note: ${withdrawal.adminNote}`;
+      }
+      approvedMessage += `. Withdrawal ID: ${withdrawalIdApproved}`;
+      message = approvedMessage;
       priority = 'high';
       actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
       break;
     case 'withdrawal_paid':
       title = 'Payment Processed';
-      message = `Your withdrawal request of ₹${amount} has been processed and payment has been sent${withdrawal?.payoutReference ? ` (Ref: ${withdrawal.payoutReference})` : ''}`;
+      const adminNamePaid = withdrawal?.adminName || 'Admin';
+      const withdrawalIdPaid = withdrawal?._id || withdrawal?.id || 'N/A';
+      const payoutMethod = withdrawal?.payoutMethod?.type || withdrawal?.payoutMethod || 'N/A';
+      let paidMessage = `Your withdrawal request of ₹${amount} has been processed and payment has been sent by ${adminNamePaid}`;
+      if (withdrawal?.payoutReference) {
+        paidMessage += `. Payout Reference: ${withdrawal.payoutReference}`;
+      }
+      paidMessage += `. Payment Method: ${payoutMethod}`;
+      paidMessage += `. Withdrawal ID: ${withdrawalIdPaid}`;
+      message = paidMessage;
       priority = 'high';
       actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
       break;
     case 'withdrawal_rejected':
       title = 'Withdrawal Rejected';
-      message = `Your withdrawal request of ₹${amount} has been rejected${withdrawal?.rejectionReason ? `. Reason: ${withdrawal.rejectionReason}` : ''}`;
+      const adminNameRejected = withdrawal?.adminName || 'admin';
+      message = `Your withdrawal request of ₹${amount} has been rejected by ${adminNameRejected}${withdrawal?.rejectionReason ? `. Reason: ${withdrawal.rejectionReason}` : ''}`;
       priority = 'high';
       actionUrl = userType === 'doctor' ? '/doctor/wallet' : userType === 'pharmacy' ? '/pharmacy/wallet' : userType === 'laboratory' ? '/laboratory/wallet' : '/doctor/wallet';
       break;
@@ -328,19 +491,42 @@ const createWalletNotification = async ({ userId, userType, amount, eventType, w
       actionUrl = '/doctor/wallet';
   }
 
+  // Build comprehensive data object for withdrawal notifications
+  const walletNotificationData = {
+    amount,
+    eventType,
+    withdrawalId: withdrawal?._id || withdrawal?.id,
+  };
+  
+  // Add additional details for withdrawal events
+  if (withdrawal) {
+    if (withdrawal.payoutReference) {
+      walletNotificationData.payoutReference = withdrawal.payoutReference;
+    }
+    if (withdrawal.rejectionReason) {
+      walletNotificationData.rejectionReason = withdrawal.rejectionReason;
+    }
+    if (withdrawal.adminName) {
+      walletNotificationData.adminName = withdrawal.adminName;
+    }
+    if (withdrawal.adminNote) {
+      walletNotificationData.adminNote = withdrawal.adminNote;
+    }
+    if (withdrawal.payoutMethod) {
+      walletNotificationData.payoutMethod = withdrawal.payoutMethod;
+    }
+    if (eventType === 'withdrawal_paid' && withdrawal.processedAt) {
+      walletNotificationData.processedAt = withdrawal.processedAt;
+    }
+  }
+
   return createNotification({
     userId,
     userType,
     type: 'wallet',
     title,
     message,
-    data: {
-      amount,
-      eventType,
-      withdrawalId: withdrawal?._id || withdrawal?.id,
-      payoutReference: withdrawal?.payoutReference,
-      rejectionReason: withdrawal?.rejectionReason,
-    },
+    data: walletNotificationData,
     priority,
     actionUrl,
     icon: 'wallet',
@@ -365,9 +551,9 @@ const createOrderNotification = async ({ userId, userType, order, eventType, pha
     case 'confirmed':
       title = 'Order Confirmed';
       message = pharmacy
-        ? 'Your order has been confirmed'
+        ? 'Your order has been confirmed by Pharmacy'
         : laboratory
-        ? `Your order has been confirmed by ${laboratory.labName || 'Laboratory'}`
+        ? 'Your order has been confirmed by Lab'
         : 'Order has been confirmed';
       actionUrl = '/patient/orders';
       break;
@@ -375,46 +561,34 @@ const createOrderNotification = async ({ userId, userType, order, eventType, pha
       // Handle new lab visit flow statuses and pharmacy order statuses
       const statusMessages = {
         // Lab visit flow statuses
-        visit_time: laboratory
-          ? `You can now visit ${laboratory.labName || 'the lab'}`
-          : 'You can now visit the lab',
-        sample_collected: laboratory
-          ? `Sample collected by ${laboratory.labName || 'Laboratory'}`
-          : 'Your sample has been collected',
-        being_tested: laboratory
-          ? `Your test is being processed by ${laboratory.labName || 'Laboratory'}`
-          : 'Your test is being processed',
-        reports_being_generated: laboratory
-          ? `Reports are being generated by ${laboratory.labName || 'Laboratory'}`
-          : 'Your reports are being generated',
-        test_successful: laboratory
-          ? `Test completed successfully by ${laboratory.labName || 'Laboratory'}`
-          : 'Your test has been completed successfully',
-        reports_updated: laboratory
-          ? `Your test reports are ready from ${laboratory.labName || 'Laboratory'}`
-          : 'Your test reports are ready',
-        // Pharmacy order flow statuses (no pharmacy name shown)
-        prescription_received: 'Your prescription has been received',
-        medicine_collected: 'Medicines are being collected',
-        packed: 'Your order has been packed',
+        visit_time: 'You can now visit the lab',
+        sample_collected: 'Your sample has been collected by Lab',
+        being_tested: 'Your test is being processed by Lab',
+        reports_being_generated: 'Your reports are being generated by Lab',
+        test_successful: 'Your test has been completed successfully by Lab',
+        reports_updated: 'Your test reports are ready from Lab',
+        // Pharmacy order flow statuses
+        prescription_received: 'Your prescription has been received by Pharmacy',
+        medicine_collected: 'Medicines are being collected by Pharmacy',
+        packed: 'Your order has been packed by Pharmacy',
         ready_to_be_picked: 'Your order is ready to be picked',
         picked_up: 'Your order has been picked up',
         delivered: 'Your order has been delivered',
       };
       title = status === 'reports_updated' ? 'Reports Ready' : 'Order Status Updated';
       message = statusMessages[status] || (pharmacy
-        ? 'Your order status has been updated'
+        ? 'Your order status has been updated by Pharmacy'
         : laboratory
-        ? `Order status updated by ${laboratory.labName || 'Laboratory'}`
+        ? 'Order status updated by Lab'
         : 'Your order status has been updated');
       actionUrl = '/patient/orders';
       break;
     case 'completed':
       title = 'Order Completed';
       message = pharmacy
-        ? 'Your order has been completed'
+        ? 'Your order has been completed by Pharmacy'
         : laboratory
-        ? `Your test report is ready from ${laboratory.labName || 'Laboratory'}`
+        ? 'Your test report is ready from Lab'
         : 'Order has been completed';
       actionUrl = '/patient/orders';
       break;
@@ -466,24 +640,49 @@ const createRequestNotification = async ({ userId, userType, request, eventType,
       break;
     case 'assigned':
       if (userType === 'pharmacy') {
-        // Pharmacy notification when patient makes payment
+        // Pharmacy notification when admin assigns request
         const patientName = patient?.firstName && patient?.lastName
           ? `${patient.firstName} ${patient.lastName}`
           : patient?.firstName || request?.patientId?.firstName || 'Patient';
         const requestAmount = request?.adminResponse?.totalAmount || request?.totalAmount || 0;
         title = 'New Order Request';
-        message = `Payment received! New order request from ${patientName}${requestAmount > 0 ? ` (₹${requestAmount})` : ''}. Please check your request orders.`;
+        message = `New order request from ${patientName}${requestAmount > 0 ? ` (₹${requestAmount})` : ''}. Please check your request orders.`;
         actionUrl = '/pharmacy/request-orders';
       } else if (userType === 'laboratory') {
         title = 'Request Assigned';
-        message = laboratory
-          ? `Request assigned to ${laboratory.labName || 'Laboratory'}`
-          : 'Request has been assigned';
+        message = 'Request has been assigned';
         actionUrl = '/laboratory/orders';
       } else {
         title = 'Request Assigned';
         message = 'Request has been assigned';
         actionUrl = '/pharmacy/orders';
+      }
+      break;
+    case 'payment_received':
+      if (userType === 'pharmacy') {
+        // Pharmacy notification when patient payment is confirmed
+        const patientName = patient?.firstName && patient?.lastName
+          ? `${patient.firstName} ${patient.lastName}`
+          : patient?.firstName || request?.patientId?.firstName || request?.patientId?.name || 'Patient';
+        const requestAmount = request?.adminResponse?.totalAmount || request?.totalAmount || 0;
+        const requestId = request?._id || request?.id || 'N/A';
+        title = 'Payment Received - New Order';
+        message = `Payment of ₹${requestAmount} received from ${patientName} for order request (Request ID: ${requestId}). Please check your request orders.`;
+        actionUrl = '/pharmacy/request-orders';
+      } else if (userType === 'laboratory') {
+        // Laboratory notification when patient payment is confirmed
+        const patientName = patient?.firstName && patient?.lastName
+          ? `${patient.firstName} ${patient.lastName}`
+          : patient?.firstName || request?.patientId?.firstName || request?.patientId?.name || 'Patient';
+        const requestAmount = request?.adminResponse?.totalAmount || request?.totalAmount || 0;
+        const requestId = request?._id || request?.id || 'N/A';
+        title = 'Payment Received - New Test Booking';
+        message = `Payment of ₹${requestAmount} received from ${patientName} for test booking request (Request ID: ${requestId}). Please check your request orders.`;
+        actionUrl = '/laboratory/request-orders';
+      } else {
+        title = 'Payment Received';
+        message = 'Payment has been received for your request';
+        actionUrl = '/patient/requests';
       }
       break;
     case 'confirmed':
@@ -495,6 +694,20 @@ const createRequestNotification = async ({ userId, userType, request, eventType,
       title = 'Request Update';
       message = 'Your request has been updated';
       actionUrl = '/patient/requests';
+  }
+
+  // Get patient data for email if not provided and userType is patient
+  let user = null;
+  if (userType === 'patient' && patient) {
+    user = patient;
+  } else if (userType === 'patient' && request?.patientId) {
+    try {
+      const Patient = require('../models/Patient');
+      const patientData = await Patient.findById(request.patientId).select('email firstName lastName');
+      if (patientData) user = patientData;
+    } catch (error) {
+      console.error('Error fetching patient for email:', error);
+    }
   }
 
   return createNotification({
@@ -512,6 +725,8 @@ const createRequestNotification = async ({ userId, userType, request, eventType,
     priority: 'high',
     actionUrl,
     icon: 'request',
+    sendEmail: userType === 'patient', // Send email for patient notifications
+    user,
   });
 };
 
@@ -520,8 +735,8 @@ const createRequestNotification = async ({ userId, userType, request, eventType,
  */
 const createReportNotification = async ({ userId, userType, report, laboratory, patient }) => {
   const title = 'Test Report Ready';
-  const message = laboratory
-    ? `Test report is ready from ${laboratory.labName || 'Laboratory'}`
+  const message = userType === 'patient'
+    ? 'Test report is ready from Lab'
     : `Test report created for ${patient.firstName} ${patient.lastName || ''}`;
   
   return createNotification({
@@ -543,36 +758,45 @@ const createReportNotification = async ({ userId, userType, report, laboratory, 
 /**
  * Create notification for admin events
  */
-const createAdminNotification = async ({ userId, userType, eventType, data }) => {
+const createAdminNotification = async ({ userId, userType, eventType, data, actionUrl: customActionUrl }) => {
   let title, message, actionUrl, priority = 'medium';
 
   switch (eventType) {
     case 'payment_received':
       title = 'Payment Received';
       message = `Payment of ₹${data.amount || 0} received from patient`;
-      actionUrl = '/admin/wallet';
+      actionUrl = customActionUrl || '/admin/wallet';
       priority = 'high';
       break;
     case 'withdrawal_requested':
+      // Enhanced message with provider details
+      const providerName = data.providerName || 'Provider';
+      const providerType = data.providerType || 'provider';
+      const providerTypeLabel = providerType === 'doctor' ? 'Doctor' : providerType === 'pharmacy' ? 'Pharmacy' : providerType === 'laboratory' ? 'Laboratory' : 'Provider';
+      const payoutMethodType = data.payoutMethod?.type || data.payoutMethod || 'N/A';
       title = 'Withdrawal Request';
-      message = `New withdrawal request of ₹${data.amount || 0} from ${data.userType || 'provider'}`;
-      actionUrl = '/admin/wallet';
+      message = `New withdrawal request of ₹${data.amount || 0} from ${providerTypeLabel} ${providerName} via ${payoutMethodType}`;
+      actionUrl = customActionUrl || '/admin/wallet';
       priority = 'high';
       break;
     case 'request_created':
-      title = 'New Request';
-      message = 'New patient request has been submitted';
-      actionUrl = '/admin/requests';
+      // Enhanced message with patient and request details
+      const patientName = data.patientName || 'Patient';
+      const requestTypeLabel = data.requestTypeLabel || data.requestType || 'Request';
+      title = 'New Patient Request';
+      message = `New ${requestTypeLabel} request from ${patientName}${data.patientPhone ? ` (${data.patientPhone})` : ''}`;
+      actionUrl = customActionUrl || '/admin/requests';
+      priority = 'medium';
       break;
     case 'request_confirmed':
       title = 'Request Confirmed';
       message = 'Patient request has been confirmed';
-      actionUrl = '/admin/requests';
+      actionUrl = customActionUrl || '/admin/requests';
       break;
     default:
       title = 'System Update';
       message = 'System update received';
-      actionUrl = '/admin/dashboard';
+      actionUrl = customActionUrl || '/admin/dashboard';
   }
 
   return createNotification({
@@ -690,15 +914,17 @@ const sendAppointmentConfirmationEmail = async ({ patient, doctor, appointment }
 /**
  * Send appointment notification to doctor
  */
-const sendDoctorAppointmentNotification = async ({ doctor, patient, appointment }) => {
+const sendDoctorAppointmentNotification = async ({ doctor, patient, appointment, eventType = 'created' }) => {
   if (!(await isEmailNotificationsEnabled())) return null;
   if (!doctor?.email) return null;
 
   const patientName = patient.firstName
     ? `${patient.firstName} ${patient.lastName || ''}`.trim()
     : 'Patient';
-  const appointmentDate = appointment.appointmentDate
-    ? new Date(appointment.appointmentDate).toLocaleDateString('en-IN', {
+  
+  const appointmentDate = appointment.appointmentDate || appointment.sessionId?.date;
+  const formattedDate = appointmentDate
+    ? new Date(appointmentDate).toLocaleDateString('en-IN', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -706,11 +932,42 @@ const sendDoctorAppointmentNotification = async ({ doctor, patient, appointment 
       })
     : '';
 
+  // Handle reschedule emails with old and new dates
+  if (eventType === 'rescheduled' && appointment.rescheduleReason) {
+    let oldDateText = '';
+    const reasonMatch = appointment.rescheduleReason.match(/Rescheduled from (.+?) to/);
+    if (reasonMatch && reasonMatch[1]) {
+      try {
+        const oldDateObj = new Date(reasonMatch[1].trim());
+        if (!isNaN(oldDateObj.getTime())) {
+          oldDateText = oldDateObj.toLocaleDateString('en-IN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+        }
+      } catch (error) {
+        // Ignore parsing errors
+      }
+    }
+    
+    if (oldDateText) {
+      return sendEmail({
+        to: doctor.email,
+        subject: `Appointment Rescheduled - ${patientName} | Healiinn`,
+        text: `Hello Dr. ${doctor.firstName || 'Doctor'},\n\nAn appointment has been rescheduled:\n\nPatient: ${patientName}\nPrevious Date: ${oldDateText}\nNew Date: ${formattedDate}\nToken Number: ${appointment.tokenNumber || 'N/A'}\n\nThank you,\nTeam Healiinn`,
+        html: `<p>Hello Dr. ${doctor.firstName || 'Doctor'},</p><p>An appointment has been rescheduled:</p><ul><li><strong>Patient:</strong> ${patientName}</li><li><strong>Previous Date:</strong> ${oldDateText}</li><li><strong>New Date:</strong> ${formattedDate}</li><li><strong>Token Number:</strong> ${appointment.tokenNumber || 'N/A'}</li></ul><p>Thank you,<br/>Team Healiinn</p>`,
+      });
+    }
+  }
+
+  // Default: new appointment email
   return sendEmail({
     to: doctor.email,
     subject: `New Appointment - ${patientName} | Healiinn`,
-    text: `Hello Dr. ${doctor.firstName || 'Doctor'},\n\nYou have a new appointment:\n\nPatient: ${patientName}\nDate: ${appointmentDate}\nToken Number: ${appointment.tokenNumber || 'N/A'}\n\nThank you,\nTeam Healiinn`,
-    html: `<p>Hello Dr. ${doctor.firstName || 'Doctor'},</p><p>You have a new appointment:</p><ul><li><strong>Patient:</strong> ${patientName}</li><li><strong>Date:</strong> ${appointmentDate}</li><li><strong>Token Number:</strong> ${appointment.tokenNumber || 'N/A'}</li></ul><p>Thank you,<br/>Team Healiinn</p>`,
+    text: `Hello Dr. ${doctor.firstName || 'Doctor'},\n\nYou have a new appointment:\n\nPatient: ${patientName}\nDate: ${formattedDate}\nToken Number: ${appointment.tokenNumber || 'N/A'}\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello Dr. ${doctor.firstName || 'Doctor'},</p><p>You have a new appointment:</p><ul><li><strong>Patient:</strong> ${patientName}</li><li><strong>Date:</strong> ${formattedDate}</li><li><strong>Token Number:</strong> ${appointment.tokenNumber || 'N/A'}</li></ul><p>Thank you,<br/>Team Healiinn</p>`,
   });
 };
 
@@ -751,13 +1008,12 @@ const sendLabReportReadyEmail = async ({ patient, laboratory, report, order }) =
   const patientName = patient.firstName
     ? `${patient.firstName} ${patient.lastName || ''}`.trim()
     : 'Patient';
-  const labName = laboratory?.labName || 'Laboratory';
 
   return sendEmail({
     to: patient.email,
-    subject: `Test Report Ready - ${labName} | Healiinn`,
-    text: `Hello ${patientName},\n\nYour test report is ready from ${labName}. You can view and download it from the app.\n\nThank you,\nTeam Healiinn`,
-    html: `<p>Hello ${patientName},</p><p>Your test report is ready from <strong>${labName}</strong>. You can view and download it from the app.</p><p>Thank you,<br/>Team Healiinn</p>`,
+    subject: `Test Report Ready | Healiinn`,
+    text: `Hello ${patientName},\n\nYour test report is ready from Lab. You can view and download it from the app.\n\nThank you,\nTeam Healiinn`,
+    html: `<p>Hello ${patientName},</p><p>Your test report is ready from <strong>Lab</strong>. You can view and download it from the app.</p><p>Thank you,<br/>Team Healiinn</p>`,
   });
 };
 
@@ -772,11 +1028,6 @@ const sendOrderStatusUpdateEmail = async ({ patient, pharmacy, laboratory, order
     ? `${patient.firstName} ${patient.lastName || ''}`.trim()
     : 'Patient';
   
-  // Don't show pharmacy name to patients, use generic text
-  const providerName = pharmacy 
-    ? 'Prescription Medicines' 
-    : laboratory?.labName || 'Provider';
-
   const statusMessages = {
     confirmed: 'has been confirmed',
     processing: 'is being processed',
@@ -801,18 +1052,17 @@ const sendOrderStatusUpdateEmail = async ({ patient, pharmacy, laboratory, order
 
   const message = statusMessages[status] || 'has been updated';
 
-  // For pharmacy orders, don't include "by Provider" in the message
-  const emailText = pharmacy
-    ? `Hello ${patientName},\n\nYour order ${message}.\n\nOrder ID: ${order._id || order.id}\nStatus: ${status}\n\nThank you,\nTeam Healiinn`
-    : `Hello ${patientName},\n\nYour order ${message} by ${providerName}.\n\nOrder ID: ${order._id || order.id}\nStatus: ${status}\n\nThank you,\nTeam Healiinn`;
+  // For pharmacy orders, don't include "by Pharmacy" in the message (generic message)
+  // For lab orders, include "by Lab" in the message
+  const providerText = pharmacy ? '' : laboratory ? ' by Lab' : '';
+  const emailText = `Hello ${patientName},\n\nYour order ${message}${providerText}.\n\nOrder ID: ${order._id || order.id}\nStatus: ${status}\n\nThank you,\nTeam Healiinn`;
   
-  const emailHtml = pharmacy
-    ? `<p>Hello ${patientName},</p><p>Your order ${message}.</p><ul><li><strong>Order ID:</strong> ${order._id || order.id}</li><li><strong>Status:</strong> ${status}</li></ul><p>Thank you,<br/>Team Healiinn</p>`
-    : `<p>Hello ${patientName},</p><p>Your order ${message} by <strong>${providerName}</strong>.</p><ul><li><strong>Order ID:</strong> ${order._id || order.id}</li><li><strong>Status:</strong> ${status}</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
+  const providerHtml = pharmacy ? '' : laboratory ? ' by <strong>Lab</strong>' : '';
+  const emailHtml = `<p>Hello ${patientName},</p><p>Your order ${message}${providerHtml}.</p><ul><li><strong>Order ID:</strong> ${order._id || order.id}</li><li><strong>Status:</strong> ${status}</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
 
   return sendEmail({
     to: patient.email,
-    subject: pharmacy ? `Order Update | Healiinn` : `Order Update - ${providerName} | Healiinn`,
+    subject: `Order Update | Healiinn`,
     text: emailText,
     html: emailHtml,
   });
@@ -942,6 +1192,27 @@ const sendSupportTicketNotification = async ({ user, ticket, userType, isRespons
   
   if (isResponse && latestResponse) {
     // Admin responded to ticket
+    const ticketId = ticket._id || ticket.id;
+    
+    // Short format for pharmacy and laboratory
+    if (userType === 'pharmacy' || userType === 'laboratory') {
+      const responsePreview = latestResponse.message.length > 100 
+        ? `${latestResponse.message.substring(0, 100)}...` 
+        : latestResponse.message;
+      
+      const shortText = `Hello ${userName},\n\nAdmin responded to your ticket: "${ticketSubject}"\n\nResponse: ${responsePreview}${adminNote ? `\n\nNote: ${adminNote}` : ''}\n\nTicket ID: ${ticketId}\n\nThank you,\nTeam Healiinn`;
+      
+      const shortHtml = `<p>Hello ${userName},</p><p>Admin responded to your ticket: "<strong>${ticketSubject}</strong>"</p><p><strong>Response:</strong> ${responsePreview}</p>${adminNote ? `<p><strong>Note:</strong> ${adminNote}</p>` : ''}<p><strong>Ticket ID:</strong> ${ticketId}</p><p>Thank you,<br/>Team Healiinn</p>`;
+      
+      return sendEmail({
+        to: userEmail,
+        subject: `Support Response - ${ticketSubject} | Healiinn`,
+        text: shortText,
+        html: shortHtml,
+      });
+    }
+    
+    // Full format for patient and doctor
     const responseText = adminNote 
       ? `Admin Response:\n${latestResponse.message}\n\nAdmin Note:\n${adminNote}`
       : `Admin Response:\n${latestResponse.message}`;
@@ -969,6 +1240,22 @@ const sendSupportTicketNotification = async ({ user, ticket, userType, isRespons
     
     if (adminNote) {
       // Status update with admin note
+      const ticketId = ticket._id || ticket.id;
+      
+      // Short format for pharmacy and laboratory
+      if (userType === 'pharmacy' || userType === 'laboratory') {
+        const shortText = `Hello ${userName},\n\nTicket "${ticketSubject}" status: ${statusLabel}${adminNote ? `\n\nNote: ${adminNote}` : ''}\n\nTicket ID: ${ticketId}\n\nThank you,\nTeam Healiinn`;
+        const shortHtml = `<p>Hello ${userName},</p><p>Ticket "<strong>${ticketSubject}</strong>" status: <strong>${statusLabel}</strong>${adminNote ? `</p><p><strong>Note:</strong> ${adminNote}` : ''}</p><p><strong>Ticket ID:</strong> ${ticketId}</p><p>Thank you,<br/>Team Healiinn</p>`;
+        
+        return sendEmail({
+          to: userEmail,
+          subject: `Support Ticket ${statusLabel} - ${ticketSubject} | Healiinn`,
+          text: shortText,
+          html: shortHtml,
+        });
+      }
+      
+      // Full format for patient and doctor
       return sendEmail({
         to: userEmail,
         subject: `Support Ticket ${statusLabel} - ${ticketSubject} | Healiinn`,
@@ -1043,31 +1330,54 @@ const sendWithdrawalStatusUpdateEmail = async ({ provider, withdrawal, providerT
   const withdrawalStatus = withdrawal.status || 'pending';
   const payoutReference = withdrawal.payoutReference || '';
   const rejectionReason = withdrawal.rejectionReason || '';
+  const payoutMethod = withdrawal.payoutMethod || {};
+  const payoutMethodType = payoutMethod.type || payoutMethod || 'N/A';
+  const payoutMethodDetails = payoutMethod.details || {};
 
   let subject = '';
   let message = '';
   let htmlMessage = '';
 
+  const adminName = withdrawal?.adminName || 'Admin';
+  const adminNote = withdrawal?.adminNote || '';
+  const withdrawalId = withdrawal._id || withdrawal.id || 'N/A';
+
+  // Format payout method details for display
+  let payoutDetailsText = '';
+  let payoutDetailsHtml = '';
+  if (payoutMethodType !== 'N/A' && payoutMethodDetails) {
+    if (payoutMethodType === 'bank_transfer') {
+      payoutDetailsText = `\nAccount Number: ${payoutMethodDetails.accountNumber || 'N/A'}\nIFSC Code: ${payoutMethodDetails.ifscCode || 'N/A'}\nBank Name: ${payoutMethodDetails.bankName || 'N/A'}\nAccount Holder: ${payoutMethodDetails.accountHolderName || 'N/A'}`;
+      payoutDetailsHtml = `<ul><li><strong>Account Number:</strong> ${payoutMethodDetails.accountNumber || 'N/A'}</li><li><strong>IFSC Code:</strong> ${payoutMethodDetails.ifscCode || 'N/A'}</li><li><strong>Bank Name:</strong> ${payoutMethodDetails.bankName || 'N/A'}</li><li><strong>Account Holder:</strong> ${payoutMethodDetails.accountHolderName || 'N/A'}</li></ul>`;
+    } else if (payoutMethodType === 'upi') {
+      payoutDetailsText = `\nUPI ID: ${payoutMethodDetails.upiId || 'N/A'}`;
+      payoutDetailsHtml = `<p><strong>UPI ID:</strong> ${payoutMethodDetails.upiId || 'N/A'}</p>`;
+    } else if (payoutMethodType === 'paytm') {
+      payoutDetailsText = `\nPaytm Number: ${payoutMethodDetails.paytmNumber || 'N/A'}`;
+      payoutDetailsHtml = `<p><strong>Paytm Number:</strong> ${payoutMethodDetails.paytmNumber || 'N/A'}</p>`;
+    }
+  }
+
   switch (withdrawalStatus) {
     case 'approved':
       subject = `Withdrawal Request Approved - ₹${withdrawalAmount} | Healiinn`;
-      message = `Hello ${providerName},\n\nYour withdrawal request of ₹${withdrawalAmount} has been approved by admin.\n\nWithdrawal ID: ${withdrawal._id || withdrawal.id}\nStatus: Approved\n\nPayment will be processed shortly.\n\nThank you,\nTeam Healiinn`;
-      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request of <strong>₹${withdrawalAmount}</strong> has been approved by admin.</p><ul><li><strong>Withdrawal ID:</strong> ${withdrawal._id || withdrawal.id}</li><li><strong>Status:</strong> Approved</li></ul><p>Payment will be processed shortly.</p><p>Thank you,<br/>Team Healiinn</p>`;
+      message = `Hello ${providerName},\n\nYour withdrawal request has been approved by ${adminName}.\n\nWithdrawal Details:\n- Amount: ₹${withdrawalAmount}\n- Withdrawal ID: ${withdrawalId}\n- Status: Approved${adminNote ? `\n- Admin Note: ${adminNote}` : ''}\n\nPayment will be processed shortly.\n\nThank you,\nTeam Healiinn`;
+      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request has been approved by <strong>${adminName}</strong>.</p><ul><li><strong>Amount:</strong> ₹${withdrawalAmount}</li><li><strong>Withdrawal ID:</strong> ${withdrawalId}</li><li><strong>Status:</strong> Approved</li>${adminNote ? `<li><strong>Admin Note:</strong> ${adminNote}</li>` : ''}</ul><p>Payment will be processed shortly.</p><p>Thank you,<br/>Team Healiinn</p>`;
       break;
     case 'paid':
       subject = `Withdrawal Payment Processed - ₹${withdrawalAmount} | Healiinn`;
-      message = `Hello ${providerName},\n\nYour withdrawal request of ₹${withdrawalAmount} has been processed and payment has been sent.${payoutReference ? `\n\nPayout Reference: ${payoutReference}` : ''}\n\nWithdrawal ID: ${withdrawal._id || withdrawal.id}\nStatus: Paid\n\nThank you,\nTeam Healiinn`;
-      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request of <strong>₹${withdrawalAmount}</strong> has been processed and payment has been sent.${payoutReference ? `<p><strong>Payout Reference:</strong> ${payoutReference}</p>` : ''}</p><ul><li><strong>Withdrawal ID:</strong> ${withdrawal._id || withdrawal.id}</li><li><strong>Status:</strong> Paid</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
+      message = `Hello ${providerName},\n\nYour withdrawal request has been processed and payment has been sent by ${adminName}.\n\nPayment Details:\n- Amount: ₹${withdrawalAmount}\n- Withdrawal ID: ${withdrawalId}${payoutReference ? `\n- Payout Reference: ${payoutReference}` : ''}\n- Payment Method: ${payoutMethodType}${payoutDetailsText}\n- Status: Paid\n\nThank you,\nTeam Healiinn`;
+      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request has been processed and payment has been sent by <strong>${adminName}</strong>.</p><ul><li><strong>Amount:</strong> ₹${withdrawalAmount}</li><li><strong>Withdrawal ID:</strong> ${withdrawalId}</li>${payoutReference ? `<li><strong>Payout Reference:</strong> ${payoutReference}</li>` : ''}<li><strong>Payment Method:</strong> ${payoutMethodType}</li><li><strong>Status:</strong> Paid</li></ul>${payoutDetailsHtml ? payoutDetailsHtml : ''}<p>Thank you,<br/>Team Healiinn</p>`;
       break;
     case 'rejected':
       subject = `Withdrawal Request Rejected - ₹${withdrawalAmount} | Healiinn`;
-      message = `Hello ${providerName},\n\nYour withdrawal request of ₹${withdrawalAmount} has been rejected.${rejectionReason ? `\n\nReason: ${rejectionReason}` : ''}\n\nWithdrawal ID: ${withdrawal._id || withdrawal.id}\nStatus: Rejected\n\nThank you,\nTeam Healiinn`;
-      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request of <strong>₹${withdrawalAmount}</strong> has been rejected.${rejectionReason ? `<p><strong>Reason:</strong> ${rejectionReason}</p>` : ''}</p><ul><li><strong>Withdrawal ID:</strong> ${withdrawal._id || withdrawal.id}</li><li><strong>Status:</strong> Rejected</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
+      message = `Hello ${providerName},\n\nYour withdrawal request has been rejected by ${adminName}.\n\nWithdrawal Details:\n- Amount: ₹${withdrawalAmount}\n- Withdrawal ID: ${withdrawalId}${rejectionReason ? `\n- Reason: ${rejectionReason}` : ''}\n- Status: Rejected\n\nThank you,\nTeam Healiinn`;
+      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request has been rejected by <strong>${adminName}</strong>.</p><ul><li><strong>Amount:</strong> ₹${withdrawalAmount}</li><li><strong>Withdrawal ID:</strong> ${withdrawalId}</li>${rejectionReason ? `<li><strong>Reason:</strong> ${rejectionReason}</li>` : ''}<li><strong>Status:</strong> Rejected</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
       break;
     default:
       subject = `Withdrawal Status Update - ₹${withdrawalAmount} | Healiinn`;
-      message = `Hello ${providerName},\n\nYour withdrawal request status has been updated.\n\nWithdrawal ID: ${withdrawal._id || withdrawal.id}\nStatus: ${withdrawalStatus}\nAmount: ₹${withdrawalAmount}\n\nThank you,\nTeam Healiinn`;
-      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request status has been updated.</p><ul><li><strong>Withdrawal ID:</strong> ${withdrawal._id || withdrawal.id}</li><li><strong>Status:</strong> ${withdrawalStatus}</li><li><strong>Amount:</strong> ₹${withdrawalAmount}</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
+      message = `Hello ${providerName},\n\nYour withdrawal request status has been updated.\n\nWithdrawal Details:\n- Amount: ₹${withdrawalAmount}\n- Withdrawal ID: ${withdrawalId}\n- Status: ${withdrawalStatus}\n\nThank you,\nTeam Healiinn`;
+      htmlMessage = `<p>Hello ${providerName},</p><p>Your withdrawal request status has been updated.</p><ul><li><strong>Amount:</strong> ₹${withdrawalAmount}</li><li><strong>Withdrawal ID:</strong> ${withdrawalId}</li><li><strong>Status:</strong> ${withdrawalStatus}</li></ul><p>Thank you,<br/>Team Healiinn</p>`;
   }
 
   return sendEmail({
@@ -1112,6 +1422,65 @@ const sendAdminSupportTicketNotification = async ({ admin, ticket, user, userTyp
 };
 
 /**
+ * Create admin notification for support ticket
+ * @param {Object} params
+ * @param {String} params.adminId - Admin ID
+ * @param {Object} params.ticket - Support ticket object
+ * @param {Object} params.user - User who created ticket (patient/doctor/pharmacy/lab)
+ * @param {String} params.userType - User type (patient/doctor/pharmacy/laboratory)
+ */
+const createAdminSupportTicketNotification = async ({ adminId, ticket, user, userType }) => {
+  let userName = '';
+  let userTypeLabel = '';
+  
+  // Extract name and type label based on user type
+  if (userType === 'patient') {
+    userName = user?.firstName && user?.lastName
+      ? `${user.firstName} ${user.lastName}`.trim()
+      : user?.firstName || user?.email || 'Patient';
+    userTypeLabel = 'Patient';
+  } else if (userType === 'doctor') {
+    userName = user?.firstName && user?.lastName
+      ? `Dr. ${user.firstName} ${user.lastName}`.trim()
+      : user?.firstName ? `Dr. ${user.firstName}` : user?.email || 'Doctor';
+    userTypeLabel = 'Doctor';
+  } else if (userType === 'pharmacy') {
+    userName = user?.pharmacyName || user?.ownerName || user?.email || 'Pharmacy';
+    userTypeLabel = 'Pharmacy';
+  } else if (userType === 'laboratory') {
+    userName = user?.labName || user?.ownerName || user?.email || 'Laboratory';
+    userTypeLabel = 'Laboratory';
+  }
+  
+  const ticketSubject = ticket.subject || 'Support Request';
+  const title = 'New Support Ticket';
+  const message = `New support ticket from ${userTypeLabel} ${userName}: ${ticketSubject}`;
+  
+  return createNotification({
+    userId: adminId,
+    userType: 'admin',
+    type: 'support',
+    title,
+    message,
+    data: {
+      ticketId: ticket._id || ticket.id,
+      userId: user?._id || user?.id,
+      userType,
+      userName,
+      userTypeLabel,
+      subject: ticketSubject,
+      priority: ticket.priority || 'medium',
+      message: ticket.message || '',
+    },
+    priority: ticket.priority === 'high' || ticket.priority === 'urgent' ? 'high' : 'medium',
+    actionUrl: `/admin/support/${ticket._id || ticket.id}`,
+    icon: 'support',
+    sendEmail: false, // Email already sent via sendAdminSupportTicketNotification
+    emitSocket: true,
+  });
+};
+
+/**
  * Create support ticket notification (in-app)
  */
 const createSupportTicketNotification = async ({ userId, userType, ticket, eventType }) => {
@@ -1133,9 +1502,16 @@ const createSupportTicketNotification = async ({ userId, userType, ticket, event
       break;
     case 'responded':
       title = 'Response Received';
-      message = adminNote 
-        ? `Admin has responded to your support ticket "${ticketSubject}". Note: ${adminNote}`
-        : `Admin has responded to your support ticket "${ticketSubject}".`;
+      // Short format for pharmacy and laboratory
+      if (userType === 'pharmacy' || userType === 'laboratory') {
+        message = adminNote 
+          ? `Admin responded to "${ticketSubject}". ${adminNote}`
+          : `Admin responded to "${ticketSubject}".`;
+      } else {
+        message = adminNote 
+          ? `Admin has responded to your support ticket "${ticketSubject}". Note: ${adminNote}`
+          : `Admin has responded to your support ticket "${ticketSubject}".`;
+      }
       actionUrl = `/${modulePath}/support`;
       break;
     case 'status_updated':
@@ -1144,16 +1520,30 @@ const createSupportTicketNotification = async ({ userId, userType, ticket, event
         : ticket.status === 'in_progress' ? 'In Progress'
         : 'Updated';
       title = `Ticket ${statusLabel}`;
-      message = adminNote
-        ? `Your support ticket "${ticketSubject}" has been ${statusLabel.toLowerCase()}. Admin Note: ${adminNote}`
-        : `Your support ticket "${ticketSubject}" has been ${statusLabel.toLowerCase()}.`;
+      // Short format for pharmacy and laboratory
+      if (userType === 'pharmacy' || userType === 'laboratory') {
+        message = adminNote
+          ? `Ticket "${ticketSubject}" ${statusLabel.toLowerCase()}. ${adminNote}`
+          : `Ticket "${ticketSubject}" ${statusLabel.toLowerCase()}.`;
+      } else {
+        message = adminNote
+          ? `Your support ticket "${ticketSubject}" has been ${statusLabel.toLowerCase()}. Admin Note: ${adminNote}`
+          : `Your support ticket "${ticketSubject}" has been ${statusLabel.toLowerCase()}.`;
+      }
       actionUrl = `/${modulePath}/support`;
       break;
     default:
       title = 'Support Ticket Update';
-      message = adminNote
-        ? `Your support ticket "${ticketSubject}" has been updated. Admin Note: ${adminNote}`
-        : `Your support ticket "${ticketSubject}" has been updated.`;
+      // Short format for pharmacy and laboratory
+      if (userType === 'pharmacy' || userType === 'laboratory') {
+        message = adminNote
+          ? `Ticket "${ticketSubject}" updated. ${adminNote}`
+          : `Ticket "${ticketSubject}" updated.`;
+      } else {
+        message = adminNote
+          ? `Your support ticket "${ticketSubject}" has been updated. Admin Note: ${adminNote}`
+          : `Your support ticket "${ticketSubject}" has been updated.`;
+      }
       actionUrl = `/${modulePath}/support`;
   }
   
@@ -1205,4 +1595,5 @@ module.exports = {
   sendSupportTicketNotification,
   sendAdminSupportTicketNotification,
   createSupportTicketNotification,
+  createAdminSupportTicketNotification,
 };

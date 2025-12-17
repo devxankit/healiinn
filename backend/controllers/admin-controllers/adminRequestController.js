@@ -122,11 +122,51 @@ exports.acceptRequest = asyncHandler(async (req, res) => {
   request.status = 'accepted';
   await request.save();
 
+  // Get populated request for notifications
+  const populatedRequest = await Request.findById(request._id)
+    .populate('patientId', 'firstName lastName phone email')
+    .populate({
+      path: 'prescriptionId',
+      populate: [
+        {
+          path: 'doctorId',
+          select: 'firstName lastName specialization profileImage phone email clinicDetails digitalSignature',
+        },
+        {
+          path: 'patientId',
+          select: 'firstName lastName dateOfBirth gender phone email address',
+        },
+        {
+          path: 'consultationId',
+          select: 'consultationDate diagnosis symptoms investigations advice followUpDate',
+        },
+      ],
+    });
+
+  // Get patient data
+  const Patient = require('../../models/Patient');
+  const patient = await Patient.findById(request.patientId);
+
+  // Create in-app notification for patient (with email)
+  try {
+    const { createRequestNotification } = require('../../services/notificationService');
+    await createRequestNotification({
+      userId: request.patientId,
+      userType: 'patient',
+      request: populatedRequest,
+      eventType: 'confirmed',
+      admin: { _id: id },
+      patient,
+    }).catch((error) => console.error('Error creating patient request accept notification:', error));
+  } catch (error) {
+    console.error('Error creating notifications:', error);
+  }
+
   // Emit real-time event
   try {
     const io = getIO();
     io.to(`patient-${request.patientId}`).emit('request:accepted', {
-      request: await Request.findById(request._id),
+      request: populatedRequest,
     });
   } catch (error) {
     console.error('Socket.IO error:', error);
@@ -283,20 +323,7 @@ exports.respondToRequest = asyncHandler(async (req, res) => {
     console.error('Error creating notifications:', error);
   }
 
-  // Send email notification to patient
-  try {
-    const populatedRequest = await Request.findById(request._id)
-      .populate('patientId', 'firstName lastName phone')
-      .populate('prescriptionId');
-
-    const { sendRequestResponseEmail } = require('../../services/notificationService');
-    await sendRequestResponseEmail({
-      patient,
-      request: populatedRequest,
-    }).catch((error) => console.error('Error sending request response email:', error));
-  } catch (error) {
-    console.error('Error sending email notifications:', error);
-  }
+  // Email notification is already sent via createRequestNotification (sendEmail: true by default)
 
   return res.status(200).json({
     success: true,

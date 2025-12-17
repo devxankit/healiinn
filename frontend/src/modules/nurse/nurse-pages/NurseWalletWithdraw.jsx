@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import NurseNavbar from '../nurse-components/NurseNavbar'
+import Pagination from '../../../components/Pagination'
 import {
   IoArrowBackOutline,
   IoCashOutline,
@@ -60,6 +61,10 @@ const NurseWalletWithdraw = () => {
   const [withdrawData, setWithdrawData] = useState(defaultWithdrawData)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
   
   // Payment method details
   const [bankDetails, setBankDetails] = useState({
@@ -77,6 +82,37 @@ const NurseWalletWithdraw = () => {
         setLoading(true)
         setError(null)
         // TODO: Import nurse wallet service when available
+        // const [walletResponse, historyResponse] = await Promise.all([
+        //   getNurseWalletBalance(),
+        //   getNurseWithdrawalHistory({ page: currentPage, limit: itemsPerPage })
+        // ])
+        // 
+        // if (walletResponse && walletResponse.success && walletResponse.data) {
+        //   const walletData = walletResponse.data
+        //   setWithdrawData(prev => ({
+        //     ...prev,
+        //     availableBalance: Number(walletData.availableBalance || 0),
+        //     totalWithdrawals: Number(walletData.totalWithdrawals || 0),
+        //     thisMonthWithdrawals: Number(walletData.thisMonthWithdrawals || 0),
+        //   }))
+        // }
+        // 
+        // if (historyResponse && historyResponse.success && historyResponse.data) {
+        //   const historyData = historyResponse.data
+        //   const withdrawals = Array.isArray(historyData) 
+        //     ? historyData 
+        //     : (historyData.items || historyData.withdrawals || [])
+        //   
+        //   setWithdrawData(prev => ({
+        //     ...prev,
+        //     withdrawalHistory: withdrawals
+        //   }))
+        //   
+        //   // Extract pagination info
+        //   const pagination = historyResponse.data.pagination || {}
+        //   setTotalPages(pagination.totalPages || Math.ceil((pagination.total || withdrawals.length) / itemsPerPage) || 1)
+        //   setTotalItems(pagination.total || withdrawals.length)
+        // }
         setLoading(false)
       } catch (err) {
         console.error('Error fetching withdraw data:', err)
@@ -87,7 +123,7 @@ const NurseWalletWithdraw = () => {
     }
 
     fetchWithdrawData()
-  }, [toast])
+  }, [toast, currentPage])
 
   const validatePaymentMethod = () => {
     if (selectedPaymentMethod === 'bank') {
@@ -232,7 +268,7 @@ const NurseWalletWithdraw = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">Withdrawal History</h2>
               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {loading ? '...' : withdrawData.withdrawalHistory.length} {withdrawData.withdrawalHistory.length === 1 ? 'withdrawal' : 'withdrawals'}
+                {loading ? '...' : totalItems} {totalItems === 1 ? 'withdrawal' : 'withdrawals'}
               </span>
             </div>
             <div className="space-y-3">
@@ -321,6 +357,20 @@ const NurseWalletWithdraw = () => {
                 ))
               )}
             </div>
+
+            {/* Pagination */}
+            {!loading && !error && withdrawData.withdrawalHistory.length > 0 && (
+              <div className="mt-4">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  loading={loading}
+                />
+              </div>
+            )}
           </section>
       </section>
 

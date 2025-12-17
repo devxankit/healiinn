@@ -12,6 +12,7 @@ import {
 } from 'react-icons/io5'
 import { getDoctorWalletEarnings } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Default earning data (will be replaced by API data)
 const defaultEarningData = {
@@ -96,6 +97,14 @@ const WalletEarning = () => {
   const [earningData, setEarningData] = useState(defaultEarningData)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [page, setPage] = useState(1)
+  const [limit] = useState(20)
+  const [pagination, setPagination] = useState(null)
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1)
+  }, [filterType])
 
   // Fetch earnings from API
   useEffect(() => {
@@ -103,13 +112,24 @@ const WalletEarning = () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getDoctorWalletEarnings()
+        const params = {
+          page,
+          limit,
+          // Note: Backend supports dateFrom/dateTo for date filtering
+          // filterType ('today', 'month', 'year') could be converted to date ranges in the future
+        }
+        const response = await getDoctorWalletEarnings(params)
         
         console.log('🔍 Full earnings API response:', response) // Debug log
         
         if (response && response.success && response.data) {
           const data = response.data
           console.log('✅ Earnings data received:', data) // Debug log
+          
+          // Set pagination data
+          if (data.pagination) {
+            setPagination(data.pagination)
+          }
           
           // Handle both array and object with items property
           const earningsList = Array.isArray(data) 
@@ -174,17 +194,16 @@ const WalletEarning = () => {
     }
 
     fetchEarnings()
-  }, [toast])
+  }, [toast, page, limit, filterType])
 
   const earningsChange = earningData.lastMonthEarnings > 0
     ? ((earningData.thisMonthEarnings - earningData.lastMonthEarnings) / earningData.lastMonthEarnings) * 100
     : 0
 
-  const filteredEarnings = earningData.earnings.filter((earning) => {
-    if (filterType === 'all') return true
-    // In a real app, you would filter by date range
-    return true
-  })
+  // Note: filterType ('today', 'month', 'year') is not currently implemented
+  // The earnings data already includes totals for today, month, year from backend
+  // For now, we show all earnings and pagination works on all data
+  const filteredEarnings = earningData.earnings
 
   const location = useLocation()
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
@@ -342,7 +361,7 @@ const WalletEarning = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">Earning History</h2>
               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {filteredEarnings.length} {filteredEarnings.length === 1 ? 'transaction' : 'transactions'}
+                {pagination?.total || filteredEarnings.length} {(pagination?.total || filteredEarnings.length) === 1 ? 'transaction' : 'transactions'}
               </span>
             </div>
             <div className="space-y-3">
@@ -404,6 +423,23 @@ const WalletEarning = () => {
                 ))
               )}
             </div>
+
+            {/* Pagination */}
+            {pagination && pagination.totalPages > 1 && (
+              <div className="mt-4">
+                <Pagination
+                  currentPage={pagination.page || page}
+                  totalPages={pagination.totalPages}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit || limit}
+                  onPageChange={(newPage) => {
+                    setPage(newPage)
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  loading={loading}
+                />
+              </div>
+            )}
           </section>
       </section>
     </>

@@ -13,6 +13,7 @@ import {
 } from 'react-icons/io5'
 import { getDoctorWalletTransactions } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 // Default transactions (will be replaced by API data)
 const defaultTransactions = []
@@ -49,6 +50,14 @@ const WalletTransaction = () => {
   const [transactions, setTransactions] = useState(defaultTransactions)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [page, setPage] = useState(1)
+  const [limit] = useState(20)
+  const [pagination, setPagination] = useState(null)
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1)
+  }, [filterType])
 
   // Fetch transactions from API
   useEffect(() => {
@@ -56,13 +65,23 @@ const WalletTransaction = () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getDoctorWalletTransactions()
+        const params = {
+          page,
+          limit,
+          ...(filterType !== 'all' && { type: filterType === 'earnings' ? 'earning' : filterType }),
+        }
+        const response = await getDoctorWalletTransactions(params)
         
         console.log('🔍 Full transactions API response:', response) // Debug log
         
         if (response && response.success && response.data) {
           const data = response.data
           console.log('✅ Transactions data received:', data) // Debug log
+          
+          // Set pagination data
+          if (data.pagination) {
+            setPagination(data.pagination)
+          }
           
           // Handle both array and object with items property
           const transactionsData = Array.isArray(data) 
@@ -104,14 +123,7 @@ const WalletTransaction = () => {
     }
 
     fetchTransactions()
-  }, [toast])
-
-  const filteredTransactions = transactions.filter((txn) => {
-    if (filterType === 'all') return true
-    if (filterType === 'earnings') return txn.type === 'earning'
-    if (filterType === 'withdrawals') return txn.type === 'withdrawal'
-    return true
-  })
+  }, [toast, page, limit, filterType])
 
   const location = useLocation()
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
@@ -195,18 +207,18 @@ const WalletTransaction = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">Transaction History</h2>
               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {filteredTransactions.length} {filteredTransactions.length === 1 ? 'transaction' : 'transactions'}
+                {pagination?.total || transactions.length} {(pagination?.total || transactions.length) === 1 ? 'transaction' : 'transactions'}
               </span>
             </div>
             <div className="space-y-3">
-              {filteredTransactions.length === 0 ? (
+              {transactions.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
                   <IoReceiptOutline className="mx-auto h-16 w-16 text-slate-300" />
                   <p className="mt-4 text-base font-semibold text-slate-600">No transactions found</p>
                   <p className="mt-1 text-sm text-slate-500">Your transaction history will appear here</p>
                 </div>
               ) : (
-                filteredTransactions.map((transaction) => (
+                transactions.map((transaction) => (
                   <article
                     key={transaction.id}
                     className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
@@ -272,6 +284,23 @@ const WalletTransaction = () => {
                 ))
               )}
             </div>
+
+            {/* Pagination */}
+            {pagination && pagination.totalPages > 1 && (
+              <div className="mt-4">
+                <Pagination
+                  currentPage={pagination.page || page}
+                  totalPages={pagination.totalPages}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit || limit}
+                  onPageChange={(newPage) => {
+                    setPage(newPage)
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  loading={loading}
+                />
+              </div>
+            )}
           </section>
       </section>
     </>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoDocumentTextOutline,
@@ -15,6 +15,7 @@ import {
 } from 'react-icons/io5'
 import { getPatientHistory } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -42,6 +43,8 @@ const PatientHistory = () => {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Fetch history from API
   useEffect(() => {
@@ -162,6 +165,21 @@ const PatientHistory = () => {
     return true
   })
 
+  // Calculate paginated history
+  const paginatedHistory = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredHistory.slice(startIndex, endIndex)
+  }, [filteredHistory, currentPage])
+
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage)
+  const totalItems = filteredHistory.length
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'active':
@@ -240,7 +258,7 @@ const PatientHistory = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredHistory.map((item) => (
+          {paginatedHistory.map((item) => (
             <article
               key={item.id}
               className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-lg"
@@ -488,6 +506,18 @@ const PatientHistory = () => {
             </article>
           ))}
         </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && filteredHistory.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          loading={loading}
+        />
       )}
     </section>
   )

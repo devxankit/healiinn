@@ -15,6 +15,7 @@ import {
   IoFlaskOutline,
 } from 'react-icons/io5'
 import { getLaboratoryOrders, updateLaboratoryOrder } from '../laboratory-services/laboratoryService'
+import Pagination from '../../../components/Pagination'
 
 // Default orders (will be replaced by API data)
 const defaultOrders = []
@@ -77,6 +78,10 @@ const LaboratoryOrders = () => {
   const [orders, setOrders] = useState(defaultOrders)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Fetch orders from API
   useEffect(() => {
@@ -84,12 +89,17 @@ const LaboratoryOrders = () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getLaboratoryOrders({ limit: 50 })
+        const response = await getLaboratoryOrders({ 
+          page: currentPage, 
+          limit: itemsPerPage 
+        })
         
         if (response.success && response.data) {
           const ordersData = Array.isArray(response.data) 
             ? response.data 
             : response.data.leads || response.data.orders || []
+          
+          const pagination = response.data.pagination || {}
           
           // Transform leads to orders format
           const transformedOrders = ordersData.map(lead => {
@@ -134,18 +144,32 @@ const LaboratoryOrders = () => {
             }
           })
           setOrders(transformedOrders)
+          setTotalPages(pagination.totalPages || Math.ceil((pagination.total || transformedOrders.length) / itemsPerPage) || 1)
+          setTotalItems(pagination.total || transformedOrders.length)
+        } else {
+          setOrders([])
+          setTotalPages(1)
+          setTotalItems(0)
         }
       } catch (err) {
         console.error('Error fetching orders:', err)
         setError(err.message || 'Failed to load orders')
         toast.error('Failed to load orders')
+        setOrders([])
+        setTotalPages(1)
+        setTotalItems(0)
       } finally {
         setLoading(false)
       }
     }
 
     fetchOrders()
-  }, [])
+  }, [currentPage])
+
+  // Reset to page 1 when search term or filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filter])
 
   const filteredOrders = useMemo(() => {
     let filtered = orders
@@ -404,6 +428,23 @@ const LaboratoryOrders = () => {
           })
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={(page) => {
+              setCurrentPage(page)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* Order Details Modal */}
       {selectedOrder && (

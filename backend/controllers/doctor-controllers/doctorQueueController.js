@@ -782,9 +782,44 @@ exports.skipPatient = asyncHandler(async (req, res) => {
 
     // Notify all affected patients about token changes
     const Patient = require("../../models/Patient");
+    const Doctor = require("../../models/Doctor");
     const {
       createNotification,
     } = require("../../services/notificationService");
+    
+    // Get doctor info for skip notification
+    const doctor = await Doctor.findById(id).select('firstName lastName');
+    const doctorName = doctor
+      ? `Dr. ${doctor.firstName} ${doctor.lastName || ''}`.trim()
+      : 'Doctor';
+    
+    // Notify the skipped patient
+    try {
+      const skippedPatient = await Patient.findById(appointment.patientId).select('email firstName lastName');
+      const consultationTime = appointment.time || 'N/A';
+      const skipMessage = `Your consultation with ${doctorName} has been skipped. Consultation time: ${consultationTime}. Please contact the clinic if needed.`;
+      
+      await createNotification({
+        userId: appointment.patientId,
+        userType: 'patient',
+        type: 'appointment',
+        title: 'Consultation Skipped',
+        message: skipMessage,
+        data: {
+          appointmentId: appointment._id.toString(),
+          eventType: 'skipped',
+          doctorName,
+          consultationTime,
+        },
+        priority: 'medium',
+        actionUrl: '/patient/appointments',
+        icon: 'appointment',
+        sendEmail: true,
+        user: skippedPatient,
+      }).catch((error) => console.error('Error creating skip notification:', error));
+    } catch (error) {
+      console.error('Error sending skip notification:', error);
+    }
 
     // Reload all moved appointments to get updated tokens and times
     const movedAppointmentIds = allMovableAppointments.map((apt) => apt._id);
@@ -1416,27 +1451,29 @@ exports.updateQueueStatus = asyncHandler(async (req, res) => {
         createAppointmentNotification,
       } = require("../../services/notificationService");
       const Doctor = require("../../models/Doctor");
-      const doctor = await Doctor.findById(id);
-
-      // Send completion notification
-      // Get patient data for email notification
       const Patient = require("../../models/Patient");
-      const patient = await Patient.findById(appointment.patientId).select(
-        "email firstName lastName"
-      );
+      const doctor = await Doctor.findById(id).select('firstName lastName');
+      const patient = await Patient.findById(appointment.patientId).select('email firstName lastName');
+      const doctorName = doctor
+        ? `Dr. ${doctor.firstName} ${doctor.lastName || ''}`.trim()
+        : 'Doctor';
+      const consultationTime = appointment.time || 'N/A';
+      const message = `Your consultation with ${doctorName} has been completed. Consultation time: ${consultationTime}`;
 
       await createNotification({
         userId: appointment.patientId,
         userType: "patient",
         type: "appointment",
         title: "Consultation Completed",
-        message: `Your consultation with Dr. ${doctor.firstName} ${doctor.lastName} has been completed.`,
+        message,
         data: {
           appointmentId: appointment._id.toString(),
           consultationId: consultation?._id?.toString() || null,
           eventType: "completed",
+          doctorName,
+          consultationTime,
         },
-        priority: "medium",
+        priority: "high",
         actionUrl: "/patient/appointments",
         icon: "consultation",
         sendEmail: true,

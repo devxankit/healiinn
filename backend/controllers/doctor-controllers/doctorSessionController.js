@@ -66,6 +66,76 @@ exports.createSession = asyncHandler(async (req, res) => {
     status: SESSION_STATUS.SCHEDULED,
   });
 
+  // Notify all patients with appointments for this date about session creation
+  try {
+    const { createNotification } = require('../../services/notificationService');
+    const { getIO } = require('../../config/socket');
+    const io = getIO();
+    
+    // Find all appointments for this doctor on this date
+    const appointments = await Appointment.find({
+      doctorId: id,
+      appointmentDate: { $gte: sessionDate, $lt: sessionEndDate },
+      status: { $in: ['scheduled', 'confirmed', 'waiting'] },
+      paymentStatus: { $ne: 'pending' },
+    }).populate('patientId', '_id firstName lastName email');
+
+    const doctorName = doctor.firstName
+      ? `Dr. ${doctor.firstName} ${doctor.lastName || ''}`.trim()
+      : 'Doctor';
+    
+    const formattedDate = sessionDate.toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+
+    for (const appointment of appointments) {
+      if (appointment.patientId && appointment.patientId._id) {
+        const message = `${doctorName} has created a session for ${formattedDate} from ${sessionStartTime} to ${sessionEndTime}`;
+        
+        // Create in-app notification
+        await createNotification({
+          userId: appointment.patientId._id,
+          userType: 'patient',
+          type: 'session',
+          title: 'Session Created',
+          message,
+          data: {
+            sessionId: session._id.toString(),
+            appointmentId: appointment._id.toString(),
+            eventType: 'created',
+            doctorName,
+            sessionDate: sessionDate.toISOString(),
+            sessionStartTime,
+            sessionEndTime,
+          },
+          priority: 'medium',
+          actionUrl: '/patient/appointments',
+          icon: 'session',
+          sendEmail: true,
+          user: appointment.patientId,
+        }).catch((error) => console.error(`Error creating session creation notification for patient ${appointment.patientId._id}:`, error));
+
+        // Emit real-time event
+        io.to(`patient-${appointment.patientId._id}`).emit('session:created', {
+          sessionId: session._id.toString(),
+          appointmentId: appointment._id.toString(),
+          message,
+          doctorName,
+          sessionDate: sessionDate.toISOString(),
+          sessionStartTime,
+          sessionEndTime,
+        });
+      }
+    }
+
+    console.log(`✅ Sent session creation notifications to ${appointments.length} patients`);
+  } catch (error) {
+    console.error('Error sending session creation notifications:', error);
+  }
+
   return res.status(201).json({
     success: true,
     message: 'Session created successfully',
@@ -473,29 +543,53 @@ exports.updateSession = asyncHandler(async (req, res) => {
       // Notify all patients in the session
       if (eventType && (status === SESSION_STATUS.LIVE || status === SESSION_STATUS.COMPLETED)) {
         const Appointment = require('../../models/Appointment');
+        const Doctor = require('../../models/Doctor');
+        const doctor = await Doctor.findById(id).select('firstName lastName');
+        const doctorName = doctor
+          ? `Dr. ${doctor.firstName} ${doctor.lastName || ''}`.trim()
+          : 'Doctor';
+        
         const appointments = await Appointment.find({
           sessionId: session._id,
           status: { $in: ['scheduled', 'confirmed', 'waiting', 'in_progress', 'called', 'in-consultation'] },
-        }).populate('patientId', '_id firstName lastName');
+        }).populate('patientId', '_id firstName lastName email');
+
+        const formattedDate = session.date.toLocaleDateString('en-IN', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
 
         for (const appointment of appointments) {
           if (appointment.patientId && appointment.patientId._id) {
+            // Create enhanced message with doctor name and session times
+            const enhancedMessage = eventType === 'started'
+              ? `${doctorName} has started the session for ${formattedDate} (${session.sessionStartTime} - ${session.sessionEndTime}). Your appointment will begin soon.`
+              : `${doctorName} has ended the session for ${formattedDate} (${session.sessionStartTime} - ${session.sessionEndTime}). Please contact the clinic for any queries.`;
+
             // Create in-app notification for patient
             await createNotification({
               userId: appointment.patientId._id,
               userType: 'patient',
               type: 'session',
               title: eventType === 'started' ? 'Session Started' : 'Session Ended',
-              message: patientMessage,
+              message: enhancedMessage,
               data: {
                 sessionId: session._id.toString(),
                 appointmentId: appointment._id.toString(),
                 eventType,
                 status,
+                doctorName,
+                sessionDate: session.date.toISOString(),
+                sessionStartTime: session.sessionStartTime,
+                sessionEndTime: session.sessionEndTime,
               },
               priority: 'high',
               actionUrl: '/patient/appointments',
               icon: 'session',
+              sendEmail: true,
+              user: appointment.patientId,
             }).catch((error) => console.error(`Error creating notification for patient ${appointment.patientId._id}:`, error));
 
             // Emit real-time event to patient
@@ -504,7 +598,11 @@ exports.updateSession = asyncHandler(async (req, res) => {
               appointmentId: appointment._id.toString(),
               status,
               eventType,
-              message: patientMessage,
+              message: enhancedMessage,
+              doctorName,
+              sessionDate: session.date.toISOString(),
+              sessionStartTime: session.sessionStartTime,
+              sessionEndTime: session.sessionEndTime,
             });
           }
         }
@@ -636,8 +734,47 @@ exports.deleteSession = asyncHandler(async (req, res) => {
       const Patient = require('../../models/Patient');
       const patient = await Patient.findById(appointment.patientId._id).select('email firstName lastName');
 
-      // Create in-app notification for patient (with email)
+      // Create in-app notification for patient with enhanced message including doctor name and session times
       if (appointment.patientId) {
+        const doctor = appointment.doctorId;
+        const doctorName = doctor
+          ? `Dr. ${doctor.firstName} ${doctor.lastName || ''}`.trim()
+          : 'Doctor';
+        const formattedDate = session.date.toLocaleDateString('en-IN', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        
+        // Create session cancellation notification with enhanced details
+        const { createNotification } = require('../../services/notificationService');
+        const enhancedMessage = `${doctorName} has cancelled the session for ${formattedDate} (${session.sessionStartTime} - ${session.sessionEndTime}). ${cancellationReason}`;
+        
+        await createNotification({
+          userId: appointment.patientId._id,
+          userType: 'patient',
+          type: 'session',
+          title: 'Session Cancelled',
+          message: enhancedMessage,
+          data: {
+            sessionId: session._id.toString(),
+            appointmentId: appointment._id.toString(),
+            eventType: 'cancelled',
+            doctorName,
+            sessionDate: session.date.toISOString(),
+            sessionStartTime: session.sessionStartTime,
+            sessionEndTime: session.sessionEndTime,
+            cancellationReason,
+          },
+          priority: 'high',
+          actionUrl: '/patient/appointments',
+          icon: 'session',
+          sendEmail: true,
+          user: patient,
+        }).catch((error) => console.error('Error creating cancellation notification:', error));
+        
+        // Also create appointment cancellation notification for consistency
         await createAppointmentNotification({
           userId: appointment.patientId._id,
           userType: 'patient',
@@ -645,8 +782,8 @@ exports.deleteSession = asyncHandler(async (req, res) => {
           eventType: 'cancelled',
           doctor: appointment.doctorId,
           patient,
-          sendEmail: true,
-        }).catch((error) => console.error('Error creating cancellation notification:', error));
+          sendEmail: false, // Email already sent above
+        }).catch((error) => console.error('Error creating appointment cancellation notification:', error));
       }
 
       // Emit real-time event to patient

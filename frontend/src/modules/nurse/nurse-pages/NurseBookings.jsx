@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import NurseNavbar from '../nurse-components/NurseNavbar'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 import {
   IoCalendarOutline,
   IoSearchOutline,
@@ -78,6 +79,10 @@ const NurseBookings = () => {
   const [filterPeriod, setFilterPeriod] = useState('all') // 'today', 'monthly', 'yearly', 'all'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Fetch bookings from API
   useEffect(() => {
@@ -86,7 +91,12 @@ const NurseBookings = () => {
         setLoading(true)
         setError(null)
         // TODO: Import nurse bookings service when available
-        // const response = await getNurseBookings()
+        // const response = await getNurseBookings({ 
+        //   page: currentPage, 
+        //   limit: itemsPerPage,
+        //   period: filterPeriod !== 'all' ? filterPeriod : undefined,
+        //   search: searchTerm || undefined
+        // })
         // if (response && response.success && response.data) {
         //   const bookingsData = Array.isArray(response.data) 
         //     ? response.data 
@@ -96,6 +106,11 @@ const NurseBookings = () => {
         //   if (response.data.statistics) {
         //     setStatistics(response.data.statistics)
         //   }
+        //   
+        //   // Extract pagination info
+        //   const pagination = response.data.pagination || {}
+        //   setTotalPages(pagination.totalPages || Math.ceil((pagination.total || bookingsData.length) / itemsPerPage) || 1)
+        //   setTotalItems(pagination.total || bookingsData.length)
         //   
         //   // Transform API data to match component structure
         //   const transformed = bookingsData.map(booking => {
@@ -126,6 +141,8 @@ const NurseBookings = () => {
         //   setBookings(transformed)
         // }
         setBookings([])
+        setTotalPages(1)
+        setTotalItems(0)
         setLoading(false)
       } catch (err) {
         console.error('Error fetching bookings:', err)
@@ -136,7 +153,12 @@ const NurseBookings = () => {
     }
 
     fetchBookings()
-  }, [toast])
+  }, [toast, currentPage, filterPeriod, searchTerm])
+
+  // Reset to page 1 when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filterPeriod, searchTerm])
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -452,6 +474,20 @@ const NurseBookings = () => {
             })
           )}
         </div>
+
+        {/* Pagination */}
+        {!loading && !error && filteredBookings.length > 0 && (
+          <div className="mt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              loading={loading}
+            />
+          </div>
+        )}
       </section>
     </>
   )

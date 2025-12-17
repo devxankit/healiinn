@@ -20,6 +20,7 @@ import {
 } from 'react-icons/io5'
 import { getLaboratoryOrders, shareLaboratoryReport, createLaboratoryReport } from '../laboratory-services/laboratoryService'
 import { getFileUrl } from '../../../utils/apiClient'
+import Pagination from '../../../components/Pagination'
 
 const formatDate = (dateString) => {
   if (!dateString) return '—'
@@ -52,6 +53,8 @@ const LaboratoryTestReports = () => {
           const ordersData = Array.isArray(response.data)
             ? response.data
             : response.data.items || response.data.orders || response.data.leads || []
+          
+          const pagination = response.data.pagination || {}
 
           const transformed = ordersData.map(order => ({
             id: order._id || order.id,
@@ -96,6 +99,15 @@ const LaboratoryTestReports = () => {
   const [isSending, setIsSending] = useState(false)
   const [uploadStatus, setUploadStatus] = useState(null) // 'uploading', 'success', 'error'
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
+
+  // Reset to page 1 when search term or history filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, historyFilter])
 
   // Filter orders based on history filter and search term
   const filteredOrdersByHistory = useMemo(() => {
@@ -521,6 +533,23 @@ const LaboratoryTestReports = () => {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={(page) => {
+              setCurrentPage(page)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* Add Lab Report Modal */}
       {

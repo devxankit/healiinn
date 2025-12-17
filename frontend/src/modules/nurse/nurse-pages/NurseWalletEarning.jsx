@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import NurseNavbar from '../nurse-components/NurseNavbar'
+import Pagination from '../../../components/Pagination'
 import {
   IoArrowBackOutline,
   IoArrowDownOutline,
@@ -56,6 +57,10 @@ const NurseWalletEarning = () => {
   const [earningData, setEarningData] = useState(defaultEarningData)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Fetch earnings from API
   useEffect(() => {
@@ -64,7 +69,27 @@ const NurseWalletEarning = () => {
         setLoading(true)
         setError(null)
         // TODO: Import nurse wallet service when available
-        // const response = await getNurseWalletEarnings()
+        // const response = await getNurseWalletEarnings({ 
+        //   page: currentPage, 
+        //   limit: itemsPerPage,
+        //   filter: filterType !== 'all' ? filterType : undefined
+        // })
+        // if (response && response.success && response.data) {
+        //   const data = response.data
+        //   setEarningData({
+        //     totalEarnings: Number(data.totalEarnings || 0),
+        //     thisMonthEarnings: Number(data.thisMonthEarnings || 0),
+        //     lastMonthEarnings: Number(data.lastMonthEarnings || 0),
+        //     thisYearEarnings: Number(data.thisYearEarnings || 0),
+        //     todayEarnings: Number(data.todayEarnings || 0),
+        //     earnings: Array.isArray(data.earnings) ? data.earnings : (data.items || [])
+        //   })
+        //   
+        //   // Extract pagination info
+        //   const pagination = response.data.pagination || {}
+        //   setTotalPages(pagination.totalPages || Math.ceil((pagination.total || data.earnings?.length || 0) / itemsPerPage) || 1)
+        //   setTotalItems(pagination.total || data.earnings?.length || 0)
+        // }
         setLoading(false)
       } catch (err) {
         console.error('Error fetching earnings:', err)
@@ -75,17 +100,19 @@ const NurseWalletEarning = () => {
     }
 
     fetchEarnings()
-  }, [toast])
+  }, [toast, currentPage, filterType])
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filterType])
 
   const earningsChange = earningData.lastMonthEarnings > 0
     ? ((earningData.thisMonthEarnings - earningData.lastMonthEarnings) / earningData.lastMonthEarnings) * 100
     : 0
 
-  const filteredEarnings = earningData.earnings.filter((earning) => {
-    if (filterType === 'all') return true
-    // In a real app, you would filter by date range
-    return true
-  })
+  // Use earnings directly from API (backend will handle filtering)
+  const earnings = earningData.earnings || []
 
   return (
     <>
@@ -240,18 +267,18 @@ const NurseWalletEarning = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg sm:text-xl font-bold text-slate-900">Earning History</h2>
               <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {filteredEarnings.length} {filteredEarnings.length === 1 ? 'transaction' : 'transactions'}
+                {totalItems} {totalItems === 1 ? 'transaction' : 'transactions'}
               </span>
             </div>
             <div className="space-y-3">
-              {filteredEarnings.length === 0 ? (
+              {earnings.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
                   <IoArrowDownOutline className="mx-auto h-16 w-16 text-slate-300" />
                   <p className="mt-4 text-base font-semibold text-slate-600">No earnings found</p>
                   <p className="mt-1 text-sm text-slate-500">Your earnings will appear here</p>
                 </div>
               ) : (
-                filteredEarnings.map((earning) => (
+                earnings.map((earning) => (
                   <article
                     key={earning.id}
                     className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
@@ -302,6 +329,20 @@ const NurseWalletEarning = () => {
                 ))
               )}
             </div>
+
+            {/* Pagination */}
+            {!loading && !error && earnings.length > 0 && (
+              <div className="mt-4">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  loading={loading}
+                />
+              </div>
+            )}
           </section>
       </section>
     </>

@@ -5,7 +5,8 @@ const Admin = require('../../models/Admin');
 const { 
   sendSupportTicketNotification, 
   sendAdminSupportTicketNotification,
-  createSupportTicketNotification 
+  createSupportTicketNotification,
+  createAdminSupportTicketNotification,
 } = require('../../services/notificationService');
 
 // Helper functions
@@ -74,7 +75,6 @@ exports.createSupportTicket = asyncHandler(async (req, res) => {
 
     // Send notification to all admins (email and in-app)
     const admins = await Admin.find({ isActive: true }).select('email name');
-    const { createNotification } = require('../../services/notificationService');
     
     for (const admin of admins) {
       // Send email notification
@@ -86,25 +86,11 @@ exports.createSupportTicket = asyncHandler(async (req, res) => {
       }).catch((error) => console.error(`Error sending admin support ticket email to ${admin.email}:`, error));
       
       // Create in-app notification for admin
-      const doctorName = `${doctor?.firstName || ''} ${doctor?.lastName || ''}`.trim() || 'Doctor';
-      await createNotification({
-        userId: admin._id,
-        userType: 'admin',
-        type: 'support',
-        title: 'New Support Ticket',
-        message: `New support ticket from Dr. ${doctorName}: ${ticket.subject || 'Support Request'}`,
-        data: {
-          ticketId: ticket._id,
-          userId: id,
-          userType: 'doctor',
-          subject: ticket.subject,
-          priority: ticket.priority,
-        },
-        priority: ticket.priority === 'high' || ticket.priority === 'urgent' ? 'high' : 'medium',
-        actionUrl: `/admin/support/${ticket._id}`,
-        icon: 'support',
-        sendEmail: false, // Email already sent above
-        emitSocket: true,
+      await createAdminSupportTicketNotification({
+        adminId: admin._id,
+        ticket,
+        user: doctor,
+        userType: 'doctor',
       }).catch((error) => console.error(`Error creating admin support ticket notification:`, error));
     }
   } catch (error) {

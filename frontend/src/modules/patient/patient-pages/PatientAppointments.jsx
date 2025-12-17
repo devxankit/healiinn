@@ -12,6 +12,7 @@ import {
 import { getPatientAppointments, rescheduleAppointment, createAppointmentPaymentOrder, verifyAppointmentPayment } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getSocket } from '../../../utils/socketClient'
+import Pagination from '../../../components/Pagination'
 
 // Default appointments (will be replaced by API data)
 const defaultAppointments = []
@@ -98,6 +99,8 @@ const PatientAppointments = () => {
   const [error, setError] = useState(null)
   const [inConsultationRoom, setInConsultationRoom] = useState(false)
   const [consultationAppointmentId, setConsultationAppointmentId] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Fetch appointments from API - Always fetch all appointments, filter on frontend
   useEffect(() => {
@@ -524,6 +527,21 @@ const PatientAppointments = () => {
     }
   }, [appointments, filter])
 
+  // Calculate paginated appointments
+  const paginatedAppointments = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredAppointments.slice(startIndex, endIndex)
+  }, [filteredAppointments, currentPage])
+
+  const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage)
+  const totalItems = filteredAppointments.length
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
+
   const formatDate = (dateString) => {
     try {
       const date = new Date(dateString)
@@ -577,7 +595,7 @@ const PatientAppointments = () => {
 
       {/* Appointments List */}
       <div className="space-y-3">
-        {filteredAppointments.map((appointment) => {
+        {paginatedAppointments.map((appointment) => {
           const isInConsultation = inConsultationRoom && (
             consultationAppointmentId === appointment.id || 
             consultationAppointmentId === appointment._id
@@ -831,6 +849,18 @@ const PatientAppointments = () => {
             <p className="text-sm text-slate-500 mt-1">Try selecting a different filter</p>
           )}
         </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && filteredAppointments.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          loading={loading}
+        />
       )}
 
     </section>

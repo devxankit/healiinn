@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   IoArrowBackOutline,
@@ -11,6 +11,7 @@ import {
 } from 'react-icons/io5'
 import { getSpecialtyDoctors, getDoctors } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const specialtyLabels = {
   'dentist': 'Dentist',
@@ -44,6 +45,8 @@ const PatientSpecialtyDoctors = () => {
   const [doctors, setDoctors] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
   
   const specialtyLabel = specialtyLabels[specialtyId] || 'All Specialties'
 
@@ -104,6 +107,16 @@ const PatientSpecialtyDoctors = () => {
     navigate(`/patient/doctors/${doctorId}`)
   }
 
+  // Calculate paginated doctors
+  const paginatedDoctors = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return doctors.slice(startIndex, endIndex)
+  }, [doctors, currentPage])
+
+  const totalPages = Math.ceil(doctors.length / itemsPerPage)
+  const totalItems = doctors.length
+
   return (
     <section className="flex flex-col gap-4 pb-4">
       {/* Header */}
@@ -135,7 +148,7 @@ const PatientSpecialtyDoctors = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {doctors.map((doctor) => {
+          {paginatedDoctors.map((doctor) => {
             const doctorId = doctor._id || doctor.id
             const doctorName = doctor.firstName && doctor.lastName 
               ? `Dr. ${doctor.firstName} ${doctor.lastName}`
@@ -230,6 +243,18 @@ const PatientSpecialtyDoctors = () => {
             )
           })}
         </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && doctors.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          loading={loading}
+        />
       )}
     </section>
   )

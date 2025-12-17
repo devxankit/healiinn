@@ -254,7 +254,7 @@ const AdminDoctors = () => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (currentPage === 1) {
-        loadDoctors()
+      loadDoctors()
       } else {
         setCurrentPage(1) // Reset to page 1 when search changes
       }

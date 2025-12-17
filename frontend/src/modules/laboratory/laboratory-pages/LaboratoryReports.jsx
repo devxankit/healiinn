@@ -15,6 +15,7 @@ import {
 import { getLaboratoryReports, shareLaboratoryReport } from '../laboratory-services/laboratoryService'
 import { getFileUrl } from '../../../utils/apiClient'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 const formatDateTime = (value) => {
   if (!value) return '—'
@@ -47,18 +48,27 @@ const LaboratoryReports = () => {
   const [selectedReport, setSelectedReport] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
 
   // Fetch reports from API
   useEffect(() => {
     const fetchReports = async () => {
       try {
         setLoading(true)
-        const response = await getLaboratoryReports()
+        const response = await getLaboratoryReports({ 
+          page: currentPage, 
+          limit: itemsPerPage 
+        })
 
         if (response.success && response.data) {
           const reportsData = Array.isArray(response.data)
             ? response.data
-            : response.data.reports || []
+            : response.data.items || response.data.reports || []
+          
+          const pagination = response.data.pagination || {}
 
           const transformed = reportsData.map(report => ({
             id: report._id || report.id,
@@ -78,17 +88,31 @@ const LaboratoryReports = () => {
           }))
 
           setTestReports(transformed)
+          setTotalPages(pagination.totalPages || Math.ceil((pagination.total || transformed.length) / itemsPerPage) || 1)
+          setTotalItems(pagination.total || transformed.length)
+        } else {
+          setTestReports([])
+          setTotalPages(1)
+          setTotalItems(0)
         }
       } catch (err) {
         console.error('Error fetching reports:', err)
         toast.error('Failed to load reports')
+        setTestReports([])
+        setTotalPages(1)
+        setTotalItems(0)
       } finally {
         setLoading(false)
       }
     }
 
     fetchReports()
-  }, [toast])
+  }, [toast, currentPage])
+
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
 
   const filteredReports = useMemo(() => {
     if (!searchTerm.trim()) return testReports
@@ -263,6 +287,23 @@ const LaboratoryReports = () => {
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={(page) => {
+              setCurrentPage(page)
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* Report Details Modal */}
       {selectedReport && (

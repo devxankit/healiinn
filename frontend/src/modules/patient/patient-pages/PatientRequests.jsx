@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IoCheckmarkCircleOutline,
@@ -23,6 +23,7 @@ import {
   createRequestPaymentOrder
 } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
+import Pagination from '../../../components/Pagination'
 
 
 const formatDate = (dateString) => {
@@ -58,6 +59,8 @@ const PatientRequests = () => {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Fetch requests from API
   useEffect(() => {
@@ -769,6 +772,16 @@ const PatientRequests = () => {
     }
   }
 
+  // Calculate paginated requests
+  const paginatedRequests = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return requests.slice(startIndex, endIndex)
+  }, [requests, currentPage])
+
+  const totalPages = Math.ceil(requests.length / itemsPerPage)
+  const totalItems = requests.length
+
   return (
     <div className="min-h-screen bg-slate-50">
       <main className="px-4 py-5 sm:px-6">
@@ -788,7 +801,7 @@ const PatientRequests = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {requests.map((request) => (
+            {paginatedRequests.map((request) => (
               <article
                 key={request.id}
                 onClick={() => handleRequestClick(request)}
@@ -1119,6 +1132,18 @@ const PatientRequests = () => {
               </article>
             ))}
           </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && requests.length > 0 && totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            loading={loading}
+          />
         )}
       </main>
 
