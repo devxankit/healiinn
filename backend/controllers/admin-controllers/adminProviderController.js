@@ -3,6 +3,7 @@ const { ROLES, APPROVAL_STATUS } = require('../../utils/constants');
 const Doctor = require('../../models/Doctor');
 const Pharmacy = require('../../models/Pharmacy');
 const Laboratory = require('../../models/Laboratory');
+const Nurse = require('../../models/Nurse');
 const { sendRoleApprovalEmail } = require('../../services/emailService');
 
 /**
@@ -591,6 +592,192 @@ exports.rejectLaboratory = asyncHandler(async (req, res) => {
 // VERIFICATIONS OVERVIEW
 // ────────────────────────────────────────────────────────────────
 
+// ────────────────────────────────────────────────────────────────
+// NURSES
+// ────────────────────────────────────────────────────────────────
+
+// GET /api/admin/nurses
+exports.getNurses = asyncHandler(async (req, res) => {
+  const { status, sortBy, sortOrder } = req.query;
+  const { page, limit, skip } = buildPagination(req);
+
+  const filter = {};
+
+  if (status && Object.values(APPROVAL_STATUS).includes(status)) {
+    filter.status = status;
+  }
+
+  const searchFilter = buildSearchFilter(req.query.search, [
+    'firstName',
+    'lastName',
+    'email',
+    'phone',
+    'registrationNumber',
+    'specialization',
+    'qualification',
+  ]);
+
+  const finalFilter = Object.keys(searchFilter).length
+    ? { $and: [filter, searchFilter] }
+    : filter;
+
+  const sort = {};
+  const normalizedSortBy = sortBy || 'createdAt';
+  const normalizedSortOrder = sortOrder === 'asc' ? 1 : -1;
+  sort[normalizedSortBy] = normalizedSortOrder;
+
+  const [items, total] = await Promise.all([
+    Nurse.find(finalFilter).sort(sort).skip(skip).limit(limit),
+    Nurse.countDocuments(finalFilter),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    },
+  });
+});
+
+// GET /api/admin/nurses/:id
+exports.getNurseById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const nurse = await Nurse.findById(id);
+  if (!nurse) {
+    return res.status(404).json({
+      success: false,
+      message: 'Nurse not found.',
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: nurse,
+  });
+});
+
+// PATCH /api/admin/nurses/:id/verify
+exports.verifyNurse = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const adminId = req.auth?.id;
+
+  const nurse = await Nurse.findById(id);
+  if (!nurse) {
+    return res.status(404).json({
+      success: false,
+      message: 'Nurse not found.',
+    });
+  }
+
+  nurse.status = APPROVAL_STATUS.APPROVED;
+  nurse.rejectionReason = undefined;
+  nurse.approvedAt = new Date();
+  nurse.approvedBy = adminId;
+
+  await nurse.save();
+
+  // Send approval email to nurse
+  if (nurse.email) {
+    sendRoleApprovalEmail({
+      role: 'nurse',
+      email: nurse.email,
+      status: APPROVAL_STATUS.APPROVED,
+    }).catch((error) => {
+      console.error('Failed to send approval email to nurse:', error);
+      // Don't fail the request if email fails
+    });
+  }
+
+  // Create in-app notification for nurse approval
+  try {
+    const { createNotification } = require('../../services/notificationService');
+    const Admin = require('../../models/Admin');
+    const admin = await Admin.findById(adminId).select('name email');
+    
+    await createNotification({
+      userId: id,
+      userType: 'nurse',
+      type: 'approval',
+      title: 'Account Approved',
+      message: `Your nurse account has been approved by admin${admin?.name ? ` ${admin.name}` : ''}. You can now access all features.`,
+      data: {
+        approvedBy: adminId,
+        approvedAt: nurse.approvedAt,
+        adminName: admin?.name || 'Admin',
+        nurseName: `${nurse.firstName} ${nurse.lastName}`.trim(),
+      },
+      priority: 'high',
+      actionUrl: '/nurse/dashboard',
+      icon: 'approval',
+      sendEmail: true,
+      user: nurse,
+    }).catch((error) => console.error('Error creating nurse approval notification:', error));
+  } catch (error) {
+    console.error('Error creating nurse approval notification:', error);
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Nurse approved successfully.',
+    data: nurse,
+  });
+});
+
+// PATCH /api/admin/nurses/:id/reject
+exports.rejectNurse = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+  const adminId = req.auth?.id;
+
+  const nurse = await Nurse.findById(id);
+  if (!nurse) {
+    return res.status(404).json({
+      success: false,
+      message: 'Nurse not found.',
+    });
+  }
+
+  nurse.status = APPROVAL_STATUS.REJECTED;
+  const rejectionReason = reason && String(reason).trim()
+    ? String(reason).trim()
+    : 'Rejected by admin.';
+  nurse.rejectionReason = rejectionReason;
+  nurse.approvedAt = undefined;
+  nurse.approvedBy = adminId;
+
+  await nurse.save();
+
+  // Send rejection email to nurse
+  if (nurse.email) {
+    sendRoleApprovalEmail({
+      role: 'nurse',
+      email: nurse.email,
+      status: APPROVAL_STATUS.REJECTED,
+      reason: rejectionReason,
+    }).catch((error) => {
+      console.error('Failed to send rejection email to nurse:', error);
+      // Don't fail the request if email fails
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Nurse rejected successfully.',
+    data: nurse,
+  });
+});
+
+// ────────────────────────────────────────────────────────────────
+// VERIFICATIONS OVERVIEW
+// ────────────────────────────────────────────────────────────────
+
 // GET /api/admin/verifications/pending
 exports.getPendingVerifications = asyncHandler(async (req, res) => {
   const { type, limit: rawLimit } = req.query;
@@ -599,10 +786,11 @@ exports.getPendingVerifications = asyncHandler(async (req, res) => {
   const baseFilter = { status: APPROVAL_STATUS.PENDING };
 
   // Select all fields - no need to exclude anything for verification details
-  const [doctors, pharmacies, laboratories] = await Promise.all([
+  const [doctors, pharmacies, laboratories, nurses] = await Promise.all([
     (type && type !== ROLES.DOCTOR) ? [] : Doctor.find(baseFilter).select('-password').limit(limit).lean(),
     (type && type !== ROLES.PHARMACY) ? [] : Pharmacy.find(baseFilter).select('-password').limit(limit).lean(),
     (type && type !== ROLES.LABORATORY) ? [] : Laboratory.find(baseFilter).select('-password').limit(limit).lean(),
+    (type && type !== ROLES.NURSE) ? [] : Nurse.find(baseFilter).select('-password').limit(limit).lean(),
   ]);
 
   return res.status(200).json({
@@ -611,6 +799,7 @@ exports.getPendingVerifications = asyncHandler(async (req, res) => {
       doctors,
       pharmacies,
       laboratories,
+      nurses,
     },
   });
 });

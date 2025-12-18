@@ -16,6 +16,8 @@ import {
   IoCalendarOutline,
   IoEyeOutline,
   IoCloseOutline,
+  IoDocumentTextOutline,
+  IoDownloadOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
 import {
@@ -34,6 +36,17 @@ import {
   rejectNurse,
 } from '../admin-services/adminService'
 import Pagination from '../../../components/Pagination'
+
+// Helper function to normalize document URLs
+const normalizeDocumentUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+  const baseUrl = apiBaseUrl.replace('/api', '')
+  return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+}
 
 // Helper to transform backend data to frontend format
 const transformVerification = (item, type) => {
@@ -102,18 +115,12 @@ const transformVerification = (item, type) => {
       address: item.clinicDetails?.address || null,
       status: item.status || 'pending',
       submittedAt: item.createdAt || new Date().toISOString(),
-      documents: item.documents 
-        ? Object.keys(item.documents)
-            .filter(key => item.documents[key] && item.documents[key] !== '')
-            .map(key => {
-              // Format document names nicely
-              if (key === 'license') return 'License'
-              if (key === 'identityProof') return 'Identity Proof'
-              if (key === 'profileImage') return 'Profile Image'
-              if (key === 'gstCertificate') return 'GST Certificate'
-              // Capitalize first letter
-              return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()
-            })
+      documents: item.documents && Array.isArray(item.documents)
+        ? item.documents.map(doc => ({
+            name: doc.name || 'Document',
+            fileUrl: doc.fileUrl || '',
+            uploadedAt: doc.uploadedAt || null
+          }))
         : [],
       rejectionReason: item.rejectionReason || '',
       approvedAt: item.approvedAt || null,
@@ -150,18 +157,12 @@ const transformVerification = (item, type) => {
       serviceRadiusKm: item.serviceRadiusKm || null,
       status: item.status || 'pending',
       submittedAt: item.createdAt || new Date().toISOString(),
-      documents: item.documents 
-        ? Object.keys(item.documents)
-            .filter(key => item.documents[key] && item.documents[key] !== '')
-            .map(key => {
-              // Format document names nicely
-              if (key === 'license') return 'License'
-              if (key === 'identityProof') return 'Identity Proof'
-              if (key === 'profileImage') return 'Profile Image'
-              if (key === 'gstCertificate') return 'GST Certificate'
-              // Capitalize first letter
-              return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()
-            })
+      documents: item.documents && Array.isArray(item.documents)
+        ? item.documents.map(doc => ({
+            name: doc.name || 'Document',
+            fileUrl: doc.fileUrl || '',
+            uploadedAt: doc.uploadedAt || null
+          }))
         : [],
       rejectionReason: item.rejectionReason || '',
       approvedAt: item.approvedAt || null,
@@ -197,18 +198,12 @@ const transformVerification = (item, type) => {
       testsOffered: item.testsOffered && Array.isArray(item.testsOffered) ? item.testsOffered : [],
       status: item.status || 'pending',
       submittedAt: item.createdAt || new Date().toISOString(),
-      documents: item.documents 
-        ? Object.keys(item.documents)
-            .filter(key => item.documents[key] && item.documents[key] !== '')
-            .map(key => {
-              // Format document names nicely
-              if (key === 'license') return 'License'
-              if (key === 'identityProof') return 'Identity Proof'
-              if (key === 'profileImage') return 'Profile Image'
-              if (key === 'gstCertificate') return 'GST Certificate'
-              // Capitalize first letter
-              return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()
-            })
+      documents: item.documents && Array.isArray(item.documents)
+        ? item.documents.map(doc => ({
+            name: doc.name || 'Document',
+            fileUrl: doc.fileUrl || '',
+            uploadedAt: doc.uploadedAt || null
+          }))
         : [],
       rejectionReason: item.rejectionReason || '',
       approvedAt: item.approvedAt || null,
@@ -252,17 +247,12 @@ const transformVerification = (item, type) => {
       address: item.address || null,
       status: item.status || 'pending',
       submittedAt: item.createdAt || new Date().toISOString(),
-      documents: item.documents 
-        ? Object.keys(item.documents)
-            .filter(key => item.documents[key] && item.documents[key] !== '')
-            .map(key => {
-              // Format document names nicely
-              if (key === 'nursingCertificate') return 'Nursing Certificate'
-              if (key === 'registrationCertificate') return 'Registration Certificate'
-              if (key === 'profileImage') return 'Profile Image'
-              // Capitalize first letter
-              return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim()
-            })
+      documents: item.documents && Array.isArray(item.documents)
+        ? item.documents.map(doc => ({
+            name: doc.name || 'Document',
+            fileUrl: doc.fileUrl || '',
+            uploadedAt: doc.uploadedAt || null
+          }))
         : [],
       rejectionReason: item.rejectionReason || '',
       approvedAt: item.approvedAt || null,
@@ -453,12 +443,14 @@ const AdminVerification = () => {
         throw new Error('Invalid verification type')
       }
 
-      if (response.success) {
+      if (response && response.success) {
         toast.success(`${verification.type.charAt(0).toUpperCase() + verification.type.slice(1)} approved successfully`)
         await loadVerifications() // Reload to get updated data
         if (viewingVerification?.id === id) {
           setViewingVerification(null)
         }
+      } else {
+        throw new Error(response?.message || 'Approval failed. Please try again.')
       }
     } catch (error) {
       console.error('Error approving verification:', error)
@@ -500,18 +492,20 @@ const AdminVerification = () => {
         throw new Error('Invalid verification type')
       }
 
-      if (response.success) {
+      if (response && response.success) {
         toast.success(`${verification.type.charAt(0).toUpperCase() + verification.type.slice(1)} rejected successfully`)
         await loadVerifications() // Reload to get updated data
         if (viewingVerification?.id === rejectingVerificationId) {
           setViewingVerification(null)
-        }
       }
 
       // Close modal
       setShowRejectModal(false)
       setRejectingVerificationId(null)
       setRejectionReason('')
+      } else {
+        throw new Error(response?.message || 'Rejection failed. Please try again.')
+      }
     } catch (error) {
       console.error('Error rejecting verification:', error)
       toast.error(error.message || 'Failed to reject verification')
@@ -807,6 +801,12 @@ const AdminVerification = () => {
                               <span>{verification.specialty}</span>
                             </div>
                           )}
+                          {verification.specialization && (
+                            <div className="flex items-center gap-2">
+                              <IoMedicalOutline className="h-4 w-4 shrink-0" />
+                              <span>{verification.specialization}</span>
+                            </div>
+                          )}
                           {verification.clinic && (
                             <div className="flex items-center gap-2">
                               <IoLocationOutline className="h-4 w-4 shrink-0" />
@@ -839,6 +839,16 @@ const AdminVerification = () => {
                             <IoCallOutline className="h-4 w-4 shrink-0" />
                             <span>{verification.phone}</span>
                           </div>
+                          {verification.qualification && (
+                            <div className="text-xs text-slate-500">
+                              Qualification: {verification.qualification}
+                            </div>
+                          )}
+                          {verification.registrationNumber && (
+                            <div className="text-xs text-slate-500">
+                              Registration: {verification.registrationNumber}
+                            </div>
+                          )}
                           {verification.licenseNumber && (
                             <div className="text-xs text-slate-500">
                               License: {verification.licenseNumber}
@@ -857,6 +867,11 @@ const AdminVerification = () => {
                           {verification.consultationFee !== null && verification.consultationFee !== undefined && (
                             <div className="text-xs text-slate-500">
                               Consultation Fee: ₹{verification.consultationFee}
+                            </div>
+                          )}
+                          {verification.fees !== null && verification.fees !== undefined && (
+                            <div className="text-xs text-slate-500">
+                              Fees: ₹{verification.fees}
                             </div>
                           )}
                         </div>
@@ -1093,6 +1108,63 @@ const AdminVerification = () => {
                 </div>
               )}
 
+              {/* Nurse Professional Details */}
+              {viewingVerification.type === 'nurse' && (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Professional Details</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {viewingVerification.qualification && (
+                      <div>
+                        <p className="text-xs text-slate-500">Qualification</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.qualification}</p>
+                      </div>
+                    )}
+                    {viewingVerification.specialization && (
+                      <div>
+                        <p className="text-xs text-slate-500">Specialization</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.specialization}</p>
+                      </div>
+                    )}
+                    {viewingVerification.experienceYears !== null && viewingVerification.experienceYears !== undefined && (
+                      <div>
+                        <p className="text-xs text-slate-500">Experience</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.experienceYears} years</p>
+                      </div>
+                    )}
+                    {viewingVerification.fees !== null && viewingVerification.fees !== undefined && (
+                      <div>
+                        <p className="text-xs text-slate-500">Fees</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">₹{viewingVerification.fees}</p>
+                      </div>
+                    )}
+                    {viewingVerification.registrationNumber && (
+                      <div>
+                        <p className="text-xs text-slate-500">Registration Number</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.registrationNumber}</p>
+                      </div>
+                    )}
+                    {viewingVerification.registrationCouncilName && (
+                      <div>
+                        <p className="text-xs text-slate-500">Registration Council</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.registrationCouncilName}</p>
+                      </div>
+                    )}
+                    {viewingVerification.location && (
+                      <div>
+                        <p className="text-xs text-slate-500">Location</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.location}</p>
+                      </div>
+                    )}
+                    {viewingVerification.fullAddress && (
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-500">Full Address</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{viewingVerification.fullAddress}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Pharmacy/Laboratory Business Details */}
               {(viewingVerification.type === 'pharmacy' || viewingVerification.type === 'laboratory') && (
                 <div>
@@ -1185,15 +1257,43 @@ const AdminVerification = () => {
                 <div>
                   <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Submitted Documents</h3>
                   <div className="space-y-2">
-                    {viewingVerification.documents.map((doc, index) => (
+                    {viewingVerification.documents.map((doc, index) => {
+                      const normalizedUrl = normalizeDocumentUrl(doc.fileUrl)
+                      return (
                       <div
                         key={index}
                         className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
                       >
-                        <span className="text-sm font-medium text-slate-700">{doc}</span>
-                        <button className="text-xs font-medium text-[#11496c] hover:underline">View</button>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <IoDocumentTextOutline className="h-5 w-5 text-[#11496c] flex-shrink-0" />
+                          <span className="text-sm font-medium text-slate-700 truncate">{doc.name || 'Document'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            {normalizedUrl && (
+                            <>
+                              <a
+                                  href={normalizedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-medium text-[#11496c] hover:underline flex items-center gap-1"
+                              >
+                                <IoEyeOutline className="h-4 w-4" />
+                                View
+                              </a>
+                              <a
+                                  href={normalizedUrl}
+                                download
+                                className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1"
+                              >
+                                <IoDownloadOutline className="h-4 w-4" />
+                                Download
+                              </a>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               ) : (

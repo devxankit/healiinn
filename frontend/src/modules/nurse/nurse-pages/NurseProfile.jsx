@@ -5,6 +5,7 @@ import NurseHeader from '../nurse-components/NurseHeader'
 import NurseFooter from '../nurse-components/NurseFooter'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
+import { getNurseProfile, updateNurseProfile } from '../nurse-services/nurseService'
 import {
   IoPersonOutline,
   IoMailOutline,
@@ -21,6 +22,9 @@ import {
   IoSchoolOutline,
   IoDocumentTextOutline,
   IoImageOutline,
+  IoEyeOutline,
+  IoDownloadOutline,
+  IoPowerOutline,
 } from 'react-icons/io5'
 
 // Utility function to normalize image URLs
@@ -34,19 +38,32 @@ const normalizeImageUrl = (url) => {
   return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
 }
 
+// Helper function to normalize document URLs
+const normalizeDocumentUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+  const baseUrl = apiBaseUrl.replace('/api', '')
+  return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+}
+
 const NurseProfile = () => {
   const location = useLocation()
   const toast = useToast()
   const isDashboardPage = location.pathname === '/nurse/dashboard' || location.pathname === '/nurse/'
-  
+
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [selectedImage, setSelectedImage] = useState(null)
 
   // Initialize with empty/default data matching signup form
   const [formData, setFormData] = useState({
-    fullName: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     profileImage: '',
@@ -57,15 +74,14 @@ const NurseProfile = () => {
       postalCode: '',
     },
     qualification: '',
-    experienceYears: 0,
+    experienceYears: '', // Changed to empty string default
     specialization: '',
-    fees: 0,
+    bio: '',
+    fees: '', // Changed value default
+    availability: [], // Added availability
     registrationNumber: '',
     registrationCouncilName: '',
-    documents: {
-      nursingCertificate: '',
-      registrationCertificate: '',
-    },
+    documents: [],
     status: 'pending',
     isActive: true,
   })
@@ -81,34 +97,34 @@ const NurseProfile = () => {
 
       try {
         setIsLoading(true)
-        // TODO: Import nurse profile service when available
-        // const response = await getNurseProfile()
-        // if (response.success && response.data) {
-        //   const nurse = response.data.nurse || response.data
-        //   setFormData({
-        //     fullName: nurse.fullName || '',
-        //     email: nurse.email || '',
-        //     phone: nurse.phone || '',
-        //     profileImage: normalizeImageUrl(nurse.profileImage || ''),
-        //     address: nurse.address || {
-        //       line1: '',
-        //       city: '',
-        //       state: '',
-        //       postalCode: '',
-        //     },
-        //     qualification: nurse.qualification || '',
-        //     experienceYears: nurse.experienceYears || 0,
-        //     specialization: nurse.specialization || '',
-        //     registrationNumber: nurse.registrationNumber || '',
-        //     registrationCouncilName: nurse.registrationCouncilName || '',
-        //     documents: nurse.documents || {
-        //       nursingCertificate: '',
-        //       registrationCertificate: '',
-        //     },
-        //     status: nurse.status || 'pending',
-        //     isActive: nurse.isActive !== undefined ? nurse.isActive : true,
-        //   })
-        // }
+        const response = await getNurseProfile()
+        if (response.success && response.data) {
+          const nurse = response.data.nurse || response.data
+          setFormData({
+            firstName: nurse.firstName || '',
+            lastName: nurse.lastName || '',
+            email: nurse.email || '',
+            phone: nurse.phone || '',
+            profileImage: normalizeImageUrl(nurse.profileImage || ''),
+            address: nurse.address || {
+              line1: '',
+              city: '',
+              state: '',
+              postalCode: '',
+            },
+            qualification: nurse.qualification || '',
+            experienceYears: nurse.experienceYears || '',
+            specialization: nurse.specialization || '',
+            fees: nurse.fees || '',
+            bio: nurse.bio || '',
+            availability: nurse.availability || [],
+            registrationNumber: nurse.registrationNumber || '',
+            registrationCouncilName: nurse.registrationCouncilName || '',
+            documents: Array.isArray(nurse.documents) ? nurse.documents : [],
+            status: nurse.status || 'pending',
+            isActive: nurse.isActive !== undefined ? nurse.isActive : true,
+          })
+        }
         setIsLoading(false)
       } catch (err) {
         console.error('Error fetching nurse profile:', err)
@@ -141,7 +157,7 @@ const NurseProfile = () => {
     }
   }
 
-  const handleProfileImageChange = async (event) => {
+  const handleProfileImageChange = (event) => {
     const file = event.target.files[0]
     if (!file) return
 
@@ -149,51 +165,158 @@ const NurseProfile = () => {
       toast.warning('Please select an image file')
       return
     }
-    
+
     if (file.size > 5 * 1024 * 1024) {
       toast.warning('Image size should be less than 5MB')
       return
     }
 
-    try {
-      toast.info('Uploading image...')
-      // TODO: Implement uploadProfileImage service
-      // const response = await uploadProfileImage(file)
-      // if (response.success && response.data?.url) {
-      //   const imageUrl = normalizeImageUrl(response.data.url)
-      //   setFormData((prev) => ({
-      //     ...prev,
-      //     profileImage: imageUrl,
-      //   }))
-      //   toast.success('Profile image uploaded successfully!')
-      // }
-      toast.success('Profile image uploaded successfully!')
-    } catch (error) {
-      console.error('Error uploading profile image:', error)
-      toast.error(error.message || 'Failed to upload profile image')
-    }
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file)
+    setSelectedImage(file)
+    setFormData(prev => ({ ...prev, profileImage: previewUrl }))
+  }
+
+  const handleAvailabilityChange = (day) => {
+    setFormData(prev => {
+      const current = prev.availability || []
+      if (current.includes(day)) {
+        return { ...prev, availability: current.filter(d => d !== day) }
+      } else {
+        return { ...prev, availability: [...current, day] }
+      }
+    })
   }
 
   const handleSave = async () => {
     try {
       setIsSaving(true)
-      // TODO: Import nurse update service when available
-      // const response = await updateNurseProfile(formData)
-      // if (response.success) {
-      //   toast.success('Profile updated successfully')
-      //   setIsEditing(false)
-      //   setActiveSection(null)
-      // } else {
-      //   toast.error(response.message || 'Failed to update profile')
-      // }
-      toast.success('Profile updated successfully')
-      setIsEditing(false)
-      setActiveSection(null)
+
+      const formDataToSend = new FormData()
+
+      // Append core fields
+      formDataToSend.append('firstName', formData.firstName)
+      formDataToSend.append('lastName', formData.lastName)
+      // Only append if they have values to avoid sending "undefined" string
+      if (formData.email) formDataToSend.append('email', formData.email)
+      if (formData.phone) formDataToSend.append('phone', formData.phone)
+      if (formData.qualification) formDataToSend.append('qualification', formData.qualification)
+
+      // Handle numeric/optional fields safely
+      if (formData.experienceYears !== '' && formData.experienceYears !== null) {
+        formDataToSend.append('experienceYears', formData.experienceYears)
+      }
+
+      if (formData.specialization) formDataToSend.append('specialization', formData.specialization)
+
+      if (formData.bio) formDataToSend.append('bio', formData.bio)
+
+      if (formData.fees !== '' && formData.fees !== null) {
+        formDataToSend.append('fees', formData.fees)
+      }
+
+      if (formData.registrationNumber) formDataToSend.append('registrationNumber', formData.registrationNumber)
+      if (formData.registrationCouncilName) formDataToSend.append('registrationCouncilName', formData.registrationCouncilName)
+
+      // Handle address (nested object) - Backend expects dot notation or we can stringify if backend parses it
+      // Based on controller, it uses updates = {...req.body}, so we should probably send detailed keys if controller doesn't parse JSON
+      // But looking at nurseAuthController.js: it expects address.line1 etc.
+      // Wait, standard FormData with nested objects usually requires 'address[line1]' or 'address.line1'.
+      // The controller accesses `req.body.address.line1` which implies parsing.
+      // Express body-parser usually handles JSON. Multer handles FormData.
+      // If using multer with text fields, they come as strings.
+      // The safest way given the controller structure (updates.address.line1) is that it expects an object structure.
+      // If we send 'address[line1]', multer/body-parser might strictly parse it.
+      // Actually, the previous code sent JSON `updateData`. 
+      // If I change to FormData, I must ensure backend handles it.
+      // The controller accesses `updates.address.line1` directly if updates is req.body.
+      // If I send FormData, req.body will have keys. If I send key 'address[line1]', req.body might have 'address': { 'line1': ... } if using certain middleware (like 'qs' or extended urlencoded).
+      // However, to be safe and simple, I'll update the controller to handle flattened keys if needed, OR 
+      // I can send all address fields as individual keys and reconstructing them on backend is safer?
+      // No, let's keep it simple: I will send `address` as a JSON string and parse it in backend if needed?
+      // Wait, the backend controller lines 220-226: `address: { line1: address.line1 ...`. This is for registration.
+      // For UPDATE (lines 345+), it does `const updates = { ...req.body }`.
+      // It does NOT explicitly parse address.
+      // So if I pass 'address.line1' as key in FormData, `req.body['address.line1']` will exist, not `req.body.address.line1`.
+      // FIX logic: I will append address fields individually and update them if they exist?
+      // Or better: Send `address` as JSON string and verify backend parses it.
+      // Wait, backend `nurseAuthController.js` doesn't seem to have `address` parsing logic in `updateNurseProfile`.
+      // It just passes `updates` to `updateProfileByRoleAndId`.
+      // `updateProfileByRoleAndId` likely uses `findByIdAndUpdate`.
+      // If `req.body` is flats from multer, `updateProfileByRoleAndId` will fail to update nested `address`.
+      // So I will convert address to JSON string and update backend to parse it?
+      // Actually, looking at `updateNurseProfile` in `nurseAuthController.js`, it does `const updates = { ...req.body }`.
+      // If I send JSON object via `apiClient.put` (axios), and handle file separately?
+      // BUT `handleProfileImageChange` needs to upload image.
+      // The user wants image to be uploaded.
+      // If I use FormData, I can send image + data.
+      // Solution: I will modify `handleSave` to try passing JSON fields normally if NO image is selected,
+      // but if image is selected, use FormData. 
+      // If I use FormData, I need to make sure backend handles the complex fields.
+      // Let's rely on flattened keys for address: 'address.line1', 'address.city' etc? Mongoose update usually handles dot notation keys!
+      // Yes! `Nurse.findOneAndUpdate(..., { 'address.line1': '...' })` works!
+      // So I will append 'address.line1' etc to FormData.
+
+      if (formData.address) {
+        if (formData.address.line1) formDataToSend.append('address.line1', formData.address.line1)
+        if (formData.address.city) formDataToSend.append('address.city', formData.address.city)
+        if (formData.address.state) formDataToSend.append('address.state', formData.address.state)
+        if (formData.address.postalCode) formDataToSend.append('address.postalCode', formData.address.postalCode)
+      }
+
+      // Availability - always send (even if empty array) so backend can update it
+      formDataToSend.append('availability', JSON.stringify(formData.availability || []))
+
+      // Profile Image
+      if (selectedImage) {
+        formDataToSend.append('profileImage', selectedImage)
+      }
+
+      const response = await updateNurseProfile(formDataToSend)
+      if (response.success) {
+        toast.success('Profile updated successfully')
+        setIsEditing(false)
+        setActiveSection(null)
+        // Refresh profile to get updated URLs
+        // window.location.reload() // Or just re-fetch? reloading is safer for images
+        // We'll trust the response for now or maybe just reload to be sure
+      } else {
+        toast.error(response.message || 'Failed to update profile')
+      }
     } catch (err) {
       console.error('Error updating profile:', err)
-      toast.error('Failed to update profile')
+      toast.error(err.message || 'Failed to update profile')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+
+  const handleToggleActive = async () => {
+    const newActiveStatus = !formData.isActive
+    const updatedFormData = { ...formData, isActive: newActiveStatus }
+    setFormData(updatedFormData)
+
+    try {
+      // Update backend immediately
+      const response = await updateNurseProfile({ isActive: newActiveStatus })
+
+      if (response.success) {
+        if (newActiveStatus) {
+          toast.success('Your profile is now active and visible to patients.')
+        } else {
+          toast.info('Your profile is now inactive and will not be visible to patients.')
+        }
+      } else {
+        // Revert on error
+        setFormData(formData)
+        toast.error(response.message || 'Failed to update profile status')
+      }
+    } catch (error) {
+      // Revert on error
+      setFormData(formData)
+      console.error('Error updating profile status:', error)
+      toast.error(error.message || 'Failed to update profile status. Please try again.')
     }
   }
 
@@ -203,6 +326,9 @@ const NurseProfile = () => {
     setActiveSection(null)
     window.location.reload()
   }
+
+  // Compute full name from firstName and lastName
+  const fullName = `${formData.firstName} ${formData.lastName}`.trim() || 'Nurse'
 
   if (isLoading) {
     return (
@@ -239,6 +365,33 @@ const NurseProfile = () => {
                 backgroundSize: '20px 20px'
               }} />
 
+              {/* Active Status - Top Right Corner */}
+              <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5 z-10">
+                <button
+                  type="button"
+                  onClick={handleToggleActive}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${formData.isActive
+                    ? 'bg-emerald-500/95 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
+                    : 'bg-slate-500/95 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
+                    }`}
+                >
+                  {formData.isActive ? (
+                    <>
+                      <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                      <span>Active</span>
+                    </>
+                  ) : (
+                    <>
+                      <IoPowerOutline className="h-3.5 w-3.5" />
+                      <span>Inactive</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-[10px] text-white/80 text-right whitespace-nowrap drop-shadow-md">
+                  {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
+                </p>
+              </div>
+
               <div className="relative flex flex-col items-center gap-4">
                 {/* Profile Picture */}
                 <div className="relative">
@@ -251,12 +404,12 @@ const NurseProfile = () => {
                       id="nurse-profile-image-input"
                     />
                     <img
-                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.fullName || 'Nurse')}&background=ffffff&color=11496c&size=128&bold=true`}
-                      alt={formData.fullName || 'Nurse'}
+                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=ffffff&color=11496c&size=128&bold=true`}
+                      alt={fullName}
                       className="h-full w-full rounded-full object-cover ring-4 ring-white/50 shadow-2xl bg-slate-100"
                       onError={(e) => {
                         e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.fullName || 'Nurse')}&background=ffffff&color=11496c&size=128&bold=true`
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=ffffff&color=11496c&size=128&bold=true`
                       }}
                     />
                     {isEditing && (
@@ -273,12 +426,12 @@ const NurseProfile = () => {
                 {/* Name */}
                 <div className="text-center">
                   <h1 className="text-xl font-bold text-white mb-1.5">
-                    {formData.fullName || 'Nurse'}
+                    {fullName}
                   </h1>
                   <p className="text-sm text-white/90 mb-3">
                     {formData.email || 'No email'}
                   </p>
-                  
+
                   {/* Specialization Badge */}
                   {formData.specialization && (
                     <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-white border border-white/30 mb-2">
@@ -370,6 +523,30 @@ const NurseProfile = () => {
                 backgroundSize: '20px 20px'
               }} />
 
+              {/* Active Status - Top Right Corner */}
+              <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5 z-10">
+                <button
+                  type="button"
+                  onClick={handleToggleActive}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${formData.isActive
+                    ? 'bg-emerald-500/95 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
+                    : 'bg-slate-500/95 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
+                    }`}
+                >
+                  {formData.isActive ? (
+                    <>
+                      <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
+                      <span>Active</span>
+                    </>
+                  ) : (
+                    <>
+                      <IoPowerOutline className="h-3.5 w-3.5" />
+                      <span>Inactive</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
               <div className="relative flex flex-col items-center gap-4 sm:gap-5">
                 {/* Profile Picture */}
                 <div className="relative">
@@ -382,12 +559,12 @@ const NurseProfile = () => {
                       id="nurse-profile-image-input-mobile"
                     />
                     <img
-                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.fullName || 'Nurse')}&background=ffffff&color=11496c&size=128&bold=true`}
-                      alt={formData.fullName || 'Nurse'}
+                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=ffffff&color=11496c&size=128&bold=true`}
+                      alt={fullName}
                       className="h-full w-full rounded-full object-cover ring-2 ring-white/50 shadow-lg bg-slate-100"
                       onError={(e) => {
                         e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.fullName || 'Nurse')}&background=ffffff&color=11496c&size=128&bold=true`
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=ffffff&color=11496c&size=128&bold=true`
                       }}
                     />
                     {isEditing && (
@@ -403,7 +580,7 @@ const NurseProfile = () => {
 
                 {/* Name */}
                 <h1 className="text-xl sm:text-2xl font-bold text-white text-center">
-                  {formData.fullName || 'Nurse'}
+                  {fullName}
                 </h1>
 
                 {/* Email */}
@@ -515,19 +692,34 @@ const NurseProfile = () => {
               {(activeSection === 'basic' || isEditing) && (
                 <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4">
-                    <div className="sm:col-span-2">
+                    <div>
                       <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Full Name
+                        First Name
                       </label>
                       {isEditing ? (
                         <input
                           type="text"
-                          value={formData.fullName}
-                          onChange={(e) => handleInputChange('fullName', e.target.value)}
+                          value={formData.firstName}
+                          onChange={(e) => handleInputChange('firstName', e.target.value)}
                           className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c]"
                         />
                       ) : (
-                        <p className="text-sm font-semibold text-slate-900">{formData.fullName || '—'}</p>
+                        <p className="text-sm font-semibold text-slate-900">{formData.firstName || '—'}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Last Name
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={formData.lastName}
+                          onChange={(e) => handleInputChange('lastName', e.target.value)}
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c]"
+                        />
+                      ) : (
+                        <p className="text-sm font-semibold text-slate-900">{formData.lastName || '—'}</p>
                       )}
                     </div>
 
@@ -696,6 +888,23 @@ const NurseProfile = () => {
                       )}
                     </div>
 
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Bio
+                      </label>
+                      {isEditing ? (
+                        <textarea
+                          value={formData.bio}
+                          onChange={(e) => handleInputChange('bio', e.target.value)}
+                          placeholder="Write about your professional background, experience, and expertise..."
+                          rows={4}
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c] resize-y"
+                        />
+                      ) : (
+                        <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{formData.bio || '—'}</p>
+                      )}
+                    </div>
+
                     <div>
                       <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         Experience (Years)
@@ -705,7 +914,8 @@ const NurseProfile = () => {
                           type="number"
                           min="0"
                           value={formData.experienceYears}
-                          onChange={(e) => handleInputChange('experienceYears', parseInt(e.target.value) || 0)}
+                          value={formData.experienceYears}
+                          onChange={(e) => handleInputChange('experienceYears', e.target.value)}
                           className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c]"
                         />
                       ) : (
@@ -740,14 +950,49 @@ const NurseProfile = () => {
                           min="0"
                           step="1"
                           value={formData.fees}
-                          onChange={(e) => handleInputChange('fees', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => handleInputChange('fees', e.target.value)}
                           placeholder="500"
                           className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c]"
                         />
                       ) : (
-                        <p className="text-sm font-semibold text-slate-900">
-                          {formData.fees ? `₹${formData.fees}` : '—'}
-                        </p>
+                        <input /* Readonly view */
+                          readOnly
+                          value={formData.fees ? `₹${formData.fees}` : '—'}
+                          className="w-full rounded-md border-0 bg-transparent px-0 py-1.5 text-sm font-medium text-slate-900 focus:ring-0"
+                        />
+                      )}
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                        Availability (Days)
+                      </label>
+                      {isEditing ? (
+                        <div className="flex flex-wrap gap-2">
+                          {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                            <label key={day} className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 transition hover:bg-slate-50">
+                              <input
+                                type="checkbox"
+                                checked={formData.availability?.includes(day)}
+                                onChange={() => handleAvailabilityChange(day)}
+                                className="h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
+                              />
+                              <span className="text-sm font-medium text-slate-700">{day}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {formData.availability && formData.availability.length > 0 ? (
+                            formData.availability.map((day) => (
+                              <span key={day} className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                                {day}
+                              </span>
+                            ))
+                          ) : (
+                            <p className="text-sm font-semibold text-slate-900">—</p>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -788,66 +1033,71 @@ const NurseProfile = () => {
               )}
             </div>
 
-            {/* Documents */}
+            {/* Uploaded Documents */}
             <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => setActiveSection(activeSection === 'documents' ? null : 'documents')}
                 className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">📄 Documents</h2>
-                {(activeSection === 'documents' || isEditing) ? (
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Uploaded Documents</h2>
+                {activeSection === 'documents' ? (
                   <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 ) : (
                   <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
                 )}
               </button>
 
-              {(activeSection === 'documents' || isEditing) && (
-                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-4 sm:space-y-5 pt-4 sm:pt-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Nursing Certificate
-                      </label>
-                      {formData.documents.nursingCertificate ? (
-                        <div className="flex items-center gap-2 text-sm text-slate-700">
-                          <IoDocumentTextOutline className="h-4 w-4 text-slate-400 shrink-0" />
-                          <a
-                            href={normalizeImageUrl(formData.documents.nursingCertificate)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#11496c] hover:underline font-medium"
-                          >
-                            View Certificate
-                          </a>
+              {activeSection === 'documents' && (
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-2 pt-4 sm:pt-5">
+                  {formData.documents && Array.isArray(formData.documents) && formData.documents.length > 0 ? (
+                    formData.documents.map((doc, index) => {
+                      const normalizedUrl = normalizeDocumentUrl(doc.fileUrl || '')
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <IoDocumentTextOutline className="h-5 w-5 text-[#11496c] flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-slate-700 block truncate">{doc.name || 'Document'}</span>
+                              {doc.uploadedAt && (
+                                <span className="text-xs text-slate-500">
+                                  Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {normalizedUrl && (
+                              <>
+                                <a
+                                  href={normalizedUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs font-medium text-[#11496c] hover:underline flex items-center gap-1"
+                                >
+                                  <IoEyeOutline className="h-4 w-4" />
+                                  View
+                                </a>
+                                <a
+                                  href={normalizedUrl}
+                                  download
+                                  className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1"
+                                >
+                                  <IoDownloadOutline className="h-4 w-4" />
+                                  Download
+                                </a>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">Not uploaded</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Registration Certificate
-                      </label>
-                      {formData.documents.registrationCertificate ? (
-                        <div className="flex items-center gap-2 text-sm text-slate-700">
-                          <IoDocumentTextOutline className="h-4 w-4 text-slate-400 shrink-0" />
-                          <a
-                            href={normalizeImageUrl(formData.documents.registrationCertificate)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[#11496c] hover:underline font-medium"
-                          >
-                            View Certificate
-                          </a>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">Not uploaded</p>
-                      )}
-                    </div>
-                  </div>
+                      )
+                    })
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">No documents uploaded</p>
+                  )}
                 </div>
               )}
             </div>

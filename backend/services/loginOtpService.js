@@ -15,7 +15,7 @@ const findUserByPhone = async (role, phone) => {
 };
 
 const ensureRoleSupported = (role) => {
-  const supportedRoles = [ROLES.PATIENT, ROLES.DOCTOR, ROLES.LABORATORY, ROLES.PHARMACY];
+  const supportedRoles = [ROLES.PATIENT, ROLES.DOCTOR, ROLES.LABORATORY, ROLES.PHARMACY, ROLES.NURSE];
   if (!supportedRoles.includes(role)) {
     const error = new Error('Unsupported role for login OTP');
     error.status = 400;

@@ -30,6 +30,7 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
     if (path.startsWith('/doctor')) return 'doctor'
     if (path.startsWith('/pharmacy')) return 'pharmacy'
     if (path.startsWith('/laboratory')) return 'laboratory'
+    if (path.startsWith('/nurse')) return 'nurse'
     if (path.startsWith('/admin')) return 'admin'
     return module
   }
@@ -49,6 +50,7 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
       doctor: 'doctors',
       pharmacy: 'pharmacy',
       laboratory: 'laboratory',
+      nurse: 'nurses',
       admin: 'admin',
     }
     const apiPath = modulePathMap[currentModule] || currentModule
@@ -100,6 +102,7 @@ export const NotificationProvider = ({ children, module = 'patient' }) => {
       doctor: 'doctors',
       pharmacy: 'pharmacy',
       laboratory: 'laboratory',
+      nurse: 'nurses',
       admin: 'admin',
     }
     const apiPath = modulePathMap[currentModule] || currentModule

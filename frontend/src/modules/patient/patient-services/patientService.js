@@ -103,10 +103,10 @@ export const logoutPatient = async () => {
       // Even if backend call fails, we still clear tokens on frontend
       console.error('Error calling logout API:', error)
     })
-    
+
     // Clear all tokens from storage
     clearPatientTokens()
-    
+
     return { success: true, message: 'Logout successful' }
   } catch (error) {
     console.error('Error logging out:', error)
@@ -320,6 +320,34 @@ export const getDiscoveryDoctors = async (filters = {}) => {
  * @returns {Promise<object>} Doctors data
  */
 export const getDoctors = getDiscoveryDoctors
+
+/**
+ * Get nurses for discovery
+ * @param {object} filters - Filter options (search, city, state, etc.)
+ * @returns {Promise<object>} Nurses data
+ */
+export const getDiscoveryNurses = async (filters = {}) => {
+  try {
+    return await apiClient.get('/patients/nurses', filters)
+  } catch (error) {
+    console.error('Error fetching nurses:', error)
+    throw error
+  }
+}
+
+/**
+ * Get nurse by ID
+ * @param {string} nurseId - Nurse ID
+ * @returns {Promise<object>} Nurse data
+ */
+export const getNurseById = async (nurseId) => {
+  try {
+    return await apiClient.get(`/patients/nurses/${nurseId}`)
+  } catch (error) {
+    console.error('Error fetching nurse details:', error)
+    throw error
+  }
+}
 
 /**
  * Get doctor by ID
@@ -561,7 +589,7 @@ export const uploadProfileImage = async (file) => {
   try {
     const formData = new FormData()
     formData.append('image', file)
-    
+
     const data = await apiClient.upload('/patients/upload/profile-image', formData)
     return data
   } catch (error) {
@@ -651,7 +679,7 @@ export const getPatientReviews = async (filters = {}) => {
     const queryParams = new URLSearchParams()
     if (filters.page) queryParams.append('page', filters.page)
     if (filters.limit) queryParams.append('limit', filters.limit)
-    
+
     const queryString = queryParams.toString()
     return await apiClient.get(`/patients/reviews${queryString ? `?${queryString}` : ''}`)
   } catch (error) {

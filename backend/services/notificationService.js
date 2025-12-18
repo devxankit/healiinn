@@ -1027,7 +1027,7 @@ const sendOrderStatusUpdateEmail = async ({ patient, pharmacy, laboratory, order
   const patientName = patient.firstName
     ? `${patient.firstName} ${patient.lastName || ''}`.trim()
     : 'Patient';
-  
+
   const statusMessages = {
     confirmed: 'has been confirmed',
     processing: 'is being processed',

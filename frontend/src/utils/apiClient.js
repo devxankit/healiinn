@@ -98,6 +98,7 @@ const getModuleApiPath = (module) => {
     'doctor': 'doctors',
     'pharmacy': 'pharmacies',
     'laboratory': 'laboratories',
+    'nurse': 'nurses',
     'admin': 'admin',
   }
   return moduleMap[module] || module
@@ -163,6 +164,8 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
 
   // Check if this is a public auth endpoint (login/signup) that shouldn't require token
   const isAuthEndpoint = endpoint.includes('/auth/login') ||
+    endpoint.includes('/auth/login/otp') ||
+    endpoint.includes('/auth/request-otp') ||
     endpoint.includes('/auth/signup') ||
     endpoint.includes('/auth/forgot-password') ||
     endpoint.includes('/auth/verify-otp') ||
@@ -192,14 +195,32 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
     }
   }
 
+  // Check if body is FormData
+  const isFormData = options.body instanceof FormData
+  
+  // Build headers - don't set Content-Type for FormData (browser will set it with boundary)
+  let headers = {};
+  if (isAuthEndpoint || isPublicDiscoveryEndpoint) {
+    if (!isFormData) {
+      headers = { 'Content-Type': 'application/json', ...options.headers };
+    } else {
+      headers = { ...options.headers };
+    }
+  } else {
+    const authHeaders = getAuthHeaders(module, {});
+    if (!isFormData) {
+      headers = { ...authHeaders, ...options.headers };
+    } else {
+      // For FormData, don't include Content-Type in auth headers
+      headers = { ...authHeaders, ...options.headers };
+      delete headers['Content-Type'];
+    }
+  }
+  
   const config = {
-    ...options,
-    headers: {
-      // Only add auth headers if not an auth endpoint or public discovery endpoint
-      ...((isAuthEndpoint || isPublicDiscoveryEndpoint)
-        ? { 'Content-Type': 'application/json', ...options.headers }
-        : getAuthHeaders(module, options.headers)),
-    },
+    method: options.method || 'GET',
+    headers: headers,
+    body: options.body, // Explicitly set body
   }
 
   try {
@@ -327,11 +348,14 @@ class ApiClient {
    * @returns {Promise<object>} Response data
    */
   async put(endpoint, data = {}) {
+    // Check if data is FormData
+    const isFormData = data instanceof FormData
+    
     const response = await apiRequest(
       endpoint,
       {
         method: 'PUT',
-        body: JSON.stringify(data),
+        body: isFormData ? data : JSON.stringify(data),
       },
       this.module
     )

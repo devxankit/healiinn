@@ -23,9 +23,22 @@ import {
   IoPulseOutline,
   IoTrashOutline,
   IoAddOutline,
+  IoEyeOutline,
+  IoDownloadOutline,
 } from 'react-icons/io5'
 
 // Mock data removed - using real backend data now
+
+// Helper function to normalize document URLs
+const normalizeDocumentUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+  const baseUrl = apiBaseUrl.replace('/api', '')
+  return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+}
 
 // Utility function to convert 24-hour time to 12-hour format with AM/PM
 const formatTimeTo12Hour = (time24) => {
@@ -128,7 +141,7 @@ const PharmacyProfile = () => {
             deliveryOptions: Array.isArray(cachedProfile.deliveryOptions) ? cachedProfile.deliveryOptions : [],
             serviceRadiusKm: cachedProfile.serviceRadiusKm || 0,
             responseTimeMinutes: cachedProfile.responseTimeMinutes || 0,
-            documents: cachedProfile.documents || {},
+            documents: cachedProfile.documents && Array.isArray(cachedProfile.documents) ? cachedProfile.documents : [],
             status: cachedProfile.status || 'pending',
             rating: cachedProfile.rating || 0,
             isActive: cachedProfile.isActive !== undefined ? cachedProfile.isActive : true,
@@ -168,7 +181,7 @@ const PharmacyProfile = () => {
             deliveryOptions: Array.isArray(pharmacy.deliveryOptions) ? pharmacy.deliveryOptions : [],
             serviceRadiusKm: pharmacy.serviceRadiusKm || 0,
             responseTimeMinutes: pharmacy.responseTimeMinutes || 0,
-            documents: pharmacy.documents || {},
+            documents: pharmacy.documents && Array.isArray(pharmacy.documents) ? pharmacy.documents : [],
             status: pharmacy.status || 'pending',
             rating: pharmacy.rating || 0,
             isActive: pharmacy.isActive !== undefined ? pharmacy.isActive : true,
@@ -280,7 +293,7 @@ const PharmacyProfile = () => {
         deliveryOptions: Array.isArray(formData.deliveryOptions) ? formData.deliveryOptions : [],
         serviceRadiusKm: formData.serviceRadiusKm || 0,
         responseTimeMinutes: formData.responseTimeMinutes || 0,
-        documents: formData.documents || {},
+        documents: formData.documents && Array.isArray(formData.documents) ? formData.documents : [],
         isActive: formData.isActive !== undefined ? formData.isActive : true,
       }
 
@@ -861,6 +874,76 @@ const PharmacyProfile = () => {
                     <p className="text-xs text-slate-500 text-center py-2">No operating hours set</p>
                   )}
                 </>
+              )}
+            </div>
+          )}
+        </article>
+
+        {/* Uploaded Documents */}
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <button
+            onClick={() => toggleSection('documents')}
+            className="flex w-full items-center justify-between"
+          >
+            <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+              <IoDocumentTextOutline className="h-5 w-5 text-slate-600" />
+              Uploaded Documents
+            </h3>
+            {activeSection === 'documents' ? (
+              <IoChevronUpOutline className="h-5 w-5 text-slate-400" />
+            ) : (
+              <IoChevronDownOutline className="h-5 w-5 text-slate-400" />
+            )}
+          </button>
+          {activeSection === 'documents' && (
+            <div className="mt-4 space-y-2">
+              {formData.documents && Array.isArray(formData.documents) && formData.documents.length > 0 ? (
+                formData.documents.map((doc, index) => {
+                  const normalizedUrl = normalizeDocumentUrl(doc.fileUrl || '')
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <IoDocumentTextOutline className="h-5 w-5 text-[#11496c] flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-slate-700 block truncate">{doc.name || 'Document'}</span>
+                          {doc.uploadedAt && (
+                            <span className="text-xs text-slate-500">
+                              Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {normalizedUrl && (
+                          <>
+                            <a
+                              href={normalizedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-[#11496c] hover:underline flex items-center gap-1"
+                            >
+                              <IoEyeOutline className="h-4 w-4" />
+                              View
+                            </a>
+                            <a
+                              href={normalizedUrl}
+                              download
+                              className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1"
+                            >
+                              <IoDownloadOutline className="h-4 w-4" />
+                              Download
+                            </a>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <p className="text-sm text-slate-500 italic">No documents uploaded</p>
               )}
             </div>
           )}

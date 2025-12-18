@@ -15,6 +15,7 @@ import {
   IoPhonePortraitOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
+import { getNurseWalletBalance, getNurseWithdrawalHistory, requestNurseWithdrawal } from '../nurse-services/nurseService'
 
 // Default withdraw data (will be replaced by API data)
 const defaultWithdrawData = {
@@ -164,15 +165,76 @@ const NurseWalletWithdraw = () => {
     setIsProcessing(true)
     
     try {
-      // TODO: Call API to request withdrawal
-      // await requestNurseWithdrawal({...})
+      // Map payment method to backend format
+      const withdrawalData = {
+        amount: amount,
+        paymentMethod: selectedPaymentMethod,
+      }
+
+      if (selectedPaymentMethod === 'bank') {
+        withdrawalData.bankAccount = {
+          accountNumber: bankDetails.accountNumber,
+          ifscCode: bankDetails.ifscCode,
+          accountHolderName: bankDetails.accountHolderName,
+        }
+      } else if (selectedPaymentMethod === 'upi') {
+        withdrawalData.upiId = upiId
+      } else if (selectedPaymentMethod === 'wallet') {
+        withdrawalData.walletNumber = walletNumber
+      }
+
+      const response = await requestNurseWithdrawal(withdrawalData)
       
+      if (response && response.success) {
       toast.success(`Withdrawal request of ${formatCurrency(amount)} submitted successfully! Admin will review your request.`)
       setShowWithdrawModal(false)
       setWithdrawAmount('')
       setBankDetails({ accountNumber: '', ifscCode: '', accountHolderName: '' })
       setUpiId('')
       setWalletNumber('')
+        // Refresh withdrawal data
+        const [walletResponse, historyResponse] = await Promise.all([
+          getNurseWalletBalance(),
+          getNurseWithdrawalHistory({ page: 1, limit: itemsPerPage })
+        ])
+        if (walletResponse && walletResponse.success && walletResponse.data) {
+          const walletData = walletResponse.data
+          setWithdrawData(prev => ({
+            ...prev,
+            availableBalance: Number(walletData.availableBalance || 0),
+            totalWithdrawals: Number(walletData.totalWithdrawals || 0),
+            thisMonthWithdrawals: Number(walletData.thisMonthWithdrawals || 0),
+          }))
+        }
+        if (historyResponse && historyResponse.success && historyResponse.data) {
+          const historyData = historyResponse.data
+          const withdrawals = Array.isArray(historyData) 
+            ? historyData 
+            : (historyData.items || historyData.withdrawals || [])
+          const transformedWithdrawals = withdrawals.map(w => ({
+            id: w._id || w.id,
+            description: `Withdrawal request - ${w.payoutMethod?.type || 'Unknown method'}`,
+            amount: w.amount || 0,
+            date: w.createdAt || w.date,
+            status: w.status || 'pending',
+            paymentMethod: w.payoutMethod?.type === 'bank_transfer' ? 'Bank Account' : 
+                          w.payoutMethod?.type === 'upi' ? 'UPI' : 
+                          w.payoutMethod?.type === 'paytm' ? 'Wallet' : 'Unknown',
+            accountNumber: w.payoutMethod?.details?.accountNumber,
+            upiId: w.payoutMethod?.details?.upiId,
+            walletNumber: w.payoutMethod?.details?.paytmNumber,
+          }))
+          setWithdrawData(prev => ({
+            ...prev,
+            withdrawalHistory: transformedWithdrawals
+          }))
+          const pagination = historyResponse.data.pagination || {}
+          setTotalPages(pagination.totalPages || Math.ceil((pagination.total || transformedWithdrawals.length) / itemsPerPage) || 1)
+          setTotalItems(pagination.total || transformedWithdrawals.length)
+        }
+      } else {
+        throw new Error(response?.message || 'Failed to submit withdrawal request')
+      }
     } catch (err) {
       console.error('Error requesting withdrawal:', err)
       toast.error(err.message || 'Failed to submit withdrawal request')

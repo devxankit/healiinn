@@ -155,13 +155,14 @@ const PatientDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const toggleButtonRef = useRef(null)
-  
+
   // Dashboard data state
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [upcomingAppointments, setUpcomingAppointments] = useState([])
   const [doctors, setDoctors] = useState([])
+  const [activeTab, setActiveTab] = useState('doctors')
   const [profile, setProfile] = useState(null)
 
   // Fetch profile data for location
@@ -193,29 +194,29 @@ const PatientDashboard = () => {
       // Check if user is authenticated before making API call
       const { getAuthToken } = await import('../../../utils/apiClient')
       const token = getAuthToken('patient')
-      
+
       if (!token) {
         // No token, redirect to login
         navigate('/patient/login')
         return
       }
-      
+
       try {
         setLoading(true)
         setError(null)
         const response = await getPatientDashboard()
-        
+
         if (response.success && response.data) {
           setDashboardData(response.data)
-          
+
           // Set category card values
           const data = response.data
-          
+
           // Set upcoming appointments
           if (data.upcomingAppointments) {
             setUpcomingAppointments(data.upcomingAppointments)
           }
-          
+
           // Set doctors (if available in dashboard response)
           if (data.recommendedDoctors) {
             setDoctors(data.recommendedDoctors)
@@ -234,7 +235,7 @@ const PatientDashboard = () => {
           }
           return
         }
-        
+
         console.error('Error fetching dashboard data:', err)
         setError(err.message || 'Failed to load dashboard data')
         toast.error('Failed to load dashboard data')
@@ -249,22 +250,22 @@ const PatientDashboard = () => {
   // Get category cards with real data
   const categoryCards = useMemo(() => {
     if (!dashboardData) return categoryCardsConfig.map(card => ({ ...card, value: '0' }))
-    
+
     return categoryCardsConfig.map(card => {
       let value = dashboardData[card.dataKey]
-      
+
       // Handle arrays - get length instead of array itself
       if (Array.isArray(value)) {
         value = value.length
       }
-      
+
       // Handle objects - try to get count property or default to 0
       if (value && typeof value === 'object' && !Array.isArray(value)) {
         value = value.count || value.length || 0
       }
-      
+
       return {
-      ...card,
+        ...card,
         value: String(value || 0),
       }
     })
@@ -292,6 +293,65 @@ const PatientDashboard = () => {
 
     return filtered
   }, [searchTerm, doctors])
+
+  // Mock data for nurses
+  const mockNurses = useMemo(() => [
+    {
+      _id: 'n1',
+      firstName: 'Sarah',
+      lastName: 'Wilson',
+      specialization: 'Critical Care',
+      clinicName: 'City Hospital',
+      clinicAddress: '123 Health Ave, Mumbai',
+      rating: 4.8,
+      reviewCount: 45,
+      fee: 500,
+      image: '', // Will use avatar fallback
+    },
+    {
+      _id: 'n2',
+      firstName: 'Priya',
+      lastName: 'Sharma',
+      specialization: 'Pediatric Care',
+      clinicName: 'Sunshine Clinic',
+      clinicAddress: '45 Care Lane, Pune',
+      rating: 4.9,
+      reviewCount: 82,
+      fee: 600,
+      image: '',
+    },
+    {
+      _id: 'n3',
+      firstName: 'Anita',
+      lastName: 'Desai',
+      specialization: 'Home Care',
+      clinicName: 'Healiinn Home Services',
+      clinicAddress: 'Indore, MP',
+      rating: 4.7,
+      reviewCount: 28,
+      fee: 450,
+      image: '',
+    }
+  ], [])
+
+  const filteredNurses = useMemo(() => {
+    let filtered = [...mockNurses]
+
+    if (searchTerm.trim()) {
+      const normalizedSearch = searchTerm.trim().toLowerCase()
+      filtered = filtered.filter(
+        (nurse) => {
+          const name = `${nurse.firstName} ${nurse.lastName}`
+          return (
+            name.toLowerCase().includes(normalizedSearch) ||
+            nurse.specialization.toLowerCase().includes(normalizedSearch)
+          )
+        }
+      )
+    }
+
+    return filtered
+  }, [searchTerm, mockNurses])
 
   const handleTakeToken = (doctorId, fee) => {
     if (!doctorId) {
@@ -337,7 +397,7 @@ const PatientDashboard = () => {
   return (
     <section className="flex flex-col gap-4 pb-4 -mt-20">
       {/* Top Header with Gradient Background */}
-      <header 
+      <header
         className="relative text-white -mx-4 mb-4 overflow-hidden"
         style={{
           background: 'linear-gradient(to right, #11496c 0%, #1a5a7a 50%, #2a7a9a 100%)'
@@ -461,7 +521,7 @@ const PatientDashboard = () => {
                 : appointment.doctorName || 'Dr. Unknown'
               const specialty = appointment.doctorId?.specialization || appointment.specialty || appointment.doctorSpecialty || ''
               const appointmentDate = new Date(appointment.appointmentDate || appointment.date)
-              
+
               // Convert time to 12-hour format if needed
               const convertTimeTo12Hour = (timeStr) => {
                 if (!timeStr) return '';
@@ -472,39 +532,39 @@ const PatientDashboard = () => {
                 const hours12 = hours % 12 || 12;
                 return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
               };
-              
+
               const time = convertTimeTo12Hour(appointment.time || appointment.appointmentTime) || appointmentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-              
+
               // Format location
               const location = appointment.location || appointment.clinic || null
-              
+
               return (
-            <div
+                <div
                   key={appointment._id || appointment.id}
-              onClick={() => {
+                  onClick={() => {
                     navigate(`/patient/appointments?appointment=${appointment._id || appointment.id}`)
-              }}
-              className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-white hover:border-[#11496c] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
-            >
-              <img
+                  }}
+                  className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-white hover:border-[#11496c] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                >
+                  <img
                     src={appointment.doctorId?.profileImage || appointment.doctorImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=11496c&color=fff&size=128&bold=true`}
                     alt={doctorName}
-                className="h-12 w-12 rounded-full object-cover border-2 border-slate-200 flex-shrink-0"
-                onError={(e) => {
-                  e.target.onerror = null
+                    className="h-12 w-12 rounded-full object-cover border-2 border-slate-200 flex-shrink-0"
+                    onError={(e) => {
+                      e.target.onerror = null
                       e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=11496c&color=fff&size=128&bold=true`
-                }}
-              />
-              <div className="flex-1 min-w-0">
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-bold text-slate-900 mb-0.5 leading-tight">{doctorName}</h3>
                     <p className="text-xs text-slate-600 mb-1.5">{specialty}</p>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mb-1">
-                  <div className="flex items-center gap-1">
-                    <IoCalendarOutline className="h-3.5 w-3.5 flex-shrink-0" />
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mb-1">
+                      <div className="flex items-center gap-1">
+                        <IoCalendarOutline className="h-3.5 w-3.5 flex-shrink-0" />
                         <span>{appointmentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <IoTimeOutline className="h-3.5 w-3.5 flex-shrink-0" />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <IoTimeOutline className="h-3.5 w-3.5 flex-shrink-0" />
                         <span>{time}</span>
                       </div>
                     </div>
@@ -519,116 +579,215 @@ const PatientDashboard = () => {
         </div>
       </div>
 
-      {/* Doctors Section */}
+      {/* Providers Section with Tabs */}
       <div>
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Doctors</h2>
+        <div className="flex items-center gap-6 mb-4 border-b border-slate-200">
+          <button
+            onClick={() => setActiveTab('doctors')}
+            className={`pb-2 text-lg font-bold transition-colors relative ${activeTab === 'doctors' ? 'text-[#11496c]' : 'text-slate-400'}`}
+          >
+            Doctors
+            {activeTab === 'doctors' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#11496c] rounded-t-full"></div>}
+          </button>
+          <button
+            onClick={() => setActiveTab('nurses')}
+            className={`pb-2 text-lg font-bold transition-colors relative ${activeTab === 'nurses' ? 'text-[#11496c]' : 'text-slate-400'}`}
+          >
+            Nurses
+            {activeTab === 'nurses' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#11496c] rounded-t-full"></div>}
+          </button>
+        </div>
 
-        {/* Doctor Cards */}
+        {/* Content based on Active Tab */}
         <div className="space-y-4">
-          {filteredDoctors.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-4">
-                <IoPeopleOutline className="h-8 w-8" />
+          {activeTab === 'doctors' ? (
+            /* Doctor Cards */
+            filteredDoctors.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-4">
+                  <IoPeopleOutline className="h-8 w-8" />
+                </div>
+                <p className="text-lg font-semibold text-slate-700">No doctors found</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  {searchTerm.trim()
+                    ? `No doctors match "${searchTerm}". Try a different search term.`
+                    : 'No doctors available at the moment.'}
+                </p>
               </div>
-              <p className="text-lg font-semibold text-slate-700">No doctors found</p>
-              <p className="text-sm text-slate-500 mt-1">
-                {searchTerm.trim() 
-                  ? `No doctors match "${searchTerm}". Try a different search term.`
-                  : 'No doctors available at the moment.'}
-              </p>
-            </div>
-          ) : (
-            filteredDoctors.map((doctor) => (
-            <div
-              key={doctor._id || doctor.id}
-              onClick={() => navigate(`/patient/doctors/${doctor._id || doctor.id}`)}
-              className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
-            >
-              <div className="p-4">
-                {/* Doctor Info Row */}
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="relative flex-shrink-0">
-                    <img
-                      src={doctor.image || doctor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim())}&background=11496c&color=fff&size=128&bold=true`}
-                      alt={doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim()}
-                      className="h-16 w-16 rounded-lg object-cover border border-slate-200"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim())}&background=11496c&color=fff&size=128&bold=true`
-                      }}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-bold text-slate-900 mb-0.5 leading-tight">
-                      {doctor.name || `Dr. ${doctor.firstName || ''} ${doctor.lastName || ''}`.trim()}
-                    </h3>
-                    <p className="text-xs text-slate-600 mb-0.5">{doctor.specialty || doctor.specialization || ''}</p>
-                    {doctor.clinicName && (
-                      <p className="text-xs font-semibold text-slate-700 mb-0.5">{doctor.clinicName}</p>
-                    )}
-                    {doctor.clinicAddress && (
-                      <p className="text-xs text-slate-500 mb-1.5 line-clamp-2">{doctor.clinicAddress}</p>
-                    )}
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex items-center gap-0.5">{renderStars(doctor.rating || doctor.averageRating || 0)}</div>
-                      <span className="text-xs font-semibold text-slate-700">
-                        {(doctor.rating || doctor.averageRating || 0).toFixed(1)} ({doctor.reviewCount || doctor.totalReviews || 0} reviews)
-                      </span>
+            ) : (
+              filteredDoctors.map((doctor) => (
+                <div
+                  key={doctor._id || doctor.id}
+                  onClick={() => navigate(`/patient/doctors/${doctor._id || doctor.id}`)}
+                  className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+                >
+                  <div className="p-4">
+                    {/* Doctor Info Row */}
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="relative flex-shrink-0">
+                        <img
+                          src={doctor.image || doctor.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim())}&background=11496c&color=fff&size=128&bold=true`}
+                          alt={doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim()}
+                          className="h-16 w-16 rounded-lg object-cover border border-slate-200"
+                          onError={(e) => {
+                            e.target.onerror = null
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name || `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim())}&background=11496c&color=fff&size=128&bold=true`
+                          }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-bold text-slate-900 mb-0.5 leading-tight">
+                          {doctor.name || `Dr. ${doctor.firstName || ''} ${doctor.lastName || ''}`.trim()}
+                        </h3>
+                        <p className="text-xs text-slate-600 mb-0.5">{doctor.specialty || doctor.specialization || ''}</p>
+                        {doctor.clinicName && (
+                          <p className="text-xs font-semibold text-slate-700 mb-0.5">{doctor.clinicName}</p>
+                        )}
+                        {doctor.clinicAddress && (
+                          <p className="text-xs text-slate-500 mb-1.5 line-clamp-2">{doctor.clinicAddress}</p>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-0.5">{renderStars(doctor.rating || doctor.averageRating || 0)}</div>
+                          <span className="text-xs font-semibold text-slate-700">
+                            {(doctor.rating || doctor.averageRating || 0).toFixed(1)} ({doctor.reviewCount || doctor.totalReviews || 0} reviews)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <div className="text-base font-bold text-slate-900">₹{doctor.fee || doctor.consultationFee || 0}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-shrink-0 text-right">
-                    <div className="text-base font-bold text-slate-900">₹{doctor.fee || doctor.consultationFee || 0}</div>
+
+                    {/* Availability Section - Now Serving */}
+                    {doctor.isServing && doctor.nextToken && (
+                      <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)', border: '1px solid rgba(17, 73, 108, 0.3)' }}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                          <span className="text-xs font-semibold text-slate-800">Now Serving</span>
+                        </div>
+                        <p className="text-xs text-slate-600 mb-1.5">Your ETA if you book now:</p>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-sm font-bold text-slate-900">Token #{doctor.nextToken}</span>
+                          {doctor.eta && (
+                            <div className="flex items-center gap-1 text-xs text-slate-600">
+                              <IoTimeOutline className="h-3.5 w-3.5" />
+                              <span className="font-medium">{doctor.eta}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Take Token Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleTakeToken(doctor._id || doctor.id, doctor.fee || doctor.consultationFee || 0)
+                      }}
+                      className="w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors shadow-sm"
+                      style={{
+                        backgroundColor: '#11496c',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#0d3a52'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#11496c'
+                      }}
+                      onMouseDown={(e) => {
+                        e.target.style.backgroundColor = '#0a2d3f'
+                      }}
+                      onMouseUp={(e) => {
+                        e.target.style.backgroundColor = '#11496c'
+                      }}
+                    >
+                      Take Token • ₹{doctor.fee || doctor.consultationFee || 0}
+                    </button>
                   </div>
                 </div>
-
-                {/* Availability Section - Now Serving */}
-                {doctor.isServing && doctor.nextToken && (
-                  <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)', border: '1px solid rgba(17, 73, 108, 0.3)' }}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                      <span className="text-xs font-semibold text-slate-800">Now Serving</span>
-                    </div>
-                    <p className="text-xs text-slate-600 mb-1.5">Your ETA if you book now:</p>
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-bold text-slate-900">Token #{doctor.nextToken}</span>
-                      {doctor.eta && (
-                      <div className="flex items-center gap-1 text-xs text-slate-600">
-                        <IoTimeOutline className="h-3.5 w-3.5" />
-                        <span className="font-medium">{doctor.eta}</span>
-                      </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Take Token Button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleTakeToken(doctor._id || doctor.id, doctor.fee || doctor.consultationFee || 0)
-                  }}
-                  className="w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors shadow-sm"
-                  style={{ 
-                    backgroundColor: '#11496c',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = '#0d3a52'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = '#11496c'
-                  }}
-                  onMouseDown={(e) => {
-                    e.target.style.backgroundColor = '#0a2d3f'
-                  }}
-                  onMouseUp={(e) => {
-                    e.target.style.backgroundColor = '#11496c'
-                  }}
-                >
-                  Take Token • ₹{doctor.fee || doctor.consultationFee || 0}
-                </button>
+              ))
+            )
+          ) : (
+            /* Nurse Cards */
+            filteredNurses.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-4">
+                  <IoPeopleOutline className="h-8 w-8" />
+                </div>
+                <p className="text-lg font-semibold text-slate-700">No nurses found</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  {searchTerm.trim()
+                    ? `No nurses match "${searchTerm}". Try a different search term.`
+                    : 'No nurses available at the moment.'}
+                </p>
               </div>
-            </div>
-            ))
+            ) : (
+              filteredNurses.map((nurse) => (
+                <div
+                  key={nurse._id}
+                  onClick={() => navigate(`/patient/nurses/${nurse._id}`)}
+                  className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
+                >
+                  <div className="p-4">
+                    {/* Nurse Info Row */}
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="relative flex-shrink-0">
+                        <img
+                          src={nurse.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(`${nurse.firstName} ${nurse.lastName}`)}&background=14B8A6&color=fff&size=128&bold=true`}
+                          alt={`${nurse.firstName} ${nurse.lastName}`}
+                          className="h-16 w-16 rounded-lg object-cover border border-slate-200"
+                          onError={(e) => {
+                            e.target.onerror = null
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(`${nurse.firstName} ${nurse.lastName}`)}&background=14B8A6&color=fff&size=128&bold=true`
+                          }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-bold text-slate-900 mb-0.5 leading-tight">
+                          Nurse {nurse.firstName} {nurse.lastName}
+                        </h3>
+                        <p className="text-xs text-slate-600 mb-0.5">{nurse.specialization}</p>
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-0.5">{renderStars(nurse.rating)}</div>
+                          <span className="text-xs font-semibold text-slate-700">
+                            {nurse.rating.toFixed(1)} ({nurse.reviewCount} reviews)
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <div className="text-base font-bold text-slate-900">₹{nurse.fee}</div>
+                      </div>
+                    </div>
+
+                    {/* Book Nurse Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/patient/nurses/${nurse._id}?book=true`)
+                      }}
+                      className="w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors shadow-sm"
+                      style={{
+                        backgroundColor: '#14B8A6',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#0F9685'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#14B8A6'
+                      }}
+                      onMouseDown={(e) => {
+                        e.target.style.backgroundColor = '#0D8273'
+                      }}
+                      onMouseUp={(e) => {
+                        e.target.style.backgroundColor = '#14B8A6'
+                      }}
+                    >
+                      Book Nurse • ₹{nurse.fee}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )
           )}
         </div>
       </div>

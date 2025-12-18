@@ -9,6 +9,7 @@ import {
   IoTimeOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
+import { getNurseWalletBalance, getNurseWalletTransactions } from '../nurse-services/nurseService'
 
 // Default balance data (will be replaced by API data)
 const defaultBalanceData = {
@@ -62,38 +63,47 @@ const NurseWalletBalance = () => {
       try {
         setLoading(true)
         setError(null)
-        // TODO: Import nurse wallet service when available
-        // const [balanceResponse, transactionsResponse] = await Promise.all([
-        //   getNurseWalletBalance(),
-        //   getNurseWalletTransactions({ page: currentPage, limit: itemsPerPage }),
-        // ])
-        // 
-        // if (balanceResponse && balanceResponse.success && balanceResponse.data) {
-        //   const walletData = balanceResponse.data
-        //   setBalanceData(prev => ({
-        //     ...prev,
-        //     totalBalance: Number(walletData.totalBalance || 0),
-        //     availableBalance: Number(walletData.availableBalance || 0),
-        //     pendingBalance: Number(walletData.pendingBalance || 0),
-        //   }))
-        // }
-        // 
-        // if (transactionsResponse && transactionsResponse.success && transactionsResponse.data) {
-        //   const transactionsData = transactionsResponse.data
-        //   const activities = Array.isArray(transactionsData) 
-        //     ? transactionsData 
-        //     : (transactionsData.items || transactionsData.activities || [])
-        //   
-        //   setBalanceData(prev => ({
-        //     ...prev,
-        //     recentActivity: activities
-        //   }))
-        //   
-        //   // Extract pagination info
-        //   const pagination = transactionsResponse.data.pagination || {}
-        //   setTotalPages(pagination.totalPages || Math.ceil((pagination.total || activities.length) / itemsPerPage) || 1)
-        //   setTotalItems(pagination.total || activities.length)
-        // }
+        const [balanceResponse, transactionsResponse] = await Promise.all([
+          getNurseWalletBalance(),
+          getNurseWalletTransactions({ page: currentPage, limit: itemsPerPage }),
+        ])
+        
+        if (balanceResponse && balanceResponse.success && balanceResponse.data) {
+          const walletData = balanceResponse.data
+          setBalanceData(prev => ({
+            ...prev,
+            totalBalance: Number(walletData.totalBalance || walletData.balance || 0),
+            availableBalance: Number(walletData.availableBalance || 0),
+            pendingBalance: Number(walletData.pendingBalance || 0),
+          }))
+        }
+        
+        if (transactionsResponse && transactionsResponse.success && transactionsResponse.data) {
+          const transactionsData = transactionsResponse.data
+          const activities = Array.isArray(transactionsData) 
+            ? transactionsData 
+            : (transactionsData.items || transactionsData.activities || [])
+          
+          // Transform transactions to match expected format
+          const transformedActivities = activities.map(txn => ({
+            id: txn._id || txn.id,
+            description: txn.description || (txn.type === 'earning' ? 'Earning' : 'Withdrawal'),
+            amount: txn.amount || 0,
+            date: txn.createdAt || txn.date,
+            type: txn.type === 'earning' ? 'available' : 'pending',
+            status: txn.status || 'completed',
+          }))
+          
+          setBalanceData(prev => ({
+            ...prev,
+            recentActivity: transformedActivities
+          }))
+          
+          // Extract pagination info
+          const pagination = transactionsResponse.data.pagination || {}
+          setTotalPages(pagination.totalPages || Math.ceil((pagination.total || transformedActivities.length) / itemsPerPage) || 1)
+          setTotalItems(pagination.total || transformedActivities.length)
+        }
         setLoading(false)
       } catch (err) {
         console.error('Error fetching balance data:', err)

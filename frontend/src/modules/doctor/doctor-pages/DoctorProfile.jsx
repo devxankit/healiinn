@@ -266,7 +266,7 @@ const DoctorProfile = () => {
               }))
               : [],
             averageConsultationMinutes: doctor.averageConsultationMinutes || 20,
-            documents: doctor.documents || {},
+            documents: doctor.documents && Array.isArray(doctor.documents) ? doctor.documents : [],
             digitalSignature: doctor.digitalSignature ? {
               imageUrl: normalizeImageUrl(doctor.digitalSignature.imageUrl || ''),
               uploadedAt: doctor.digitalSignature.uploadedAt || null,
@@ -1931,6 +1931,76 @@ const DoctorProfile = () => {
               )}
             </div>
 
+            {/* Uploaded Documents */}
+            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
+              <button
+                type="button"
+                onClick={() => setActiveSection(activeSection === 'documents' ? null : 'documents')}
+                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
+              >
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Uploaded Documents</h2>
+                {activeSection === 'documents' ? (
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                ) : (
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                )}
+              </button>
+
+              {activeSection === 'documents' && (
+                <div className="px-3 sm:px-5 pb-4 sm:pb-5 border-t border-slate-100 space-y-3 sm:space-y-4 pt-4 sm:pt-5">
+                  {formData.documents && Array.isArray(formData.documents) && formData.documents.length > 0 ? (
+                    <div className="space-y-2">
+                      {formData.documents.map((doc, index) => {
+                        const normalizedUrl = normalizeImageUrl(doc.fileUrl || '')
+                        return (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <IoDocumentTextOutline className="h-5 w-5 text-[#11496c] flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium text-slate-700 block truncate">{doc.name || 'Document'}</span>
+                                {doc.uploadedAt && (
+                                  <span className="text-xs text-slate-500">
+                                    Uploaded: {formatDate(doc.uploadedAt)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {normalizedUrl && (
+                                <>
+                                  <a
+                                    href={normalizedUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-medium text-[#11496c] hover:underline flex items-center gap-1"
+                                  >
+                                    <IoEyeOutline className="h-4 w-4" />
+                                    View
+                                  </a>
+                                  <a
+                                    href={normalizedUrl}
+                                    download
+                                    className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <IoDownloadOutline className="h-4 w-4" />
+                                    Download
+                                  </a>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">No documents uploaded</p>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Support History */}
             <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">

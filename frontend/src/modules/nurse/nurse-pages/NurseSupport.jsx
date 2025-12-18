@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { IoCloseOutline, IoCheckmarkCircleOutline, IoTimeOutline, IoCheckmarkCircle, IoCloseCircle, IoHourglassOutline } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
 import Pagination from '../../../components/Pagination'
-// TODO: Import nurse support service when available
-// import { createSupportTicket, getSupportTickets, getSupportHistory } from '../nurse-services/nurseService'
+import { createSupportTicket, getSupportTickets, getSupportHistory } from '../nurse-services/nurseService'
 
 const NurseSupport = () => {
   const toast = useToast()
@@ -43,14 +42,13 @@ const NurseSupport = () => {
     setIsSubmitting(true)
 
     try {
-      // TODO: Uncomment when nurse support service is available
-      // const response = await createSupportTicket({
-      //   subject: `Support Request from ${formData.name}`,
-      //   message: formData.note,
-      //   priority: 'medium',
-      // })
+      const response = await createSupportTicket({
+        subject: `Support Request from ${formData.name}`,
+        message: formData.note,
+        priority: 'medium',
+      })
 
-      // if (response.success) {
+      if (response.success) {
         toast.success('Support request submitted successfully')
         setShowSuccessModal(true)
         setFormData({
@@ -61,17 +59,19 @@ const NurseSupport = () => {
         })
         // Refresh tickets list if on tickets tab
         if (activeTab === 'tickets') {
-          // const ticketsResponse = await getSupportTickets({ page: 1, limit: itemsPerPage })
-          // if (ticketsResponse.success && ticketsResponse.data) {
-          //   const ticketsData = ticketsResponse.data.items || ticketsResponse.data || []
-          //   setTickets(ticketsData)
-          //   const pagination = ticketsResponse.data.pagination || {}
-          //   setTotalPagesTickets(pagination.totalPages || Math.ceil((pagination.total || ticketsData.length) / itemsPerPage) || 1)
-          //   setTotalItemsTickets(pagination.total || ticketsData.length)
-          // }
+          const ticketsResponse = await getSupportTickets({ page: 1, limit: itemsPerPage })
+          if (ticketsResponse.success && ticketsResponse.data) {
+            const ticketsData = ticketsResponse.data.items || ticketsResponse.data || []
+            setTickets(ticketsData)
+            const pagination = ticketsResponse.data.pagination || {}
+            setTotalPagesTickets(pagination.totalPages || Math.ceil((pagination.total || ticketsData.length) / itemsPerPage) || 1)
+            setTotalItemsTickets(pagination.total || ticketsData.length)
+          }
           setCurrentPageTickets(1)
         }
-      // }
+      } else {
+        throw new Error(response.message || 'Failed to submit support request')
+      }
     } catch (error) {
       console.error('Error submitting support request:', error)
       toast.error(error.message || 'Failed to submit support request. Please try again.')
@@ -86,26 +86,24 @@ const NurseSupport = () => {
       try {
         setLoadingTickets(true)
         console.log('📋 Fetching nurse support tickets...')
-        // TODO: Uncomment when nurse support service is available
-        // const response = await getSupportTickets({ page: currentPageTickets, limit: itemsPerPage })
-        // console.log('📋 Nurse support tickets response:', response)
+        const response = await getSupportTickets({ page: currentPageTickets, limit: itemsPerPage })
+        console.log('📋 Nurse support tickets response:', response)
         
-        // if (response.success && response.data) {
-        //   const ticketsData = response.data.items || response.data || []
-        //   console.log('✅ Processed nurse tickets:', ticketsData)
-        //   setTickets(ticketsData)
-        //   
-        //   // Extract pagination info
-        //   const pagination = response.data.pagination || {}
-        //   setTotalPagesTickets(pagination.totalPages || Math.ceil((pagination.total || ticketsData.length) / itemsPerPage) || 1)
-        //   setTotalItemsTickets(pagination.total || ticketsData.length)
-        // } else {
-        //   console.warn('⚠️ Invalid response format:', response)
-        //   setTickets([])
-        // }
+        if (response.success && response.data) {
+          const ticketsData = response.data.items || response.data || []
+          console.log('✅ Processed nurse tickets:', ticketsData)
+          setTickets(ticketsData)
+          
+          // Extract pagination info
+          const pagination = response.data.pagination || {}
+          setTotalPagesTickets(pagination.totalPages || Math.ceil((pagination.total || ticketsData.length) / itemsPerPage) || 1)
+          setTotalItemsTickets(pagination.total || ticketsData.length)
+        } else {
+          console.warn('⚠️ Invalid response format:', response)
         setTickets([])
         setTotalPagesTickets(1)
         setTotalItemsTickets(0)
+        }
       } catch (error) {
         console.error('❌ Error fetching nurse support tickets:', error)
         setTickets([])
@@ -132,28 +130,26 @@ const NurseSupport = () => {
       try {
         setLoadingHistory(true)
         console.log('📜 Fetching nurse support history...')
-        // TODO: Uncomment when nurse support service is available
-        // const response = await getSupportHistory({ page: currentPageHistory, limit: itemsPerPage })
-        // console.log('📜 Nurse support history response:', response)
+        const response = await getSupportHistory({ page: currentPageHistory, limit: itemsPerPage })
+        console.log('📜 Nurse support history response:', response)
         
-        // if (response.success && response.data) {
-        //   const historyData = Array.isArray(response.data) 
-        //     ? response.data 
-        //     : (response.data.items || [])
-        //   console.log('✅ Processed nurse history:', historyData)
-        //   setHistory(historyData)
-        //   
-        //   // Extract pagination info
-        //   const pagination = response.data.pagination || {}
-        //   setTotalPagesHistory(pagination.totalPages || Math.ceil((pagination.total || historyData.length) / itemsPerPage) || 1)
-        //   setTotalItemsHistory(pagination.total || historyData.length)
-        // } else {
-        //   console.warn('⚠️ Invalid response format:', response)
-        //   setHistory([])
-        // }
+        if (response.success && response.data) {
+          const historyData = Array.isArray(response.data) 
+            ? response.data 
+            : (response.data.items || [])
+          console.log('✅ Processed nurse history:', historyData)
+          setHistory(historyData)
+          
+          // Extract pagination info
+          const pagination = response.data.pagination || {}
+          setTotalPagesHistory(pagination.totalPages || Math.ceil((pagination.total || historyData.length) / itemsPerPage) || 1)
+          setTotalItemsHistory(pagination.total || historyData.length)
+        } else {
+          console.warn('⚠️ Invalid response format:', response)
         setHistory([])
         setTotalPagesHistory(1)
         setTotalItemsHistory(0)
+        }
       } catch (error) {
         console.error('❌ Error fetching nurse support history:', error)
         setHistory([])

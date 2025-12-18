@@ -55,10 +55,11 @@ const laboratorySchema = new mongoose.Schema(
       phone: { type: String, trim: true },
       email: { type: String, trim: true },
     },
-    documents: {
-      license: { type: String, trim: true },
-      accreditation: { type: String, trim: true },
-    },
+    documents: [{
+      name: { type: String, required: true, trim: true },
+      fileUrl: { type: String, required: true, trim: true },
+      uploadedAt: { type: Date, default: Date.now },
+    }],
     profileImage: { type: String, trim: true },
     rating: { type: Number, min: 0, max: 5, default: 0 },
     operatingHours: {

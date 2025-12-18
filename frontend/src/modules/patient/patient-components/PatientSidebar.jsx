@@ -18,8 +18,10 @@ const PatientSidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
   useEffect(() => {
     if (isOpen) {
       closeButtonRef.current?.focus({ preventScroll: true })
+      // Debug: Log navItems to verify nurses is included
+      console.log('PatientSidebar navItems:', navItems.map(item => item.id))
     }
-  }, [isOpen])
+  }, [isOpen, navItems])
 
   return (
     <>

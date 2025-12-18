@@ -8,6 +8,8 @@ import PatientNavbar from './modules/patient/patient-components/PatientNavbar'
 import PatientDashboard from './modules/patient/patient-pages/PatientDashboard'
 import PatientDoctors from './modules/patient/patient-pages/PatientDoctors'
 import PatientDoctorDetails from './modules/patient/patient-pages/PatientDoctorDetails'
+import PatientNurses from './modules/patient/patient-pages/PatientNurses'
+import PatientNurseDetails from './modules/patient/patient-pages/PatientNurseDetails'
 import PatientProfile from './modules/patient/patient-pages/PatientProfile'
 import PatientLocations from './modules/patient/patient-pages/PatientLocations'
 import PatientPrescriptions from './modules/patient/patient-pages/PatientPrescriptions'
@@ -109,6 +111,7 @@ import NurseWalletWithdraw from './modules/nurse/nurse-pages/NurseWalletWithdraw
 import NurseWalletTransaction from './modules/nurse/nurse-pages/NurseWalletTransaction'
 import NurseSupport from './modules/nurse/nurse-pages/NurseSupport'
 import NurseProfile from './modules/nurse/nurse-pages/NurseProfile'
+import NurseLogin from './modules/nurse/nurse-pages/NurseLogin'
 import AdminNavbar from './modules/admin/admin-components/AdminNavbar'
 import AdminLogin from './modules/admin/admin-pages/AdminLogin'
 import AdminDashboard from './modules/admin/admin-pages/AdminDashboard'
@@ -137,12 +140,12 @@ function PatientRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/patient/login'
   const token = getAuthToken('patient')
-  
+
   // If not authenticated and not on login page, force redirect to login
   if (!token && !isLoginPage) {
     return <Navigate to="/patient/login" replace />
   }
-  
+
   return (
     <NotificationProvider module="patient">
       {!isLoginPage && <PatientNavbar />}
@@ -154,18 +157,20 @@ function PatientRoutes() {
           } />
           <Route path="/login" element={<PatientLogin />} />
           <Route path="/dashboard" element={<ProtectedRoute module="patient"><PatientDashboard /></ProtectedRoute>} />
-                    <Route path="/doctors" element={<ProtectedRoute module="patient"><PatientDoctors /></ProtectedRoute>} />
-                    <Route path="/doctors/:id" element={<ProtectedRoute module="patient"><PatientDoctorDetails /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute module="patient"><PatientProfile /></ProtectedRoute>} />
-                    <Route path="/locations" element={<ProtectedRoute module="patient"><PatientLocations /></ProtectedRoute>} />
-                    <Route path="/prescriptions" element={<ProtectedRoute module="patient"><PatientPrescriptions /></ProtectedRoute>} />
-                    <Route path="/specialties" element={<ProtectedRoute module="patient"><PatientSpecialties /></ProtectedRoute>} />
-                    <Route path="/specialties/:specialtyId/doctors" element={<ProtectedRoute module="patient"><PatientSpecialtyDoctors /></ProtectedRoute>} />
-                    <Route path="/upcoming-schedules" element={<ProtectedRoute module="patient"><PatientUpcomingSchedules /></ProtectedRoute>} />
-                    <Route path="/reports" element={<Navigate to="/patient/prescriptions?tab=lab-reports" replace />} />
-                    <Route path="/requests" element={<ProtectedRoute module="patient"><PatientRequests /></ProtectedRoute>} />
-                    <Route path="/transactions" element={<ProtectedRoute module="patient"><PatientTransactions /></ProtectedRoute>} />
-                    <Route path="/appointments" element={<ProtectedRoute module="patient"><PatientAppointments /></ProtectedRoute>} />
+          <Route path="/doctors" element={<ProtectedRoute module="patient"><PatientDoctors /></ProtectedRoute>} />
+          <Route path="/doctors/:id" element={<ProtectedRoute module="patient"><PatientDoctorDetails /></ProtectedRoute>} />
+          <Route path="/nurses" element={<ProtectedRoute module="patient"><PatientNurses /></ProtectedRoute>} />
+          <Route path="/nurses/:id" element={<ProtectedRoute module="patient"><PatientNurseDetails /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute module="patient"><PatientProfile /></ProtectedRoute>} />
+          <Route path="/locations" element={<ProtectedRoute module="patient"><PatientLocations /></ProtectedRoute>} />
+          <Route path="/prescriptions" element={<ProtectedRoute module="patient"><PatientPrescriptions /></ProtectedRoute>} />
+          <Route path="/specialties" element={<ProtectedRoute module="patient"><PatientSpecialties /></ProtectedRoute>} />
+          <Route path="/specialties/:specialtyId/doctors" element={<ProtectedRoute module="patient"><PatientSpecialtyDoctors /></ProtectedRoute>} />
+          <Route path="/upcoming-schedules" element={<ProtectedRoute module="patient"><PatientUpcomingSchedules /></ProtectedRoute>} />
+          <Route path="/reports" element={<Navigate to="/patient/prescriptions?tab=lab-reports" replace />} />
+          <Route path="/requests" element={<ProtectedRoute module="patient"><PatientRequests /></ProtectedRoute>} />
+          <Route path="/transactions" element={<ProtectedRoute module="patient"><PatientTransactions /></ProtectedRoute>} />
+          <Route path="/appointments" element={<ProtectedRoute module="patient"><PatientAppointments /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute module="patient"><PatientOrders /></ProtectedRoute>} />
           <Route path="/orders/:id" element={<ProtectedRoute module="patient"><PatientOrderDetails /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute module="patient"><PatientHistory /></ProtectedRoute>} />
@@ -192,7 +197,7 @@ function AdminRoutes() {
   if (!token && !isLoginPage) {
     return <Navigate to="/admin/login" replace />
   }
-  
+
   return (
     <NotificationProvider module="admin">
       {isAuthenticated && <AdminNavbar />}
@@ -200,7 +205,7 @@ function AdminRoutes() {
         <Routes>
           {/* Public route - Login page */}
           <Route path="/login" element={<AdminLogin />} />
-          
+
           {/* Protected routes - All require authentication */}
           <Route path="/" element={
             token ? <ProtectedRoute module="admin"><Navigate to="/admin/dashboard" replace /></ProtectedRoute> : <Navigate to="/admin/login" replace />
@@ -223,7 +228,7 @@ function AdminRoutes() {
           <Route path="/profile" element={<ProtectedRoute module="admin"><AdminProfile /></ProtectedRoute>} />
           <Route path="/support" element={<ProtectedRoute module="admin"><AdminSupport /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute module="admin"><NotificationsPage /></ProtectedRoute>} />
-          
+
           {/* Catch-all - redirect to login if not authenticated */}
           <Route path="*" element={
             token ? <ProtectedRoute module="admin"><Navigate to="/admin/dashboard" replace /></ProtectedRoute> : <Navigate to="/admin/login" replace />
@@ -238,12 +243,12 @@ function DoctorRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/doctor/login' || location.pathname === '/doctor/signup'
   const token = getAuthToken('doctor')
-  
+
   // If authenticated and on login/signup page, redirect to dashboard
   if (token && isLoginPage) {
     return <Navigate to="/doctor/dashboard" replace />
   }
-  
+
   // If not authenticated and trying to access protected routes, force redirect to login
   if (!token && !isLoginPage) {
     // Clear any stale tokens
@@ -257,21 +262,21 @@ function DoctorRoutes() {
     }
     return <Navigate to="/doctor/login" replace />
   }
-  
+
   return (
     <NotificationProvider module="doctor">
       {/* Mobile Navbar - Only visible on mobile/tablet */}
       {!isLoginPage && <DoctorNavbar />}
-      
+
       {/* Desktop Header - Only visible on desktop */}
       {!isLoginPage && <DoctorHeader />}
-      
+
       {/* Doctor Call Status Indicator */}
       {!isLoginPage && <DoctorCallStatus />}
-      
+
       {/* Call Popup - For doctors to join WebRTC */}
       {!isLoginPage && <CallPopup />}
-      
+
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
         <div className="max-w-7xl mx-auto w-full lg:flex-1">
           <Routes>
@@ -457,7 +462,7 @@ function DoctorRoutes() {
           </Routes>
         </div>
       </main>
-      
+
       {/* Desktop Footer - Only visible on desktop */}
       {!isLoginPage && <DoctorFooter />}
     </NotificationProvider>
@@ -468,12 +473,12 @@ function PharmacyRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/pharmacy/login' || location.pathname === '/pharmacy/signup'
   const token = getAuthToken('pharmacy')
-  
+
   // If authenticated and on login/signup page, redirect to dashboard
   if (token && isLoginPage) {
     return <Navigate to="/pharmacy/dashboard" replace />
   }
-  
+
   // If not authenticated and trying to access protected routes, force redirect to login
   if (!token && !isLoginPage) {
     // Clear any stale tokens
@@ -487,7 +492,7 @@ function PharmacyRoutes() {
     }
     return <Navigate to="/pharmacy/login" replace />
   }
-  
+
   return (
     <NotificationProvider module="pharmacy">
       {!isLoginPage && <PharmacyNavbar />}
@@ -642,12 +647,12 @@ function LaboratoryRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/laboratory/login' || location.pathname === '/laboratory/signup'
   const token = getAuthToken('laboratory')
-  
+
   // If authenticated and on login/signup page, redirect to dashboard
   if (token && isLoginPage) {
     return <Navigate to="/laboratory/dashboard" replace />
   }
-  
+
   // If not authenticated and trying to access protected routes, force redirect to login
   if (!token && !isLoginPage) {
     // Clear any stale tokens
@@ -661,15 +666,15 @@ function LaboratoryRoutes() {
     }
     return <Navigate to="/laboratory/login" replace />
   }
-  
+
   return (
     <NotificationProvider module="laboratory">
       {/* Mobile Navbar - Only visible on mobile/tablet */}
       {!isLoginPage && <LaboratoryNavbar />}
-      
+
       {/* Desktop Header - Only visible on desktop */}
       {!isLoginPage && <LaboratoryHeader />}
-      
+
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
         <div className="max-w-7xl mx-auto w-full lg:flex-1">
           <Routes>
@@ -927,7 +932,7 @@ function LaboratoryRoutes() {
           </Routes>
         </div>
       </main>
-      
+
       {/* Desktop Footer - Only visible on desktop */}
       {!isLoginPage && <LaboratoryFooter />}
     </NotificationProvider>
@@ -937,79 +942,106 @@ function LaboratoryRoutes() {
 function NurseRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/nurse/login' || location.pathname === '/nurse/signup'
-  
+  const token = getAuthToken('nurse')
+
+  // If authenticated and on login/signup page, redirect to dashboard
+  if (token && isLoginPage) {
+    return <Navigate to="/nurse/dashboard" replace />
+  }
+
+  // If not authenticated and trying to access protected routes, redirect to doctor login (which has nurse option)
+  if (!token && !isLoginPage) {
+    // Clear any stale tokens
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('nurseAuthToken')
+      localStorage.removeItem('nurseAccessToken')
+      localStorage.removeItem('nurseRefreshToken')
+      sessionStorage.removeItem('nurseAuthToken')
+      sessionStorage.removeItem('nurseAccessToken')
+      sessionStorage.removeItem('nurseRefreshToken')
+    }
+    return <Navigate to="/doctor/login" replace />
+  }
+
   return (
     <NotificationProvider module="nurse">
       {/* Mobile Navbar - Only visible on mobile/tablet */}
       {!isLoginPage && <NurseNavbar />}
-      
+
       {/* Desktop Header - Only visible on desktop */}
       {!isLoginPage && <NurseHeader />}
-      
+
       <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
         <div className="max-w-7xl mx-auto w-full lg:flex-1">
           <Routes>
             <Route
               path="/"
-              element={<Navigate to="/nurse/dashboard" replace />}
-            />
-            <Route
-              path="/dashboard"
-              element={<NurseDashboard />}
-            />
-            <Route
-              path="/booking"
-              element={<NurseBookings />}
-            />
-            <Route
-              path="/transactions"
-              element={<NurseTransactions />}
-            />
-            <Route
-              path="/wallet"
-              element={<NurseWallet />}
-            />
-            <Route
-              path="/wallet/balance"
-              element={<NurseWalletBalance />}
-            />
-            <Route
-              path="/wallet/earning"
-              element={<NurseWalletEarning />}
-            />
-            <Route
-              path="/wallet/withdraw"
-              element={<NurseWalletWithdraw />}
-            />
-            <Route
-              path="/wallet/transaction"
-              element={<NurseWalletTransaction />}
-            />
-            <Route
-              path="/support"
-              element={<NurseSupport />}
-            />
-            <Route
-              path="/profile"
-              element={<NurseProfile />}
-            />
-            <Route
-              path="/notifications"
-              element={<NotificationsPage />}
+              element={
+                token ? <ProtectedRoute module="nurse"><Navigate to="/nurse/dashboard" replace /></ProtectedRoute> : <Navigate to="/doctor/login" replace />
+              }
             />
             <Route
               path="/login"
+              element={<DoctorLogin />}
+            />
+            <Route
+              path="/signup"
+              element={<DoctorLogin />}
+            />
+            <Route
+              path="/dashboard"
+              element={<ProtectedRoute module="nurse"><NurseDashboard /></ProtectedRoute>}
+            />
+            <Route
+              path="/booking"
+              element={<ProtectedRoute module="nurse"><NurseBookings /></ProtectedRoute>}
+            />
+            <Route
+              path="/transactions"
+              element={<ProtectedRoute module="nurse"><NurseTransactions /></ProtectedRoute>}
+            />
+            <Route
+              path="/wallet"
+              element={<ProtectedRoute module="nurse"><NurseWallet /></ProtectedRoute>}
+            />
+            <Route
+              path="/wallet/balance"
+              element={<ProtectedRoute module="nurse"><NurseWalletBalance /></ProtectedRoute>}
+            />
+            <Route
+              path="/wallet/earning"
+              element={<ProtectedRoute module="nurse"><NurseWalletEarning /></ProtectedRoute>}
+            />
+            <Route
+              path="/wallet/withdraw"
+              element={<ProtectedRoute module="nurse"><NurseWalletWithdraw /></ProtectedRoute>}
+            />
+            <Route
+              path="/wallet/transaction"
+              element={<ProtectedRoute module="nurse"><NurseWalletTransaction /></ProtectedRoute>}
+            />
+            <Route
+              path="/support"
+              element={<ProtectedRoute module="nurse"><NurseSupport /></ProtectedRoute>}
+            />
+            <Route
+              path="/profile"
+              element={<ProtectedRoute module="nurse"><NurseProfile /></ProtectedRoute>}
+            />
+            <Route
+              path="/notifications"
+              element={<ProtectedRoute module="nurse"><NotificationsPage /></ProtectedRoute>}
+            />
+            <Route
+              path="*"
               element={
-                <div className="flex items-center justify-center min-h-screen">
-                  <p className="text-slate-600">Nurse Login - Coming Soon</p>
-                </div>
+                <Navigate to={token ? "/nurse/dashboard" : "/doctor/login"} replace />
               }
             />
-            <Route path="*" element={<Navigate to="/nurse/dashboard" replace />} />
           </Routes>
         </div>
       </main>
-      
+
       {/* Desktop Footer - Only visible on desktop */}
       {!isLoginPage && <NurseFooter />}
     </NotificationProvider>
@@ -1034,8 +1066,9 @@ function DefaultRedirect() {
   const doctorToken = getAuthToken('doctor')
   const pharmacyToken = getAuthToken('pharmacy')
   const laboratoryToken = getAuthToken('laboratory')
+  const nurseToken = getAuthToken('nurse')
   const adminToken = getAuthToken('admin')
-  
+
   // If authenticated, redirect to respective dashboard
   if (patientToken) {
     return <Navigate to="/patient/dashboard" replace />
@@ -1049,10 +1082,14 @@ function DefaultRedirect() {
   if (laboratoryToken) {
     return <Navigate to="/laboratory/dashboard" replace />
   }
+  if (nurseToken) {
+    return <Navigate to="/nurse/dashboard" replace />
+  }
+  // Note: Nurse login is now handled through /doctor/login page
   if (adminToken) {
     return <Navigate to="/admin/dashboard" replace />
   }
-  
+
   // Default to landing page for unauthenticated users
   return (
     <>

@@ -499,57 +499,73 @@ const AdminDashboard = () => {
 
         // If dashboard endpoint doesn't exist, fetch from individual endpoints
         if (!dashboardData) {
-          const [usersResponse, doctorsResponse, pharmaciesResponse, laboratoriesResponse, nursesResponse, verificationsResponse] = await Promise.allSettled([
-            getUsers({ limit: 1 }),
-            getDoctors({ limit: 1 }),
-            getPharmacies({ limit: 1 }),
-            getLaboratories({ limit: 1 }),
-            getNurses({ limit: 1 }),
+          // Fetch all items to get accurate counts (or use pagination.total if available)
+          const [usersResponse, doctorsResponse, pharmaciesResponse, laboratoriesResponse, nursesResponse] = await Promise.allSettled([
+            getUsers({ limit: 1000 }),
+            getDoctors({ limit: 1000 }),
+            getPharmacies({ limit: 1000 }),
+            getLaboratories({ limit: 1000 }),
+            getNurses({ limit: 1000 }),
           ])
 
-          // Extract total from pagination or items array
-          const totalUsers = usersResponse.status === 'fulfilled' && usersResponse.value?.success
-            ? (usersResponse.value.data?.pagination?.total || usersResponse.value.data?.items?.length || 0)
-            : 0
-          
-          const totalDoctors = doctorsResponse.status === 'fulfilled' && doctorsResponse.value?.success
-            ? (doctorsResponse.value.data?.pagination?.total || doctorsResponse.value.data?.items?.length || 0)
-            : 0
-          
-          const totalPharmacies = pharmaciesResponse.status === 'fulfilled' && pharmaciesResponse.value?.success
-            ? (pharmaciesResponse.value.data?.pagination?.total || pharmaciesResponse.value.data?.items?.length || 0)
-            : 0
-          
-          const totalLaboratories = laboratoriesResponse.status === 'fulfilled' && laboratoriesResponse.value?.success
-            ? (laboratoriesResponse.value.data?.pagination?.total || laboratoriesResponse.value.data?.items?.length || 0)
-            : 0
-          
-          const totalNurses = nursesResponse.status === 'fulfilled' && nursesResponse.value?.success
-            ? (nursesResponse.value.data?.pagination?.total || nursesResponse.value.data?.items?.length || 0)
-            : 0
+          // Helper function to extract count from response
+          const extractCount = (response) => {
+            if (response.status !== 'fulfilled' || !response.value?.success) {
+              return 0
+            }
+            const data = response.value.data
+            // Try pagination.total first (most accurate)
+            if (data?.pagination?.total !== undefined && data.pagination.total !== null) {
+              return Number(data.pagination.total) || 0
+            }
+            // Fallback to items array length
+            if (Array.isArray(data?.items)) {
+              return data.items.length
+            }
+            // Fallback to direct array
+            if (Array.isArray(data)) {
+              return data.length
+            }
+            return 0
+          }
+
+          // Extract counts using helper function
+          const totalUsers = extractCount(usersResponse)
+          const totalDoctors = extractCount(doctorsResponse)
+          const totalPharmacies = extractCount(pharmaciesResponse)
+          const totalLaboratories = extractCount(laboratoriesResponse)
+          const totalNurses = extractCount(nursesResponse)
+
+          console.log('📊 Dashboard Counts:', {
+            totalUsers,
+            totalDoctors,
+            totalPharmacies,
+            totalLaboratories,
+            totalNurses,
+          })
           
           // Get pending verifications count from all providers
           let pendingVerifications = 0
           if (doctorsResponse.status === 'fulfilled' && doctorsResponse.value?.success) {
-            const doctors = doctorsResponse.value.data?.items || doctorsResponse.value.data || []
+            const doctors = doctorsResponse.value.data?.items || (Array.isArray(doctorsResponse.value.data) ? doctorsResponse.value.data : []) || []
             if (Array.isArray(doctors)) {
               pendingVerifications += doctors.filter(d => d.status === 'pending').length
             }
           }
           if (pharmaciesResponse.status === 'fulfilled' && pharmaciesResponse.value?.success) {
-            const pharmacies = pharmaciesResponse.value.data?.items || pharmaciesResponse.value.data || []
+            const pharmacies = pharmaciesResponse.value.data?.items || (Array.isArray(pharmaciesResponse.value.data) ? pharmaciesResponse.value.data : []) || []
             if (Array.isArray(pharmacies)) {
               pendingVerifications += pharmacies.filter(p => p.status === 'pending').length
             }
           }
           if (laboratoriesResponse.status === 'fulfilled' && laboratoriesResponse.value?.success) {
-            const laboratories = laboratoriesResponse.value.data?.items || laboratoriesResponse.value.data || []
+            const laboratories = laboratoriesResponse.value.data?.items || (Array.isArray(laboratoriesResponse.value.data) ? laboratoriesResponse.value.data : []) || []
             if (Array.isArray(laboratories)) {
               pendingVerifications += laboratories.filter(l => l.status === 'pending').length
             }
           }
           if (nursesResponse.status === 'fulfilled' && nursesResponse.value?.success) {
-            const nurses = nursesResponse.value.data?.items || nursesResponse.value.data || []
+            const nurses = nursesResponse.value.data?.items || (Array.isArray(nursesResponse.value.data) ? nursesResponse.value.data : []) || []
             if (Array.isArray(nurses)) {
               pendingVerifications += nurses.filter(n => n.status === 'pending').length
             }

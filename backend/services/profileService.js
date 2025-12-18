@@ -163,12 +163,16 @@ const applyPatientUpdates = async (doc, updates, Model) => {
     }
   });
 
-  arrayReplaceFields.forEach((field) => {
+  for (const field of arrayReplaceFields) {
     if (updates[field] !== undefined) {
+      // For documents field, delete old files before replacing
+      if (field === 'documents' && doc[field] && Array.isArray(updates[field])) {
+        await deleteOldDocumentFiles(doc[field], updates[field]);
+      }
       doc[field] = updates[field];
       doc.markModified(field);
     }
-  });
+  }
 };
 
 const applyDoctorUpdates = async (doc, updates, Model) => {
@@ -341,8 +345,8 @@ const applyNurseUpdates = async (doc, updates, Model) => {
     'bio',
     'profileImage',
   ];
-  const mergeFields = ['address', 'documents'];
-  const arrayReplaceFields = [];
+  const mergeFields = ['address'];
+  const arrayReplaceFields = ['availability', 'documents'];
 
   if (updates.phone && updates.phone !== doc.phone) {
     await ensureUniqueField(Model, 'phone', updates.phone, doc._id, 'Phone number already registered.');
@@ -362,21 +366,21 @@ const applyNurseUpdates = async (doc, updates, Model) => {
 
   for (const field of mergeFields) {
     if (updates[field] !== undefined) {
-      // For documents field, delete old files before merging
-      if (field === 'documents' && doc[field]) {
-        await deleteOldDocumentFiles(doc[field], updates[field]);
-      }
       doc[field] = mergeObjects(doc[field], updates[field]);
       doc.markModified(field);
     }
   }
 
-  arrayReplaceFields.forEach((field) => {
+  for (const field of arrayReplaceFields) {
     if (updates[field] !== undefined) {
+      // For documents field, delete old files before replacing
+      if (field === 'documents' && doc[field] && Array.isArray(updates[field])) {
+        await deleteOldDocumentFiles(doc[field], updates[field]);
+      }
       doc[field] = updates[field];
       doc.markModified(field);
     }
-  });
+  }
 };
 
 const applyAdminUpdates = async (doc, updates, Model, { requester } = {}) => {

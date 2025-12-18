@@ -31,6 +31,17 @@ import {
 
 // Mock data removed - using real backend data now
 
+// Helper function to normalize document URLs
+const normalizeDocumentUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+  const baseUrl = apiBaseUrl.replace('/api', '')
+  return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`
+}
+
 const LaboratoryProfile = () => {
   const navigate = useNavigate()
   const location = useLocation()
@@ -127,7 +138,7 @@ const LaboratoryProfile = () => {
             testsOffered: Array.isArray(cachedProfile.testsOffered) ? cachedProfile.testsOffered : [],
             serviceRadiusKm: cachedProfile.serviceRadiusKm || 0,
             responseTimeMinutes: cachedProfile.responseTimeMinutes || 0,
-            documents: cachedProfile.documents || {},
+            documents: cachedProfile.documents && Array.isArray(cachedProfile.documents) ? cachedProfile.documents : [],
             status: cachedProfile.status || 'pending',
             rating: cachedProfile.rating || 0,
             isActive: cachedProfile.isActive !== undefined ? cachedProfile.isActive : true,
@@ -220,7 +231,7 @@ const LaboratoryProfile = () => {
             testsOffered: Array.isArray(laboratory.testsOffered) ? laboratory.testsOffered : [],
             serviceRadiusKm: laboratory.serviceRadiusKm || 0,
             responseTimeMinutes: laboratory.responseTimeMinutes || 0,
-            documents: laboratory.documents || {},
+            documents: laboratory.documents && Array.isArray(laboratory.documents) ? laboratory.documents : [],
             status: laboratory.status || 'pending',
             rating: laboratory.rating || 0,
             isActive: laboratory.isActive !== undefined ? laboratory.isActive : true,
@@ -626,7 +637,7 @@ const LaboratoryProfile = () => {
     testsOffered: Array.isArray(formData.testsOffered) ? formData.testsOffered : [],
     serviceRadiusKm: formData.serviceRadiusKm || 0,
     responseTimeMinutes: formData.responseTimeMinutes || 0,
-    documents: formData.documents || {},
+    documents: formData.documents && Array.isArray(formData.documents) ? formData.documents : [],
     status: formData.status || 'pending',
     rating: formData.rating || 0,
     isActive: formData.isActive !== undefined ? formData.isActive : true,
@@ -1226,6 +1237,76 @@ const LaboratoryProfile = () => {
                     ) : (
                       <p className="text-sm text-slate-500 text-center py-4">No operating hours set</p>
                       )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Uploaded Documents */}
+            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
+              <button
+                type="button"
+                onClick={() => toggleSection('documents')}
+                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
+              >
+                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Uploaded Documents</h2>
+                {activeSection === 'documents' ? (
+                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                ) : (
+                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                )}
+              </button>
+              {activeSection === 'documents' && (
+                <div className="px-3 sm:px-5 lg:px-4 pb-4 sm:pb-5 lg:pb-4 border-t border-slate-100">
+                  <div className="pt-3 sm:pt-4 lg:pt-3 space-y-2">
+                    {formData.documents && Array.isArray(formData.documents) && formData.documents.length > 0 ? (
+                      formData.documents.map((doc, index) => {
+                        const normalizedUrl = normalizeDocumentUrl(doc.fileUrl || '')
+                        return (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <IoDocumentTextOutline className="h-5 w-5 text-[#11496c] flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium text-slate-700 block truncate">{doc.name || 'Document'}</span>
+                                {doc.uploadedAt && (
+                                  <span className="text-xs text-slate-500">
+                                    Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {normalizedUrl && (
+                                <>
+                                  <a
+                                    href={normalizedUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-medium text-[#11496c] hover:underline flex items-center gap-1"
+                                  >
+                                    <IoEyeOutline className="h-4 w-4" />
+                                    View
+                                  </a>
+                                  <a
+                                    href={normalizedUrl}
+                                    download
+                                    className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <IoDownloadOutline className="h-4 w-4" />
+                                    Download
+                                  </a>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })
+                    ) : (
+                      <p className="text-sm text-slate-500 italic">No documents uploaded</p>
+                    )}
                   </div>
                 </div>
               )}

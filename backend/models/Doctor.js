@@ -117,11 +117,11 @@ const doctorSchema = new mongoose.Schema(
       imageUrl: { type: String, trim: true },
       uploadedAt: { type: Date },
     },
-    documents: {
-      license: { type: String, trim: true },
-      identityProof: { type: String, trim: true },
-      profileImage: { type: String, trim: true },
-    },
+    documents: [{
+      name: { type: String, required: true, trim: true },
+      fileUrl: { type: String, required: true, trim: true },
+      uploadedAt: { type: Date, default: Date.now },
+    }],
     status: {
       type: String,
       enum: Object.values(APPROVAL_STATUS),

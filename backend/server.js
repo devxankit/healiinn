@@ -117,6 +117,15 @@ app.use(
   require("./routes/pharmacy-routes/auth.routes")
 );
 app.use("/api/nurses/auth", require("./routes/nurse-routes/auth.routes"));
+app.use(
+  "/api/nurses/notifications",
+  require("./routes/nurse-routes/notification.routes")
+);
+app.use("/api/nurses/wallet", require("./routes/nurse-routes/wallet.routes"));
+app.use(
+  "/api/nurses/support",
+  require("./routes/nurse-routes/support.routes")
+);
 app.use("/api/admin/auth", require("./routes/admin-routes/auth.routes"));
 app.use("/api/patients/auth", require("./routes/patient-routes/auth.routes"));
 app.use("/api/doctors/auth", require("./routes/doctor-routes/auth.routes"));
@@ -150,6 +159,10 @@ app.use(
 app.use(
   "/api/patients/doctors",
   require("./routes/patient-routes/doctor.routes")
+);
+app.use(
+  "/api/patients/nurses",
+  require("./routes/patient-routes/nurse.routes")
 );
 app.use(
   "/api/patients",

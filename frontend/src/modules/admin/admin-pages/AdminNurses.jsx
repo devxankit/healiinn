@@ -9,6 +9,10 @@ import {
   IoTimeOutline,
   IoCloseCircleOutline,
   IoCloseOutline,
+  IoMedicalOutline,
+  IoSchoolOutline,
+  IoBriefcaseOutline,
+  IoDocumentTextOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
@@ -82,13 +86,34 @@ const AdminNurses = () => {
       // First, load ALL nurses for stats (no filters)
       const allNursesResponse = await getNurses({ page: 1, limit: 1000 })
       if (allNursesResponse.success && allNursesResponse.data) {
+        // Helper function to format full address
+        const formatFullAddress = (address) => {
+          if (!address) return ''
+          if (typeof address === 'string') return address
+          
+          const parts = []
+          if (address.line1) parts.push(address.line1)
+          if (address.line2) parts.push(address.line2)
+          if (address.city) parts.push(address.city)
+          if (address.state) parts.push(address.state)
+          if (address.postalCode) parts.push(address.postalCode)
+          if (address.country) parts.push(address.country)
+          
+          return parts.length > 0 ? parts.join(', ') : ''
+        }
+        
         const allTransformed = (allNursesResponse.data.items || []).map(nurse => ({
           id: nurse._id || nurse.id,
-          name: nurse.name || nurse.fullName || '',
+          name: `${nurse.firstName || ''} ${nurse.lastName || ''}`.trim() || 'N/A',
           email: nurse.email || '',
           phone: nurse.phone || '',
-          address: nurse.address ? (typeof nurse.address === 'string' ? nurse.address : `${nurse.address.line1 || ''}, ${nurse.address.city || ''}, ${nurse.address.state || ''}`.trim()) : '',
-          licenseNumber: nurse.licenseNumber || nurse.registrationNumber || '',
+          address: formatFullAddress(nurse.address),
+          qualification: nurse.qualification || '',
+          specialization: nurse.specialization || '',
+          experienceYears: nurse.experienceYears || null,
+          fees: nurse.fees || null,
+          registrationNumber: nurse.registrationNumber || '',
+          registrationCouncilName: nurse.registrationCouncilName || '',
           status: nurse.status === 'approved' ? 'verified' : nurse.status || 'pending',
           registeredAt: nurse.createdAt || new Date().toISOString(),
           totalBookings: nurse.totalBookings || 0,
@@ -119,13 +144,34 @@ const AdminNurses = () => {
         console.log('📋 Raw nurses data from API:', nursesData)
         console.log('📋 Pagination info:', pagination)
         
+        // Helper function to format full address
+        const formatFullAddress = (address) => {
+          if (!address) return ''
+          if (typeof address === 'string') return address
+          
+          const parts = []
+          if (address.line1) parts.push(address.line1)
+          if (address.line2) parts.push(address.line2)
+          if (address.city) parts.push(address.city)
+          if (address.state) parts.push(address.state)
+          if (address.postalCode) parts.push(address.postalCode)
+          if (address.country) parts.push(address.country)
+          
+          return parts.length > 0 ? parts.join(', ') : ''
+        }
+        
         const transformedNurses = nursesData.map(nurse => ({
           id: nurse._id || nurse.id,
-          name: nurse.name || nurse.fullName || '',
+          name: `${nurse.firstName || ''} ${nurse.lastName || ''}`.trim() || 'N/A',
           email: nurse.email || '',
           phone: nurse.phone || '',
-          address: nurse.address ? (typeof nurse.address === 'string' ? nurse.address : `${nurse.address.line1 || ''}, ${nurse.address.city || ''}, ${nurse.address.state || ''}`.trim()) : '',
-          licenseNumber: nurse.licenseNumber || nurse.registrationNumber || '',
+          address: formatFullAddress(nurse.address),
+          qualification: nurse.qualification || '',
+          specialization: nurse.specialization || '',
+          experienceYears: nurse.experienceYears || null,
+          fees: nurse.fees || null,
+          registrationNumber: nurse.registrationNumber || '',
+          registrationCouncilName: nurse.registrationCouncilName || '',
           status: nurse.status === 'approved' ? 'verified' : nurse.status || 'pending',
           registeredAt: nurse.createdAt || new Date().toISOString(),
           totalBookings: nurse.totalBookings || 0,
@@ -332,10 +378,16 @@ const AdminNurses = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <h3 className="text-base font-semibold text-slate-900">{nurse.name}</h3>
+                      {nurse.qualification && (
+                        <p className="mt-0.5 text-sm font-medium text-[#11496c]">{nurse.qualification}</p>
+                      )}
+                      {nurse.specialization && (
+                        <p className="mt-0.5 text-xs text-slate-500">{nurse.specialization}</p>
+                      )}
                       <div className="mt-1.5 space-y-1 text-sm text-slate-600">
                         {nurse.address && (
-                          <div className="flex items-center gap-2">
-                            <IoLocationOutline className="h-4 w-4 shrink-0" />
+                          <div className="flex items-start gap-2">
+                            <IoLocationOutline className="h-4 w-4 shrink-0 mt-0.5" />
                             <span className="truncate">{nurse.address}</span>
                           </div>
                         )}
@@ -347,9 +399,32 @@ const AdminNurses = () => {
                           <IoCallOutline className="h-4 w-4 shrink-0" />
                           <span>{nurse.phone}</span>
                         </div>
-                        {nurse.licenseNumber && (
+                        {nurse.qualification && (
+                          <div className="flex items-center gap-2">
+                            <IoSchoolOutline className="h-4 w-4 shrink-0" />
+                            <span className="text-xs text-slate-500">Qualification: {nurse.qualification}</span>
+                          </div>
+                        )}
+                        {nurse.experienceYears !== null && nurse.experienceYears !== undefined && (
+                          <div className="flex items-center gap-2">
+                            <IoBriefcaseOutline className="h-4 w-4 shrink-0" />
+                            <span className="text-xs text-slate-500">Experience: {nurse.experienceYears} years</span>
+                          </div>
+                        )}
+                        {nurse.fees !== null && nurse.fees !== undefined && (
                           <div className="text-xs text-slate-500">
-                            License: {nurse.licenseNumber}
+                            Fees: ₹{nurse.fees}
+                          </div>
+                        )}
+                        {nurse.registrationNumber && (
+                          <div className="flex items-center gap-2">
+                            <IoDocumentTextOutline className="h-4 w-4 shrink-0" />
+                            <span className="text-xs text-slate-500">Registration: {nurse.registrationNumber}</span>
+                          </div>
+                        )}
+                        {nurse.registrationCouncilName && (
+                          <div className="text-xs text-slate-500">
+                            Council: {nurse.registrationCouncilName}
                           </div>
                         )}
                       </div>

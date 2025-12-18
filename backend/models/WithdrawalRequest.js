@@ -10,7 +10,7 @@ const withdrawalRequestSchema = new mongoose.Schema(
     },
     userType: {
       type: String,
-      enum: ['doctor', 'pharmacy', 'laboratory'],
+      enum: ['doctor', 'pharmacy', 'laboratory', 'nurse'],
       required: true,
       index: true,
     },

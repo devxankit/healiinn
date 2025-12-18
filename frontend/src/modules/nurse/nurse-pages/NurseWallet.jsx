@@ -10,6 +10,7 @@ import {
   IoShieldCheckmarkOutline,
 } from 'react-icons/io5'
 import { useToast } from '../../../contexts/ToastContext'
+import { getNurseWalletBalance } from '../nurse-services/nurseService'
 
 // Default wallet data (will be replaced by API data)
 const defaultWalletData = {
@@ -47,21 +48,20 @@ const NurseWallet = () => {
       try {
         setLoading(true)
         setError(null)
-        // TODO: Import nurse wallet service when available
-        // const response = await getNurseWalletBalance()
-        // if (response && response.success && response.data) {
-        //   const data = response.data
-        //   setWalletData({
-        //     totalBalance: Number(data.totalBalance || 0),
-        //     availableBalance: Number(data.availableBalance || 0),
-        //     pendingBalance: Number(data.pendingBalance || 0),
-        //     thisMonthEarnings: Number(data.thisMonthEarnings || 0),
-        //     lastMonthEarnings: Number(data.lastMonthEarnings || 0),
-        //     totalEarnings: Number(data.totalEarnings || 0),
-        //     totalWithdrawals: Number(data.totalWithdrawals || 0),
-        //     totalTransactions: Number(data.totalTransactions || 0),
-        //   })
-        // }
+        const response = await getNurseWalletBalance()
+        if (response && response.success && response.data) {
+          const data = response.data
+          setWalletData({
+            totalBalance: Number(data.totalBalance || data.balance || 0),
+            availableBalance: Number(data.availableBalance || 0),
+            pendingBalance: Number(data.pendingBalance || 0),
+            thisMonthEarnings: Number(data.thisMonthEarnings || 0),
+            lastMonthEarnings: Number(data.lastMonthEarnings || 0),
+            totalEarnings: Number(data.totalEarnings || 0),
+            totalWithdrawals: Number(data.totalWithdrawals || 0),
+            totalTransactions: Number(data.totalTransactions || 0),
+          })
+        }
         setLoading(false)
       } catch (err) {
         console.error('Error fetching wallet data:', err)

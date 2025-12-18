@@ -74,6 +74,13 @@ const AdminOrders = () => {
   const [error, setError] = useState(null)
   const [selectedProvider, setSelectedProvider] = useState(null) // Track selected provider to show orders
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [currentProviderPage, setCurrentProviderPage] = useState(1)
+  const [currentPharmacyPage, setCurrentPharmacyPage] = useState(1)
+  const [currentLabPage, setCurrentLabPage] = useState(1)
+  const itemsPerPage = 10
+
   // Load orders from API
   useEffect(() => {
     const loadOrders = async () => {

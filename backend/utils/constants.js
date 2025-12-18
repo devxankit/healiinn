@@ -82,7 +82,7 @@ const WITHDRAWAL_STATUS = {
 const DOCTOR_COMMISSION_RATE = Number(process.env.DOCTOR_COMMISSION_RATE || 0.1);
 const LABORATORY_COMMISSION_RATE = Number(process.env.LABORATORY_COMMISSION_RATE || 0.1);
 const PHARMACY_COMMISSION_RATE = Number(process.env.PHARMACY_COMMISSION_RATE || 0.1);
-const NURSE_COMMISSION_RATE = Number(process.env.NURSE_COMMISSION_RATE || 0.1);
+const NURSE_COMMISSION_RATE = Number(process.env.NURSE_COMMISSION_RATE || 0.2);
 
 // Legacy: Keep COMMISSION_RATE for backward compatibility (defaults to doctor rate)
 const COMMISSION_RATE = DOCTOR_COMMISSION_RATE;

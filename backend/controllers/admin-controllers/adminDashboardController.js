@@ -3,6 +3,7 @@ const Patient = require('../../models/Patient');
 const Doctor = require('../../models/Doctor');
 const Pharmacy = require('../../models/Pharmacy');
 const Laboratory = require('../../models/Laboratory');
+const Nurse = require('../../models/Nurse');
 const Appointment = require('../../models/Appointment');
 const Order = require('../../models/Order');
 const Request = require('../../models/Request');
@@ -27,6 +28,7 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
     totalDoctors,
     totalPharmacies,
     totalLaboratories,
+    totalNurses,
     pendingVerifications,
     totalAppointments,
     totalOrders,
@@ -45,10 +47,12 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
     Doctor.countDocuments({ status: APPROVAL_STATUS.APPROVED }),
     Pharmacy.countDocuments({ status: APPROVAL_STATUS.APPROVED }),
     Laboratory.countDocuments({ status: APPROVAL_STATUS.APPROVED }),
+    Nurse.countDocuments({ status: APPROVAL_STATUS.APPROVED }),
     Promise.all([
       Doctor.countDocuments({ status: APPROVAL_STATUS.PENDING }),
       Pharmacy.countDocuments({ status: APPROVAL_STATUS.PENDING }),
       Laboratory.countDocuments({ status: APPROVAL_STATUS.PENDING }),
+      Nurse.countDocuments({ status: APPROVAL_STATUS.PENDING }),
     ]).then(counts => counts.reduce((sum, count) => sum + count, 0)),
     Appointment.countDocuments({
       paymentStatus: { $ne: 'pending' }, // Exclude pending payment appointments
@@ -184,6 +188,7 @@ exports.getDashboardStats = asyncHandler(async (req, res) => {
       totalDoctors,
       totalPharmacies,
       totalLaboratories,
+      totalNurses,
       pendingVerifications,
       totalAppointments,
       totalOrders,
@@ -235,6 +240,10 @@ exports.getRecentActivities = asyncHandler(async (req, res) => {
         .limit(5),
       Laboratory.find({ status: APPROVAL_STATUS.PENDING })
         .select('labName createdAt')
+        .sort({ createdAt: -1 })
+        .limit(5),
+      Nurse.find({ status: APPROVAL_STATUS.PENDING })
+        .select('firstName lastName qualification createdAt')
         .sort({ createdAt: -1 })
         .limit(5),
     ]).then(results => results.flat()),

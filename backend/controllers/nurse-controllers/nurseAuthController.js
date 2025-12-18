@@ -56,8 +56,10 @@ exports.registerNurse = asyncHandler(async (req, res) => {
     registrationNumber,
     registrationCouncilName,
     bio,
-    nursingCertificate,
-    registrationCertificate,
+    availability,
+    documents,
+    nursingCertificate, // For backward compatibility
+    registrationCertificate, // For backward compatibility
     profileImage,
   } = req.body;
 
@@ -97,39 +99,10 @@ exports.registerNurse = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Registration number already registered.' });
   }
 
-  // Handle file uploads if provided
-  let nursingCertificateUrl = null;
-  let registrationCertificateUrl = null;
-  let profileImageUrl = null;
+  let profileImageUrl = profileImage && typeof profileImage === 'string' && profileImage.startsWith('http') ? profileImage : null;
 
   // Handle multipart form data file uploads
   if (req.files) {
-    if (req.files.nursingCertificate) {
-      try {
-        const uploadResult = await uploadFile(req.files.nursingCertificate, 'documents', 'nurse');
-        nursingCertificateUrl = uploadResult.url;
-      } catch (error) {
-        console.error('Error uploading nursing certificate:', error);
-        return res.status(400).json({
-          success: false,
-          message: 'Failed to upload nursing certificate.',
-        });
-      }
-    }
-
-    if (req.files.registrationCertificate) {
-      try {
-        const uploadResult = await uploadFile(req.files.registrationCertificate, 'documents', 'nurse');
-        registrationCertificateUrl = uploadResult.url;
-      } catch (error) {
-        console.error('Error uploading registration certificate:', error);
-        return res.status(400).json({
-          success: false,
-          message: 'Failed to upload registration certificate.',
-        });
-      }
-    }
-
     if (req.files.profileImage) {
       try {
         const uploadResult = await uploadFile(req.files.profileImage, 'profiles', 'nurse');
@@ -142,21 +115,84 @@ exports.registerNurse = asyncHandler(async (req, res) => {
   }
 
   // Handle base64 or URL strings if provided in body
-  if (nursingCertificate && !nursingCertificateUrl) {
-    if (typeof nursingCertificate === 'string' && nursingCertificate.startsWith('http')) {
-      nursingCertificateUrl = nursingCertificate;
-    }
-  }
-
-  if (registrationCertificate && !registrationCertificateUrl) {
-    if (typeof registrationCertificate === 'string' && registrationCertificate.startsWith('http')) {
-      registrationCertificateUrl = registrationCertificate;
-    }
-  }
-
   if (profileImage && !profileImageUrl) {
     if (typeof profileImage === 'string' && profileImage.startsWith('http')) {
       profileImageUrl = profileImage;
+    }
+  }
+
+  // Process documents: convert base64 to files and upload to uploads/documents folder
+  // Check if documents is in body (base64 array) or if old format (nursingCertificate, registrationCertificate)
+  let processedDocuments = [];
+
+  if (documents && Array.isArray(documents) && documents.length > 0) {
+    // New format: array of base64 documents
+    try {
+      const { uploadFromBuffer } = require('../../services/fileUploadService');
+
+      for (const doc of documents) {
+        if (doc && doc.data && doc.name) {
+          try {
+            // Extract base64 data (remove data:application/pdf;base64, prefix if present)
+            const base64Data = doc.data.includes(',') ? doc.data.split(',')[1] : doc.data;
+            const buffer = Buffer.from(base64Data, 'base64');
+
+            // Determine mimetype
+            const mimetype = doc.type || 'application/pdf';
+            const fileName = doc.name.endsWith('.pdf') ? doc.name : `${doc.name}.pdf`;
+
+            // Upload to uploads/documents folder
+            const uploadResult = await uploadFromBuffer(
+              buffer,
+              fileName,
+              mimetype,
+              'documents',
+              'nurse_doc'
+            );
+
+            processedDocuments.push({
+              name: doc.name,
+              fileUrl: uploadResult.url,
+              uploadedAt: new Date(),
+            });
+          } catch (docError) {
+            console.error(`Error processing document ${doc.name}:`, docError);
+            // Continue with other documents even if one fails
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing documents:', error);
+      // Continue signup even if document processing fails
+    }
+  } else if (nursingCertificate || registrationCertificate) {
+    // Old format: handle individual certificate fields (for backward compatibility with multipart form data)
+    if (req.files) {
+      if (req.files.nursingCertificate) {
+        try {
+          const uploadResult = await uploadFile(req.files.nursingCertificate, 'documents', 'nurse');
+          processedDocuments.push({
+            name: 'Nursing Certificate',
+            fileUrl: uploadResult.url,
+            uploadedAt: new Date(),
+          });
+        } catch (error) {
+          console.error('Error uploading nursing certificate:', error);
+        }
+      }
+
+      if (req.files.registrationCertificate) {
+        try {
+          const uploadResult = await uploadFile(req.files.registrationCertificate, 'documents', 'nurse');
+          processedDocuments.push({
+            name: 'Registration Certificate',
+            fileUrl: uploadResult.url,
+            uploadedAt: new Date(),
+          });
+        } catch (error) {
+          console.error('Error uploading registration certificate:', error);
+        }
+      }
     }
   }
 
@@ -168,6 +204,29 @@ exports.registerNurse = asyncHandler(async (req, res) => {
       feesValue = parsedFees;
     }
   }
+
+  // Parse availability
+  let availabilityArray = [];
+  if (availability !== undefined && availability !== null) {
+    if (typeof availability === 'string') {
+      try {
+        const parsed = JSON.parse(availability);
+        availabilityArray = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        // If parsing fails, try comma-separated string
+        if (availability.includes(',')) {
+          availabilityArray = availability.split(',').map(s => s.trim()).filter(s => s);
+        } else if (availability.trim()) {
+          availabilityArray = [availability.trim()];
+        }
+      }
+    } else if (Array.isArray(availability)) {
+      availabilityArray = availability;
+    }
+  }
+  // Validate availability days
+  const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  availabilityArray = availabilityArray.filter(day => validDays.includes(day));
 
   // Create nurse document
   const nurseData = {
@@ -190,18 +249,9 @@ exports.registerNurse = asyncHandler(async (req, res) => {
       country: address.country || 'India',
     },
     bio: bio ? bio.trim() : undefined,
+    availability: availabilityArray,
     profileImage: profileImageUrl,
-    documents: {
-      nursingCertificate: nursingCertificateUrl ? {
-        imageUrl: nursingCertificateUrl,
-        uploadedAt: new Date(),
-      } : undefined,
-      registrationCertificate: registrationCertificateUrl ? {
-        imageUrl: registrationCertificateUrl,
-        uploadedAt: new Date(),
-      } : undefined,
-      profileImage: profileImageUrl,
-    },
+    documents: processedDocuments,
     status: APPROVAL_STATUS.PENDING,
   };
 
@@ -320,6 +370,25 @@ exports.getNurseProfile = asyncHandler(async (req, res) => {
 exports.updateNurseProfile = asyncHandler(async (req, res) => {
   const updates = { ...req.body };
 
+  // Handle dot notation keys from FormData (e.g., 'address.line1' -> address: { line1: ... })
+  // When FormData is sent with dot notation, Express doesn't automatically parse them into nested objects
+  const addressFields = {};
+  Object.keys(updates).forEach(key => {
+    if (key.startsWith('address.')) {
+      const fieldName = key.replace('address.', '');
+      addressFields[fieldName] = updates[key];
+      delete updates[key];
+    }
+  });
+
+  // Reconstruct address object if any address fields were found
+  if (Object.keys(addressFields).length > 0) {
+    updates.address = {
+      ...(updates.address || {}),
+      ...addressFields,
+    };
+  }
+
   // Handle name parsing
   if (updates.fullName && !updates.firstName) {
     const resolvedName = parseName({ fullName: updates.fullName });
@@ -343,44 +412,130 @@ exports.updateNurseProfile = asyncHandler(async (req, res) => {
     }
   }
 
+  // Handle availability - always process if provided (even if empty array)
+  if (updates.availability !== undefined) {
+    if (typeof updates.availability === 'string') {
+      try {
+        const parsed = JSON.parse(updates.availability);
+        // Ensure it's an array
+        updates.availability = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        // If parsing fails, try comma-separated string
+        console.error('Error parsing availability:', e);
+        if (updates.availability.includes(',')) {
+          updates.availability = updates.availability.split(',').map(s => s.trim()).filter(s => s);
+        } else if (updates.availability.trim()) {
+          // Single day string
+          updates.availability = [updates.availability.trim()];
+        } else {
+          // Empty string means empty array
+          updates.availability = [];
+        }
+      }
+    } else if (Array.isArray(updates.availability)) {
+      // Already an array, validate and filter
+      const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      updates.availability = updates.availability.filter(day => validDays.includes(day));
+    } else {
+      // Invalid format, set to empty array
+      updates.availability = [];
+    }
+  }
+
+  // Handle bio - trim if provided
+  if (updates.bio !== undefined) {
+    if (updates.bio === null) {
+      updates.bio = '';
+    } else {
+      updates.bio = String(updates.bio).trim();
+    }
+  }
+
   // Handle file uploads if provided
+  console.log('📤 Nurse profile update - Files received:', {
+    hasFiles: !!req.files,
+    filesKeys: req.files ? Object.keys(req.files) : [],
+    bodyKeys: Object.keys(req.body || {}),
+  });
+
+  // Initialize documents array if not present
+  if (!updates.documents || !Array.isArray(updates.documents)) {
+    updates.documents = [];
+  }
+
   if (req.files) {
     if (req.files.nursingCertificate) {
       try {
-        const uploadResult = await uploadFile(req.files.nursingCertificate, 'documents', 'nurse');
-        updates.documents = updates.documents || {};
-        updates.documents.nursingCertificate = {
-          imageUrl: uploadResult.url,
+        // Handle both array and single file formats from multer
+        const certificateFile = Array.isArray(req.files.nursingCertificate)
+          ? req.files.nursingCertificate[0]
+          : req.files.nursingCertificate;
+        
+        const uploadResult = await uploadFile(certificateFile, 'documents', 'nurse');
+        console.log('✅ Nursing certificate uploaded:', uploadResult.url);
+        
+        // Add to documents array with proper structure
+        updates.documents.push({
+          name: 'Nursing Certificate',
+          fileUrl: uploadResult.url,
           uploadedAt: new Date(),
-        };
+        });
       } catch (error) {
-        console.error('Error uploading nursing certificate:', error);
+        console.error('❌ Error uploading nursing certificate:', error);
       }
     }
 
     if (req.files.registrationCertificate) {
       try {
-        const uploadResult = await uploadFile(req.files.registrationCertificate, 'documents', 'nurse');
-        updates.documents = updates.documents || {};
-        updates.documents.registrationCertificate = {
-          imageUrl: uploadResult.url,
+        // Handle both array and single file formats from multer
+        const certificateFile = Array.isArray(req.files.registrationCertificate)
+          ? req.files.registrationCertificate[0]
+          : req.files.registrationCertificate;
+        
+        const uploadResult = await uploadFile(certificateFile, 'documents', 'nurse');
+        console.log('✅ Registration certificate uploaded:', uploadResult.url);
+        
+        // Add to documents array with proper structure
+        updates.documents.push({
+          name: 'Registration Certificate',
+          fileUrl: uploadResult.url,
           uploadedAt: new Date(),
-        };
+        });
       } catch (error) {
-        console.error('Error uploading registration certificate:', error);
+        console.error('❌ Error uploading registration certificate:', error);
       }
     }
 
     if (req.files.profileImage) {
       try {
-        const uploadResult = await uploadFile(req.files.profileImage, 'profiles', 'nurse');
+        console.log('📸 Uploading profile image:', {
+          originalname: req.files.profileImage[0]?.originalname || req.files.profileImage.originalname,
+          mimetype: req.files.profileImage[0]?.mimetype || req.files.profileImage.mimetype,
+          size: req.files.profileImage[0]?.size || req.files.profileImage.size,
+        });
+
+        // Handle both array and single file formats from multer
+        const profileImageFile = Array.isArray(req.files.profileImage)
+          ? req.files.profileImage[0]
+          : req.files.profileImage;
+
+        const uploadResult = await uploadFile(profileImageFile, 'profiles', 'nurse');
+        console.log('✅ Profile image uploaded successfully:', uploadResult.url);
         updates.profileImage = uploadResult.url;
-        updates.documents = updates.documents || {};
-        updates.documents.profileImage = uploadResult.url;
+
+        // Don't set documents.profileImage - that's for certificates
       } catch (error) {
-        console.error('Error uploading profile image:', error);
+        console.error('❌ Error uploading profile image:', error);
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+        });
       }
+    } else {
+      console.log('⚠️ No profileImage file found in req.files');
     }
+  } else {
+    console.log('⚠️ No files found in req.files');
   }
 
   // Clean up name fields

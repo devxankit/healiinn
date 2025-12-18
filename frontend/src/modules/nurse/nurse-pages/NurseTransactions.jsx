@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import NurseNavbar from '../nurse-components/NurseNavbar'
 import { useToast } from '../../../contexts/ToastContext'
+import { getNurseWalletTransactions } from '../nurse-services/nurseService'
 import Pagination from '../../../components/Pagination'
 import {
   IoArrowBackOutline,
@@ -102,10 +103,12 @@ const NurseTransactions = () => {
     setCurrentPage(1)
   }, [filterType])
 
-  // Filter transactions (client-side filtering for now, should be done on backend when API is connected)
+  // Transactions are already filtered by backend, but we can do client-side filtering as fallback
   const filteredTransactions = transactions.filter((txn) => {
     if (filterType === 'all') return true
-    return txn.type === filterType
+    if (filterType === 'earning') return txn.type === 'earning'
+    if (filterType === 'withdrawal') return txn.type === 'withdrawal'
+    return true
   })
 
   return (
@@ -233,15 +236,15 @@ const NurseTransactions = () => {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-900">
-                          {transaction.description || (transaction.type === 'earning' ? 'Earning from appointment' : 'Withdrawal')}
+                          {transaction.description || (transaction.type === 'earning' ? 'Earning from service' : 'Withdrawal')}
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <span className="flex items-center gap-1">
                             <IoCalendarOutline className="h-3.5 w-3.5" />
-                            {formatDateTime(transaction.date || transaction.createdAt)}
+                            {formatDateTime(transaction.createdAt || transaction.date)}
                           </span>
-                          {transaction.id && (
-                            <span className="text-slate-400">{transaction.id}</span>
+                          {transaction._id && (
+                            <span className="text-slate-400">ID: {String(transaction._id).substring(0, 8)}</span>
                           )}
                           {transaction.commission && (
                             <span className="text-slate-400">(Commission: {transaction.commission}%)</span>

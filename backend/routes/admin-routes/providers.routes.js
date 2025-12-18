@@ -12,6 +12,10 @@ const {
   getLaboratoryById,
   verifyLaboratory,
   rejectLaboratory,
+  getNurses,
+  getNurseById,
+  verifyNurse,
+  rejectNurse,
   getPendingVerifications,
 } = require('../../controllers/admin-controllers/adminProviderController');
 const { protect } = require('../../middleware/authMiddleware');
@@ -40,6 +44,12 @@ router.get('/laboratories', getLaboratories);
 router.get('/laboratories/:id', getLaboratoryById);
 router.patch('/laboratories/:id/verify', sanitizeInput, verifyLaboratory);
 router.patch('/laboratories/:id/reject', sanitizeInput, rejectLaboratory);
+
+// Nurses management
+router.get('/nurses', getNurses);
+router.get('/nurses/:id', getNurseById);
+router.patch('/nurses/:id/verify', sanitizeInput, verifyNurse);
+router.patch('/nurses/:id/reject', sanitizeInput, rejectNurse);
 
 // Pending verifications overview
 router.get('/verifications/pending', getPendingVerifications);

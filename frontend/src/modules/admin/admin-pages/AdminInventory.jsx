@@ -27,6 +27,12 @@ const AdminInventory = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 10
+
   useEffect(() => {
     loadPharmacyInventory()
     loadLaboratoryInventory()

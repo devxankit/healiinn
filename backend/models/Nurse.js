@@ -14,10 +14,15 @@ const nurseSchema = new mongoose.Schema(
     qualification: { type: String, required: true, trim: true },
     experienceYears: { type: Number, min: 0 },
     specialization: { type: String, trim: true },
+    availability: {
+      type: [String],
+      default: [],
+      enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    },
     fees: {
       type: Number,
       min: 0,
-      set: function(v) {
+      set: function (v) {
         // Preserve exact value without rounding
         if (v === null || v === undefined || v === '') return undefined;
         const num = typeof v === 'string' ? parseFloat(v) : v;
@@ -35,17 +40,11 @@ const nurseSchema = new mongoose.Schema(
     },
     bio: { type: String, trim: true },
     profileImage: { type: String, trim: true },
-    documents: {
-      nursingCertificate: {
-        imageUrl: { type: String, trim: true },
-        uploadedAt: { type: Date },
-      },
-      registrationCertificate: {
-        imageUrl: { type: String, trim: true },
-        uploadedAt: { type: Date },
-      },
-      profileImage: { type: String, trim: true },
-    },
+    documents: [{
+      name: { type: String, required: true, trim: true },
+      fileUrl: { type: String, required: true, trim: true },
+      uploadedAt: { type: Date, default: Date.now },
+    }],
     status: {
       type: String,
       enum: Object.values(APPROVAL_STATUS),

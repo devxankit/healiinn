@@ -332,6 +332,49 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     ? consultationModes.map(mode => mode === 'video' ? 'call' : mode)
     : consultationModes;
 
+  // Process documents: convert base64 to files and upload to uploads/documents folder
+  let processedDocuments = [];
+  if (documents && Array.isArray(documents) && documents.length > 0) {
+    try {
+      const { uploadFromBuffer } = require('../../services/fileUploadService');
+      
+      for (const doc of documents) {
+        if (doc && doc.data && doc.name) {
+          try {
+            // Extract base64 data (remove data:application/pdf;base64, prefix if present)
+            const base64Data = doc.data.includes(',') ? doc.data.split(',')[1] : doc.data;
+            const buffer = Buffer.from(base64Data, 'base64');
+            
+            // Determine mimetype
+            const mimetype = doc.type || 'application/pdf';
+            const fileName = doc.name.endsWith('.pdf') ? doc.name : `${doc.name}.pdf`;
+            
+            // Upload to uploads/documents folder
+            const uploadResult = await uploadFromBuffer(
+              buffer,
+              fileName,
+              mimetype,
+              'documents',
+              'doctor_doc'
+            );
+            
+            processedDocuments.push({
+              name: doc.name,
+              fileUrl: uploadResult.url,
+              uploadedAt: new Date(),
+            });
+          } catch (docError) {
+            console.error(`Error processing document ${doc.name}:`, docError);
+            // Continue with other documents even if one fails
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing documents:', error);
+      // Continue signup even if document processing fails
+    }
+  }
+
   const doctor = await Doctor.create({
     firstName: resolvedName.firstName,
     lastName: resolvedName.lastName || '',
@@ -346,7 +389,7 @@ exports.registerDoctor = asyncHandler(async (req, res) => {
     consultationModes: migratedConsultationModes,
     clinicDetails: finalClinicDetails,
     bio,
-    documents,
+    documents: processedDocuments.length > 0 ? processedDocuments : [],
     consultationFee: finalConsultationFee,
     availableTimings: Array.isArray(availableTimings)
       ? availableTimings
