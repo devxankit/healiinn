@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
