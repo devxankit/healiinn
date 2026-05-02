@@ -108,7 +108,7 @@ const LaboratoryDashboard = () => {
   const [recentPatients, setRecentPatients] = useState([])
   const [patients, setPatients] = useState([]) // For patient selection dropdown
   const [stats, setStats] = useState(defaultStats)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start with false to show content immediately
   const [error, setError] = useState(null)
   const [profile, setProfile] = useState(null)
 
@@ -167,7 +167,7 @@ const LaboratoryDashboard = () => {
     fetchDashboardData()
   }, [toast])
   const [todayOrders, setTodayOrders] = useState([])
-  const [loadingOrders, setLoadingOrders] = useState(true)
+  const [loadingOrders, setLoadingOrders] = useState(false) // Start with false
   const [recentTestReports, setRecentTestReports] = useState([])
   const [loadingReports, setLoadingReports] = useState(false)
 

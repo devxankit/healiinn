@@ -83,41 +83,33 @@ const PharmacyDashboard = () => {
   const [recentPatients, setRecentPatients] = useState([])
   const [requestOrdersCount, setRequestOrdersCount] = useState(0)
   const [stats, setStats] = useState(defaultStats)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start with false to show content immediately
   const [error, setError] = useState(null)
   const [profile, setProfile] = useState(null)
 
-  // Fetch profile data
+  // Fetch profile, dashboard, and wallet data in parallel for faster loading
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchData = async () => {
       try {
-        const response = await getPharmacyProfile()
-        if (response.success && response.data) {
-          const pharmacy = response.data.pharmacy || response.data
+        setLoading(true)
+        setError(null)
+        
+        // Fetch profile, dashboard, and wallet in parallel
+        const [profileResponse, dashboardResponse, walletResponse] = await Promise.allSettled([
+          getPharmacyProfile().catch(() => ({ success: false })),
+          getPharmacyDashboard(),
+          getPharmacyWalletBalance().catch(() => ({ success: false, data: null })) // Don't fail if wallet fails
+        ])
+
+        // Handle profile response (non-critical, don't block UI)
+        if (profileResponse.status === 'fulfilled' && profileResponse.value.success && profileResponse.value.data) {
+          const pharmacy = profileResponse.value.data.pharmacy || profileResponse.value.data
           setProfile({
             name: pharmacy.pharmacyName || pharmacy.name || '',
             address: pharmacy.address || {},
             isActive: pharmacy.isActive !== undefined ? pharmacy.isActive : true,
           })
         }
-      } catch (err) {
-        console.error('Error fetching profile:', err)
-        // Don't show error toast as it's not critical
-      }
-    }
-    fetchProfile()
-  }, [])
-
-  // Fetch dashboard data from API
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const [dashboardResponse, walletResponse] = await Promise.all([
-          getPharmacyDashboard(),
-          getPharmacyWalletBalance().catch(() => ({ success: false, data: null })) // Don't fail if wallet fails
-        ])
         
         if (dashboardResponse.success && dashboardResponse.data) {
           const data = dashboardResponse.data

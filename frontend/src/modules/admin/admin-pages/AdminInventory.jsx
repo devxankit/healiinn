@@ -24,7 +24,7 @@ const AdminInventory = () => {
   const [selectedPharmacy, setSelectedPharmacy] = useState(null)
   const [selectedLab, setSelectedLab] = useState(null)
   const [activeTab, setActiveTab] = useState('total') // 'total', 'pharmacy' or 'laboratory'
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start with false to show content immediately
   const [error, setError] = useState(null)
 
   // Pagination state
@@ -34,76 +34,141 @@ const AdminInventory = () => {
   const itemsPerPage = 10
 
   useEffect(() => {
-    loadPharmacyInventory()
-    loadLaboratoryInventory()
+    // Create AbortController for request cancellation
+    const abortController = new AbortController()
+    const signal = abortController.signal
+
+    // Load data with signal
+    loadPharmacyInventory(signal)
+    loadLaboratoryInventory(signal)
+
+    // Cleanup: cancel all pending requests when component unmounts or navigates away
+    return () => {
+      abortController.abort()
+    }
   }, [])
 
-  const loadPharmacyInventory = async () => {
+  const loadPharmacyInventory = async (signal = null) => {
     try {
       setError(null)
-      const response = await getPharmacyInventory({ limit: 1000 })
+      const response = await getPharmacyInventory({ limit: 1000 }, signal)
+      
+      // Check if request was aborted
+      if (signal?.aborted) {
+        return
+      }
       
       if (response.success && response.data) {
         const pharmacies = response.data.items || response.data || []
         
-        // Load medicines for each pharmacy
-        const pharmaciesWithMedicines = await Promise.all(
-          pharmacies.map(async (pharmacy) => {
-            try {
-              const medicinesResponse = await getPharmacyMedicinesByPharmacy(pharmacy._id || pharmacy.id, { limit: 1000 })
-              const medicines = medicinesResponse.success && medicinesResponse.data
-                ? (medicinesResponse.data.items || medicinesResponse.data || [])
-                : []
-              
-              return {
-                pharmacyId: pharmacy._id || pharmacy.id,
-                pharmacyName: pharmacy.pharmacyName || 'Unknown Pharmacy',
-                status: pharmacy.status || 'pending',
-                isActive: pharmacy.isActive !== false,
-                address: pharmacy.address || {},
-                medicines: medicines.map((med) => ({
-                  name: med.name || '',
-                  dosage: med.dosage || '',
-                  manufacturer: med.manufacturer || '',
-                  quantity: Number(med.quantity) || 0, // Ensure quantity is always a number
-                  price: Number(med.price) || 0, // Ensure price is always a number
-                  expiryDate: med.expiryDate || null,
-                  _id: med._id || med.id,
-                })),
-              }
-            } catch (err) {
-              console.error(`Error loading medicines for pharmacy ${pharmacy._id}:`, err)
-              return {
-                pharmacyId: pharmacy._id || pharmacy.id,
-                pharmacyName: pharmacy.pharmacyName || 'Unknown Pharmacy',
-                status: pharmacy.status || 'pending',
-                isActive: pharmacy.isActive !== false,
-                address: pharmacy.address || {},
-                medicines: [],
-              }
-            }
-          })
-        )
+        // Load medicines for each pharmacy with throttling to prevent too many simultaneous requests
+        // Process in batches of 5 to avoid rate limiting
+        const batchSize = 5
+        const pharmaciesWithMedicines = []
         
-        setPharmacyList(pharmaciesWithMedicines)
+        for (let i = 0; i < pharmacies.length; i += batchSize) {
+          // Check if request was aborted before processing next batch
+          if (signal?.aborted) {
+            return
+          }
+          
+          const batch = pharmacies.slice(i, i + batchSize)
+          const batchResults = await Promise.all(
+            batch.map(async (pharmacy) => {
+              try {
+                const medicinesResponse = await getPharmacyMedicinesByPharmacy(
+                  pharmacy._id || pharmacy.id, 
+                  { limit: 1000 },
+                  signal
+                )
+                
+                // Check if request was aborted
+                if (signal?.aborted) {
+                  return null
+                }
+                
+                const medicines = medicinesResponse.success && medicinesResponse.data
+                  ? (medicinesResponse.data.items || medicinesResponse.data || [])
+                  : []
+                
+                return {
+                  pharmacyId: pharmacy._id || pharmacy.id,
+                  pharmacyName: pharmacy.pharmacyName || 'Unknown Pharmacy',
+                  status: pharmacy.status || 'pending',
+                  isActive: pharmacy.isActive !== false,
+                  address: pharmacy.address || {},
+                  medicines: medicines.map((med) => ({
+                    name: med.name || '',
+                    dosage: med.dosage || '',
+                    manufacturer: med.manufacturer || '',
+                    quantity: Number(med.quantity) || 0, // Ensure quantity is always a number
+                    price: Number(med.price) || 0, // Ensure price is always a number
+                    expiryDate: med.expiryDate || null,
+                    _id: med._id || med.id,
+                  })),
+                }
+              } catch (err) {
+                // Don't log errors for aborted requests
+                if (err.name === 'AbortError') {
+                  return null
+                }
+                console.error(`Error loading medicines for pharmacy ${pharmacy._id}:`, err)
+                return {
+                  pharmacyId: pharmacy._id || pharmacy.id,
+                  pharmacyName: pharmacy.pharmacyName || 'Unknown Pharmacy',
+                  status: pharmacy.status || 'pending',
+                  isActive: pharmacy.isActive !== false,
+                  address: pharmacy.address || {},
+                  medicines: [],
+                }
+              }
+            })
+          )
+          
+          // Filter out null results (aborted requests)
+          const validResults = batchResults.filter(result => result !== null)
+          pharmaciesWithMedicines.push(...validResults)
+          
+          // Small delay between batches to prevent rate limiting
+          if (i + batchSize < pharmacies.length) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        }
+        
+        // Only update state if request wasn't aborted
+        if (!signal?.aborted) {
+          setPharmacyList(pharmaciesWithMedicines)
+        }
       }
     } catch (err) {
+      // Don't log or set error for aborted requests
+      if (err.name === 'AbortError') {
+        return
+      }
       console.error('Error loading pharmacy inventory:', err)
       setError(err.message || 'Failed to load pharmacy inventory')
       setPharmacyList([])
     } finally {
-      setLoading(false)
+      // Only update loading state if request wasn't aborted
+      if (!signal?.aborted) {
+        setLoading(false)
+      }
     }
   }
 
-  const loadLaboratoryInventory = async () => {
+  const loadLaboratoryInventory = async (signal = null) => {
     try {
       setError(null)
       setLoading(true)
       
       console.log('🔍 Fetching laboratory inventory...') // Debug log
       
-      const response = await getLaboratoryInventory({ limit: 1000 })
+      const response = await getLaboratoryInventory({ limit: 1000 }, signal)
+      
+      // Check if request was aborted
+      if (signal?.aborted) {
+        return
+      }
       
       console.log('📊 Laboratory inventory API response:', response) // Debug log
       
@@ -115,69 +180,116 @@ const AdminInventory = () => {
           firstLab: laboratories[0],
         }) // Debug log
         
-        // Load tests for each laboratory
-        const laboratoriesWithTests = await Promise.all(
-          laboratories.map(async (lab) => {
-            try {
-              const testsResponse = await getLaboratoryTestsByLaboratory(lab._id || lab.id, { limit: 1000 })
-              const tests = testsResponse.success && testsResponse.data
-                ? (testsResponse.data.items || testsResponse.data || [])
-                : []
-              
-              console.log(`✅ Tests loaded for ${lab.labName}:`, {
-                count: tests.length,
-                firstTest: tests[0],
-              }) // Debug log
-              
-              return {
-                labId: lab._id || lab.id,
-                labName: lab.labName || 'Unknown Laboratory',
-                status: lab.status || 'pending',
-                isActive: lab.isActive !== false,
-                phone: lab.phone || '',
-                email: lab.email || '',
-                address: lab.address || {},
-                rating: lab.rating || 0,
-                tests: tests.map((test) => ({
-                  name: test.name || '',
-                  price: Number(test.price) || 0, // Ensure price is always a number
-                  description: test.description || '',
-                  _id: test._id || test.id,
-                })),
+        // Load tests for each laboratory with throttling to prevent too many simultaneous requests
+        // Process in batches of 5 to avoid rate limiting
+        const batchSize = 5
+        const laboratoriesWithTests = []
+        
+        for (let i = 0; i < laboratories.length; i += batchSize) {
+          // Check if request was aborted before processing next batch
+          if (signal?.aborted) {
+            return
+          }
+          
+          const batch = laboratories.slice(i, i + batchSize)
+          const batchResults = await Promise.all(
+            batch.map(async (lab) => {
+              try {
+                const testsResponse = await getLaboratoryTestsByLaboratory(
+                  lab._id || lab.id, 
+                  { limit: 1000 },
+                  signal
+                )
+                
+                // Check if request was aborted
+                if (signal?.aborted) {
+                  return null
+                }
+                
+                const tests = testsResponse.success && testsResponse.data
+                  ? (testsResponse.data.items || testsResponse.data || [])
+                  : []
+                
+                console.log(`✅ Tests loaded for ${lab.labName}:`, {
+                  count: tests.length,
+                  firstTest: tests[0],
+                }) // Debug log
+                
+                return {
+                  labId: lab._id || lab.id,
+                  labName: lab.labName || 'Unknown Laboratory',
+                  status: lab.status || 'pending',
+                  isActive: lab.isActive !== false,
+                  phone: lab.phone || '',
+                  email: lab.email || '',
+                  address: lab.address || {},
+                  rating: lab.rating || 0,
+                  tests: tests.map((test) => ({
+                    name: test.name || '',
+                    price: Number(test.price) || 0, // Ensure price is always a number
+                    description: test.description || '',
+                    _id: test._id || test.id,
+                  })),
+                }
+              } catch (err) {
+                // Don't log errors for aborted requests
+                if (err.name === 'AbortError') {
+                  return null
+                }
+                console.error(`❌ Error loading tests for laboratory ${lab._id}:`, err)
+                return {
+                  labId: lab._id || lab.id,
+                  labName: lab.labName || 'Unknown Laboratory',
+                  status: lab.status || 'pending',
+                  isActive: lab.isActive !== false,
+                  phone: lab.phone || '',
+                  email: lab.email || '',
+                  address: lab.address || {},
+                  rating: lab.rating || 0,
+                  tests: [],
+                }
               }
-            } catch (err) {
-              console.error(`❌ Error loading tests for laboratory ${lab._id}:`, err)
-              return {
-                labId: lab._id || lab.id,
-                labName: lab.labName || 'Unknown Laboratory',
-                status: lab.status || 'pending',
-                isActive: lab.isActive !== false,
-                phone: lab.phone || '',
-                email: lab.email || '',
-                address: lab.address || {},
-                rating: lab.rating || 0,
-                tests: [],
-              }
-            }
-          })
-        )
+            })
+          )
+          
+          // Filter out null results (aborted requests)
+          const validResults = batchResults.filter(result => result !== null)
+          laboratoriesWithTests.push(...validResults)
+          
+          // Small delay between batches to prevent rate limiting
+          if (i + batchSize < laboratories.length) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        }
         
         console.log('💰 Setting laboratory list:', {
           count: laboratoriesWithTests.length,
           labsWithTests: laboratoriesWithTests.filter(l => l.tests.length > 0).length,
         }) // Debug log
         
-        setLabList(laboratoriesWithTests)
+        // Only update state if request wasn't aborted
+        if (!signal?.aborted) {
+          setLabList(laboratoriesWithTests)
+        }
       } else {
         console.error('❌ Invalid API response:', response) // Debug log
-        setLabList([])
+        if (!signal?.aborted) {
+          setLabList([])
+        }
       }
     } catch (err) {
+      // Don't log or set error for aborted requests
+      if (err.name === 'AbortError') {
+        return
+      }
       console.error('❌ Error loading laboratory inventory:', err)
       setError(err.message || 'Failed to load laboratory inventory')
       setLabList([])
     } finally {
-      setLoading(false)
+      // Only update loading state if request wasn't aborted
+      if (!signal?.aborted) {
+        setLoading(false)
+      }
     }
   }
 

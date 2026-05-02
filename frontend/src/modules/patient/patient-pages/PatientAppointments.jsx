@@ -266,22 +266,19 @@ const PatientAppointments = () => {
       }
     }
 
-    // Add a small delay to prevent rapid requests on mount
-    const timeoutId = setTimeout(() => {
+    // Fetch immediately - no delay needed
     fetchAppointments()
-    }, 100)
     
     // Listen for appointment booking event to refresh
     const handleAppointmentBooked = () => {
-      // Debounce the refresh to prevent rapid requests
+      // Small debounce to prevent rapid requests
       setTimeout(() => {
       fetchAppointments()
-      }, 500)
+      }, 300)
     }
     window.addEventListener('appointmentBooked', handleAppointmentBooked)
     
     return () => {
-      clearTimeout(timeoutId)
       window.removeEventListener('appointmentBooked', handleAppointmentBooked)
     }
   }, [toast]) // Remove filter dependency - fetch all appointments once

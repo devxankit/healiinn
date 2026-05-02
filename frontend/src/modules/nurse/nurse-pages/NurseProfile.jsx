@@ -914,7 +914,6 @@ const NurseProfile = () => {
                           type="number"
                           min="0"
                           value={formData.experienceYears}
-                          value={formData.experienceYears}
                           onChange={(e) => handleInputChange('experienceYears', e.target.value)}
                           className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c]"
                         />

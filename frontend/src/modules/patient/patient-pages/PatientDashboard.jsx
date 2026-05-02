@@ -158,39 +158,16 @@ const PatientDashboard = () => {
 
   // Dashboard data state
   const [dashboardData, setDashboardData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start with false to show content immediately
   const [error, setError] = useState(null)
   const [upcomingAppointments, setUpcomingAppointments] = useState([])
   const [doctors, setDoctors] = useState([])
   const [activeTab, setActiveTab] = useState('doctors')
   const [profile, setProfile] = useState(null)
 
-  // Fetch profile data for location
+  // Fetch profile and dashboard data in parallel for faster loading
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const { getAuthToken } = await import('../../../utils/apiClient')
-        const token = getAuthToken('patient')
-        if (!token) return
-
-        const response = await getPatientProfile()
-        if (response.success && response.data) {
-          const patient = response.data.patient || response.data
-          setProfile({
-            address: patient.address || {},
-          })
-        }
-      } catch (err) {
-        console.error('Error fetching profile:', err)
-        // Don't show error toast as it's not critical
-      }
-    }
-    fetchProfile()
-  }, [])
-
-  // Fetch dashboard data
-  useEffect(() => {
-    const fetchDashboardData = async () => {
+    const fetchData = async () => {
       // Check if user is authenticated before making API call
       const { getAuthToken } = await import('../../../utils/apiClient')
       const token = getAuthToken('patient')
@@ -204,9 +181,29 @@ const PatientDashboard = () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await getPatientDashboard()
+        
+        // Fetch profile and dashboard in parallel for faster loading
+        const [profileResponse, dashboardResponse] = await Promise.allSettled([
+          getPatientProfile().catch(() => ({ success: false })),
+          getPatientDashboard()
+        ])
 
-        if (response.success && response.data) {
+        // Handle profile response (non-critical, don't block UI)
+        if (profileResponse.status === 'fulfilled' && profileResponse.value.success && profileResponse.value.data) {
+          const patient = profileResponse.value.data.patient || profileResponse.value.data
+          setProfile({
+            address: patient.address || {},
+          })
+        }
+
+        // Handle dashboard response
+        const response = dashboardResponse.status === 'fulfilled' ? dashboardResponse.value : null
+        
+        if (!response || !response.success) {
+          throw new Error(dashboardResponse.reason?.message || 'Failed to load dashboard')
+        }
+
+        if (response.data) {
           setDashboardData(response.data)
 
           // Set category card values

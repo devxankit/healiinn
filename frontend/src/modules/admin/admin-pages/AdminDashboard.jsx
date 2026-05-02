@@ -462,7 +462,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate()
   const toast = useToast()
   const [stats, setStats] = useState(defaultStats)
-  const [isLoadingStats, setIsLoadingStats] = useState(true)
+  const [isLoadingStats, setIsLoadingStats] = useState(false) // Start with false to show content immediately
   const [todayAppointmentsCount, setTodayAppointmentsCount] = useState(0)
   const [todayScheduledCount, setTodayScheduledCount] = useState(0)
   const [todayRescheduledCount, setTodayRescheduledCount] = useState(0)
@@ -471,9 +471,9 @@ const AdminDashboard = () => {
   const [confirmedPaymentCount, setConfirmedPaymentCount] = useState(0)
   const [paymentNotifications, setPaymentNotifications] = useState([])
   const [recentActivities, setRecentActivities] = useState([])
-  const [isLoadingActivities, setIsLoadingActivities] = useState(true)
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false) // Start with false
   const [chartData, setChartData] = useState(defaultChartData)
-  const [isLoadingCharts, setIsLoadingCharts] = useState(true)
+  const [isLoadingCharts, setIsLoadingCharts] = useState(false) // Start with false
 
   // Fetch dashboard stats from backend
   useEffect(() => {

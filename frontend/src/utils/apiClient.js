@@ -155,7 +155,7 @@ const refreshAccessToken = async (module = 'admin') => {
 /**
  * Make API request with automatic token refresh on 401
  * @param {string} endpoint - API endpoint (e.g., '/admin/auth/login')
- * @param {object} options - Fetch options
+ * @param {object} options - Fetch options (can include signal for AbortController)
  * @param {string} module - Module name for token management
  * @returns {Promise<Response>} Fetch response
  */
@@ -221,10 +221,35 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
     method: options.method || 'GET',
     headers: headers,
     body: options.body, // Explicitly set body
+    signal: options.signal, // Support AbortController signal
   }
 
   try {
     let response = await fetch(url, config)
+
+    // Handle 429 Too Many Requests with retry logic
+    if (response.status === 429) {
+      // Get retry-after header if available, otherwise use exponential backoff
+      const retryAfter = response.headers.get('Retry-After')
+      let delay = 1000 // Start with 1 second
+      
+      if (retryAfter) {
+        delay = parseInt(retryAfter) * 1000
+      } else {
+        // Exponential backoff: 1s, 2s, 4s (max 3 retries)
+        delay = 1000
+      }
+      
+      // Wait before retrying (only retry once to avoid infinite loops)
+      await new Promise(resolve => setTimeout(resolve, delay))
+      
+      // Retry the request once
+      if (!config.signal?.aborted) {
+        response = await fetch(url, config)
+      } else {
+        throw new DOMException('Request aborted', 'AbortError')
+      }
+    }
 
     // If 401 Unauthorized
     if (response.status === 401) {
@@ -242,6 +267,7 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
           await refreshAccessToken(module)
           // Retry original request with new token
           config.headers = getAuthHeaders(module, options.headers)
+          // Preserve signal for retry
           response = await fetch(url, config)
         } catch (refreshError) {
           // Refresh failed, clear tokens and redirect to login
@@ -268,6 +294,10 @@ const apiRequest = async (endpoint, options = {}, module = 'admin') => {
 
     return response
   } catch (error) {
+    // Don't log or throw errors for aborted requests (user navigated away)
+    if (error.name === 'AbortError') {
+      throw error
+    }
     console.error(`API Request Error [${module}]:`, error)
     throw error
   }
@@ -285,9 +315,10 @@ class ApiClient {
    * GET request
    * @param {string} endpoint - API endpoint
    * @param {object} params - Query parameters
+   * @param {AbortSignal} signal - Optional AbortSignal for request cancellation
    * @returns {Promise<object>} Response data
    */
-  async get(endpoint, params = {}) {
+  async get(endpoint, params = {}, signal = null) {
     // Filter out undefined, null, and empty string values
     const cleanParams = {}
     Object.keys(params).forEach(key => {
@@ -302,19 +333,33 @@ class ApiClient {
     console.log(`🌐 API GET Request [${this.module}]:`, url) // Debug log
     console.log(`🌐 Clean params:`, cleanParams) // Debug log
 
-    const response = await apiRequest(url, { method: 'GET' }, this.module)
+    try {
+      const response = await apiRequest(url, { method: 'GET', signal }, this.module)
 
     console.log(`📡 API Response Status [${this.module}]:`, response.status, response.statusText) // Debug log
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error(`❌ API Error [${this.module}]:`, errorData) // Debug log
+      
+      // For 429 errors, provide a more helpful message
+      if (response.status === 429) {
+        throw new Error(errorData.message || 'Too many requests. Please wait a moment and try again.')
+      }
+      
       throw new Error(errorData.message || `Request failed: ${response.statusText}`)
     }
 
-    const jsonData = await response.json()
-    console.log(`✅ API Response Data [${this.module}]:`, jsonData) // Debug log
-    return jsonData
+      const jsonData = await response.json()
+      console.log(`✅ API Response Data [${this.module}]:`, jsonData) // Debug log
+      return jsonData
+    } catch (error) {
+      // Don't log or throw errors for aborted requests
+      if (error.name === 'AbortError') {
+        throw error
+      }
+      throw error
+    }
   }
 
   /**

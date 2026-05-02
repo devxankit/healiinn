@@ -62,7 +62,7 @@ const NurseDashboard = () => {
   const navigate = useNavigate()
   const toast = useToast()
   const [stats, setStats] = useState(defaultStats)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start with false to show content immediately
   const [error, setError] = useState(null)
   const [profile, setProfile] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')

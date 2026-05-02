@@ -875,12 +875,17 @@ export const updatePharmacyMedicine = async (medicineId, updateData) => {
 /**
  * Get pharmacy inventory
  * @param {object} filters - Filter options (search, page, limit)
+ * @param {AbortSignal} signal - Optional AbortSignal for request cancellation
  * @returns {Promise<object>} Pharmacy inventory data
  */
-export const getPharmacyInventory = async (filters = {}) => {
+export const getPharmacyInventory = async (filters = {}, signal = null) => {
   try {
-    return await apiClient.get('/admin/inventory/pharmacies', filters)
+    return await apiClient.get('/admin/inventory/pharmacies', filters, signal)
   } catch (error) {
+    // Don't log or throw errors for aborted requests
+    if (error.name === 'AbortError') {
+      throw error
+    }
     console.error('Error fetching pharmacy inventory:', error)
     throw error
   }
@@ -889,12 +894,17 @@ export const getPharmacyInventory = async (filters = {}) => {
 /**
  * Get laboratory inventory
  * @param {object} filters - Filter options (search, page, limit)
+ * @param {AbortSignal} signal - Optional AbortSignal for request cancellation
  * @returns {Promise<object>} Laboratory inventory data
  */
-export const getLaboratoryInventory = async (filters = {}) => {
+export const getLaboratoryInventory = async (filters = {}, signal = null) => {
   try {
-    return await apiClient.get('/admin/inventory/laboratories', filters)
+    return await apiClient.get('/admin/inventory/laboratories', filters, signal)
   } catch (error) {
+    // Don't log or throw errors for aborted requests
+    if (error.name === 'AbortError') {
+      throw error
+    }
     console.error('Error fetching laboratory inventory:', error)
     throw error
   }
@@ -904,12 +914,17 @@ export const getLaboratoryInventory = async (filters = {}) => {
  * Get pharmacy medicines by pharmacy ID
  * @param {string} pharmacyId - Pharmacy ID
  * @param {object} filters - Filter options (page, limit)
+ * @param {AbortSignal} signal - Optional AbortSignal for request cancellation
  * @returns {Promise<object>} Pharmacy medicines data
  */
-export const getPharmacyMedicinesByPharmacy = async (pharmacyId, filters = {}) => {
+export const getPharmacyMedicinesByPharmacy = async (pharmacyId, filters = {}, signal = null) => {
   try {
-    return await apiClient.get(`/admin/inventory/pharmacies/${pharmacyId}`, filters)
+    return await apiClient.get(`/admin/inventory/pharmacies/${pharmacyId}`, filters, signal)
   } catch (error) {
+    // Don't log or throw errors for aborted requests
+    if (error.name === 'AbortError') {
+      throw error
+    }
     console.error('Error fetching pharmacy medicines:', error)
     throw error
   }
@@ -919,12 +934,17 @@ export const getPharmacyMedicinesByPharmacy = async (pharmacyId, filters = {}) =
  * Get laboratory tests by laboratory ID
  * @param {string} laboratoryId - Laboratory ID
  * @param {object} filters - Filter options (page, limit)
+ * @param {AbortSignal} signal - Optional AbortSignal for request cancellation
  * @returns {Promise<object>} Laboratory tests data
  */
-export const getLaboratoryTestsByLaboratory = async (laboratoryId, filters = {}) => {
+export const getLaboratoryTestsByLaboratory = async (laboratoryId, filters = {}, signal = null) => {
   try {
-    return await apiClient.get(`/admin/inventory/laboratories/${laboratoryId}`, filters)
+    return await apiClient.get(`/admin/inventory/laboratories/${laboratoryId}`, filters, signal)
   } catch (error) {
+    // Don't log or throw errors for aborted requests
+    if (error.name === 'AbortError') {
+      throw error
+    }
     console.error('Error fetching laboratory tests:', error)
     throw error
   }

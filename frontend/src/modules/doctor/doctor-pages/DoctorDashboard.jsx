@@ -98,7 +98,7 @@ const DoctorDashboard = () => {
   const [appointmentStatistics, setAppointmentStatistics] = useState(null) // Statistics from backend
   const [recentConsultations, setRecentConsultations] = useState([])
   const [stats, setStats] = useState(defaultStats)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start with false to show content immediately
   const [error, setError] = useState(null)
   const [profile, setProfile] = useState(null)
 
@@ -108,13 +108,22 @@ const DoctorDashboard = () => {
     day: 'numeric',
   }).format(new Date())
 
-  // Fetch profile data
+  // Fetch profile and dashboard data in parallel for faster loading
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchData = async () => {
       try {
-        const response = await getDoctorProfile()
-        if (response.success && response.data) {
-          const doctor = response.data.doctor || response.data
+        setLoading(true)
+        setError(null)
+        
+        // Fetch profile and dashboard in parallel
+        const [profileResponse, dashboardResponse] = await Promise.allSettled([
+          getDoctorProfile().catch(() => ({ success: false })),
+          getDoctorDashboard()
+        ])
+
+        // Handle profile response (non-critical, don't block UI)
+        if (profileResponse.status === 'fulfilled' && profileResponse.value.success && profileResponse.value.data) {
+          const doctor = profileResponse.value.data.doctor || profileResponse.value.data
           setProfile({
             firstName: doctor.firstName || '',
             lastName: doctor.lastName || '',
@@ -123,21 +132,9 @@ const DoctorDashboard = () => {
             isActive: doctor.isActive !== undefined ? doctor.isActive : true,
           })
         }
-      } catch (err) {
-        console.error('Error fetching profile:', err)
-        // Don't show error toast as it's not critical
-      }
-    }
-    fetchProfile()
-  }, [])
 
-  // Fetch dashboard data from API
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const response = await getDoctorDashboard()
+        // Handle dashboard response
+        const response = dashboardResponse.status === 'fulfilled' ? dashboardResponse.value : null
         
         console.log('🔍 Full dashboard API response:', response) // Debug log
         
