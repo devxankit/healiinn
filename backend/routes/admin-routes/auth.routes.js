@@ -1,13 +1,11 @@
 const express = require('express');
 const {
-  registerAdmin,
   loginAdmin,
   getAdminProfile,
   updateAdminProfile,
   updateAdminPassword,
   logoutAdmin,
   refreshToken,
-  checkAdminExists,
   adminForgotPassword,
   adminVerifyOtp,
   adminResetPassword,
@@ -20,11 +18,7 @@ const { sanitizeInput } = require('../../middleware/validationMiddleware');
 
 const router = express.Router();
 
-// Check if admin exists (public endpoint, no auth required)
-router.get('/check-exists', checkAdminExists);
-
 // Apply rate limiting and input sanitization to auth endpoints
-router.post('/signup', sanitizeInput, authRateLimiter, registerAdmin);
 router.post('/login', sanitizeInput, authRateLimiter, loginAdmin);
 router.post('/forgot-password', sanitizeInput, passwordResetRateLimiter, adminForgotPassword);
 router.post('/verify-otp', sanitizeInput, otpRateLimiter, adminVerifyOtp);

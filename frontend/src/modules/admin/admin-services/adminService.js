@@ -2,47 +2,6 @@
 import apiClient, { storeTokens, clearTokens } from '../../../utils/apiClient'
 
 /**
- * Check if admin exists (to determine if signup should be enabled)
- * @returns {Promise<object>} Response with adminExists and canRegister flags
- */
-export const checkAdminExists = async () => {
-  try {
-    // This is a public endpoint, so we use fetch directly without auth
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
-    const response = await fetch(`${API_BASE_URL}/admin/auth/check-exists`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-    
-    if (!response.ok) {
-      throw new Error('Failed to check admin status')
-    }
-    
-    return await response.json()
-  } catch (error) {
-    console.error('Error checking admin exists:', error)
-    throw error
-  }
-}
-
-/**
- * Admin signup
- * @param {object} signupData - Signup data (name, email, password, phone, registrationCode, isSuperAdmin)
- * @returns {Promise<object>} Response data with admin and tokens
- */
-export const signupAdmin = async (signupData) => {
-  try {
-    const data = await apiClient.post('/admin/auth/signup', signupData)
-    return data
-  } catch (error) {
-    console.error('Error signing up:', error)
-    throw error
-  }
-}
-
-/**
  * Admin login
  * @param {object} credentials - Login credentials (email, password)
  * @returns {Promise<object>} Response data with admin and tokens
@@ -951,8 +910,6 @@ export const getLaboratoryTestsByLaboratory = async (laboratoryId, filters = {},
 }
 
 export default {
-  checkAdminExists,
-  signupAdmin,
   loginAdmin,
   storeAdminTokens,
   clearAdminTokens,
