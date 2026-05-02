@@ -110,7 +110,7 @@ const DoctorDashboard = () => {
 
   // Fetch profile and dashboard data in parallel for faster loading
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDashboardData = async () => {
       try {
         setLoading(true)
         setError(null)
