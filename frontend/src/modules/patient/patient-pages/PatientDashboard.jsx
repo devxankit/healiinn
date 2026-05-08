@@ -355,18 +355,18 @@ const TrustSection = () => (
         </h2>
      </div>
 
-     <div className="flex overflow-x-auto overflow-y-hidden pb-4 scrollbar-hide gap-4 md:grid md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
         {[
            { icon: IoDiamondOutline, title: 'CAP & NABL Accredited Labs', color: '#fef3c7', iconColor: '#d97706' },
            { icon: IoTimeOutline, title: 'On Time Sample Collection', color: '#ecfdf5', iconColor: '#059669' },
            { icon: IoDocumentTextOutline, title: 'Smart Reports in 6 Hours', color: '#f0f9ff', iconColor: '#0284c7' },
            { icon: IoHeadsetOutline, title: 'Free Report Consultation', color: '#f5f3ff', iconColor: '#7c3aed' },
         ].map((item, idx) => (
-           <div key={idx} className="min-w-[140px] md:min-w-0 bg-white rounded-2xl p-4 shadow-sm border border-slate-50 flex flex-col gap-3 hover:shadow-md transition-shadow shrink-0">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: item.color }}>
-                 <item.icon className="h-6 w-6" style={{ color: item.iconColor }} />
+           <div key={idx} className="bg-white rounded-2xl p-3 md:p-4 shadow-sm border border-slate-50 flex flex-col gap-2 md:gap-3 hover:shadow-md transition-shadow">
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: item.color }}>
+                 <item.icon className="h-4 w-4 md:h-5 md:w-5" style={{ color: item.iconColor }} />
               </div>
-              <p className="text-[10px] md:text-xs font-bold text-slate-700 leading-tight">{item.title}</p>
+              <p className="text-[10px] md:text-[11px] font-bold text-slate-700 leading-tight">{item.title}</p>
            </div>
         ))}
      </div>
