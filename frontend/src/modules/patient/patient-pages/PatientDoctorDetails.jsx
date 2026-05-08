@@ -15,6 +15,8 @@ import {
   IoCardOutline,
   IoCheckmarkCircle,
   IoInformationCircleOutline,
+  IoMailOutline,
+  IoPulseOutline,
 } from 'react-icons/io5'
 import { getDoctorById, bookAppointment, getPatientAppointments, getPatientProfile, getPatientPrescriptions, checkDoctorSlotAvailability, createAppointmentPaymentOrder, verifyAppointmentPayment, submitReview, rescheduleAppointment, cancelAppointment } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
@@ -1244,160 +1246,177 @@ const PatientDoctorDetails = () => {
   }
 
   return (
-    <section className="flex flex-col gap-6 pb-4">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-6">
-          <div className="relative shrink-0">
-            <img
-              src={doctor.image}
-              alt={doctor.name}
-              className="h-32 w-32 sm:h-40 sm:w-40 rounded-3xl object-cover ring-2 ring-slate-100 bg-slate-100"
-              loading="lazy"
-              onError={(e) => {
-                e.target.onerror = null
-                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=3b82f6&color=fff&size=160&bold=true`
-              }}
-            />
-            {doctor.availability.includes('today') && (
-              <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
-                <IoCheckmarkCircleOutline className="h-4 w-4 text-white" aria-hidden="true" />
-              </span>
-            )}
-          </div>
+    <>
+      <section className="bg-[#f8fafc] min-h-screen pb-32">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
+        {/* Back Button */}
+        <button 
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-slate-500 font-bold hover:text-[#11496c] transition-colors mb-8 group"
+        >
+           <IoArrowBackOutline className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+           Back to Doctors
+        </button>
 
-          <div className="flex-1 space-y-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">{doctor.name}</h1>
-              <p className="mt-1 text-base font-medium text-[#11496c]">{doctor.specialty}</p>
-              <div className="mt-3 flex items-center gap-2">
-                <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
-                <span className="text-sm font-semibold text-slate-700">{doctor.rating}</span>
-                <span className="text-sm text-slate-500">({doctor.reviewCount} reviews)</span>
-                <button
-                  type="button"
-                  onClick={() => setShowReviewModal(true)}
-                  className="ml-2 text-xs font-semibold text-[#11496c] hover:text-[#0d3a52] underline"
-                >
-                  Rate & Review
-                </button>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+           {/* Left Column: Doctor Info & About */}
+           <div className="lg:col-span-2 space-y-8">
+              <div className="bg-white rounded-[40px] p-8 md:p-10 shadow-sm border border-slate-100">
+                 <div className="flex flex-col md:flex-row gap-8">
+                    <div className="relative shrink-0 mx-auto md:mx-0">
+                       <img
+                         src={doctor.image}
+                         alt={doctor.name}
+                         className="h-40 w-40 md:h-48 md:w-48 rounded-[40px] object-cover ring-8 ring-slate-50 shadow-xl"
+                         loading="lazy"
+                         onError={(e) => {
+                           e.target.onerror = null
+                           e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=11496c&color=fff&size=160&bold=true`
+                         }}
+                       />
+                       <div className="absolute -bottom-2 -right-2 bg-emerald-500 border-4 border-white h-8 w-8 rounded-full shadow-lg"></div>
+                    </div>
 
-            <div className="space-y-2 text-sm text-slate-600">
-              {doctor.clinicName && (
-                <div className="flex items-start gap-2">
-                  <IoLocationOutline className="h-5 w-5 shrink-0 text-slate-400 mt-0.5" aria-hidden="true" />
-                  <div>
-                    <p className="font-semibold text-slate-900">{doctor.clinicName}</p>
-                    <p className="text-slate-600">{doctor.location}</p>
-                  </div>
-                </div>
-              )}
-              {!doctor.clinicName && (
-                <div className="flex items-center gap-2">
-                  <IoLocationOutline className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
-                  <span>{doctor.location}</span>
-                </div>
-              )}
+                    <div className="flex-1 space-y-6 text-center md:text-left">
+                       <div className="space-y-2">
+                          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{doctor.name}</h1>
+                          <p className="text-lg font-bold text-[#11496c] uppercase tracking-wide">{doctor.specialty}</p>
+                          <div className="flex items-center justify-center md:justify-start gap-3 pt-2">
+                             <div className="flex items-center gap-1">{renderStars(doctor.rating)}</div>
+                             <span className="text-sm font-black text-slate-900">{doctor.rating}</span>
+                             <span className="text-sm text-slate-400 font-bold">({doctor.reviewCount} reviews)</span>
+                          </div>
+                       </div>
 
-              <div className="flex items-start gap-2">
-                <IoTimeOutline className="h-5 w-5 shrink-0 text-slate-400 mt-0.5" aria-hidden="true" />
-                <div className="flex-1">
-                  <div className="font-medium text-slate-700">
-                    {doctor.availability.split('; ').map((line, idx) => (
-                      <div key={idx} className={idx > 0 ? 'mt-1' : ''}>{line}</div>
-                    ))}
-                  </div>
-                  {doctor.nextSlot && doctor.nextSlot !== 'N/A' && (
-                    <span className="mt-2 inline-block rounded-full bg-[rgba(17,73,108,0.1)] px-3 py-1 text-sm font-semibold text-[#11496c]">
-                      {doctor.nextSlot}
-                    </span>
-                  )}
-                </div>
+                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          <div className="p-4 bg-slate-50 rounded-3xl border border-slate-100">
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Experience</p>
+                             <p className="text-sm font-black text-slate-900">{doctor.experience}</p>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-3xl border border-slate-100">
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Education</p>
+                             <p className="text-sm font-black text-slate-900">{doctor.education}</p>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-3xl border border-slate-100 col-span-2 md:col-span-1">
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Languages</p>
+                             <p className="text-sm font-black text-slate-900">{doctor.languages.join(', ')}</p>
+                          </div>
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="mt-10 pt-10 border-t border-slate-100 space-y-4">
+                    <h2 className="text-xl font-black text-slate-900">About Doctor</h2>
+                    <p className="text-slate-600 leading-relaxed font-medium">
+                       {doctor.about || 'Dr. ' + doctor.name + ' is a highly skilled specialist committed to providing exceptional care and medical expertise to patients.'}
+                    </p>
+                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <IoCalendarOutline className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
-                <span>{doctor.experience} experience</span>
+              {/* Clinic Info */}
+              <div className="bg-white rounded-[40px] p-8 md:p-10 shadow-sm border border-slate-100 space-y-6">
+                 <h2 className="text-xl font-black text-slate-900">Clinic Information</h2>
+                 <div className="flex flex-col md:flex-row gap-8">
+                    <div className="flex-1 space-y-4">
+                       <div className="flex items-start gap-4">
+                          <div className="p-3 bg-[#11496c]/5 rounded-2xl text-[#11496c] shrink-0">
+                             <IoLocationOutline className="h-6 w-6" />
+                          </div>
+                          <div>
+                             <p className="font-black text-slate-900">{doctor.clinicName || 'Healiinn Partner Clinic'}</p>
+                             <p className="text-sm text-slate-500 font-medium leading-relaxed mt-1">{doctor.location}</p>
+                          </div>
+                       </div>
+                       <div className="flex items-center gap-4">
+                          <div className="p-3 bg-[#11496c]/5 rounded-2xl text-[#11496c] shrink-0">
+                             <IoTimeOutline className="h-6 w-6" />
+                          </div>
+                          <div>
+                             <p className="font-black text-slate-900">Availability</p>
+                             <p className="text-sm text-slate-500 font-medium mt-1">{doctor.availability}</p>
+                          </div>
+                       </div>
+                    </div>
+                    <div className="w-full md:w-64 h-48 bg-slate-100 rounded-3xl overflow-hidden relative group cursor-pointer">
+                       <img 
+                         src="https://images.unsplash.com/photo-1527613426441-4da17471b66d?auto=format&fit=crop&q=80&w=400" 
+                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                         alt="Clinic Map" 
+                       />
+                       <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                          <span className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl text-xs font-bold shadow-lg">View on Map</span>
+                       </div>
+                    </div>
+                 </div>
               </div>
-            </div>
+           </div>
 
-            <div className="flex flex-row gap-3 pt-2">
-              <button
-                type="button"
-                onClick={handleBookingClick}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#11496c] px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:bg-[#0d3a52] active:scale-95 sm:text-sm"
-              >
-                <IoCalendarOutline className="h-4 w-4" aria-hidden="true" />
-                Book Appointment
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (doctor.phone) {
-                    // Initiate phone call
-                    window.location.href = `tel:${doctor.phone}`
-                  } else {
-                    alert('Doctor phone number is not available')
-                  }
-                }}
-                className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2.5 text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                aria-label="Call doctor"
-              >
-                <IoCallOutline className="h-5 w-5" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    // Create video call request
-                    const videoCallRequest = {
-                      id: `video-call-${Date.now()}`,
-                      type: 'video_call',
-                      doctorId: doctor.id,
-                      doctorName: doctor.name,
-                      doctorSpecialty: doctor.specialty,
-                      doctorPhone: doctor.phone,
-                      patientId: 'pat-current', // In real app, get from auth
-                      patientName: 'Current Patient', // In real app, get from auth
-                      status: 'pending',
-                      requestedAt: new Date().toISOString(),
-                    }
+           {/* Right Column: Actions Sidebar (Sticky on Desktop) */}
+           <div className="lg:sticky lg:top-28 space-y-6">
+              <div className="bg-white rounded-[40px] p-8 shadow-xl border border-slate-100 space-y-8">
+                 <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Consultation Fee</p>
+                    <p className="text-3xl font-black text-slate-900">₹{doctor.consultationFee}</p>
+                 </div>
 
-                    // Save to localStorage for doctor/admin to see
-                    const existingRequests = JSON.parse(localStorage.getItem('doctorVideoCallRequests') || '[]')
-                    existingRequests.push(videoCallRequest)
-                    localStorage.setItem('doctorVideoCallRequests', JSON.stringify(existingRequests))
+                 <div className="space-y-4">
+                    <button
+                      onClick={handleBookingClick}
+                      className="w-full bg-[#11496c] text-white font-black py-4 rounded-2xl shadow-lg shadow-[#11496c]/20 hover:bg-[#0d3a52] transition-all flex items-center justify-center gap-3 active:scale-95"
+                    >
+                      <IoCalendarOutline className="h-5 w-5" /> Book Appointment
+                    </button>
 
-                    // Also save to admin requests
-                    const adminRequests = JSON.parse(localStorage.getItem('adminRequests') || '[]')
-                    adminRequests.push({
-                      ...videoCallRequest,
-                      id: `admin-video-call-${Date.now()}`,
-                    })
-                    localStorage.setItem('adminRequests', JSON.stringify(adminRequests))
+                    <div className="grid grid-cols-2 gap-4">
+                       <button
+                         onClick={() => doctor.phone && (window.location.href = `tel:${doctor.phone}`)}
+                         className="flex items-center justify-center gap-2 py-4 border border-slate-100 rounded-2xl font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                       >
+                          <IoCallOutline className="h-5 w-5 text-[#11496c]" /> Call
+                       </button>
+                       <button
+                         className="flex items-center justify-center gap-2 py-4 border border-slate-100 rounded-2xl font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                       >
+                          <IoVideocamOutline className="h-5 w-5 text-[#11496c]" /> Video
+                       </button>
+                    </div>
+                 </div>
 
-                    // Show success message
-                    alert(`Video call request sent to ${doctor.name}. The doctor will contact you shortly.`)
-                  } catch (error) {
-                    console.error('Error initiating video call:', error)
-                    alert('Error initiating video call. Please try again.')
-                  }
-                }}
-                className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2.5 text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
-                aria-label="Video call doctor"
-              >
-                <IoVideocamOutline className="h-5 w-5" aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-        </div>
+                 {doctor.nextSlot && (
+                    <div className="rounded-3xl p-5 bg-emerald-50 border border-emerald-100">
+                       <div className="flex items-center gap-2 mb-2">
+                          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                          <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Next Available Slot</p>
+                       </div>
+                       <p className="text-sm font-black text-emerald-900">{doctor.nextSlot}</p>
+                    </div>
+                 )}
 
-        <div className="mt-6 pt-6 border-t border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900 mb-3">About</h2>
-          <p className="text-sm text-slate-600">{doctor.about}</p>
+                 <div className="pt-6 border-t border-slate-50 space-y-4">
+                    <div className="flex items-center gap-3 text-slate-500">
+                       <IoCheckmarkCircle className="h-5 w-5 text-emerald-500" />
+                       <span className="text-xs font-bold italic">100% Verified Specialist</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-500">
+                       <IoCheckmarkCircle className="h-5 w-5 text-emerald-500" />
+                       <span className="text-xs font-bold italic">Instant Confirmation</span>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Promo Card */}
+              <div className="bg-gradient-to-br from-[#11496c] to-[#0d3a52] rounded-[40px] p-8 text-white relative overflow-hidden shadow-lg shadow-[#11496c]/10">
+                 <div className="relative z-10 space-y-4">
+                    <h3 className="text-lg font-black leading-tight">Get 20% OFF on your first booking</h3>
+                    <p className="text-xs text-white/70 font-medium">Use code: HEAL20 at checkout</p>
+                    <button className="bg-white text-[#11496c] px-4 py-2 rounded-xl text-xs font-black shadow-lg">Copy Code</button>
+                 </div>
+                 <IoPulseOutline className="absolute -bottom-4 -right-4 h-24 w-24 text-white/5 rotate-12" />
+              </div>
+           </div>
         </div>
       </div>
+      </section>
 
       {/* Booking Modal */}
       {showBookingModal && (
@@ -1649,65 +1668,67 @@ const PatientDoctorDetails = () => {
                       <label className="mb-2 block text-sm font-semibold text-slate-700">Appointment Type</label>
                       {(() => {
                         const sessionEnded = selectedDate ? isSessionEndedForDate(selectedDate) : false
-                        // Auto-switch from in_person to call if session has ended
-                        if (sessionEnded && appointmentType === 'in_person') {
-                          // Don't auto-switch here, let user manually select - just show warning
-                        }
+                        const supportedModes = doctor.originalData?.consultationModes || ['in_person', 'call']
+                        
                         return (
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!sessionEnded) {
-                                  setAppointmentType('in_person')
-                                } else {
-                                  toast.warning('In-person appointments cannot be booked after session time ends. Please select Call.')
-                                }
-                              }}
-                              disabled={sessionEnded}
-                              className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
-                                sessionEnded
-                                  ? 'border-slate-200 bg-slate-100 cursor-not-allowed opacity-60'
-                                  : appointmentType === 'in_person'
-                                  ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                                  : 'border-slate-200 bg-white hover:border-slate-300'
-                              }`}
-                              title={sessionEnded ? 'In-person appointments cannot be booked after session time ends. Please select Call.' : ''}
-                            >
-                              <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                                sessionEnded
-                                  ? 'bg-slate-200 text-slate-400'
-                                  : appointmentType === 'in_person' 
-                                  ? 'bg-[#11496c] text-white' 
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}>
-                                <IoPersonOutline className="h-4 w-4" />
-                              </div>
-                              <span className={`text-xs font-semibold ${sessionEnded ? 'text-slate-500' : 'text-slate-900'}`}>In-Person</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setAppointmentType('call')}
-                              className={`flex flex-1 items-center gap-2 rounded-xl border-2 p-2.5 transition ${
-                                appointmentType === 'call'
-                                  ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
-                                  : 'border-slate-200 bg-white hover:border-slate-300'
-                              }`}
-                            >
-                              <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                                appointmentType === 'call' ? 'bg-[#11496c] text-white' : 'bg-slate-100 text-slate-600'
-                              }`}>
-                                <IoCallOutline className="h-4 w-4" />
-                              </div>
-                              <span className="text-xs font-semibold text-slate-900">Call</span>
-                            </button>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {['in_person', 'call', 'audio', 'chat', 'video'].map((mode) => {
+                              const isSupported = supportedModes.includes(mode)
+                              if (!isSupported) return null
+                              
+                              const isDisableMode = mode === 'in_person' && sessionEnded
+                              
+                              return (
+                                <button
+                                  key={mode}
+                                  type="button"
+                                  onClick={() => {
+                                    if (!isDisableMode) {
+                                      setAppointmentType(mode)
+                                    } else {
+                                      toast.warning('In-person appointments cannot be booked after session time ends. Please select another mode.')
+                                    }
+                                  }}
+                                  disabled={isDisableMode}
+                                  className={`flex items-center gap-2 rounded-xl border-2 p-2.5 transition ${
+                                    isDisableMode
+                                      ? 'border-slate-200 bg-slate-100 cursor-not-allowed opacity-60'
+                                      : appointmentType === mode
+                                      ? 'border-[#11496c] bg-[rgba(17,73,108,0.1)]'
+                                      : 'border-slate-200 bg-white hover:border-slate-300'
+                                  }`}
+                                  title={isDisableMode ? 'In-person appointments cannot be booked after session time ends.' : ''}
+                                >
+                                  <div className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${
+                                    isDisableMode
+                                      ? 'bg-slate-200 text-slate-400'
+                                      : appointmentType === mode 
+                                      ? 'bg-[#11496c] text-white' 
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}>
+                                    {mode === 'in_person' ? (
+                                      <IoPersonOutline className="h-4 w-4" />
+                                    ) : mode === 'call' || mode === 'audio' ? (
+                                      <IoCallOutline className="h-4 w-4" />
+                                    ) : mode === 'chat' ? (
+                                      <IoMailOutline className="h-4 w-4" />
+                                    ) : (
+                                      <IoVideocamOutline className="h-4 w-4" />
+                                    )}
+                                  </div>
+                                  <span className={`text-[10px] font-semibold truncate ${isDisableMode ? 'text-slate-500' : 'text-slate-900'}`}>
+                                    {mode === 'in_person' ? 'In-Person' : mode === 'video' ? 'Video' : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                                  </span>
+                                </button>
+                              )
+                            })}
                           </div>
                         )
                       })()}
                       {selectedDate && isSessionEndedForDate(selectedDate) && (
                         <p className="mt-2 text-xs text-amber-600">
                           <IoInformationCircleOutline className="inline h-3 w-3 mr-1" />
-                          Session time has ended. In-person appointments are not available. Call appointments can still be booked.
+                          Session time has ended. In-person appointments are not available.
                         </p>
                       )}
                     </div>
@@ -2153,7 +2174,7 @@ const PatientDoctorDetails = () => {
           </div>
         </div>
       )}
-    </section>
+    </>
   )
 }
 

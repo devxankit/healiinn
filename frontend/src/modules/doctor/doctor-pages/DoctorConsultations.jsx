@@ -28,6 +28,9 @@ import {
   IoEyeOutline,
   IoArrowBackOutline,
   IoCreateOutline,
+  IoVideocamOutline,
+  IoMailOutline,
+  IoCallOutline,
 } from 'react-icons/io5'
 
 // Get doctor info from localStorage (set when doctor saves profile)
@@ -100,6 +103,33 @@ const formatDate = (dateString) => {
   const date = new Date(dateString)
   if (isNaN(date.getTime())) return 'N/A'
   return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
+const getTypeIcon = (mode) => {
+  switch (mode) {
+    case 'in_person':
+      return IoPersonOutline
+    case 'call':
+    case 'audio':
+      return IoCallOutline
+    case 'chat':
+      return IoMailOutline
+    case 'video':
+      return IoVideocamOutline
+    default:
+      return IoPersonOutline
+  }
+}
+
+const getModeLabel = (mode) => {
+  switch (mode) {
+    case 'in_person':
+      return 'In-Person'
+    case 'video':
+      return 'Video Call'
+    default:
+      return mode ? mode.charAt(0).toUpperCase() + mode.slice(1) : 'In-Person'
+  }
 }
 
 const DoctorConsultations = () => {
@@ -219,6 +249,7 @@ const DoctorConsultations = () => {
         return null
       })(),
               appointmentType: cons.appointmentId?.appointmentType || cons.appointmentType || 'New',
+              consultationMode: cons.appointmentId?.consultationMode || cons.consultationMode || 'in_person',
               status: cons.status || 'pending',
               reason: cons.chiefComplaint || cons.reason || 'Consultation',
               patientImage: cons.patientId?.profileImage || cons.patientId?.image || cons.patientImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(cons.patientId?.firstName || 'Patient')}&background=3b82f6&color=fff&size=160`,
@@ -3415,6 +3446,17 @@ const DoctorConsultations = () => {
                         <div className="flex items-center gap-1">
                           <span>{consultation.age} years • {consultation.gender}</span>
                         </div>
+                        <div className="flex items-center gap-1 text-[#11496c] font-medium">
+                          {(() => {
+                            const ModeIcon = getTypeIcon(consultation.consultationMode)
+                            return (
+                              <>
+                                <ModeIcon className="h-3.5 w-3.5" />
+                                <span>{getModeLabel(consultation.consultationMode)}</span>
+                              </>
+                            )
+                          })()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3473,6 +3515,17 @@ const DoctorConsultations = () => {
                               : formatDateTime(selectedConsultation.appointmentTime)}
                           </span>
                         </p>
+                        <div className="flex items-center gap-1.5 font-semibold text-[#11496c]">
+                          {(() => {
+                            const ModeIcon = getTypeIcon(selectedConsultation.consultationMode)
+                            return (
+                              <>
+                                <ModeIcon className="h-3.5 w-3.5" />
+                                <span>{getModeLabel(selectedConsultation.consultationMode)}</span>
+                              </>
+                            )
+                          })()}
+                        </div>
                       </div>
                       <p className="mt-1.5 sm:mt-2.5 text-xs sm:text-sm font-medium text-slate-700 line-clamp-2">{selectedConsultation.reason}</p>
                     </div>

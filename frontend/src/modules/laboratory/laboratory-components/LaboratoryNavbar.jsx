@@ -61,7 +61,7 @@ const LaboratoryNavbar = () => {
     handleSidebarClose()
     localStorage.removeItem('laboratoryAuthToken')
     sessionStorage.removeItem('laboratoryAuthToken')
-    navigate('/doctor/login', { replace: true })
+    navigate('/login?type=laboratory', { replace: true })
   }
 
   return (

@@ -13,6 +13,9 @@ import {
   IoCloseOutline,
   IoRefreshOutline,
   IoInformationCircleOutline,
+  IoVideocamOutline,
+  IoMailOutline,
+  IoCallOutline,
 } from 'react-icons/io5'
 import { getDoctorAppointments, cancelDoctorAppointment, getPatientById, getConsultationById, getDoctorConsultations } from '../doctor-services/doctorService'
 import Pagination from '../../../components/Pagination'
@@ -30,9 +33,20 @@ const formatTime = (timeString) => {
   return timeString || 'N/A'
 }
 
-const getTypeIcon = (type) => {
-  // Only in-person consultations are supported
-  return IoPersonOutline
+const getTypeIcon = (mode) => {
+  switch (mode) {
+    case 'in_person':
+      return IoPersonOutline
+    case 'call':
+    case 'audio':
+      return IoCallOutline
+    case 'chat':
+      return IoMailOutline
+    case 'video':
+      return IoVideocamOutline
+    default:
+      return IoPersonOutline
+  }
 }
 
 // Map backend status to frontend display status
@@ -162,7 +176,8 @@ const DoctorAppointments = () => {
             date: appointmentDate, // Use appointmentDate from backend
             appointmentDate: appointmentDate, // Keep both for compatibility
             time: apt.time || '',
-            type: apt.appointmentType || apt.type || 'In-person',
+            type: apt.appointmentType || 'New',
+            consultationMode: apt.consultationMode || 'in_person',
             status: apt.status || 'scheduled',
             duration: apt.duration || '30 min',
             reason: apt.reason || apt.chiefComplaint || 'Consultation',
@@ -648,7 +663,7 @@ const DoctorAppointments = () => {
             </div>
           ) : (
             filteredAppointments.map((appointment) => {
-              const TypeIcon = getTypeIcon(appointment.type)
+              const TypeIcon = getTypeIcon(appointment.consultationMode)
               return (
                 <div
                   key={appointment.id}
@@ -757,7 +772,9 @@ const DoctorAppointments = () => {
                       </div>
                       <div className="flex items-center gap-0.5">
                         <TypeIcon className="h-2.5 w-2.5 text-slate-500 shrink-0" />
-                        <span className="truncate">{appointment.type}</span>
+                        <span className="truncate">
+                          {appointment.consultationMode === 'in_person' ? 'In-Person' : appointment.consultationMode === 'video' ? 'Video Call' : appointment.consultationMode.charAt(0).toUpperCase() + appointment.consultationMode.slice(1)}
+                        </span>
                       </div>
                       {appointment.duration ? (
                         <div className="flex items-center gap-0.5">

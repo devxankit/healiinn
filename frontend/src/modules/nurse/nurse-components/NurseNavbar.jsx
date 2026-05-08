@@ -35,7 +35,7 @@ const NurseNavbar = () => {
   
   // Hide header on dashboard and login pages
   const isDashboardPage = location.pathname === '/nurse/dashboard' || location.pathname === '/nurse/'
-  const isLoginPage = location.pathname === '/nurse/login'
+  const isLoginPage = location.pathname === '/login'
 
   const mobileLinkBase =
     'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[rgba(17,73,108,0.7)] focus-visible:ring-offset-2'
@@ -75,7 +75,7 @@ const NurseNavbar = () => {
     }
     // Force navigation to login page - full page reload to clear all state
     setTimeout(() => {
-      window.location.href = '/nurse/login'
+      window.location.href = '/login?type=nurse'
     }, 500)
   }
 

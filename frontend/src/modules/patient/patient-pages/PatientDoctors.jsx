@@ -6,6 +6,7 @@ import {
   IoTimeOutline,
   IoPulseOutline,
   IoHeartOutline,
+  IoArrowForwardOutline,
 } from 'react-icons/io5'
 import { TbStethoscope } from 'react-icons/tb'
 import { MdOutlineEscalatorWarning } from 'react-icons/md'
@@ -513,195 +514,191 @@ const PatientDoctors = () => {
   }
 
   return (
-    <section className="flex flex-col gap-4 pb-4">
-      {/* Search Bar - Outside Card */}
-      <div className="relative">
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#11496c' }}>
-            <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <input
-            id="doctor-search"
-            type="text"
-            placeholder="Search by name, specialty, or location..."
-            className="w-full rounded-lg border bg-white py-2.5 pl-10 pr-3 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:bg-white hover:shadow-md focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:border-[#11496c] sm:text-base"
-            style={{ borderColor: 'rgba(17, 73, 108, 0.3)' }}
-            onFocus={(e) => {
-              e.target.style.borderColor = '#11496c'
-              e.target.style.boxShadow = '0 0 0 2px rgba(17, 73, 108, 0.2)'
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = 'rgba(17, 73, 108, 0.3)'
-              e.target.style.boxShadow = ''
-            }}
-            onMouseEnter={(e) => {
-              if (document.activeElement !== e.target) {
-                e.target.style.borderColor = 'rgba(17, 73, 108, 0.4)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (document.activeElement !== e.target) {
-                e.target.style.borderColor = 'rgba(17, 73, 108, 0.3)'
-              }
-            }}
-            value={searchTerm}
-            onChange={(e) => {
-              const value = e.target.value
-              setSearchTerm(value)
-            }}
-            autoComplete="off"
-          />
+    <section className="bg-[#f8fafc] min-h-screen pb-32 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1">
+             <h1 className="text-3xl font-black text-slate-900 tracking-tight">Find Your Specialist</h1>
+             <p className="text-sm text-slate-500 font-medium">Book appointments with top-rated doctors near you</p>
+          </div>
+          
+          {/* Search Bar - Responsive width */}
+          <div className="relative w-full md:max-w-md">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2" style={{ color: '#11496c' }}>
+              <IoSearchOutline className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <input
+              id="doctor-search"
+              type="text"
+              placeholder="Search by name, specialty, or location..."
+              className="w-full rounded-2xl border bg-white py-3.5 pl-12 pr-4 text-sm font-medium text-slate-900 shadow-sm transition-all placeholder:text-slate-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#11496c]/10 focus:border-[#11496c]"
+              style={{ borderColor: 'rgba(17, 73, 108, 0.2)' }}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Specialty Filters - Scrollable */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch]">
-        {specialtiesList.map((specialty) => {
-          const Icon = specialty.icon
-          const isSelected = selectedSpecialty === specialty.id
-          return (
-            <button
-              key={specialty.id}
-              type="button"
-              onClick={() => setSelectedSpecialty(specialty.id)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all sm:text-sm ${
-                isSelected
-                  ? 'text-white shadow-sm'
-                  : 'bg-white text-slate-700 border hover:bg-white hover:shadow-sm'
-              }`}
-              style={isSelected ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : { borderColor: 'rgba(17, 73, 108, 0.3)' }}
-              onMouseEnter={(e) => {
-                if (!isSelected) {
-                  e.currentTarget.style.borderColor = 'rgba(17, 73, 108, 0.4)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isSelected) {
-                  e.currentTarget.style.borderColor = 'rgba(17, 73, 108, 0.3)'
-                }
-              }}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              <span>{specialty.label}</span>
-            </button>
-          )
-        })}
-      </div>
+        {/* Specialty Filters - Enhanced Scrollable/Grid */}
+        <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide [-webkit-overflow-scrolling:touch] px-4 md:px-0">
+          {specialtiesList.map((specialty) => {
+            const Icon = specialty.icon
+            const isSelected = selectedSpecialty === specialty.id
+            return (
+              <button
+                key={specialty.id}
+                type="button"
+                onClick={() => setSelectedSpecialty(specialty.id)}
+                className={`inline-flex shrink-0 items-center gap-2.5 rounded-2xl px-6 py-3 text-sm font-bold transition-all border ${
+                  isSelected
+                    ? 'text-white shadow-lg'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-[#11496c]/40 hover:bg-slate-50'
+                }`}
+                style={isSelected ? { backgroundColor: '#11496c', borderColor: '#11496c', boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.2)' } : {}}
+              >
+                <Icon className="h-5 w-5" aria-hidden="true" />
+                <span>{specialty.label}</span>
+              </button>
+            )
+          })}
+        </div>
 
-      {loading ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm font-medium text-slate-600">Loading doctors...</p>
-        </div>
-      ) : error ? (
-        <div className="rounded-2xl border border-dashed border-red-200 bg-red-50 p-8 text-center">
-          <p className="text-sm font-medium text-red-600">Error: {error}</p>
-          <p className="mt-1 text-xs text-red-500">Please try again later.</p>
-        </div>
-      ) : filteredDoctors.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-          <p className="text-sm font-medium text-slate-600">No doctors found matching your criteria.</p>
-          <p className="mt-1 text-xs text-slate-500">Try adjusting your search or filters.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {paginatedDoctors.map((doctor) => (
-            <div
-              key={doctor.id}
-              onClick={() => handleCardClick(doctor.id)}
-              className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
-            >
-              <div className="p-4">
-                {/* Doctor Info Row */}
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="relative flex-shrink-0">
-                    <img
-                      src={doctor.image}
-                      alt={doctor.name}
-                      className="h-16 w-16 rounded-lg object-cover border border-slate-200"
-                      loading="lazy"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                      }}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-bold text-slate-900 mb-0.5 leading-tight">{doctor.name}</h3>
-                    <p className="text-xs text-slate-600 mb-0.5">{doctor.specialty}</p>
-                    {doctor.clinicName && (
-                      <p className="text-xs font-semibold text-slate-700 mb-0.5">{doctor.clinicName}</p>
-                    )}
-                    <p className="text-xs text-slate-500 mb-1.5 line-clamp-2">{doctor.location}</p>
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
-                      <span className="text-xs font-semibold text-slate-700">
-                        {doctor.rating} ({doctor.reviewCount} reviews)
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0 text-right">
-                    <div className="text-base font-bold text-slate-900">₹{doctor.consultationFee}</div>
-                  </div>
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="bg-white rounded-3xl border border-slate-100 p-6 space-y-4 animate-pulse">
+                <div className="flex gap-4">
+                   <div className="w-16 h-16 bg-slate-100 rounded-2xl"></div>
+                   <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-slate-100 rounded w-3/4"></div>
+                      <div className="h-3 bg-slate-100 rounded w-1/2"></div>
+                   </div>
                 </div>
-
-                {/* Availability Section */}
-                {doctor.availability.includes('today') && doctor.nextSlot && (
-                  <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)', border: '1px solid rgba(17, 73, 108, 0.3)' }}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                      <span className="text-xs font-semibold text-slate-800">Now Serving</span>
+                <div className="h-32 bg-slate-50 rounded-2xl"></div>
+                <div className="h-12 bg-slate-100 rounded-xl"></div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="rounded-[40px] border-2 border-dashed border-red-100 bg-red-50/50 p-12 text-center space-y-4">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+               <IoPulseOutline className="h-8 w-8 text-red-600" />
+            </div>
+            <p className="text-lg font-bold text-red-900">Oops! {error}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        ) : filteredDoctors.length === 0 ? (
+          <div className="rounded-[40px] border-2 border-dashed border-slate-200 bg-white p-16 text-center space-y-4">
+            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300">
+               <IoSearchOutline className="h-10 w-10" />
+            </div>
+            <div className="space-y-1">
+               <p className="text-xl font-bold text-slate-900">No doctors found matching your criteria</p>
+               <p className="text-slate-500 font-medium">Try adjusting your search or filters to find more results</p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {paginatedDoctors.map((doctor) => (
+              <div
+                key={doctor.id}
+                onClick={() => handleCardClick(doctor.id)}
+                className="bg-white border border-slate-100 rounded-[40px] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col h-full"
+              >
+                <div className="p-6 flex flex-col flex-1 gap-6">
+                  {/* Doctor Info Row */}
+                  <div className="flex items-start gap-4">
+                    <div className="relative flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                      <img
+                        src={doctor.image}
+                        alt={doctor.name}
+                        className="h-20 w-20 rounded-2xl object-cover border border-slate-100 shadow-sm"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctor.name)}&background=11496c&color=fff&size=128&bold=true`
+                        }}
+                      />
+                      <div className="absolute -bottom-2 -right-2 bg-emerald-500 border-4 border-white h-6 w-6 rounded-full shadow-sm"></div>
                     </div>
-                    <p className="text-xs text-slate-600 mb-1.5">Your ETA if you book now:</p>
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-bold text-slate-900">Next Slot: {doctor.nextSlot}</span>
-                      <div className="flex items-center gap-1 text-xs text-slate-600">
-                        <IoTimeOutline className="h-3.5 w-3.5" />
-                        <span className="font-medium">{doctor.availability}</span>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                         <h3 className="text-base font-bold text-slate-900 truncate group-hover:text-[#11496c] transition-colors">{doctor.name}</h3>
+                         <span className="text-base font-bold text-slate-900 shrink-0">₹{doctor.consultationFee}</span>
+                      </div>
+                      <p className="text-[10px] font-bold text-[#11496c] uppercase tracking-wider">{doctor.specialty}</p>
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <div className="flex items-center gap-0.5">{renderStars(doctor.rating)}</div>
+                        <span className="text-[10px] font-medium text-slate-500">
+                          {doctor.rating} ({doctor.reviewCount})
+                        </span>
                       </div>
                     </div>
                   </div>
-                )}
 
-                {/* Take Token Button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleCardClick(doctor.id)
-                  }}
-                  className="w-full text-white font-bold py-3 px-4 rounded-lg text-sm transition-colors shadow-sm"
-                  style={{ backgroundColor: '#11496c' }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = '#0d3a52'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = '#11496c'
-                  }}
-                  onMouseDown={(e) => {
-                    e.target.style.backgroundColor = '#0a2d3f'
-                  }}
-                  onMouseUp={(e) => {
-                    e.target.style.backgroundColor = '#11496c'
-                  }}
-                >
-                  Take Token • ₹{doctor.consultationFee}
-                </button>
+                  <div className="space-y-3.5 flex-1">
+                     {doctor.clinicName && (
+                       <div className="flex items-center gap-3 text-slate-600">
+                          <div className="p-2 bg-slate-50 rounded-lg shrink-0">
+                             <IoLocationOutline className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                             <span className="text-[10px] font-bold text-slate-900 truncate">{doctor.clinicName}</span>
+                             <span className="text-[10px] text-slate-400 truncate font-medium">{doctor.location}</span>
+                          </div>
+                       </div>
+                     )}
+
+                     {/* Availability Badge */}
+                     <div className="rounded-2xl p-3.5 bg-slate-50 border border-slate-100 group-hover:bg-[#11496c]/5 group-hover:border-[#11496c]/10 transition-colors">
+                        <div className="flex items-center justify-between">
+                           <div className="flex items-center gap-2">
+                              <IoTimeOutline className="h-3.5 w-3.5 text-[#11496c]" />
+                              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Next Available Slot</span>
+                           </div>
+                           <span className="text-[9px] font-bold text-emerald-600">Today</span>
+                        </div>
+                        <p className="text-xs font-bold text-slate-900 mt-1.5">{doctor.nextSlot || 'Available Now'}</p>
+                     </div>
+                  </div>
+
+                  {/* Take Token Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleCardClick(doctor.id)
+                    }}
+                    className="w-full text-white font-bold py-3.5 px-6 rounded-xl text-xs transition-all shadow-lg shadow-[#11496c]/10 hover:shadow-[#11496c]/20 flex items-center justify-center gap-2 active:scale-95"
+                    style={{ backgroundColor: '#11496c' }}
+                  >
+                    Book Appointment <IoArrowForwardOutline className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {/* Pagination */}
-      {!loading && filteredDoctors.length > 0 && totalPages > 1 && (
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          itemsPerPage={itemsPerPage}
-          onPageChange={setCurrentPage}
-          loading={loading}
-        />
-      )}
+        {/* Pagination */}
+        {!loading && filteredDoctors.length > 0 && totalPages > 1 && (
+          <div className="pt-8">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              loading={loading}
+            />
+          </div>
+        )}
+      </div>
     </section>
   )
 }

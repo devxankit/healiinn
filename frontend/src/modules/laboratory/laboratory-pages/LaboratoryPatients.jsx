@@ -122,6 +122,10 @@ const LaboratoryPatients = () => {
   const [deliveryCharge, setDeliveryCharge] = useState('50')
   const [additionalCharges, setAdditionalCharges] = useState('0')
   const [collectionFilter, setCollectionFilter] = useState('all') // 'all', 'home', 'lab'
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const itemsPerPage = 12
 
   const loadTestRequests = useCallback(async () => {
     try {
@@ -264,6 +268,7 @@ const LaboratoryPatients = () => {
         })
         
         setTestRequests(transformedRequests)
+        const pagination = response.data.pagination || {}
         setTotalPages(pagination.totalPages || Math.ceil((pagination.total || transformedRequests.length) / itemsPerPage) || 1)
         setTotalItems(pagination.total || transformedRequests.length)
       } else {

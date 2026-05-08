@@ -139,6 +139,7 @@ import WebOnBoarding from './modules/website/web-pages/WebOnBoarding'
 function PatientRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/patient/login'
+  const isDashboardPage = location.pathname === '/patient/dashboard' || location.pathname === '/patient' || location.pathname === '/patient/'
   const token = getAuthToken('patient')
 
   // If not authenticated and not on login page, force redirect to login
@@ -150,7 +151,7 @@ function PatientRoutes() {
     <NotificationProvider module="patient">
       {!isLoginPage && <PatientNavbar />}
       {!isLoginPage && <IncomingCallNotification />}
-      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
+      <main className={isLoginPage ? '' : `px-4 pb-32 ${isDashboardPage ? 'pt-0' : 'pt-20'} sm:px-6 overflow-x-hidden`}>
         <Routes>
           <Route path="/" element={
             token ? <ProtectedRoute module="patient"><Navigate to="/patient/dashboard" replace /></ProtectedRoute> : <Navigate to="/patient/login" replace />
@@ -241,10 +242,10 @@ function AdminRoutes() {
 
 function DoctorRoutes() {
   const location = useLocation()
-  const isLoginPage = location.pathname === '/doctor/login' || location.pathname === '/doctor/signup'
+  const isLoginPage = location.pathname === '/login' || location.pathname === '/doctor/signup'
   const token = getAuthToken('doctor')
 
-  // If authenticated and on login/signup page, redirect to dashboard
+  // If authenticated and on login page, redirect to dashboard
   if (token && isLoginPage) {
     return <Navigate to="/doctor/dashboard" replace />
   }
@@ -260,7 +261,7 @@ function DoctorRoutes() {
       sessionStorage.removeItem('doctorAccessToken')
       sessionStorage.removeItem('doctorRefreshToken')
     }
-    return <Navigate to="/doctor/login" replace />
+    return <Navigate to="/login?type=doctor" replace />
   }
 
   return (
@@ -288,11 +289,11 @@ function DoctorRoutes() {
                     <Navigate to="/doctor/dashboard" replace />
                   </ProtectedRoute>
                 ) : (
-                  <Navigate to="/doctor/login" replace />
+                  <Navigate to="/login?type=doctor" replace />
                 )
               }
             />
-            <Route path="/login" element={<DoctorLogin />} />
+            <Route path="/login" element={<Navigate to="/login?type=doctor" replace />} />
             <Route
               path="/dashboard"
               element={
@@ -456,7 +457,7 @@ function DoctorRoutes() {
             <Route
               path="*"
               element={
-                <Navigate to={token ? "/doctor/dashboard" : "/doctor/login"} replace />
+                <Navigate to={token ? "/doctor/dashboard" : "/login?type=doctor"} replace />
               }
             />
           </Routes>
@@ -471,10 +472,10 @@ function DoctorRoutes() {
 
 function PharmacyRoutes() {
   const location = useLocation()
-  const isLoginPage = location.pathname === '/pharmacy/login' || location.pathname === '/pharmacy/signup'
+  const isLoginPage = location.pathname === '/login' || location.pathname === '/pharmacy/signup'
   const token = getAuthToken('pharmacy')
 
-  // If authenticated and on login/signup page, redirect to dashboard
+  // If authenticated and on login page, redirect to dashboard
   if (token && isLoginPage) {
     return <Navigate to="/pharmacy/dashboard" replace />
   }
@@ -490,7 +491,7 @@ function PharmacyRoutes() {
       sessionStorage.removeItem('pharmacyAccessToken')
       sessionStorage.removeItem('pharmacyRefreshToken')
     }
-    return <Navigate to="/pharmacy/login" replace />
+    return <Navigate to="/login?type=pharmacy" replace />
   }
 
   return (
@@ -506,11 +507,11 @@ function PharmacyRoutes() {
                   <Navigate to="/pharmacy/dashboard" replace />
                 </ProtectedRoute>
               ) : (
-                <Navigate to="/pharmacy/login" replace />
+                <Navigate to="/login?type=pharmacy" replace />
               )
             }
           />
-          <Route path="/login" element={<DoctorLogin />} />
+          <Route path="/login" element={<Navigate to="/login?type=pharmacy" replace />} />
           <Route
             path="/dashboard"
             element={
@@ -634,7 +635,7 @@ function PharmacyRoutes() {
           <Route
             path="*"
             element={
-              <Navigate to={token ? "/pharmacy/dashboard" : "/pharmacy/login"} replace />
+              <Navigate to={token ? "/pharmacy/dashboard" : "/login?type=pharmacy"} replace />
             }
           />
         </Routes>
@@ -645,10 +646,10 @@ function PharmacyRoutes() {
 
 function LaboratoryRoutes() {
   const location = useLocation()
-  const isLoginPage = location.pathname === '/laboratory/login' || location.pathname === '/laboratory/signup'
+  const isLoginPage = location.pathname === '/login' || location.pathname === '/laboratory/signup'
   const token = getAuthToken('laboratory')
 
-  // If authenticated and on login/signup page, redirect to dashboard
+  // If authenticated and on login page, redirect to dashboard
   if (token && isLoginPage) {
     return <Navigate to="/laboratory/dashboard" replace />
   }
@@ -664,7 +665,7 @@ function LaboratoryRoutes() {
       sessionStorage.removeItem('laboratoryAccessToken')
       sessionStorage.removeItem('laboratoryRefreshToken')
     }
-    return <Navigate to="/laboratory/login" replace />
+    return <Navigate to="/login?type=laboratory" replace />
   }
 
   return (
@@ -686,11 +687,11 @@ function LaboratoryRoutes() {
                     <Navigate to="/laboratory/dashboard" replace />
                   </ProtectedRoute>
                 ) : (
-                  <Navigate to="/laboratory/login" replace />
+                  <Navigate to="/login?type=laboratory" replace />
                 )
               }
             />
-            <Route path="/login" element={<DoctorLogin />} />
+            <Route path="/login" element={<Navigate to="/login?type=laboratory" replace />} />
             <Route
               path="/dashboard"
               element={
@@ -926,7 +927,7 @@ function LaboratoryRoutes() {
             <Route
               path="*"
               element={
-                <Navigate to={token ? "/laboratory/dashboard" : "/laboratory/login"} replace />
+                <Navigate to={token ? "/laboratory/dashboard" : "/login?type=laboratory"} replace />
               }
             />
           </Routes>
@@ -941,15 +942,15 @@ function LaboratoryRoutes() {
 
 function NurseRoutes() {
   const location = useLocation()
-  const isLoginPage = location.pathname === '/nurse/login' || location.pathname === '/nurse/signup'
+  const isLoginPage = location.pathname === '/login' || location.pathname === '/nurse/signup'
   const token = getAuthToken('nurse')
 
-  // If authenticated and on login/signup page, redirect to dashboard
+  // If authenticated and on login page, redirect to dashboard
   if (token && isLoginPage) {
     return <Navigate to="/nurse/dashboard" replace />
   }
 
-  // If not authenticated and trying to access protected routes, redirect to doctor login (which has nurse option)
+  // If not authenticated and trying to access protected routes, redirect to central login
   if (!token && !isLoginPage) {
     // Clear any stale tokens
     if (typeof window !== 'undefined') {
@@ -960,7 +961,7 @@ function NurseRoutes() {
       sessionStorage.removeItem('nurseAccessToken')
       sessionStorage.removeItem('nurseRefreshToken')
     }
-    return <Navigate to="/doctor/login" replace />
+    return <Navigate to="/login?type=nurse" replace />
   }
 
   return (
@@ -977,16 +978,16 @@ function NurseRoutes() {
             <Route
               path="/"
               element={
-                token ? <ProtectedRoute module="nurse"><Navigate to="/nurse/dashboard" replace /></ProtectedRoute> : <Navigate to="/doctor/login" replace />
+                token ? <ProtectedRoute module="nurse"><Navigate to="/nurse/dashboard" replace /></ProtectedRoute> : <Navigate to="/login?type=nurse" replace />
               }
             />
             <Route
               path="/login"
-              element={<DoctorLogin />}
+              element={<Navigate to="/login?type=nurse" replace />}
             />
             <Route
               path="/signup"
-              element={<DoctorLogin />}
+              element={<Navigate to="/login?type=nurse&mode=signup" replace />}
             />
             <Route
               path="/dashboard"
@@ -1035,7 +1036,7 @@ function NurseRoutes() {
             <Route
               path="*"
               element={
-                <Navigate to={token ? "/nurse/dashboard" : "/doctor/login"} replace />
+                <Navigate to={token ? "/nurse/dashboard" : "/login?type=nurse"} replace />
               }
             />
           </Routes>
@@ -1132,6 +1133,9 @@ function App() {
 
             {/* Website Routes - Landing Page */}
             <Route path="/website/*" element={<WebsiteRoutes />} />
+
+            {/* Central Provider Login Route */}
+            <Route path="/login" element={<DoctorLogin />} />
 
             {/* Onboarding Route - No Navbar */}
             <Route path="/onboarding" element={<WebOnBoarding />} />

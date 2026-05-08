@@ -3,18 +3,23 @@ require('dotenv').config();
 
 const connectDB = async () => {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/healiinn';
-  
+
+  // Log which URI we're connecting to (mask password)
+  const maskedUri = mongoUri.replace(/:([^:@]+)@/, ':****@');
+  console.log(`🔗 Connecting to MongoDB: ${maskedUri}`);
+
   // Connection options for better reliability
   const options = {
     serverSelectionTimeoutMS: 30000, // 30 seconds
     socketTimeoutMS: 45000, // 45 seconds
     connectTimeoutMS: 30000, // 30 seconds
-    maxPoolSize: 10, // Maintain up to 10 socket connections
-    minPoolSize: 5, // Maintain at least 5 socket connections
+    maxPoolSize: 10,
+    minPoolSize: 2,
     retryWrites: true,
     w: 'majority',
-    // Enable retry logic
     retryReads: true,
+    // Force IPv4 to avoid ENOTFOUND / IPv6 resolution issues on Windows
+    family: 4,
   };
 
   // Set up connection event handlers
@@ -50,7 +55,7 @@ const connectDB = async () => {
     } catch (error) {
       retries++;
       console.error(`❌ MongoDB connection attempt ${retries}/${maxRetries} failed:`, error.message);
-      
+
       if (retries < maxRetries) {
         console.log(`⏳ Retrying connection in ${retryDelay / 1000} seconds...`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));

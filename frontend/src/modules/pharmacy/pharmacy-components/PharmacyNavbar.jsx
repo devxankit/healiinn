@@ -72,7 +72,7 @@ const PharmacyNavbar = () => {
     }
     // Force navigation to login page
     setTimeout(() => {
-      window.location.href = '/pharmacy/login'
+      window.location.href = '/login?type=pharmacy'
     }, 500)
   }
 

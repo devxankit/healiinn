@@ -134,7 +134,7 @@ const PharmacyDashboard = () => {
       }
     }
 
-    fetchDashboardData()
+    fetchData()
   }, [toast])
 
   // Fetch today's orders, medicines count, and request orders count

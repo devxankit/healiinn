@@ -9,6 +9,8 @@ import {
   IoReceiptOutline,
   IoArchiveOutline,
   IoHeartOutline,
+  IoPulseOutline,
+  IoCallOutline,
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import PatientSidebar from './PatientSidebar'
@@ -19,17 +21,13 @@ import NotificationBell from '../../../components/NotificationBell'
 // This is used for: Sidebar (mobile menu) and Desktop top navbar
 const allNavItems = [
   { id: 'home', label: 'Home', to: '/patient/dashboard', Icon: IoHomeOutline },
-  { id: 'doctors', label: 'Doctors', to: '/patient/doctors', Icon: IoPeopleOutline },
-  { id: 'nurses', label: 'Nurses', to: '/patient/nurses', Icon: IoHeartOutline },
-  { id: 'transactions', label: 'Transactions', to: '/patient/transactions', Icon: IoReceiptOutline },
-  { id: 'history', label: 'History', to: '/patient/history', Icon: IoArchiveOutline },
-  { id: 'support', label: 'Support', to: '/patient/support', Icon: IoHelpCircleOutline },
+  { id: 'care', label: 'Care', to: '/patient/doctors', Icon: IoHeartOutline },
+  { id: 'call', label: 'Call', to: '/patient/support', Icon: IoCallOutline },
+  { id: 'vitals', label: 'Vitals', to: '/patient/prescriptions', Icon: IoPulseOutline },
   { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
 ]
 
-// Nav items for mobile bottom navbar ONLY (excludes Support and Nurses)
-// Note: Sidebar uses allNavItems (includes Nurses), bottom nav uses navItems (excludes Nurses)
-const navItems = allNavItems.filter((item) => item.id !== 'support' && item.id !== 'nurses')
+const navItems = allNavItems
 
 const PatientNavbar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -150,30 +148,57 @@ const PatientNavbar = () => {
 
       {/* Mobile Bottom Navbar - Uses navItems (excludes Nurses and Support) */}
       {!isLoginPage && (
-        <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around gap-1 border-t border-slate-200 bg-white/95 px-3 py-2 backdrop-blur md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-slate-200 bg-white px-2 py-3 md:hidden rounded-t-[30px] shadow-[0_-4px_10px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+12px)]" style={{ bottom: 0 }}>
           {navItems.map(({ id, label, to, Icon }) => (
             <NavLink
               key={id}
               to={to}
               className={({ isActive }) =>
-                `${mobileLinkBase} ${isActive ? '' : 'text-slate-400 hover:text-slate-600'
+                `flex flex-col items-center gap-1 flex-1 transition-all duration-200 ${
+                  isActive ? 'text-[#11496c]' : 'text-slate-400'
                 }`
               }
-              style={({ isActive }) => isActive ? { color: '#11496c' } : {}}
               end={id === 'home'}
             >
               {({ isActive }) => (
                 <>
-                  <span
-                    className={`${mobileIconWrapper} ${isActive
-                      ? 'text-white shadow-md'
-                      : 'bg-slate-100 text-slate-500'
-                      }`}
-                    style={isActive ? { backgroundColor: '#11496c', boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.2), 0 2px 4px -1px rgba(17, 73, 108, 0.1)' } : {}}
-                  >
-                    <Icon className="h-5 w-5" aria-hidden="true" />
-                  </span>
-                  <span className="sr-only">{label}</span>
+                  <div className={`relative flex items-center justify-center transition-transform ${isActive ? 'scale-110' : ''}`}>
+                    {id === 'home' && (
+                       <div className="relative">
+                          <div className="absolute -top-3 -left-2 z-10">
+                            <div className="bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded-md font-bold shadow-sm border border-white">New</div>
+                          </div>
+                          <div className={`h-10 w-10 rounded-full border-2 overflow-hidden ${isActive ? 'border-[#11496c]' : 'border-slate-200'}`}>
+                            <img 
+                              src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" 
+                              alt="Home" 
+                              className="h-full w-full object-cover bg-slate-100"
+                            />
+                          </div>
+                       </div>
+                    )}
+                    {id === 'care' && (
+                      <div className={`p-2 rounded-full border-2 ${isActive ? 'border-[#11496c] bg-[#11496c]/5' : 'border-slate-200'}`}>
+                        <IoHeartOutline className={`h-5 w-5 ${isActive ? 'text-[#11496c]' : 'text-slate-400'}`} />
+                      </div>
+                    )}
+                    {id === 'call' && (
+                      <div className={`p-2 rounded-full border-2 ${isActive ? 'border-[#11496c] bg-[#11496c]/5' : 'border-slate-200'}`}>
+                        <IoCallOutline className={`h-5 w-5 ${isActive ? 'text-[#11496c]' : 'text-slate-400'}`} />
+                      </div>
+                    )}
+                    {id === 'vitals' && (
+                      <div className={`p-2 rounded-full border-2 ${isActive ? 'border-[#11496c] bg-[#11496c]/5' : 'border-slate-200'}`}>
+                        <IoPulseOutline className={`h-5 w-5 ${isActive ? 'text-[#11496c]' : 'text-slate-400'}`} />
+                      </div>
+                    )}
+                    {id === 'profile' && (
+                      <div className={`p-2 rounded-full border-2 ${isActive ? 'border-[#11496c] bg-[#11496c]/5' : 'border-slate-200'}`}>
+                        <IoPersonCircleOutline className={`h-5 w-5 ${isActive ? 'text-[#11496c]' : 'text-slate-400'}`} />
+                      </div>
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-bold ${isActive ? 'text-[#11496c]' : 'text-slate-400'}`}>{label}</span>
                 </>
               )}
             </NavLink>

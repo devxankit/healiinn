@@ -41,7 +41,7 @@ const NurseHeader = () => {
     }
     // Force navigation to login page
     setTimeout(() => {
-      window.location.href = '/nurse/login'
+      window.location.href = '/login?type=nurse'
     }, 500)
   }
 

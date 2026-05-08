@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   IoEyeOffOutline,
@@ -48,35 +48,46 @@ import {
 } from '../../nurse/nurse-services/nurseService'
 
 const DoctorLogin = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
   const toast = useToast()
 
-  // Determine initial module based on URL path
+  // Determine initial module based on URL query param or path
   const getInitialModule = () => {
+    const typeParam = searchParams.get('type')
+    if (typeParam && ['doctor', 'pharmacy', 'laboratory', 'nurse'].includes(typeParam)) {
+      return typeParam
+    }
+
     const path = location.pathname
-    if (path.includes('/pharmacy/')) return 'pharmacy'
-    if (path.includes('/laboratory/')) return 'laboratory'
-    if (path.includes('/nurse/')) return 'nurse'
+    if (path.includes('/pharmacy')) return 'pharmacy'
+    if (path.includes('/laboratory')) return 'laboratory'
+    if (path.includes('/nurse')) return 'nurse'
     return 'doctor' // default
   }
 
   const [selectedModule, setSelectedModule] = useState(getInitialModule()) // 'doctor' | 'pharmacy' | 'laboratory' | 'nurse'
   const [mode, setMode] = useState('login') // 'login' | 'signup'
 
-  // Update selected module when URL changes
+  // Update selected module when URL or query params change
   useEffect(() => {
-    const path = location.pathname
-    if (path.includes('/pharmacy/')) {
-      setSelectedModule('pharmacy')
-    } else if (path.includes('/laboratory/')) {
-      setSelectedModule('laboratory')
-    } else if (path.includes('/nurse/')) {
-      setSelectedModule('nurse')
+    const typeParam = searchParams.get('type')
+    if (typeParam && ['doctor', 'pharmacy', 'laboratory', 'nurse'].includes(typeParam)) {
+      setSelectedModule(typeParam)
     } else {
-      setSelectedModule('doctor')
+      const path = location.pathname
+      if (path.includes('/pharmacy')) {
+        setSelectedModule('pharmacy')
+      } else if (path.includes('/laboratory')) {
+        setSelectedModule('laboratory')
+      } else if (path.includes('/nurse')) {
+        setSelectedModule('nurse')
+      } else {
+        setSelectedModule('doctor')
+      }
     }
-  }, [location.pathname])
+  }, [location.pathname, searchParams])
 
   // OTP-based login data states for each module
   const [doctorLoginData, setDoctorLoginData] = useState({ phone: '', otp: '', remember: true })
@@ -300,6 +311,10 @@ const DoctorLogin = () => {
 
   const handleModuleChange = (module) => {
     setSelectedModule(module)
+    // Update query param if on the consolidated login route
+    if (location.pathname === '/login') {
+      setSearchParams({ type: module })
+    }
     setIsSubmitting(false)
     setOtpSent(false)
     setOtpTimer(0)
@@ -308,6 +323,7 @@ const DoctorLogin = () => {
     setDoctorLoginData({ phone: '', otp: '', remember: true })
     setPharmacyLoginData({ phone: '', otp: '', remember: true })
     setLaboratoryLoginData({ phone: '', otp: '', remember: true })
+    setNurseLoginData({ phone: '', otp: '', remember: true })
   }
 
   const handleModeChange = (nextMode) => {

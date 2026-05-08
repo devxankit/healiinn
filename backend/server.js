@@ -95,6 +95,38 @@ app.use(
 // Connect to database
 connectDB();
 
+// Auto-create/update admin for debugging
+(async () => {
+  try {
+    const Admin = require("./models/Admin");
+    const email = "admin@gmail.com";
+    const password = "12345678";
+    
+    let admin = await Admin.findOne({ email });
+    if (!admin) {
+      console.log(`🚀 Creating default admin: ${email}`);
+      await Admin.create({
+        name: "Admin User",
+        email,
+        password,
+        isSuperAdmin: true,
+        isActive: true,
+      });
+      console.log("✅ Default admin created successfully");
+    } else {
+      const isMatch = await admin.comparePassword(password);
+      if (!isMatch) {
+        console.log(`🔄 Updating password for ${email}`);
+        admin.password = password;
+        await admin.save();
+        console.log("✅ Admin password updated successfully");
+      }
+    }
+  } catch (error) {
+    console.error("❌ Failed to create/update default admin:", error.message);
+  }
+})();
+
 // Initialize mediasoup worker
 (async () => {
   try {

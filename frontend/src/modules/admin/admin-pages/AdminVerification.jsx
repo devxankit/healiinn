@@ -87,6 +87,7 @@ const transformVerification = (item, type) => {
           if (mode === 'call') return 'Call'
           if (mode === 'audio') return 'Audio Call'
           if (mode === 'chat') return 'Chat'
+          if (mode === 'video') return 'Video Call'
           return mode
         })
       : []

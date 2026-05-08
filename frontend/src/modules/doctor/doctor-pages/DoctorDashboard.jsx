@@ -26,6 +26,8 @@ import {
   IoSearchOutline,
   IoPhonePortraitOutline,
   IoMailOutline,
+  IoVideocamOutline,
+  IoCallOutline,
 } from 'react-icons/io5'
 
 // Default stats (will be replaced by API data)
@@ -85,9 +87,31 @@ const getStatusColor = (status) => {
   }
 }
 
-const getTypeIcon = (type) => {
-  // Only in-person consultations are supported
-  return IoPersonOutline
+const getTypeIcon = (mode) => {
+  switch (mode) {
+    case 'in_person':
+      return IoPersonOutline
+    case 'call':
+    case 'audio':
+      return IoCallOutline
+    case 'chat':
+      return IoMailOutline
+    case 'video':
+      return IoVideocamOutline
+    default:
+      return IoPersonOutline
+  }
+}
+
+const getModeLabel = (mode) => {
+  switch (mode) {
+    case 'in_person':
+      return 'In-Person'
+    case 'video':
+      return 'Video Call'
+    default:
+      return mode ? mode.charAt(0).toUpperCase() + mode.slice(1) : 'In-Person'
+  }
 }
 
 const DoctorDashboard = () => {
@@ -223,6 +247,7 @@ const DoctorDashboard = () => {
             duration: apt.duration || '30 min',
             reason: apt.reason || apt.consultationReason || 'Consultation',
             appointmentType: apt.appointmentType || 'New',
+            consultationMode: apt.consultationMode || 'in_person',
             patientPhone: apt.patientId?.phone || apt.patientPhone || '',
             patientEmail: apt.patientId?.email || apt.patientEmail || '',
             patientAddress: apt.patientId?.address 
@@ -301,6 +326,7 @@ const DoctorDashboard = () => {
             time: cons.time || cons.slotTime || '10:00 AM',
             type: cons.consultationType || cons.type || 'In-person',
             status: cons.status || 'pending',
+            consultationMode: cons.appointmentId?.consultationMode || cons.consultationMode || 'in_person',
             fee: cons.fee || cons.consultationFee || 0,
             notes: cons.notes || cons.summary || '',
           }))
@@ -515,7 +541,7 @@ const DoctorDashboard = () => {
     }
     // Force navigation to login page - full page reload to clear all state
     setTimeout(() => {
-      window.location.href = '/doctor/login'
+      window.location.href = '/login?type=doctor'
     }, 500)
   }
 
@@ -897,7 +923,7 @@ const DoctorDashboard = () => {
                 </div>
               ) : (
                 todayAppointments.map((appointment) => {
-                const TypeIcon = getTypeIcon(appointment.type)
+                const TypeIcon = getTypeIcon(appointment.consultationMode)
                 return (
                   <article
                     key={appointment.id}
@@ -947,7 +973,7 @@ const DoctorDashboard = () => {
                           </div>
                           <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
                             <TypeIcon className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
-                            <span>{appointment.type}</span>
+                            <span>{getModeLabel(appointment.consultationMode)}</span>
                           </div>
                           <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
                             <IoCalendarOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
@@ -986,7 +1012,7 @@ const DoctorDashboard = () => {
 
           <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
             {recentConsultations.map((consultation) => {
-              const TypeIcon = getTypeIcon(consultation.type)
+              const TypeIcon = getTypeIcon(consultation.consultationMode)
               return (
                 <article
                   key={consultation.id}
@@ -1038,7 +1064,7 @@ const DoctorDashboard = () => {
                         </div>
                         <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
                           <TypeIcon className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
-                          <span>{consultation.type}</span>
+                          <span>{getModeLabel(consultation.consultationMode)}</span>
                         </div>
                         <div className="flex items-center gap-1 font-semibold text-emerald-600 group-hover:text-emerald-700 group-hover:scale-105 transition-all">
                           <IoWalletOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5" />

@@ -187,9 +187,7 @@ const DoctorProfile = () => {
             consultationFee: cachedProfile.consultationFee || 0,
             education: Array.isArray(cachedProfile.education) ? cachedProfile.education : [],
             languages: Array.isArray(cachedProfile.languages) ? cachedProfile.languages : [],
-            consultationModes: Array.isArray(cachedProfile.consultationModes)
-              ? cachedProfile.consultationModes.map(mode => mode === 'video' ? 'call' : mode)
-              : [],
+            consultationModes: Array.isArray(cachedProfile.consultationModes) ? cachedProfile.consultationModes : [],
             clinicDetails: cachedProfile.clinicDetails || {
               name: '',
               address: {
@@ -242,9 +240,7 @@ const DoctorProfile = () => {
             consultationFee: doctor.consultationFee || 0,
             education: Array.isArray(doctor.education) ? doctor.education : [],
             languages: Array.isArray(doctor.languages) ? doctor.languages : [],
-            consultationModes: Array.isArray(doctor.consultationModes)
-              ? doctor.consultationModes.map(mode => mode === 'video' ? 'call' : mode)
-              : [],
+            consultationModes: Array.isArray(doctor.consultationModes) ? doctor.consultationModes : [],
             clinicDetails: doctor.clinicDetails || {
               name: '',
               address: {
@@ -524,9 +520,7 @@ const DoctorProfile = () => {
         consultationFee: formData.consultationFee,
         education: formData.education,
         languages: formData.languages,
-        consultationModes: Array.isArray(formData.consultationModes)
-          ? formData.consultationModes.map(mode => mode === 'video' ? 'call' : mode)
-          : formData.consultationModes,
+        consultationModes: formData.consultationModes,
         clinicDetails: formData.clinicDetails,
         availableTimings: formData.availableTimings,
         availability: availability12Hour, // Use converted 12-hour format
@@ -844,7 +838,7 @@ const DoctorProfile = () => {
                             }
                             // Force navigation to login page - full page reload to clear all state
                             setTimeout(() => {
-                              window.location.href = '/doctor/login'
+                              window.location.href = '/login?type=doctor'
                             }, 500)
                           }
                         }}
@@ -1012,7 +1006,7 @@ const DoctorProfile = () => {
                             }
                             // Force navigation to login page - full page reload to clear all state
                             setTimeout(() => {
-                              window.location.href = '/doctor/login'
+                              window.location.href = '/login?type=doctor'
                             }, 500)
                           }
                         }}
@@ -1401,49 +1395,38 @@ const DoctorProfile = () => {
                       <div>
                         <h3 className="mb-2 text-xs font-semibold text-slate-900">Consultation Modes</h3>
                         {isEditing ? (
-                          <div className="space-y-1.5">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={formData.consultationModes?.includes('in_person') || false}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    handleArrayAdd('consultationModes', 'in_person')
-                                  } else {
-                                    const index = formData.consultationModes?.indexOf('in_person')
-                                    if (index !== undefined && index !== -1) {
-                                      handleArrayRemove('consultationModes', index)
+                          <div className="space-y-2 mt-2">
+                            {['in_person', 'call', 'audio', 'chat', 'video'].map((mode) => (
+                              <label key={mode} className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.consultationModes?.includes(mode) || false}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      handleArrayAdd('consultationModes', mode)
+                                    } else {
+                                      const index = formData.consultationModes?.indexOf(mode)
+                                      if (index !== undefined && index !== -1) {
+                                        handleArrayRemove('consultationModes', index)
+                                      }
                                     }
-                                  }
-                                }}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] shrink-0"
-                              />
-                              <IoPersonOutline className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                              <span className="text-xs font-medium text-slate-900 capitalize">
-                                In Person
-                              </span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={formData.consultationModes?.includes('call') || false}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    handleArrayAdd('consultationModes', 'call')
-                                  } else {
-                                    const index = formData.consultationModes?.indexOf('call')
-                                    if (index !== undefined && index !== -1) {
-                                      handleArrayRemove('consultationModes', index)
-                                    }
-                                  }
-                                }}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] shrink-0"
-                              />
-                              <IoCallOutline className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                              <span className="text-xs font-medium text-slate-900 capitalize">
-                                Call
-                              </span>
-                            </label>
+                                  }}
+                                  className="h-3.5 w-3.5 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] shrink-0"
+                                />
+                                {mode === 'in_person' ? (
+                                  <IoPersonOutline className="h-3.5 w-3.5 text-slate-600 shrink-0 group-hover:text-[#11496c]" />
+                                ) : mode === 'call' || mode === 'audio' ? (
+                                  <IoCallOutline className="h-3.5 w-3.5 text-slate-600 shrink-0 group-hover:text-[#11496c]" />
+                                ) : mode === 'chat' ? (
+                                  <IoMailOutline className="h-3.5 w-3.5 text-slate-600 shrink-0 group-hover:text-[#11496c]" />
+                                ) : (
+                                  <IoVideocamOutline className="h-3.5 w-3.5 text-slate-600 shrink-0 group-hover:text-[#11496c]" />
+                                )}
+                                <span className="text-xs font-medium text-slate-900 capitalize group-hover:text-[#11496c]">
+                                  {mode === 'in_person' ? 'In Person' : mode === 'video' ? 'Video Call' : mode.replace('_', ' ')}
+                                </span>
+                              </label>
+                            ))}
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-1.5">
@@ -1455,12 +1438,16 @@ const DoctorProfile = () => {
                                 >
                                   {mode === 'in_person' ? (
                                     <IoPersonOutline className="h-2.5 w-2.5 shrink-0" />
-                                  ) : mode === 'call' ? (
+                                  ) : mode === 'call' || mode === 'audio' ? (
                                     <IoCallOutline className="h-2.5 w-2.5 shrink-0" />
+                                  ) : mode === 'chat' ? (
+                                    <IoMailOutline className="h-2.5 w-2.5 shrink-0" />
+                                  ) : mode === 'video' ? (
+                                    <IoVideocamOutline className="h-2.5 w-2.5 shrink-0" />
                                   ) : (
                                     <IoPersonOutline className="h-2.5 w-2.5 shrink-0" />
                                   )}
-                                  {mode === 'in_person' ? 'In Person' : mode === 'call' ? 'Call' : mode.replace('_', ' ')}
+                                  {mode === 'in_person' ? 'In Person' : mode === 'video' ? 'Video Call' : mode.replace('_', ' ')}
                                 </span>
                               ))
                             ) : (

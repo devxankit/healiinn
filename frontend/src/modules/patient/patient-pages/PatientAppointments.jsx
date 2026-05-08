@@ -8,6 +8,9 @@ import {
   IoCheckmarkCircleOutline,
   IoCloseCircleOutline,
   IoCallOutline,
+  IoVideocamOutline,
+  IoMailOutline,
+  IoPersonOutline,
 } from 'react-icons/io5'
 import { getPatientAppointments, rescheduleAppointment, createAppointmentPaymentOrder, verifyAppointmentPayment } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
@@ -189,6 +192,7 @@ const PatientAppointments = () => {
             rescheduleReason: apt.rescheduleReason,
             isRescheduled: !!apt.rescheduledAt, // Flag to identify rescheduled appointments
             sessionId: apt.sessionId, // Include sessionId for cancelled session date check
+            consultationMode: apt.consultationMode || 'in_person',
             originalData: apt, // Keep original data for reference
           }))
           
@@ -734,7 +738,22 @@ const PatientAppointments = () => {
                     </div>
                   )}
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <span className="text-xs text-slate-500">{appointment.type}</span>
+                    <div className="flex items-center gap-2">
+                      {appointment.consultationMode === 'in_person' ? (
+                        <IoPersonOutline className="h-3 w-3 text-slate-400" />
+                      ) : appointment.consultationMode === 'call' || appointment.consultationMode === 'audio' ? (
+                        <IoCallOutline className="h-3 w-3 text-slate-400" />
+                      ) : appointment.consultationMode === 'chat' ? (
+                        <IoMailOutline className="h-3 w-3 text-slate-400" />
+                      ) : (
+                        <IoVideocamOutline className="h-3 w-3 text-slate-400" />
+                      )}
+                      <span className="text-xs text-slate-500 capitalize">
+                        {appointment.consultationMode === 'in_person' ? 'In-Person' : appointment.consultationMode === 'video' ? 'Video Call' : appointment.consultationMode.replace('_', ' ')}
+                      </span>
+                      <span className="text-slate-300 mx-1">•</span>
+                      <span className="text-xs text-slate-500">{appointment.type}</span>
+                    </div>
                     <span className="text-sm font-semibold text-slate-900">₹{appointment.fee}</span>
                   </div>
                 </div>

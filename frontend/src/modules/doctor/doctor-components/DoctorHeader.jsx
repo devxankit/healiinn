@@ -40,7 +40,7 @@ const DoctorHeader = () => {
     }
     // Force navigation to login page
     setTimeout(() => {
-      window.location.href = '/doctor/login'
+      window.location.href = '/login?type=doctor'
     }, 500)
   }
 

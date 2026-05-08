@@ -383,6 +383,40 @@ const WebOnBoarding = () => {
     }
   }, [selectedUserType])
 
+  const STORAGE_KEY = 'healiinn_onboarding_data'
+
+  // Load saved data from localStorage on mount
+  useEffect(() => {
+    const savedData = localStorage.getItem(STORAGE_KEY)
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData)
+        if (parsed.selectedUserType) setSelectedUserType(parsed.selectedUserType)
+        if (parsed.patientData) setPatientData(prev => ({ ...prev, ...parsed.patientData }))
+        if (parsed.doctorData) setDoctorData(prev => ({ ...prev, ...parsed.doctorData }))
+        if (parsed.pharmacyData) setPharmacyData(prev => ({ ...prev, ...parsed.pharmacyData }))
+        if (parsed.laboratoryData) setLaboratoryData(prev => ({ ...prev, ...parsed.laboratoryData }))
+        if (parsed.nurseData) setNurseData(prev => ({ ...prev, ...parsed.nurseData }))
+      } catch (e) {
+        console.error('Failed to parse saved onboarding data', e)
+      }
+    }
+  }, [])
+
+  // Save data to localStorage whenever it changes
+  // Note: We don't save documents/files to localStorage to avoid quota issues and non-serializable data
+  useEffect(() => {
+    const dataToSave = {
+      selectedUserType,
+      patientData,
+      doctorData,
+      pharmacyData,
+      laboratoryData,
+      nurseData,
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
+  }, [selectedUserType, patientData, doctorData, pharmacyData, laboratoryData, nurseData])
+
   const handleUserTypeChange = (userType) => {
     setSelectedUserType(userType)
     setIsSubmitting(false)
@@ -427,6 +461,8 @@ const WebOnBoarding = () => {
 
       if (response.success) {
         toast.success('Registration successful! Redirecting to home...')
+        // Clear saved form data on success
+        localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
           navigate('/')
         }, 1500)
@@ -663,6 +699,8 @@ const WebOnBoarding = () => {
 
       if (response.success) {
         toast.success('Registration submitted successfully! Please wait for admin approval. Redirecting to home...')
+        // Clear saved form data on success
+        localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
           navigate('/')
         }, 1500)
@@ -796,6 +834,8 @@ const WebOnBoarding = () => {
 
       if (response.success) {
         toast.success('Registration submitted successfully! Please wait for admin approval. Redirecting to home...')
+        // Clear saved form data on success
+        localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
           navigate('/')
         }, 1500)
@@ -966,6 +1006,8 @@ const WebOnBoarding = () => {
 
       if (response.success) {
         toast.success('Registration submitted successfully! Please wait for admin approval. Redirecting to home...')
+        // Clear saved form data on success
+        localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
           navigate('/')
         }, 1500)
@@ -1121,6 +1163,8 @@ const WebOnBoarding = () => {
 
       if (response.success) {
         toast.success('Registration submitted successfully! Please wait for admin approval. Redirecting to home...')
+        // Clear saved form data on success
+        localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
           navigate('/')
         }, 1500)
@@ -1675,7 +1719,7 @@ const WebOnBoarding = () => {
                     Consultation Modes
                   </label>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {['in_person', 'call', 'audio', 'chat'].map((mode) => (
+                    {['in_person', 'call', 'audio', 'chat', 'video'].map((mode) => (
                       <label key={mode} className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-3 cursor-pointer hover:bg-white/10 transition">
                         <input
                           type="checkbox"
