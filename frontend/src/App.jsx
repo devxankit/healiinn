@@ -139,7 +139,11 @@ import WebOnBoarding from './modules/website/web-pages/WebOnBoarding'
 function PatientRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/patient/login'
-  const isDashboardPage = location.pathname === '/patient/dashboard' || location.pathname === '/patient' || location.pathname === '/patient/'
+  const isDashboardPage = 
+    location.pathname === '/patient/dashboard' || 
+    location.pathname === '/patient' || 
+    location.pathname === '/patient/' ||
+    location.pathname === '/patient/doctors'
   const token = getAuthToken('patient')
 
   // If not authenticated and not on login page, force redirect to login

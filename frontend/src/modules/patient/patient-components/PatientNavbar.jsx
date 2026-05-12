@@ -36,8 +36,12 @@ const PatientNavbar = () => {
   const location = useLocation()
   const toast = useToast()
 
-  // Hide top header only on dashboard page
-  const isDashboardPage = location.pathname === '/patient/dashboard' || location.pathname === '/patient/'
+  // Hide top header on dashboard and doctors pages (they use the new DashboardHeader)
+  const isNewThemePage = 
+    location.pathname === '/patient/dashboard' || 
+    location.pathname === '/patient/' || 
+    location.pathname === '/patient/doctors'
+  
   // Hide navbar completely on login page
   const isLoginPage = location.pathname === '/patient/login'
 
@@ -87,8 +91,8 @@ const PatientNavbar = () => {
 
   return (
     <>
-      {/* Top Header - Hidden on dashboard and login pages */}
-      {!isDashboardPage && !isLoginPage && (
+      {/* Top Header - Hidden on dashboard, doctors and login pages */}
+      {!isNewThemePage && !isLoginPage && (
         <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/95 px-4 py-3 backdrop-blur shadow md:px-6">
           <div className="flex items-center">
             <img

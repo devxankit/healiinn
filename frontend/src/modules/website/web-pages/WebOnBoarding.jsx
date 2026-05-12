@@ -464,7 +464,7 @@ const WebOnBoarding = () => {
         // Clear saved form data on success
         localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
-          navigate('/')
+          navigate('/patient/login')
         }, 1500)
       } else {
         toast.error(response.message || 'Registration failed. Please try again.')
@@ -702,7 +702,7 @@ const WebOnBoarding = () => {
         // Clear saved form data on success
         localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
-          navigate('/')
+          navigate('/login?type=doctor')
         }, 1500)
       } else {
         toast.error(response.message || 'Registration failed. Please try again.')
@@ -837,7 +837,7 @@ const WebOnBoarding = () => {
         // Clear saved form data on success
         localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
-          navigate('/')
+          navigate('/login?type=pharmacy')
         }, 1500)
       } else {
         toast.error(response.message || 'Registration failed. Please try again.')
@@ -1009,7 +1009,7 @@ const WebOnBoarding = () => {
         // Clear saved form data on success
         localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
-          navigate('/')
+          navigate('/login?type=laboratory')
         }, 1500)
       } else {
         toast.error(response.message || 'Registration failed. Please try again.')
@@ -1166,7 +1166,7 @@ const WebOnBoarding = () => {
         // Clear saved form data on success
         localStorage.removeItem(STORAGE_KEY)
         setTimeout(() => {
-          navigate('/')
+          navigate('/login?type=nurse')
         }, 1500)
       } else {
         toast.error(response.message || 'Registration failed. Please try again.')
@@ -3329,7 +3329,13 @@ const WebOnBoarding = () => {
             <p className="text-white/70 text-sm">
               Already have an account?{' '}
               <button
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  if (selectedUserType === 'patient') {
+                    navigate('/patient/login')
+                  } else {
+                    navigate(`/login?type=${selectedUserType}`)
+                  }
+                }}
                 className="font-semibold text-white underline hover:text-white/80 transition"
               >
                 Go to Login

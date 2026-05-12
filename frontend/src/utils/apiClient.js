@@ -10,7 +10,7 @@
 // Get API base URL from environment variable
 // For development: http://localhost:5000/api
 // For production: https://your-backend-domain.com/api
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api'
 
 /**
  * Get authentication token from storage

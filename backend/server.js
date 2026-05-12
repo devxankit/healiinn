@@ -137,6 +137,12 @@ connectDB();
   }
 })();
 
+// Request Logging Middleware for debugging
+app.use((req, res, next) => {
+  console.log(`🚀 [${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
 // Auth Routes
 app.use("/api/patients/auth", require("./routes/patient-routes/auth.routes"));
 app.use("/api/doctors/auth", require("./routes/doctor-routes/auth.routes"));
@@ -157,17 +163,6 @@ app.use("/api/nurses/wallet", require("./routes/nurse-routes/wallet.routes"));
 app.use(
   "/api/nurses/support",
   require("./routes/nurse-routes/support.routes")
-);
-app.use("/api/admin/auth", require("./routes/admin-routes/auth.routes"));
-app.use("/api/patients/auth", require("./routes/patient-routes/auth.routes"));
-app.use("/api/doctors/auth", require("./routes/doctor-routes/auth.routes"));
-app.use(
-  "/api/laboratories/auth",
-  require("./routes/laboratory-routes/auth.routes")
-);
-app.use(
-  "/api/pharmacies/auth",
-  require("./routes/pharmacy-routes/auth.routes")
 );
 app.use("/api/admin/auth", require("./routes/admin-routes/auth.routes"));
 
