@@ -506,7 +506,7 @@ function PharmacyRoutes() {
   return (
     <NotificationProvider module="pharmacy">
       {!isLoginPage && <PharmacyNavbar />}
-      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6'}>
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:pl-[260px] transition-all duration-300'}>
         <Routes>
           <Route
             path="/"

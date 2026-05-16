@@ -237,272 +237,227 @@ const PharmacyDashboard = () => {
   }, [])
 
   return (
-    <section className="flex flex-col gap-4 pb-24 -mt-20">
-      {/* Top Header with Gradient Background */}
-      <header 
-        className="relative text-white -mx-4 mb-4 overflow-hidden"
-        style={{
-          background: 'linear-gradient(to right, #11496c 0%, #1a5f7a 50%, #2a8ba8 100%)'
-        }}
-      >
-        <div className="px-4 pt-5 pb-4">
-          {/* Top Section - Pharmacy Info */}
-          <div className="flex items-start justify-between mb-3.5">
-            <div className="flex-1">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight mb-0.5">
-                {profile?.name || 'Pharmacy'}
-              </h1>
-              <p className="text-sm font-normal text-white/95 leading-tight">
-                {profile?.address?.city || profile?.address?.line1 || 'Address'} • <span className="text-white font-medium">{profile?.isActive ? 'Online' : 'Offline'}</span>
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* Notification Icon */}
-              <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
-                <NotificationBell className="text-white" />
+    <section className="flex flex-col gap-6 pb-24 -mt-20">
+      {/* Professional Header - Cover Style */}
+      <header className="relative -mx-4 sm:-mx-6 mb-2 overflow-hidden bg-slate-50">
+        {/* Cover Background */}
+        <div 
+          className="h-28 sm:h-36 w-full relative"
+          style={{
+            background: 'linear-gradient(135deg, #11496c 0%, #1a5f7a 50%, #14B8A6 100%)'
+          }}
+        >
+          {/* Decorative pattern overlay */}
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '20px 20px' }}></div>
+        </div>
+
+        {/* Pharmacy Info Bar (Floating Overlap) */}
+        <div className="px-4 sm:px-6 -mt-8 relative z-10">
+          <div className="bg-white rounded-[24px] p-4 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-[#11496c] flex items-center justify-center text-white shadow-lg shadow-[#11496c]/20 shrink-0">
+                 <IoMedicalOutline className="h-7 w-7" />
               </div>
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
-                aria-label="Menu"
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate tracking-tight">
+                  {profile?.name || 'Pharmacy'}
+                </h1>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+                  <div className="flex items-center gap-1 text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-tight">
+                    <IoLocationOutline className="h-3 w-3" />
+                    {profile?.address?.city || profile?.address?.line1 || 'Location'}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`h-1.5 w-1.5 rounded-full ${profile?.isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                      {profile?.isActive ? 'Online Store' : 'Offline'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end md:self-center">
+              <NotificationBell />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <div className="px-0 sm:px-2 space-y-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+          {/* Total Orders Card */}
+          <div 
+            onClick={() => navigate('/pharmacy/orders')}
+            className="group relative bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden"
+          >
+            <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <IoBagHandleOutline className="h-4 w-4" />
+            </div>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Total Orders</p>
+            <div className="flex items-baseline gap-1.5">
+               <h3 className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : stats.totalOrders}</h3>
+               <span className="text-[9px] font-bold text-emerald-600">+12%</span>
+            </div>
+            <p className="text-[9px] font-medium text-slate-400 mt-1.5 uppercase tracking-tighter">Monthly performance</p>
+          </div>
+
+          {/* Wallet Card */}
+          <div 
+            onClick={() => navigate('/pharmacy/wallet')}
+            className="group relative bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden"
+          >
+            <div className="h-8 w-8 rounded-lg bg-blue-50 text-[#11496c] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <IoWalletOutline className="h-4 w-4" />
+            </div>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Wallet Balance</p>
+            <h3 className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : formatCurrency(stats.walletBalance || 0)}</h3>
+            <p className="text-[9px] font-medium text-[#11496c] mt-1.5 uppercase tracking-tighter">Settlement pending</p>
+          </div>
+
+          {/* Available Medicines Card */}
+          <div 
+            onClick={() => navigate('/pharmacy/medicines')}
+            className="group relative bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden"
+          >
+            <div className="h-8 w-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <IoMedicalOutline className="h-4 w-4" />
+            </div>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Inventory</p>
+            <h3 className="text-xl font-bold text-slate-900 leading-none">{availableMedicinesCount}</h3>
+            <p className="text-[9px] font-medium text-purple-600 mt-1.5 uppercase tracking-tighter">SKUs in stock</p>
+          </div>
+
+          {/* Patient Requests Card */}
+          <div 
+            onClick={() => navigate('/pharmacy/request-orders')}
+            className="group relative bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden"
+          >
+            <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <IoListOutline className="h-4 w-4" />
+            </div>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Requests</p>
+            <h3 className="text-xl font-bold text-slate-900 leading-none">{requestOrdersCount}</h3>
+            <p className="text-[9px] font-medium text-amber-600 mt-1.5 uppercase tracking-tighter">Needs attention</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Today's Orders Section */}
+          <div className="lg:col-span-2 space-y-5">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-0.5 rounded-full bg-[#11496c]"></div>
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Today's Orders</h2>
+                <div className="bg-slate-100 px-2 py-0.5 rounded-md text-[9px] font-bold text-slate-500">
+                  {todayOrders.length}
+                </div>
+              </div>
+              <button 
+                onClick={() => navigate('/pharmacy/orders')}
+                className="text-[10px] font-bold text-[#11496c] uppercase tracking-widest hover:underline"
               >
-                <IoMenuOutline className="h-5 w-5 sm:h-6 sm:w-6" />
+                View All
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {todayOrders.length === 0 ? (
+                <div className="bg-white rounded-[24px] p-10 border-2 border-dashed border-slate-50 flex flex-col items-center text-center">
+                  <IoBagHandleOutline className="h-8 w-8 text-slate-100 mb-2" />
+                  <p className="text-[11px] text-slate-400 font-bold uppercase tracking-tight">No orders yet for today</p>
+                </div>
+              ) : (
+                todayOrders.map((order) => {
+                  const StatusIcon = getStatusIcon(order.status)
+                  return (
+                    <div 
+                      key={order.id}
+                      className="bg-white rounded-[20px] p-4 border border-slate-50 shadow-sm hover:shadow-md transition-all group"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5">
+                          <img 
+                            src={order.patientImage} 
+                            alt={order.patientName}
+                            className="h-11 w-11 rounded-xl object-cover ring-2 ring-slate-50 group-hover:scale-105 transition-transform"
+                          />
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-800 tracking-tight">{order.patientName}</h4>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase">#{order.id.slice(-6)}</span>
+                              <span className="h-0.5 w-0.5 rounded-full bg-slate-300"></span>
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{order.time}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between sm:justify-end gap-5 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-50">
+                          <div className="text-right">
+                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Amount</p>
+                             <p className="text-sm font-bold text-[#11496c] leading-none">{formatCurrency(order.totalAmount)}</p>
+                          </div>
+                          <div className={`px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 ${getStatusColor(order.status)}`}>
+                             <StatusIcon className="h-3 w-3" />
+                             {order.status}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Recent Patients Sidebar Section */}
+          <div className="space-y-5">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-0.5 rounded-full bg-teal-500"></div>
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Patients</h2>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[24px] p-2 border border-slate-100 shadow-sm overflow-hidden">
+              {recentPatients.length === 0 ? (
+                <div className="p-6 text-center">
+                  <p className="text-[10px] font-bold text-slate-300 uppercase">No active patients</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-50">
+                  {recentPatients.map((patient) => (
+                    <div key={patient.id} className="p-3 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer">
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={patient.image} 
+                          alt={patient.name}
+                          className="h-9 w-9 rounded-lg object-cover ring-2 ring-white shadow-sm group-hover:scale-105 transition-transform"
+                        />
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-800 leading-none">{patient.name}</h4>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase mt-1 tracking-tighter">
+                            {patient.totalOrders} {patient.totalOrders === 1 ? 'Order' : 'Orders'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className={`h-1.5 w-1.5 rounded-full ${patient.status === 'active' ? 'bg-emerald-500 shadow-sm shadow-emerald-200' : 'bg-slate-300'}`}></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button 
+                onClick={() => navigate('/pharmacy/patients')}
+                className="w-full py-3.5 text-center text-[10px] font-bold text-[#11496c] uppercase tracking-widest hover:bg-slate-50 transition-colors border-t border-slate-50"
+              >
+                Manage All
               </button>
             </div>
           </div>
-            </div>
-          </header>
-
-      {/* Stats Cards Grid */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-        {/* Total Orders */}
-        <article
-          onClick={() => navigate('/pharmacy/orders')}
-          className="relative overflow-hidden rounded-xl border border-emerald-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1">Total Orders</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : stats.totalOrders}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white">
-              <IoBagHandleOutline className="text-base" aria-hidden="true" />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-600 leading-tight">This month</p>
-        </article>
-
-        {/* Wallet Card */}
-        <article
-          onClick={() => navigate('/pharmacy/wallet')}
-          className="relative overflow-hidden rounded-xl border border-[#11496c]/20 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1">Wallet</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : formatCurrency(stats.walletBalance || 0)}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#11496c] text-white">
-              <IoWalletOutline className="text-base" aria-hidden="true" />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-600 leading-tight">Active</p>
-        </article>
-
-        {/* Available Medicines */}
-        <article
-          onClick={() => navigate('/pharmacy/medicines')}
-          className="relative overflow-hidden rounded-xl border border-purple-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1">Available Medicines</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{availableMedicinesCount}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500 text-white">
-              <IoMedicalOutline className="text-base" aria-hidden="true" />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-600 leading-tight">In stock</p>
-        </article>
-
-        {/* Request Orders */}
-        <article
-          onClick={() => navigate('/pharmacy/request-orders')}
-          className="relative overflow-hidden rounded-xl border border-blue-100 bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md active:scale-[0.98]"
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-blue-700 leading-tight mb-1">Request</p>
-              <p className="text-xl font-bold text-slate-900 leading-none">{requestOrdersCount}</p>
-            </div>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 text-white">
-              <IoListOutline className="text-base" aria-hidden="true" />
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-600 leading-tight">Patient requests</p>
-        </article>
+        </div>
       </div>
-
-      {/* Today's Orders */}
-      <section aria-labelledby="orders-title" className="space-y-3">
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 id="orders-title" className="text-base font-semibold text-slate-900">
-              Today's Orders
-            </h2>
-            <span className="flex h-6 min-w-[1.75rem] items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)] px-2 text-xs font-medium text-[#11496c]">
-              {todayOrders.length}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate('/pharmacy/orders')}
-            className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
-          >
-            See all
-          </button>
-        </header>
-
-        <div className="space-y-3">
-          {todayOrders.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-              <IoBagHandleOutline className="mx-auto h-16 w-16 text-slate-300" />
-              <p className="mt-4 text-base font-semibold text-slate-600">No orders today</p>
-              <p className="mt-1 text-sm text-slate-500">Today's orders will appear here</p>
-            </div>
-          ) : (
-            todayOrders.map((order) => {
-            const StatusIcon = getStatusIcon(order.status)
-            return (
-              <article
-                key={order.id}
-                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="relative shrink-0">
-                    <img
-                      src={order.patientImage}
-                      alt={order.patientName}
-                      className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(order.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
-                      }}
-                    />
-                    {order.status === 'ready' && (
-                      <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
-                        <IoCheckmarkCircleOutline className="h-3 w-3 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-slate-900">{order.patientName}</h3>
-                        <p className="mt-0.5 text-xs text-slate-600">Prescription: {order.prescriptionId}</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(order.status)}`}>
-                          <StatusIcon className="h-3 w-3" />
-                          {order.status}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                      <div className="flex items-center gap-1">
-                        <IoTimeOutline className="h-3.5 w-3.5" />
-                        <span className="font-medium">{order.time}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <IoLocationOutline className="h-3.5 w-3.5" />
-                        <span>{order.deliveryType === 'home' ? 'Home Delivery' : 'Pickup'}</span>
-                      </div>
-                      <div className="flex items-center gap-1 font-semibold text-emerald-600">
-                        <IoWalletOutline className="h-3.5 w-3.5" />
-                        <span>{formatCurrency(order.totalAmount)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            )
-            })
-          )}
-          </div>
-        </section>
-
-        {/* Recent Patients */}
-      <div className="grid grid-cols-1 gap-6">
-        <section aria-labelledby="patients-title" className="space-y-3">
-          <header className="flex items-center justify-between">
-            <h2 id="patients-title" className="text-base font-semibold text-slate-900">
-              Patients
-            </h2>
-          </header>
-
-          <div className="space-y-3">
-            {recentPatients.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-                <IoPersonOutline className="mx-auto h-16 w-16 text-slate-300" />
-                <p className="mt-4 text-base font-semibold text-slate-600">No patients found</p>
-                <p className="mt-1 text-sm text-slate-500">Patient data will appear here</p>
-              </div>
-            ) : (
-              recentPatients.map((patient) => (
-        <article
-                key={patient.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="relative shrink-0">
-                  <img
-                    src={patient.image}
-                    alt={patient.name}
-                      className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100"
-                    onError={(e) => {
-                      e.target.onerror = null
-                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                    }}
-                  />
-                    {patient.status === 'active' && (
-                      <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
-                        <IoCheckmarkCircleOutline className="h-3 w-3 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-slate-900">{patient.name}</h3>
-                        <p className="mt-0.5 text-xs text-slate-600">
-                          {patient.lastOrderDate ? `Last order: ${formatDate(patient.lastOrderDate)}` : 'No orders yet'}
-                        </p>
-                      </div>
-                      <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold capitalize ${
-                        patient.status === 'active' 
-                          ? 'bg-emerald-50 text-emerald-700' 
-                          : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {patient.status}
-                      </span>
-                    </div>
-                    <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
-                      <div className="flex items-center gap-1">
-                        <IoBagHandleOutline className="h-3.5 w-3.5" />
-                        <span className="font-medium">{patient.totalOrders} {patient.totalOrders === 1 ? 'order' : 'orders'}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </article>
-              ))
-            )}
-          </div>
-        </section>
-      </div>
-
     </section>
   )
 }
