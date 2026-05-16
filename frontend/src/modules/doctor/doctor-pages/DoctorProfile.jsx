@@ -670,181 +670,123 @@ const DoctorProfile = () => {
   return (
     <>
       <DoctorNavbar />
-      <section className={`flex flex-col gap-4 pb-24 lg:pb-8 ${isDashboardPage ? '-mt-20' : ''} lg:mt-0`}>
-        {/* Desktop Layout: Two Column Grid */}
-        <div className="lg:grid lg:grid-cols-3 lg:gap-4 lg:max-w-5xl lg:mx-auto lg:px-4">
-          {/* Left Column - Profile Header Card (Desktop) */}
-          <div className="lg:col-span-1">
-            {/* Profile Header - Desktop Enhanced */}
-            <div className="hidden lg:block relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#11496c] via-[#0d3a52] to-[#11496c] p-5 shadow-xl">
-              {/* Background Pattern */}
-              <div className="absolute inset-0 opacity-10" style={{
-                backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)',
-                backgroundSize: '20px 20px'
-              }} />
+      <section className={`flex flex-col gap-6 pb-24 px-4 lg:pb-8 ${isDashboardPage ? '-mt-20' : 'pt-4'} lg:mt-0`}>
+        {/* Header Section (Mobile) */}
+        <div className="lg:hidden flex items-center justify-between px-1">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Profile</h1>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage Identity</p>
+          </div>
+          <button
+            type="button"
+            onClick={isEditing ? handleSave : () => setIsEditing(true)}
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${
+              isEditing ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-[#11496c] text-white shadow-[#11496c]/20'
+            }`}
+          >
+            {isEditing ? <IoCheckmarkCircleOutline className="h-4 w-4" /> : <IoCreateOutline className="h-4 w-4" />}
+            {isEditing ? 'Save' : 'Edit'}
+          </button>
+        </div>
 
-              {/* Active Status - Top Right Corner */}
-              <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5 z-10">
-                <button
-                  type="button"
-                  onClick={handleToggleActive}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 shadow-lg ${formData.isActive
-                      ? 'bg-emerald-500/95 backdrop-blur-sm text-white border border-emerald-400/50 hover:bg-emerald-500'
-                      : 'bg-slate-500/95 backdrop-blur-sm text-white border border-slate-400/50 hover:bg-slate-500'
+        {/* Main Layout: Two Column Grid */}
+        <div className="lg:grid lg:grid-cols-12 lg:gap-8 lg:max-w-7xl lg:mx-auto w-full">
+          {/* Left Column - Profile Summary Card */}
+          <div className="lg:col-span-4">
+            <div className="relative overflow-hidden rounded-[40px] p-8 text-white shadow-2xl shadow-[#11496c]/20 sticky top-4"
+              style={{ background: 'linear-gradient(135deg, #11496c 0%, #0d3a52 60%, #14B8A6 100%)' }}>
+              {/* Mesh Gradient Effect */}
+              <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl animate-pulse" />
+              <div className="absolute -left-20 bottom-0 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
+
+              <div className="relative z-10 flex flex-col items-center text-center">
+                {/* Active Toggle */}
+                <div className="absolute -top-4 -right-4">
+                  <button
+                    type="button"
+                    onClick={handleToggleActive}
+                    className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 text-[9px] font-black uppercase tracking-[0.1em] transition-all border backdrop-blur-md ${
+                      formData.isActive
+                        ? 'bg-emerald-500/20 border-emerald-400/50 text-white'
+                        : 'bg-white/10 border-white/20 text-white/60'
                     }`}
-                >
-                  {formData.isActive ? (
-                    <>
-                      <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                      <span>Active</span>
-                    </>
-                  ) : (
-                    <>
-                      <IoPowerOutline className="h-3.5 w-3.5" />
-                      <span>Inactive</span>
-                    </>
-                  )}
-                </button>
-                <p className="text-[10px] text-white/80 text-right whitespace-nowrap drop-shadow-md">
-                  {formData.isActive ? 'Visible to patients' : 'Hidden from patients'}
-                </p>
-              </div>
+                  >
+                    <div className={`h-1.5 w-1.5 rounded-full ${formData.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
+                    {formData.isActive ? 'Active' : 'Offline'}
+                  </button>
+                </div>
 
-              <div className="relative flex flex-col items-center gap-4">
                 {/* Profile Picture */}
-                <div className="relative">
-                  <div className="relative h-24 w-24">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleProfileImageChange}
-                      className="hidden"
-                      id="doctor-profile-image-input"
-                    />
+                <div className="group relative mb-6">
+                  <div className="relative h-32 w-32 sm:h-40 sm:w-40">
                     <img
-                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Doctor')}&background=ffffff&color=11496c&size=128&bold=true`}
-                      alt={`${formData.firstName} ${formData.lastName}`}
-                      className="h-full w-full rounded-full object-cover ring-4 ring-white/50 shadow-2xl bg-slate-100"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Doctor')}&background=ffffff&color=11496c&size=128&bold=true`
-                      }}
+                      src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Doctor')}&background=ffffff&color=11496c&size=256&bold=true`}
+                      alt="Doctor Profile"
+                      className="h-full w-full rounded-[40px] object-cover ring-8 ring-white/10 shadow-2xl transition-transform duration-500 group-hover:scale-105"
                     />
                     {isEditing && (
-                      <label
-                        htmlFor="doctor-profile-image-input"
-                        className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#11496c] shadow-xl transition hover:bg-slate-50 hover:scale-110 cursor-pointer"
-                      >
-                        <IoCameraOutline className="h-5 w-5" />
+                      <label htmlFor="profile-image-input-main" className="absolute -bottom-2 -right-2 h-12 w-12 rounded-2xl bg-white text-[#11496c] shadow-xl flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95">
+                        <IoCameraOutline className="h-6 w-6" />
+                        <input type="file" id="profile-image-input-main" accept="image/*" onChange={handleProfileImageChange} className="hidden" />
                       </label>
                     )}
                   </div>
                 </div>
 
-                {/* Name */}
-                <div className="text-center">
-                  <h1 className="text-xl font-bold text-white mb-1.5">
-                    {formData.firstName || formData.lastName
-                      ? `${formData.firstName || ''} ${formData.lastName || ''}`.trim()
-                      : 'Doctor'}
-                  </h1>
-                  <p className="text-sm text-white/90 mb-3">
-                    {formData.email}
-                  </p>
+                <h2 className="text-2xl font-black text-white leading-tight tracking-tight">
+                  {formData.firstName ? `Dr. ${formData.firstName} ${formData.lastName}` : 'Doctor Name'}
+                </h2>
+                <p className="text-sm font-bold text-white/60 mt-1 uppercase tracking-widest">{formData.specialization || 'Specialist'}</p>
 
-                  {/* Specialization & Rating */}
-                  <div className="flex flex-col items-center gap-2 mb-3">
-                    {formData.specialization && (
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-white border border-white/30">
-                        <IoMedicalOutline className="h-3.5 w-3.5" />
-                        {formData.specialization}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      {formData.gender && (
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-white/20 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-white border border-white/30">
-                          <IoPersonOutline className="h-3 w-3" />
-                          {formData.gender.charAt(0).toUpperCase() + formData.gender.slice(1)}
-                        </span>
-                      )}
-                      {formData.rating > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-white/20 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-white border border-white/30">
-                          <IoStarOutline className="h-3 w-3" />
-                          {formData.rating}
-                        </span>
-                      )}
-                    </div>
+                <div className="mt-8 w-full space-y-3">
+                  <div className="flex items-center gap-3 px-5 py-4 rounded-[24px] bg-white/10 border border-white/20 backdrop-blur-md">
+                    <IoMailOutline className="h-5 w-5 text-white/60" />
+                    <span className="text-xs font-bold text-white truncate">{formData.email}</span>
+                  </div>
+                  <div className="flex items-center gap-3 px-5 py-4 rounded-[24px] bg-white/10 border border-white/20 backdrop-blur-md">
+                    <IoCallOutline className="h-5 w-5 text-white/60" />
+                    <span className="text-xs font-bold text-white">{formData.phone || 'No phone added'}</span>
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="w-full flex flex-col gap-2 mt-1">
+                <div className="mt-8 w-full flex flex-col gap-3">
                   {isEditing ? (
                     <>
                       <button
                         type="button"
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full flex items-center justify-center gap-2 py-4 rounded-3xl bg-white text-[#11496c] text-xs font-black uppercase tracking-widest shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                       >
-                        {isSaving ? (
-                          <>
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <IoCheckmarkCircleOutline className="h-4 w-4" />
-                            Save Changes
-                          </>
-                        )}
+                        {isSaving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#11496c] border-r-transparent" /> : <IoCheckmarkCircleOutline className="h-5 w-5" />}
+                        {isSaving ? 'Saving...' : 'Save Changes'}
                       </button>
                       <button
                         type="button"
                         onClick={handleCancel}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 hover:scale-105"
+                        className="w-full py-4 rounded-3xl bg-white/10 text-white text-xs font-black uppercase tracking-widest border border-white/20 transition-all hover:bg-white/20"
                       >
-                        <IoCloseOutline className="h-4 w-4" />
                         Cancel
                       </button>
                     </>
                   ) : (
                     <>
                       <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditing(true)
-                          setActiveSection('personal')
-                        }}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95"
+                        onClick={() => setIsEditing(true)}
+                        className="w-full py-4 rounded-3xl bg-white text-[#11496c] text-xs font-black uppercase tracking-widest shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
                       >
-                        <IoCreateOutline className="h-3.5 w-3.5" />
                         Edit Profile
                       </button>
                       <button
-                        type="button"
                         onClick={async () => {
                           if (window.confirm('Are you sure you want to sign out?')) {
-                            try {
-                              const { logoutDoctor } = await import('../doctor-services/doctorService')
-                              await logoutDoctor()
-                              toast.success('Logged out successfully')
-                            } catch (error) {
-                              console.error('Error during logout:', error)
-                              // Clear tokens manually if API call fails
-                              const { clearDoctorTokens } = await import('../doctor-services/doctorService')
-                              clearDoctorTokens()
-                              toast.success('Logged out successfully')
-                            }
-                            // Force navigation to login page - full page reload to clear all state
-                            setTimeout(() => {
-                              window.location.href = '/login?type=doctor'
-                            }, 500)
+                            const { logoutDoctor } = await import('../doctor-services/doctorService')
+                            await logoutDoctor()
+                            window.location.href = '/login?type=doctor'
                           }
                         }}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/10 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 active:scale-95"
+                        className="w-full py-4 rounded-3xl bg-red-500 text-white text-xs font-black uppercase tracking-widest transition-all hover:bg-red-600"
                       >
-                        <IoLogOutOutline className="h-3.5 w-3.5" />
                         Sign Out
                       </button>
                     </>
@@ -1023,7 +965,7 @@ const DoctorProfile = () => {
           </div>
 
           {/* Right Column - Information Sections (Desktop) */}
-          <div className="lg:col-span-2 lg:space-y-4">
+          <div className="lg:col-span-8 lg:space-y-4">
 
             {/* Doctor Personal Information */}
             <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">

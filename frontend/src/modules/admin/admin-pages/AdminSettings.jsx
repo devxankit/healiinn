@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useToast } from '../../../contexts/ToastContext'
 import {
   IoShieldCheckmarkOutline,
@@ -8,10 +8,14 @@ import {
   IoLanguageOutline,
   IoDocumentTextOutline,
   IoCheckmarkCircleOutline,
+  IoCashOutline,
 } from 'react-icons/io5'
+import { getAdminSettings, updateAdminSettings } from '../admin-services/adminService'
 
 const AdminSettings = () => {
   const toast = useToast()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [settings, setSettings] = useState({
     emailNotifications: true,
     smsNotifications: false,
@@ -21,7 +25,33 @@ const AdminSettings = () => {
     autoVerifyLaboratories: false,
     requireTwoFactor: false,
     maintenanceMode: false,
+    rewardsSettings: {
+      referralBonus: 200,
+      loginBonus: 200,
+    }
   })
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        setIsLoading(true)
+        const response = await getAdminSettings()
+        if (response.success && response.data) {
+          setSettings(prev => ({
+            ...prev,
+            ...response.data,
+            rewardsSettings: response.data.rewardsSettings || prev.rewardsSettings
+          }))
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error)
+        toast.error('Failed to load settings')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchSettings()
+  }, [toast])
 
   const handleToggle = (key) => {
     setSettings((prev) => ({
@@ -30,11 +60,39 @@ const AdminSettings = () => {
     }))
   }
 
-  const handleSave = () => {
-    // Save settings logic here
-    console.log('Saving settings:', settings)
-    // Show success message
-    toast.success('Settings saved successfully!')
+  const handleRewardsChange = (key, value) => {
+    setSettings((prev) => ({
+      ...prev,
+      rewardsSettings: {
+        ...prev.rewardsSettings,
+        [key]: value
+      }
+    }))
+  }
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true)
+      const response = await updateAdminSettings(settings)
+      if (response.success) {
+        toast.success('Settings saved successfully!')
+      } else {
+        toast.error(response.message || 'Failed to save settings')
+      }
+    } catch (error) {
+      console.error('Saving failed:', error)
+      toast.error('Failed to save settings')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#11496c] border-t-transparent"></div>
+      </div>
+    )
   }
 
   return (
@@ -201,6 +259,40 @@ const AdminSettings = () => {
         </div>
       </section>
 
+      {/* Rewards Program Settings */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <IoCashOutline className="h-6 w-6 text-[#11496c]" />
+          <h2 className="text-lg font-semibold text-slate-900">Rewards Program</h2>
+        </div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-900 mb-1">Referral Bonus (₹)</label>
+              <input
+                type="number"
+                min="0"
+                value={settings.rewardsSettings?.referralBonus || ''}
+                onChange={(e) => handleRewardsChange('referralBonus', Number(e.target.value))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[#11496c]"
+              />
+              <p className="text-xs text-slate-500 mt-1">Credited to the referrer when the invited user registers & logs in.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-900 mb-1">First Login Bonus (₹)</label>
+              <input
+                type="number"
+                min="0"
+                value={settings.rewardsSettings?.loginBonus || ''}
+                onChange={(e) => handleRewardsChange('loginBonus', Number(e.target.value))}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[#11496c]"
+              />
+              <p className="text-xs text-slate-500 mt-1">Credited to the new user upon their first successful login.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* System Settings */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
@@ -233,10 +325,20 @@ const AdminSettings = () => {
       <div className="flex justify-end">
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 rounded-lg bg-[#11496c] px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-[#0d3a54] focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:ring-offset-2"
+          disabled={isSaving}
+          className="flex items-center gap-2 rounded-lg bg-[#11496c] px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-[#0d3a54] focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <IoCheckmarkCircleOutline className="h-5 w-5" />
-          Save Settings
+          {isSaving ? (
+            <>
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+              Saving...
+            </>
+          ) : (
+            <>
+              <IoCheckmarkCircleOutline className="h-5 w-5" />
+              Save Settings
+            </>
+          )}
         </button>
       </div>
     </section>

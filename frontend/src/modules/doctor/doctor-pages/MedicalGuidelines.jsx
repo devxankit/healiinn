@@ -58,7 +58,7 @@ const MedicalGuidelines = () => {
                   <IoInformationCircleOutline className="h-8 w-8 text-blue-600 shrink-0 mt-1" />
                   <p className="text-slate-700 leading-relaxed text-lg">
                     These guidelines are designed to help healthcare professionals provide the best possible care 
-                    through the Healiinn platform while maintaining the highest standards of medical practice.
+                    through the Heallyn platform while maintaining the highest standards of medical practice.
                   </p>
                 </div>
               </div>
@@ -84,7 +84,7 @@ const MedicalGuidelines = () => {
                     {[
                       'Maintain valid medical licenses in all jurisdictions',
                       'Keep professional certifications up to date',
-                      'Notify Healiinn of any license suspensions',
+                      'Notify Heallyn of any license suspensions',
                       'Provide accurate qualification information'
                     ].map((item, idx) => (
                       <li key={idx} className="flex items-start gap-3 text-slate-700 group/item">
@@ -255,7 +255,7 @@ const MedicalGuidelines = () => {
                 <h2 className="text-2xl font-bold">Regulatory Compliance</h2>
               </div>
               <p className="text-slate-200 mb-6 text-lg">
-                All healthcare professionals using Healiinn must comply with:
+                All healthcare professionals using Heallyn must comply with:
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[

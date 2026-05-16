@@ -1,15 +1,13 @@
 import React from 'react'
 import { IoArrowForwardOutline } from 'react-icons/io5'
 
-const diabeatEaseImg = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=200'
-const heartUpImg = 'https://images.unsplash.com/photo-1631549916768-4119b2e55916?auto=format&fit=crop&q=80&w=200'
-const livUpImg = 'https://images.unsplash.com/photo-1550573105-75864e358476?auto=format&fit=crop&q=80&w=200'
-
 const HealthSupplementsSection = ({ navigate }) => {
   const supplements = [
-    { id: 1, name: 'DIABEAT-EASE', price: 1095, oldPrice: 2299, image: diabeatEaseImg },
-    { id: 2, name: 'HEART-UP', price: 728, oldPrice: 1618, image: heartUpImg },
-    { id: 3, name: 'LIV-UP', price: 728, oldPrice: 1618, image: livUpImg },
+    { id: 1, name: 'DIABEAT-EASE', price: 1095, oldPrice: 2299, image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&q=80' },
+    { id: 2, name: 'HEART-UP', price: 728, oldPrice: 1618, image: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=400&q=80' },
+    { id: 3, name: 'LIV-UP', price: 728, oldPrice: 1618, image: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400&q=80' },
+    { id: 4, name: 'IMMUNO-BOOST', price: 899, oldPrice: 1499, image: 'https://images.unsplash.com/photo-1550572017-edb7fd483427?w=400&q=80' },
+    { id: 5, name: 'JOINT-CARE', price: 1250, oldPrice: 1800, image: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=400&q=80' },
   ]
 
   return (
@@ -21,7 +19,7 @@ const HealthSupplementsSection = ({ navigate }) => {
         </div>
         <div className="flex flex-col items-end">
            <span className="text-[#11496c] text-xs md:text-lg font-black italic">HerbVed</span>
-           <span className="text-[8px] md:text-xs text-slate-400 font-bold uppercase tracking-widest">by Healiinn</span>
+           <span className="text-[8px] md:text-xs text-slate-400 font-bold uppercase tracking-widest">by Heallyn</span>
         </div>
       </div>
 

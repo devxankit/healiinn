@@ -72,6 +72,9 @@ const patientSchema = new mongoose.Schema(
     },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
+    walletBalance: { type: Number, default: 0 },
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient' },
+    referralCode: { type: String, unique: true, sparse: true },
   },
   {
     timestamps: true,

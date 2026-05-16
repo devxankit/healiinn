@@ -61,7 +61,7 @@ const HIPAACompliance = () => {
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900 mb-3">Our Commitment</h2>
                     <p className="text-slate-700 leading-relaxed text-lg">
-                      Healiinn is fully committed to HIPAA compliance and ensuring the highest standards of 
+                      Heallyn is fully committed to HIPAA compliance and ensuring the highest standards of 
                       patient data protection. We implement comprehensive security measures to safeguard Protected 
                       Health Information (PHI) in accordance with HIPAA regulations.
                     </p>
@@ -107,7 +107,7 @@ const HIPAACompliance = () => {
               </h2>
               <div className="bg-gradient-to-br from-blue-50 to-white rounded-2xl p-8 border-2 border-blue-200 shadow-lg">
                 <p className="text-slate-700 font-semibold mb-6 text-lg">
-                  As a healthcare professional using Healiinn, you must:
+                  As a healthcare professional using Heallyn, you must:
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
@@ -138,14 +138,14 @@ const HIPAACompliance = () => {
               </h2>
               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 border-l-4 border-indigo-500 shadow-sm mb-4">
                 <p className="text-slate-700 leading-relaxed text-lg mb-4">
-                  Healiinn operates as a Business Associate under HIPAA. We have executed Business Associate 
+                  Heallyn operates as a Business Associate under HIPAA. We have executed Business Associate 
                   Agreements (BAAs) with all covered entities using our platform, ensuring compliance with 
                   HIPAA requirements.
                 </p>
               </div>
               <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-5">
                 <p className="text-sm text-amber-900 font-medium">
-                  <strong>Note:</strong> All healthcare providers using Healiinn are required to sign a BAA 
+                  <strong>Note:</strong> All healthcare providers using Heallyn are required to sign a BAA 
                   before accessing patient information on the platform.
                 </p>
               </div>
@@ -159,7 +159,7 @@ const HIPAACompliance = () => {
               </h2>
               <div className="bg-gradient-to-br from-red-50 to-white rounded-2xl p-6 border-2 border-red-200 shadow-md">
                 <p className="text-slate-700 leading-relaxed mb-6 text-lg font-medium">
-                  In the event of a security breach involving PHI, Healiinn will:
+                  In the event of a security breach involving PHI, Heallyn will:
                 </p>
                 <div className="space-y-3">
                   {[
@@ -189,7 +189,7 @@ const HIPAACompliance = () => {
                 <div>
                   <h2 className="text-2xl font-bold mb-3">HIPAA Compliant & Certified</h2>
                   <p className="text-emerald-50 text-lg leading-relaxed">
-                    Healiinn maintains ongoing HIPAA compliance through regular audits, security assessments, 
+                    Heallyn maintains ongoing HIPAA compliance through regular audits, security assessments, 
                     and staff training. Our platform is designed and operated to meet or exceed all HIPAA requirements.
                   </p>
                 </div>
@@ -210,7 +210,7 @@ const HIPAACompliance = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
                   <p className="text-sm text-slate-300 mb-1">Email</p>
-                  <p className="font-semibold">compliance@healiinn.com</p>
+                  <p className="font-semibold">compliance@heallyn.com</p>
                 </div>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
                   <p className="text-sm text-slate-300 mb-1">Phone</p>

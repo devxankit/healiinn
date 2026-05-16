@@ -19,6 +19,7 @@ import {
   IoShareSocialOutline,
   IoEyeOutline,
   IoArrowBackOutline,
+  IoArrowForwardOutline,
   IoCloseOutline,
   IoFlaskOutline,
   IoBagHandleOutline,
@@ -31,6 +32,14 @@ import {
   IoInformationCircleOutline,
   IoHomeOutline,
   IoBusinessOutline,
+  IoFootstepsOutline,
+  IoScaleOutline,
+  IoAdd,
+  IoWaterOutline,
+  IoPulseOutline,
+  IoMedkitOutline,
+  IoPersonOutline,
+  IoStatsChartOutline,
 } from 'react-icons/io5'
 
 // Default prescriptions (will be replaced by API data)
@@ -91,17 +100,21 @@ const PatientPrescriptions = () => {
   const [showTestVisitModal, setShowTestVisitModal] = useState(false)
   const [testVisitPrescription, setTestVisitPrescription] = useState(null)
 
-  // Get active tab from URL params, default to 'prescriptions'
+  // Get active tab from URL params, default to 'vitals'
   const tabFromUrl = searchParams.get('tab')
-  const [activeTab, setActiveTab] = useState(tabFromUrl === 'lab-reports' ? 'lab-reports' : 'prescriptions')
+  const [activeTab, setActiveTab] = useState(
+    tabFromUrl === 'lab-reports' ? 'lab-reports' : 
+    tabFromUrl === 'prescriptions' ? 'prescriptions' : 'vitals'
+  )
 
-  // Update active tab when URL changes
   useEffect(() => {
     const tab = searchParams.get('tab')
     if (tab === 'lab-reports') {
       setActiveTab('lab-reports')
-    } else {
+    } else if (tab === 'prescriptions') {
       setActiveTab('prescriptions')
+    } else if (tab === 'vitals') {
+      setActiveTab('vitals')
     }
   }, [searchParams])
 
@@ -286,14 +299,14 @@ const PatientPrescriptions = () => {
     const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
     let yPos = margin
 
-    // Header Section - Healiinn (Above Clinic Name) - Reduced size
+    // Header Section - Heallyn (Above Clinic Name) - Reduced size
     doc.setTextColor(...tealColor)
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
-    doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
+    doc.text('Heallyn', pageWidth / 2, yPos, { align: 'center' })
     yPos += 6
 
-    // Clinic Name in Teal (Below Healiinn) - Reduced size
+    // Clinic Name in Teal (Below Heallyn) - Reduced size
     doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
     const clinicName = prescriptionData.doctor?.clinicName || prescriptionData.originalData?.doctorId?.clinicDetails?.name || prescriptionData.originalData?.doctorId?.clinicDetails?.clinicName || 'Super Clinic'
@@ -1361,7 +1374,7 @@ const PatientPrescriptions = () => {
 <body>
   <div class="header">
     <h1>Lab Test Report</h1>
-    <div style="color: #64748b; margin-top: 5px; font-size: 14px;">Healiinn - Your Health Partner</div>
+    <div style="color: #64748b; margin-top: 5px; font-size: 14px;">Heallyn - Your Health Partner</div>
   </div>
   <div class="section">
     <div class="section-title">Report Information</div>
@@ -1393,180 +1406,362 @@ const PatientPrescriptions = () => {
   }
 
   return (
-    <section className="flex flex-col gap-6 pb-6 max-w-7xl mx-auto w-full px-4 md:px-0">
-      {/* Prescription and Lab Report Cards - Compact Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Prescription Card */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('prescriptions')
-            setFilter('all')
-            setSearchParams({ tab: 'prescriptions' })
-            window.scrollTo({ top: 0, behavior: 'smooth' })
-          }}
-          className={`relative overflow-hidden rounded-2xl border-2 p-4 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${activeTab === 'prescriptions'
-            ? 'border-[#11496c] bg-[rgba(17,73,108,0.05)]'
-            : 'border-slate-100 bg-white'
-            }`}
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">Prescription</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{totalPrescriptionsCount}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">{activePrescriptionsCount} Active</p>
-            </div>
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-              style={{ backgroundColor: '#14B8A6' }}
-            >
-              <IoDocumentTextOutline className="h-4 w-4 text-white" />
+    <section className="flex flex-col gap-6 pb-20 max-w-7xl mx-auto w-full px-4 md:px-0">
+      {/* Vitals Tab Content */}
+      {activeTab === 'vitals' && (
+        <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Diet Plan Banner - Premium Upgrade */}
+          <div className="relative overflow-hidden rounded-[40px] bg-white p-8 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-50 group">
+            {/* Background Decorative Elements */}
+            <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-96 h-96 bg-orange-50 rounded-full blur-3xl opacity-50 group-hover:bg-orange-100 transition-colors duration-700" />
+            <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-96 h-96 bg-blue-50 rounded-full blur-3xl opacity-50 group-hover:bg-blue-100 transition-colors duration-700" />
+            
+            <div className="relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-16">
+              <div className="flex-1 text-center md:text-left space-y-4">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-50 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-orange-100">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                  </span>
+                  Limited Time Offer
+                </div>
+                <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+                  Get your <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-orange-600">7 Days</span>
+                  <br />Smart Diet Plan
+                </h2>
+                <p className="text-slate-500 font-bold max-w-md text-sm md:text-base">
+                  Personalized nutrition guidance powered by AI, tailored to your health records and lifestyle.
+                </p>
+                <div className="pt-6">
+                  <button 
+                    onClick={() => toast.info('Diet plan generation coming soon!')}
+                    className="w-full md:w-auto px-12 py-4 bg-[#11496c] text-white font-black uppercase tracking-widest text-xs rounded-[20px] hover:bg-[#0d3a52] transition-all shadow-xl shadow-[#11496c]/20 active:scale-95 flex items-center justify-center gap-3"
+                  >
+                    <span>Generate It Now</span>
+                    <IoArrowForwardOutline className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 relative">
+                <div className="relative z-20 transition-transform duration-500 group-hover:scale-110">
+                  <img 
+                    src="https://img.freepik.com/free-vector/healthy-lifestyle-diet-plan-illustration_23-2148529240.jpg" 
+                    alt="Healthy Diet Illustration" 
+                    className="w-full max-w-[340px] mx-auto object-contain drop-shadow-2xl"
+                  />
+                </div>
+                {/* Image Backdrop Glow */}
+                <div className="absolute inset-0 bg-orange-500/5 blur-[80px] rounded-full scale-75" />
+              </div>
             </div>
           </div>
-        </button>
+          {/* Health Trackers Section */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Health Trackers</h2>
+              <button className="text-xs font-black text-[#11496c] uppercase tracking-widest hover:underline">View History</button>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                { id: 'steps', title: 'Step Count', Icon: IoFootstepsOutline, color: 'text-teal-500', bg: 'bg-teal-50', value: '8,432', unit: 'steps' },
+                { id: 'sugar', title: 'Log Sugar', Icon: IoWaterOutline, color: 'text-blue-500', bg: 'bg-blue-50', value: '98', unit: 'mg/dL' },
+                { id: 'weight', title: 'Track Weight', Icon: IoScaleOutline, color: 'text-cyan-500', bg: 'bg-cyan-50', value: '72.5', unit: 'kg' },
+                { id: 'bp', title: 'Blood Pressure', Icon: IoPulseOutline, color: 'text-rose-500', bg: 'bg-rose-50', value: '120/80', unit: 'mmHg' },
+                { id: 'medicine', title: 'Track Medicine', Icon: IoMedkitOutline, color: 'text-emerald-500', bg: 'bg-emerald-50', count: totalPrescriptionsCount, value: totalPrescriptionsCount, unit: 'active' },
+                { id: 'doctor', title: 'Doctor', Icon: IoPersonOutline, color: 'text-indigo-500', bg: 'bg-indigo-50', value: '4', unit: 'consults' },
+              ].map((tracker) => (
+                <div 
+                  key={tracker.id}
+                  onClick={() => {
+                    if (tracker.id === 'medicine') {
+                      setActiveTab('prescriptions')
+                      setSearchParams({ tab: 'prescriptions' })
+                    } else if (tracker.id === 'doctor') {
+                      navigate('/patient/doctors')
+                    } else {
+                      toast.info(`${tracker.title} tracking coming soon!`)
+                    }
+                  }}
+                  className="group relative overflow-hidden flex flex-col p-6 bg-white rounded-[32px] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-xl hover:shadow-[#11496c]/5 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-3.5 rounded-2xl ${tracker.bg} ${tracker.color} transition-transform group-hover:scale-110`}>
+                      <tracker.Icon className="h-6 w-6" />
+                    </div>
+                    <div className="h-10 w-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 group-hover:bg-[#11496c] group-hover:text-white transition-all">
+                      <IoAdd className="h-6 w-6" />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">{tracker.title}</span>
+                    <div className="flex items-baseline gap-1.5 mt-1">
+                      <span className="text-3xl font-black text-slate-900">{tracker.value}</span>
+                      <span className="text-xs font-bold text-slate-500">{tracker.unit}</span>
+                    </div>
+                  </div>
 
-        {/* Lab Report Card */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveTab('lab-reports')
-            setSearchParams({ tab: 'lab-reports' })
-            window.scrollTo({ top: 0, behavior: 'smooth' })
-          }}
-          className={`relative overflow-hidden rounded-2xl border-2 p-4 shadow-sm transition-all hover:shadow-md active:scale-[0.98] ${activeTab === 'lab-reports'
-            ? 'border-[#11496c] bg-[rgba(17,73,108,0.05)]'
-            : 'border-slate-100 bg-white'
-            }`}
-        >
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">Lab Report</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{labReportsCount}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">Available</p>
-            </div>
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-              style={{ backgroundColor: '#14B8A6' }}
-            >
-              <IoFlaskOutline className="h-4 w-4 text-white" />
+                  {/* Sparkline Decorative Element */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#11496c]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              ))}
             </div>
           </div>
-        </button>
-      </div>
+
+          {/* Quick Access to Reports */}
+          <div className="mt-4 overflow-hidden rounded-[32px] bg-gradient-to-r from-[#11496c] to-[#0d3a52] p-8 shadow-xl shadow-[#11496c]/20">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex items-center gap-6">
+                <div className="h-16 w-16 rounded-2xl bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/20">
+                  <IoDocumentTextOutline className="h-8 w-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-white">Clinical Documents</h3>
+                  <p className="text-sm font-bold text-white/60">Access all your medical history in one place</p>
+                </div>
+              </div>
+              <div className="flex gap-3 w-full md:w-auto">
+                <button 
+                  onClick={() => {
+                    setActiveTab('prescriptions')
+                    setSearchParams({ tab: 'prescriptions' })
+                  }}
+                  className="flex-1 md:flex-none px-6 py-3.5 bg-white text-[#11496c] text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95"
+                >
+                  Prescriptions
+                </button>
+                <button 
+                  onClick={() => {
+                    setActiveTab('lab-reports')
+                    setSearchParams({ tab: 'lab-reports' })
+                  }}
+                  className="flex-1 md:flex-none px-6 py-3.5 bg-[#14B8A6] text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95"
+                >
+                  Lab Reports
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Prescription and Lab Report Cards - Desktop Optimized Tabs */}
+      {(activeTab === 'prescriptions' || activeTab === 'lab-reports') && (
+        <>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => {
+                  setActiveTab('vitals')
+                  setSearchParams({ tab: 'vitals' })
+                }}
+                className="h-14 w-14 flex items-center justify-center rounded-[20px] bg-white border border-slate-100 text-slate-600 shadow-sm hover:shadow-md transition-all active:scale-95"
+              >
+                <IoArrowBackOutline className="h-7 w-7" />
+              </button>
+              <div>
+                <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none">
+                  {activeTab === 'prescriptions' ? 'Prescriptions' : 'Lab Reports'}
+                </h1>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
+                  {activeTab === 'prescriptions' ? `Medical Records (${totalPrescriptionsCount})` : `Diagnostic Center (${labReportsCount})`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 p-1.5 bg-white rounded-2xl border border-slate-100 shadow-sm">
+              <button
+                onClick={() => setActiveTab('prescriptions')}
+                className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'prescriptions' ? 'bg-[#11496c] text-white shadow-lg shadow-[#11496c]/20' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                Records
+              </button>
+              <button
+                onClick={() => setActiveTab('lab-reports')}
+                className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeTab === 'lab-reports' ? 'bg-[#11496c] text-white shadow-lg shadow-[#11496c]/20' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                Diagnostics
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            {/* Optimized Summary Cards for Desktop */}
+            <div className="relative overflow-hidden rounded-[40px] p-8 text-white shadow-xl shadow-[#11496c]/20"
+              style={{ background: 'linear-gradient(135deg, #11496c 0%, #0d3a52 100%)' }}>
+              <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+              <div className="relative z-10 flex items-center gap-6">
+                <div className="h-20 w-20 rounded-[24px] bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                  <IoDocumentTextOutline className="h-10 w-10" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/60">Total Records</p>
+                  <p className="text-5xl font-black mt-1 tracking-tighter">{totalPrescriptionsCount}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-[40px] p-8 text-white shadow-xl shadow-[#14B8A6]/20"
+              style={{ background: 'linear-gradient(135deg, #14B8A6 0%, #0f9687 100%)' }}>
+              <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+              <div className="relative z-10 flex items-center gap-6">
+                <div className="h-20 w-20 rounded-[24px] bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                  <IoFlaskOutline className="h-10 w-10" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/60">Lab Findings</p>
+                  <p className="text-5xl font-black mt-1 tracking-tighter">{labReportsCount}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Prescriptions Content */}
       {activeTab === 'prescriptions' && (
-        <>
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Filter Tabs */}
-          <div id="filter-tabs" className="flex flex-wrap gap-2">
-            {[
-              { value: 'all', label: 'All' },
-              { value: 'active', label: 'Active' },
-              { value: 'completed', label: 'Completed' },
-            ].map((tab) => (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => setFilter(tab.value)}
-                className={`rounded-xl px-6 py-2 text-xs font-bold transition-all ${filter === tab.value
-                  ? 'text-white shadow-md'
-                  : 'text-slate-500 bg-white border border-slate-200 hover:bg-slate-50'
-                  }`}
-                style={filter === tab.value ? { backgroundColor: '#11496c' } : {}}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div id="filter-tabs" className="flex items-center gap-1.5 p-1.5 bg-white rounded-2xl border border-slate-100 shadow-sm w-fit">
+              {[
+                { value: 'all', label: 'All' },
+                { value: 'active', label: 'Active' },
+                { value: 'completed', label: 'Completed' },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setFilter(tab.value)}
+                  className={`px-8 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all duration-300 ${filter === tab.value
+                    ? 'bg-[#11496c] text-white shadow-lg shadow-[#11496c]/20 scale-105'
+                    : 'text-slate-400 hover:text-[#11496c] hover:bg-slate-50'
+                    }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            
+            <div className="relative group">
+              <IoSearchOutline className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-[#11496c] transition-colors" />
+              <input 
+                type="text" 
+                placeholder="Search prescriptions..."
+                className="pl-12 pr-6 py-3.5 bg-white border border-slate-100 rounded-2xl text-sm font-bold shadow-sm focus:ring-2 focus:ring-[#11496c]/10 outline-none w-full md:w-80 transition-all"
+              />
+            </div>
           </div>
 
-          {/* Prescriptions List */}
+          {/* Prescriptions List - Desktop Grid */}
           <div id="prescriptions-section">
             {filteredPrescriptions.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                <IoDocumentTextOutline className="mx-auto h-12 w-12 text-slate-400" />
-                <p className="mt-4 text-sm font-medium text-slate-600">No prescriptions found</p>
-                <p className="mt-1 text-xs text-slate-500">Prescriptions shared by doctors will appear here</p>
+              <div className="rounded-[40px] border-2 border-dashed border-slate-100 bg-white p-20 text-center shadow-sm">
+                <div className="h-24 w-24 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-6">
+                  <IoDocumentTextOutline className="h-12 w-12 text-slate-200" />
+                </div>
+                <h3 className="text-xl font-black text-slate-900">No records found</h3>
+                <p className="mt-2 text-sm font-bold text-slate-400 max-w-xs mx-auto">Your medical prescriptions will be listed here once issued by your doctor.</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {paginatedPrescriptions.map((prescription) => (
                   <article
                     key={prescription.id}
-                    className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-lg"
+                    className="group relative overflow-hidden rounded-[40px] border border-slate-50 bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-2xl hover:shadow-[#11496c]/10 hover:-translate-y-1"
                   >
-                    <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl opacity-0 transition-opacity group-hover:opacity-100" style={{ backgroundColor: 'rgba(17, 73, 108, 0.1)' }} />
-
                     <div className="relative">
-                      {/* Doctor Info */}
-                      <div className="flex items-start gap-4">
-                        <img
-                          src={prescription.doctor.image}
-                          alt={prescription.doctor.name}
-                          className="h-14 w-14 rounded-2xl object-cover ring-2 ring-slate-100 bg-slate-100"
-                          onError={(e) => {
-                            e.target.onerror = null
-                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctor.name)}&background=3b82f6&color=fff&size=128&bold=true`
-                          }}
-                        />
-                        <div className="flex-1">
-                          <h3 className="text-base md:text-lg font-bold text-slate-900">{prescription.doctor.name}</h3>
-                          <p className="text-xs md:text-sm text-[#11496c] font-medium">{prescription.doctor.specialty}</p>
-                          <div className="mt-1 flex items-center gap-3">
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase ${prescription.status === 'active'
-                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                : 'bg-slate-50 text-slate-600 border border-slate-100'
-                                }`}
-                            >
-                              {prescription.status}
-                            </span>
-                            <div className="flex items-center gap-1 text-[10px] md:text-xs text-slate-500 font-medium">
-                              <IoCalendarOutline className="h-3 w-3" />
-                              <span>Issued {formatDate(prescription.issuedAt)}</span>
+                      {/* Doctor Info Header */}
+                      <div className="flex items-center gap-6">
+                        <div className="relative shrink-0">
+                          <img
+                            src={prescription.doctor.image}
+                            alt={prescription.doctor.name}
+                            className="h-20 w-20 rounded-[28px] object-cover ring-8 ring-slate-50 bg-slate-100 transition-transform group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(prescription.doctor.name)}&background=11496c&color=fff&size=128&bold=true`
+                            }}
+                          />
+                          <div className={`absolute -bottom-1 -right-1 h-7 w-7 rounded-2xl border-4 border-white flex items-center justify-center ${prescription.status === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                            <IoCheckmarkCircleOutline className="h-4 w-4 text-white" />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h3 className="text-xl font-black text-slate-900 leading-none truncate tracking-tight">{prescription.doctor.name}</h3>
+                              <p className="text-xs font-black text-[#14B8A6] uppercase tracking-[0.15em] mt-2">{prescription.doctor.specialty || 'General Physician'}</p>
+                            </div>
+                            <div className="px-4 py-2 bg-[#11496c]/5 rounded-xl border border-[#11496c]/10">
+                              <span className="text-[10px] font-black text-[#11496c] uppercase tracking-widest">{formatDate(prescription.issuedAt)}</span>
                             </div>
                           </div>
                         </div>
-                      </div>                      {/* Actions - Combined Row */}
-                      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadPDF(prescription)}
-                          className="flex-1 min-w-[140px] flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0d3a52] active:scale-95"
-                        >
-                          <IoDownloadOutline className="h-3.5 w-3.5" />
-                          Download PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleViewPDF(prescription)}
-                          className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-95"
-                          title="View PDF"
-                        >
-                          <IoEyeOutline className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleShareClick(prescription.id)}
-                          className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-95"
-                          title="Share"
-                        >
-                          <IoShareSocialOutline className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleBookTestVisit(prescription)}
-                          className="flex-1 min-w-[140px] flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
-                        >
-                          <IoFlaskOutline className="h-3.5 w-3.5" />
-                          Book Test
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleOrderMedicine(prescription)}
-                          className="flex-1 min-w-[140px] flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-[#11496c] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
-                        >
-                          <IoBagHandleOutline className="h-3.5 w-3.5" />
-                          Order Medicine
-                        </button>
+                      </div>
+
+                      {/* Prescription Details Summary */}
+                      <div className="mt-8 grid grid-cols-2 gap-4">
+                        <div className="p-5 rounded-[24px] bg-slate-50/50 border border-slate-100 group-hover:bg-white transition-colors">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Diagnosis</span>
+                          <span className="text-sm font-black text-slate-800 line-clamp-1">{prescription.diagnosis || 'Checkup'}</span>
+                        </div>
+                        <div className="p-5 rounded-[24px] bg-slate-50/50 border border-slate-100 group-hover:bg-white transition-colors">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Follow-up</span>
+                          <span className="text-sm font-black text-slate-800">{prescription.followUpAt ? formatDate(prescription.followUpAt) : 'None'}</span>
+                        </div>
+                      </div>
+
+                      {/* Actions Grid - Desktop Optimized */}
+                      <div className="mt-8 flex flex-col gap-4">
+                        <div className="flex gap-4">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPDF(prescription)}
+                            className="flex-1 flex items-center justify-center gap-3 rounded-2xl bg-[#11496c] py-4 text-xs font-black uppercase tracking-widest text-white transition-all hover:bg-[#0d3a52] shadow-lg shadow-[#11496c]/20"
+                          >
+                            <IoDownloadOutline className="h-5 w-5" />
+                            PDF Report
+                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleViewPDF(prescription)}
+                              className="h-14 w-14 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-600 hover:bg-[#11496c]/5 hover:text-[#11496c] transition-all border border-slate-100"
+                              title="View Records"
+                            >
+                              <IoEyeOutline className="h-6 w-6" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleShareClick(prescription.id)}
+                              className="h-14 w-14 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-600 hover:bg-[#11496c]/5 hover:text-[#11496c] transition-all border border-slate-100"
+                              title="Share Report"
+                            >
+                              <IoShareSocialOutline className="h-6 w-6" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleBookTestVisit(prescription)}
+                            className="flex items-center justify-center gap-2.5 rounded-2xl bg-white border-2 border-slate-50 py-4 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:border-[#11496c] hover:bg-[#11496c]/5 hover:text-[#11496c] transition-all"
+                          >
+                            <IoFlaskOutline className="h-4 w-4" />
+                            Schedule Test
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOrderMedicine(prescription)}
+                            className="flex items-center justify-center gap-2.5 rounded-2xl bg-white border-2 border-slate-50 py-4 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:border-[#11496c] hover:bg-[#11496c]/5 hover:text-[#11496c] transition-all"
+                          >
+                            <IoBagHandleOutline className="h-4 w-4" />
+                            Buy Medicine
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </article>
@@ -1576,92 +1771,103 @@ const PatientPrescriptions = () => {
 
             {/* Pagination for Prescriptions */}
             {filteredPrescriptions.length > 0 && prescriptionsTotalPages > 1 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={prescriptionsTotalPages}
-                totalItems={prescriptionsTotalItems}
-                itemsPerPage={itemsPerPage}
-                onPageChange={setCurrentPage}
-                loading={loading}
-              />
+              <div className="mt-12">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={prescriptionsTotalPages}
+                  totalItems={prescriptionsTotalItems}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  loading={loading}
+                />
+              </div>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* Lab Reports Content */}
       {activeTab === 'lab-reports' && (
-        <div id="lab-reports-section" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900">Lab Reports</h2>
-            <p className="text-xs text-slate-600">Share reports with your doctors</p>
+        <div id="lab-reports-section" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Diagnostics History</h2>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Real-time sync active</p>
+            </div>
           </div>
 
           {labReports.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-              <IoFlaskOutline className="mx-auto h-12 w-12 text-slate-400" />
-              <p className="mt-4 text-sm font-medium text-slate-600">No lab reports found</p>
-              <p className="mt-1 text-xs text-slate-500">Lab reports will appear here when laboratory shares them</p>
+            <div className="rounded-[40px] border-2 border-dashed border-slate-100 bg-white p-20 text-center shadow-sm">
+              <div className="h-24 w-24 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-6">
+                <IoFlaskOutline className="h-12 w-12 text-slate-200" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900">No Findings Yet</h3>
+              <p className="mt-2 text-sm font-bold text-slate-400 max-w-xs mx-auto">Once the lab uploads your results, they will appear here instantly.</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {paginatedLabReports.map((report) => (
                 <article
                   key={report.id}
-                  className="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md flex flex-col md:flex-row md:items-center"
+                  className="group relative overflow-hidden rounded-[40px] border border-slate-50 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-2xl hover:shadow-[#11496c]/10 hover:-translate-y-1 flex flex-col"
                 >
-                  {/* Header Section */}
-                  <div className="flex items-center gap-4 p-4 flex-1">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white shadow-md"
+                  {/* Report Main Info */}
+                  <div className="flex items-center gap-6 p-8 flex-1">
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[28px] text-white shadow-xl shadow-[#11496c]/20 group-hover:scale-105 transition-transform"
                       style={{
-                        background: 'linear-gradient(to bottom right, rgba(17, 73, 108, 0.8), #11496c)',
+                        background: 'linear-gradient(135deg, #11496c 0%, #14B8A6 100%)',
                       }}>
-                      <IoFlaskOutline className="h-6 w-6" />
+                      <IoFlaskOutline className="h-10 w-10" />
                     </div>
  
                     <div className="flex-1 min-w-0">
-                      <div className="flex flex-col gap-0.5">
-                        <h3 className="text-sm md:text-base font-bold text-slate-900 line-clamp-1 leading-tight">{report.testName}</h3>
-                        <p className="text-[11px] md:text-xs text-slate-600 line-clamp-1 font-medium">{report.labName}</p>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
-                            <IoCalendarOutline className="h-3 w-3 shrink-0" />
-                            {formatDate(report.date)}
-                          </span>
-                          <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-wider">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xl font-black text-slate-900 truncate tracking-tight">{report.testName}</h3>
+                          <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.15em] text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
                             Ready
                           </span>
+                        </div>
+                        <p className="text-sm font-black text-[#11496c] uppercase tracking-widest mt-1 opacity-70">{report.labName}</p>
+                        <div className="flex items-center gap-4 mt-3">
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
+                            <IoCalendarOutline className="h-4 w-4 text-[#11496c]" />
+                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{formatDate(report.date)}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2 p-4 md:border-l border-slate-100 bg-slate-50/30">
+                  {/* Action Section - Desktop Optimized */}
+                  <div className="flex flex-col sm:flex-row items-center gap-4 p-8 border-t sm:border-t-0 sm:border-l border-slate-50 bg-slate-50/30 sm:min-w-[280px]">
                     <button
                       type="button"
                       onClick={() => handleDownloadLabReport(report)}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0d3a52] active:scale-[0.98]"
+                      className="w-full flex items-center justify-center gap-3 rounded-2xl bg-[#11496c] py-4 text-xs font-black uppercase tracking-widest text-white transition-all hover:bg-[#0d3a52] shadow-lg shadow-[#11496c]/20"
                     >
-                      <IoDownloadOutline className="h-3.5 w-3.5" />
-                      Download
+                      <IoDownloadOutline className="h-5 w-5" />
+                      Results
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleViewLabReportClick(report)}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 active:scale-95"
-                      title="View report"
-                    >
-                      <IoEyeOutline className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleShareLabReportClick(report)}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 active:scale-95"
-                      title="Share"
-                    >
-                      <IoShareSocialOutline className="h-4 w-4" />
-                    </button>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => handleViewLabReportClick(report)}
+                        className="flex-1 sm:h-14 sm:w-14 flex items-center justify-center rounded-2xl bg-white text-slate-600 hover:bg-[#11496c]/5 hover:text-[#11496c] transition-all border border-slate-100 shadow-sm py-3.5 sm:py-0"
+                        title="View Report"
+                      >
+                        <IoEyeOutline className="h-6 w-6" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleShareLabReportClick(report)}
+                        className="flex-1 sm:h-14 sm:w-14 flex items-center justify-center rounded-2xl bg-white text-slate-600 hover:bg-[#11496c]/5 hover:text-[#11496c] transition-all border border-slate-100 shadow-sm py-3.5 sm:py-0"
+                        title="Share Report"
+                      >
+                        <IoShareSocialOutline className="h-6 w-6" />
+                      </button>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -1970,15 +2176,17 @@ const PatientPrescriptions = () => {
               {selectedLabDoctorId && (
                 <div className="mt-4 rounded-lg bg-[rgba(17,73,108,0.1)] p-3">
                   <p className="text-xs text-[#0a2d3f]">
-                    {(selectedLabReport.doctorId && selectedLabDoctorId === selectedLabReport.doctorId) || checkPatientHasAppointment(selectedLabDoctorId) ? (
-                      <>
-                        <strong>Direct Share:</strong> Report will be shared immediately with {doctors.find(d => (d._id || d.id) === selectedLabDoctorId) ? (doctors.find(d => (d._id || d.id) === selectedLabDoctorId).firstName && doctors.find(d => (d._id || d.id) === selectedLabDoctorId).lastName ? `Dr. ${doctors.find(d => (d._id || d.id) === selectedLabDoctorId).firstName} ${doctors.find(d => (d._id || d.id) === selectedLabDoctorId).lastName}` : doctors.find(d => (d._id || d.id) === selectedLabDoctorId).name) : selectedLabReport?.doctorName || 'Doctor'}.
-                      </>
-                    ) : (
-                      <>
-                        <strong>Note:</strong> To share with this doctor, you'll need to book an appointment first. The booking page will open after sharing.
-                      </>
-                    )}
+                    {(() => {
+                      const doctor = doctors.find(d => (d._id || d.id) === selectedLabDoctorId);
+                      const name = doctor ? (doctor.firstName && doctor.lastName ? `Dr. ${doctor.firstName} ${doctor.lastName}` : doctor.name) : (selectedLabReport?.doctorName || 'Doctor');
+                      const hasAppointment = (selectedLabReport.doctorId && selectedLabDoctorId === selectedLabReport.doctorId) || checkPatientHasAppointment(selectedLabDoctorId);
+                      
+                      return hasAppointment ? (
+                        <><strong>Direct Share:</strong> Report will be shared immediately with {name}.</>
+                      ) : (
+                        <><strong>Note:</strong> To share with this doctor, you'll need to book an appointment first. The booking page will open after sharing.</>
+                      );
+                    })()}
                   </p>
                 </div>
               )}

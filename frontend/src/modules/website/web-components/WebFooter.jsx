@@ -61,7 +61,7 @@ const WebFooter = () => {
 
   const contactInfo = [
     { icon: IoCallOutline, text: '+91 1234567890', link: 'tel:+911234567890', color: 'text-blue-400' },
-    { icon: IoMailOutline, text: 'support@healiinn.com', link: 'mailto:support@healiinn.com', color: 'text-green-400' },
+    { icon: IoMailOutline, text: 'support@heallyn.com', link: 'mailto:support@heallyn.com', color: 'text-green-400' },
     { icon: IoLogoWhatsapp, text: 'WhatsApp Support', link: 'https://wa.me/911234567890', color: 'text-green-500' },
   ]
 
@@ -80,7 +80,7 @@ const WebFooter = () => {
           <div className="lg:col-span-2 space-y-4">
             <img
               src={healinnLogo}
-              alt="Healiinn"
+              alt="Heallyn"
               className="h-10 w-auto object-contain filter brightness-0 invert mb-4"
             />
             <p className="text-slate-300 text-sm leading-relaxed max-w-sm">
@@ -195,7 +195,7 @@ const WebFooter = () => {
         <div className="border-t border-slate-800/50 pt-8 mt-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-slate-400 text-center md:text-left">
-              &copy; {new Date().getFullYear()} Healiinn. All rights reserved.
+              &copy; {new Date().getFullYear()} Heallyn. All rights reserved.
             </p>
             <div className="flex items-center gap-6 text-sm text-slate-400">
               <button

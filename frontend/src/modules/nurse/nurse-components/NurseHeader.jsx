@@ -54,7 +54,7 @@ const NurseHeader = () => {
             <NavLink to="/nurse/dashboard" className="flex items-center">
               <img
                 src={healinnLogo}
-                alt="Healiinn"
+                alt="Heallyn"
                 className="h-10 w-auto object-contain"
                 loading="lazy"
               />

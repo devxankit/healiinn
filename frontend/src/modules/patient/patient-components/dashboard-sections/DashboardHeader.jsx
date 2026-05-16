@@ -1,5 +1,5 @@
 import React from 'react'
-import { IoSearchOutline, IoHomeOutline, IoPulseOutline, IoArchiveOutline, IoPersonCircleOutline, IoMenuOutline } from 'react-icons/io5'
+import { IoSearchOutline, IoHomeOutline, IoPulseOutline, IoArchiveOutline, IoPersonCircleOutline, IoMenuOutline, IoPeopleOutline, IoHeartOutline, IoCallOutline } from 'react-icons/io5'
 import NotificationBell from '../../../../components/NotificationBell'
 import healinnLogo from '../../../../assets/images/logo.png'
 
@@ -22,7 +22,7 @@ const DashboardHeader = ({
             >
                <img
                  src={healinnLogo}
-                 alt="Healiinn"
+                 alt="Heallyn"
                  className="h-9 md:h-11 w-auto object-contain transition-transform group-hover:scale-105"
                />
             </div>
@@ -40,17 +40,20 @@ const DashboardHeader = ({
          </div>
 
          {/* Desktop Navigation Links */}
-         <nav className="hidden md:flex items-center gap-1">
+         <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1">
             {[
               { label: 'Dashboard', to: '/patient/dashboard', icon: IoHomeOutline },
-              { label: 'Care', to: '/patient/doctors', icon: IoPulseOutline },
+              { label: 'Doctors', to: '/patient/doctors', icon: IoPeopleOutline },
+              { label: 'Care', to: '/patient/care', icon: IoHeartOutline },
+              { label: 'Vitals', to: '/patient/prescriptions', icon: IoPulseOutline },
               { label: 'History', to: '/patient/history', icon: IoArchiveOutline },
+              { label: 'Call', to: '/patient/support', icon: IoCallOutline },
               { label: 'Profile', to: '/patient/profile', icon: IoPersonCircleOutline },
             ].map((item) => (
               <button
                 key={item.label}
                 onClick={() => navigate(item.to)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                className={`flex items-center gap-1.5 px-2 xl:px-3 py-2 rounded-xl text-xs xl:text-sm font-bold transition-all ${
                   location.pathname === item.to 
                     ? 'bg-[#11496c] text-white shadow-md shadow-[#11496c]/20' 
                     : 'text-slate-600 hover:bg-slate-50 hover:text-[#11496c]'
@@ -68,9 +71,7 @@ const DashboardHeader = ({
                <span className="text-[9px] font-bold text-[#11496c] uppercase tracking-tighter">Wallet Balance</span>
                <span className="text-sm font-black text-slate-800">₹{profile?.walletBalance || 0}</span>
             </div>
-            <div className="p-2.5 bg-slate-50 rounded-full border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors relative">
-               <NotificationBell className="text-slate-600" />
-            </div>
+            <NotificationBell className="text-slate-600" />
             <button 
               onClick={() => setIsSidebarOpen(true)}
               className="p-2.5 bg-slate-50 rounded-full border border-slate-200 text-slate-600 md:hidden"

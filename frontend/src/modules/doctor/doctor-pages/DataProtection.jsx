@@ -61,7 +61,7 @@ const DataProtection = () => {
                   <div>
                     <h2 className="text-2xl font-bold mb-3">Our Data Protection Commitment</h2>
                     <p className="text-slate-200 leading-relaxed text-lg">
-                      At Healiinn, we take data protection seriously. We implement comprehensive security 
+                      At Heallyn, we take data protection seriously. We implement comprehensive security 
                       measures and follow industry best practices to ensure your personal and professional 
                       information remains secure and confidential.
                     </p>
@@ -170,7 +170,7 @@ const DataProtection = () => {
               </h2>
               <div className="bg-gradient-to-br from-slate-50 to-indigo-50 rounded-2xl p-8 border-2 border-slate-200 shadow-lg">
                 <p className="text-slate-700 mb-6 text-lg font-medium">
-                  Healiinn complies with international data protection standards including:
+                  Heallyn complies with international data protection standards including:
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {[
@@ -207,7 +207,7 @@ const DataProtection = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
                   <p className="text-sm text-slate-300 mb-1">Email</p>
-                  <p className="font-semibold">dpo@healiinn.com</p>
+                  <p className="font-semibold">dpo@heallyn.com</p>
                 </div>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
                   <p className="text-sm text-slate-300 mb-1">Phone</p>

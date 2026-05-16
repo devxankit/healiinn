@@ -421,7 +421,7 @@ const PatientLogin = () => {
               <p className="text-sm text-slate-600 leading-relaxed">
                 {isLogin
                   ? 'Sign in to access your appointments, prescriptions, and personalized care.'
-                  : 'Join Healiinn to manage your health journey with ease.'}
+                  : 'Join Heallyn to manage your health journey with ease.'}
               </p>
             </div>
 
@@ -606,7 +606,7 @@ const PatientLogin = () => {
                 </button>
 
                 <p className="text-center text-sm text-slate-600">
-                  New to Healiinn?{' '}
+                  New to Heallyn?{' '}
                   <button
                     type="button"
                     onClick={() => handleModeChange('signup')}
@@ -732,7 +732,7 @@ const PatientLogin = () => {
                         className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c] disabled:cursor-not-allowed"
                       />
                       <span>
-                        I have read and agree to Healiinn's{' '}
+                        I have read and agree to Heallyn's{' '}
                         <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
                           terms of service
                         </Link>{' '}
@@ -879,7 +879,7 @@ const PatientLogin = () => {
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-100 bg-white/95 backdrop-blur mt-auto">
         <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-4 py-4 text-center text-xs text-slate-500">
-          <span>Secure patient access powered by Healiinn</span>
+          <span>Secure patient access powered by Heallyn</span>
           <span>
             Need help? Contact your{' '}
             <Link to="/patient/support" className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition">

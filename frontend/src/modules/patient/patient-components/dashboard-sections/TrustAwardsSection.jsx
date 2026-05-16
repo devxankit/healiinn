@@ -14,7 +14,7 @@ const TrustSection = () => (
   <div className="bg-gradient-to-br from-[#f0fdfa] to-white rounded-[32px] p-6 md:p-8 space-y-6 border border-teal-50 h-full">
      <div className="text-center lg:text-left space-y-2">
         <h2 className="text-2xl md:text-2xl font-bold text-slate-900 leading-tight">
-            Why Smart Patients Choose <span className="text-[#11496c]">Healiinn</span> for Seamless Healthcare
+            Why Smart Patients Choose <span className="text-[#11496c]">Heallyn</span> for Seamless Healthcare
         </h2>
         <p className="text-sm text-slate-500 font-medium">Revolutionizing Patient-Doctor Interaction with Smart Technology.</p>
      </div>
@@ -62,7 +62,7 @@ const TrustAwardsSection = () => (
         <div className="text-center mt-8">
            <h2 className="text-4xl font-black text-slate-800 tracking-tighter">Stay Healthy</h2>
            <p className="text-xs font-bold text-slate-400 flex items-center justify-center gap-2 mt-2">
-              Made with <span className="text-red-500 text-lg">❤</span> By Healiinn Team
+              Made with <span className="text-red-500 text-lg">❤</span> By Heallyn Team
            </p>
         </div>
      </div>

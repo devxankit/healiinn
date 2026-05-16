@@ -322,14 +322,14 @@ const PatientOrders = () => {
   return (
     <section className="flex flex-col gap-4 pb-4">
       {/* Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="flex items-center gap-2 p-1 bg-white rounded-2xl border border-slate-100 w-fit overflow-x-auto max-w-full no-scrollbar mb-2">
         {['all', 'lab', 'pharmacy'].map((type) => (
           <button
             key={type}
             onClick={() => setFilter(type)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${filter === type
-              ? 'bg-[#11496c] text-white shadow-sm shadow-[rgba(17,73,108,0.2)]'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            className={`shrink-0 px-5 py-2.5 text-xs font-black rounded-xl transition-all duration-300 ${filter === type
+              ? 'bg-[#11496c] text-white shadow-lg shadow-[#11496c]/20'
+              : 'text-slate-500 hover:text-[#11496c] hover:bg-slate-50'
               }`}
           >
             {type === 'all' ? 'All Orders' : type === 'lab' ? 'Lab Tests' : 'Pharmacy'}
@@ -342,118 +342,90 @@ const PatientOrders = () => {
         {paginatedOrders.map((order) => (
           <article
             key={order.id}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
-            role="button"
-            tabIndex={0}
+            className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-xl hover:shadow-[#11496c]/5 cursor-pointer active:scale-[0.98]"
             onClick={() => {
               const orderIdToUse = order._id || order.id || order.originalData?._id || order.originalData?.id
               if (!orderIdToUse) return
               navigate(`/patient/orders/${orderIdToUse}`, { state: { order } })
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                const orderIdToUse = order._id || order.id || order.originalData?._id || order.originalData?.id
-                if (!orderIdToUse) return
-                navigate(`/patient/orders/${orderIdToUse}`, { state: { order } })
-              }
-            }}
           >
-            <div className="flex items-start gap-3">
-              {/* Icon */}
+            <div className="flex items-start gap-5">
+              {/* Type Icon with Gradient */}
               <div
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-lg"
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] text-white shadow-lg"
                 style={order.type === 'lab'
-                  ? {
-                    background: 'linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%)',
-                    boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3), 0 2px 4px -1px rgba(59, 130, 246, 0.2)'
-                  }
-                  : {
-                    background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-                    boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.3), 0 2px 4px -1px rgba(245, 158, 11, 0.2)'
-                  }
+                  ? { background: 'linear-gradient(135deg, #11496c 0%, #14B8A6 100%)' }
+                  : { background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' }
                 }
               >
                 {order.type === 'lab' ? (
-                  <IoFlaskOutline className="h-6 w-6 text-white" />
+                  <IoFlaskOutline className="h-8 w-8" />
                 ) : (
-                  <IoBagHandleOutline className="h-6 w-6 text-white" />
+                  <IoBagHandleOutline className="h-8 w-8" />
                 )}
               </div>
 
-              {/* Main Content */}
-              <div className="flex-1 flex items-start justify-between gap-3 min-w-0">
-                {/* Left Content */}
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  {/* Type and Amount Row */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-semibold text-slate-900">
-                        {order.type === 'lab' ? order.labName : order.pharmacyName}
-                      </h3>
-                    </div>
-                    <div className="shrink-0">
-                      <p className="text-lg font-bold text-slate-900 whitespace-nowrap">₹{order.amount}</p>
-                    </div>
-                  </div>
-
-                  {/* Order Name */}
-                  <p className="text-sm font-medium text-slate-600">
-                    {order.type === 'lab' ? order.testName : order.medicineName}
-                  </p>
-
-                  {/* Status Badge and Visit Type */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(order.status)}`}>
-                      {getStatusIcon(order.status)}
-                      <span>{getStatusLabel(order.status)}</span>
-                    </span>
-                    {/* Visit Type Badge */}
-                    {order.type === 'lab' && (
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.collectionType === 'home'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-purple-100 text-purple-700'
-                        }`}>
-                        {order.collectionType === 'home' ? '🏠 Home Visit' : '🏥 Lab Visit'}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Date and Time Row */}
-                  <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500">
-                    <span className="flex items-center gap-1.5">
-                      <IoCalendarOutline className="h-3.5 w-3.5 shrink-0" />
-                      <span>{formatDate(order.date)}</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <IoTimeOutline className="h-3.5 w-3.5 shrink-0" />
-                      <span>{order.time}</span>
-                    </span>
-                  </div>
-
-                  {/* Address and Type */}
-                  <div className="space-y-0.5 pt-0.5">
-                    {order.address && (
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                        <IoLocationOutline className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{order.address}</span>
-                      </div>
-                    )}
-                    <p className="text-xs text-slate-400">
-                      {order.type === 'lab'
-                        ? `Collection: ${order.collectionType === 'home' ? 'Home Collection' : 'Lab Visit'}`
-                        : `Delivery: ${order.deliveryType === 'home' ? 'Home Delivery' : 'Pickup'}`
-                      }
+              {/* Order Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-4 mb-1">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight truncate">
+                      {order.type === 'lab' ? order.labName : order.pharmacyName}
+                    </h3>
+                    <p className="text-xs font-bold text-[#11496c] mt-0.5 truncate uppercase tracking-wider">
+                      {order.type === 'lab' ? order.testName : order.medicineName}
                     </p>
-                    {order.prescriptionId && (
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                        <IoDocumentTextOutline className="h-3.5 w-3.5 shrink-0" />
-                        <span>Prescription: {order.prescriptionId}</span>
-                      </div>
-                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xl font-black text-slate-900 leading-none">₹{order.amount}</p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Total</p>
                   </div>
                 </div>
+
+                {/* Status Badges */}
+                <div className="flex items-center gap-2 mt-4 flex-wrap">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${getStatusColor(order.status)}`}>
+                    <div className="h-1.5 w-1.5 rounded-full bg-current"></div>
+                    {getStatusLabel(order.status)}
+                  </span>
+                  {order.type === 'lab' && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider bg-slate-50 text-slate-500 border border-slate-100">
+                      {order.collectionType === 'home' ? '🏠 Home Visit' : '🏥 Lab Visit'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Date & Location Footer */}
+                <div className="mt-5 flex flex-col gap-2 pt-4 border-t border-slate-50">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
+                    <div className="flex items-center gap-4">
+                      <span className="flex items-center gap-1.5">
+                        <IoCalendarOutline className="h-4 w-4" />
+                        {formatDate(order.date)}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <IoTimeOutline className="h-4 w-4" />
+                        {order.time}
+                      </span>
+                    </div>
+                    {order.deliveryType && (
+                      <span className="capitalize">{order.deliveryType} Delivery</span>
+                    )}
+                  </div>
+                  
+                  {order.address && (
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium italic">
+                      <IoLocationOutline className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{order.address}</span>
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
+            
+            {/* Hover Indicator */}
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1">
+              <IoChevronForwardOutline className="h-5 w-5 text-slate-400" />
             </div>
           </article>
         ))}

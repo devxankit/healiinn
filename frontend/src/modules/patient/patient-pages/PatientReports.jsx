@@ -389,7 +389,7 @@ const PatientReports = () => {
 <body>
   <div class="header">
     <h1>Medical Test Report</h1>
-    <div style="color: #64748b; margin-top: 5px; font-size: 14px;">Healiinn - Your Health Partner</div>
+    <div style="color: #64748b; margin-top: 5px; font-size: 14px;">Heallyn - Your Health Partner</div>
   </div>
   <div class="section">
     <div class="section-title">Report Information</div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { getPatientProfile, updatePatientProfile, uploadProfileImage } from '../patient-services/patientService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
@@ -22,12 +23,21 @@ import {
   IoChevronUpOutline,
   IoHelpCircleOutline,
   IoTimeOutline,
+  IoChevronForwardOutline,
+  IoInformationCircleOutline,
+  IoWalletOutline,
+  IoReceiptOutline,
+  IoFlaskOutline,
+  IoPeopleOutline,
+  IoStatsChartOutline,
+  IoBusinessOutline,
 } from 'react-icons/io5'
 
 // Mock data removed - using real backend data now
 
 const PatientProfile = () => {
   const toast = useToast()
+  const navigate = useNavigate()
   const [isEditing, setIsEditing] = useState(false)
   const [activeSection, setActiveSection] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -45,6 +55,7 @@ const PatientProfile = () => {
     gender: '',
     bloodGroup: '',
     profileImage: '',
+    walletBalance: 1000, // Default as shown in image if not from backend
     address: {
       line1: '',
       line2: '',
@@ -91,6 +102,7 @@ const PatientProfile = () => {
             gender: cachedProfile.gender || '',
             bloodGroup: cachedProfile.bloodGroup || '',
             profileImage: cachedProfile.profileImage || '',
+            walletBalance: cachedProfile.walletBalance || 0,
             address: cachedProfile.address || {
               line1: '',
               line2: '',
@@ -128,6 +140,7 @@ const PatientProfile = () => {
             gender: patient.gender || '',
             bloodGroup: patient.bloodGroup || '',
             profileImage: patient.profileImage || '',
+            walletBalance: patient.walletBalance || 0,
             address: patient.address || {
               line1: '',
               line2: '',
@@ -268,6 +281,7 @@ const PatientProfile = () => {
           gender: patient.gender || '',
           bloodGroup: patient.bloodGroup || '',
           profileImage: patient.profileImage || '',
+          walletBalance: patient.walletBalance || 0,
           address: patient.address || {
             line1: '',
             line2: '',
@@ -343,7 +357,23 @@ const PatientProfile = () => {
     fileInputRef.current?.click()
   }
 
-  // Profile image loading is now handled in the main fetchPatientProfile useEffect
+  const handleLogout = async () => {
+    if (window.confirm('Are you sure you want to sign out?')) {
+      try {
+        const { logoutPatient } = await import('../patient-services/patientService')
+        await logoutPatient()
+        toast.success('Logged out successfully')
+      } catch (error) {
+        console.error('Error during logout:', error)
+        const { clearPatientTokens } = await import('../patient-services/patientService')
+        clearPatientTokens()
+        toast.success('Logged out successfully')
+      }
+      setTimeout(() => {
+        window.location.href = '/patient/login'
+      }, 500)
+    }
+  }
 
   // Show loading state
   if (isLoading) {
@@ -359,6 +389,203 @@ const PatientProfile = () => {
     )
   }
 
+  // New Profile View (Settings Style)
+  if (!isEditing) {
+    return (
+      <div className="flex flex-col gap-6 px-4 py-8 bg-[#f8fafc] min-h-screen max-w-2xl mx-auto pb-24">
+        {/* Premium Professional Header Card */}
+        <div className="relative overflow-hidden rounded-3xl bg-white shadow-sm border border-slate-200">
+          {/* Cover Background */}
+          <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-r from-[#11496c] via-[#11496c] to-[#0d3a52]">
+             {/* Decorative Pattern */}
+             <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` }}></div>
+          </div>
+          
+          <div className="relative px-6 pt-16 pb-6 sm:px-8 sm:pb-8">
+            <div className="flex flex-col sm:flex-row items-center sm:items-end justify-between gap-6">
+              
+              {/* Avatar and Name */}
+              <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 text-center sm:text-left w-full sm:w-auto">
+                 <div className="relative group shrink-0">
+                    <div className="h-32 w-32 rounded-full border-4 border-white shadow-xl overflow-hidden bg-slate-100 relative z-10">
+                      <img
+                        src={formData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent((formData.firstName + ' ' + formData.lastName).trim() || 'Patient')}&background=11496c&color=fff&size=128&bold=true`}
+                        alt="Profile"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    </div>
+                    <button 
+                      onClick={handleProfileImageClick}
+                      className="absolute bottom-1 right-1 z-20 h-10 w-10 rounded-full bg-[#11496c] text-white flex items-center justify-center shadow-lg border-2 border-white active:scale-90 transition-all hover:bg-[#0d3a52]"
+                    >
+                      <IoCameraOutline className="h-5 w-5" />
+                    </button>
+                 </div>
+                 
+                 <div className="flex-1 pb-1">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-wide mb-2 border border-emerald-100">
+                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                      Active Account
+                    </div>
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
+                      {formData.firstName || formData.lastName ? `${formData.firstName} ${formData.lastName}`.trim() : 'Patient Profile'}
+                    </h1>
+                    <div className="flex items-center justify-center sm:justify-start gap-2 mt-1.5 text-slate-500">
+                      <IoMailOutline className="h-4 w-4" />
+                      <span className="text-xs font-medium">{formData.email}</span>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-3 shrink-0 pb-1 w-full sm:w-auto">
+                <div className="inline-flex items-center justify-between gap-4 bg-white border border-slate-200 px-4 py-2.5 rounded-xl shadow-sm hover:border-[#11496c]/30 hover:shadow-md transition-all cursor-pointer group"
+                     onClick={() => navigate('/patient/transactions')}>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 transition-colors group-hover:bg-blue-100">
+                      <IoWalletOutline className="h-5 w-5" />
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Balance</span>
+                      <span className="text-base font-bold text-slate-900 tracking-tight leading-none">
+                        ₹{formData.walletBalance.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  <IoChevronForwardOutline className="h-4 w-4 text-slate-300 group-hover:text-[#11496c] group-hover:translate-x-1 transition-all ml-2" />
+                </div>
+
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-2 bg-[#11496c] text-white text-xs font-semibold rounded-xl hover:bg-[#0d3a52] transition-colors shadow-sm shadow-[#11496c]/20"
+                >
+                  <IoCreateOutline className="h-4 w-4" />
+                  Edit Profile
+                </button>
+              </div>
+              
+            </div>
+          </div>
+        </div>
+
+        {/* Corporate Verification Banner */}
+        <button className="group relative overflow-hidden flex items-center justify-between p-6 rounded-[32px] bg-gradient-to-r from-[#14B8A6] to-[#0D9488] text-white shadow-xl shadow-[#14B8A6]/20 transition hover:shadow-2xl hover:shadow-[#14B8A6]/30 active:scale-[0.98]">
+          <div className="absolute top-0 right-0 h-full w-32 bg-white/10 -skew-x-12 translate-x-10"></div>
+          <div className="relative flex items-center gap-5">
+            <div className="h-14 w-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center">
+              <IoBusinessOutline className="h-7 w-7 text-white" />
+            </div>
+            <div className="flex flex-col items-start text-left">
+              <h3 className="text-xl font-black tracking-tight leading-none mb-1">Corporate Verification</h3>
+              <p className="text-sm font-bold text-white/80">Get exclusive benefits & health perks!</p>
+            </div>
+          </div>
+          <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
+            <IoChevronForwardOutline className="h-5 w-5 text-white" />
+          </div>
+        </button>
+
+        {/* Navigation Grid */}
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Your Information</h2>
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Quick Access</span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              { 
+                id: 'wallet', 
+                title: 'My Wallet', 
+                desc: 'Transactions & Cash', 
+                to: '/patient/transactions',
+                Icon: IoWalletOutline,
+                color: 'bg-orange-50',
+                iconColor: 'text-orange-600'
+              },
+              { 
+                id: 'bookings', 
+                title: 'Orders', 
+                desc: 'Lab & Medicine history', 
+                to: '/patient/orders',
+                Icon: IoReceiptOutline,
+                color: 'bg-blue-50',
+                iconColor: 'text-blue-600'
+              },
+              { 
+                id: 'reports', 
+                title: 'Lab Reports', 
+                desc: 'Download & Share PDF', 
+                to: '/patient/prescriptions?tab=lab-reports',
+                Icon: IoFlaskOutline,
+                color: 'bg-purple-50',
+                iconColor: 'text-purple-600'
+              },
+              { 
+                id: 'appointments', 
+                title: 'Appointments', 
+                desc: 'View & Reschedule', 
+                to: '/patient/appointments',
+                Icon: IoCalendarOutline,
+                color: 'bg-emerald-50',
+                iconColor: 'text-emerald-600'
+              },
+              { 
+                id: 'healthkarma', 
+                title: 'HealthScore', 
+                desc: 'Vitals & Progress', 
+                to: '/patient/dashboard',
+                Icon: IoStatsChartOutline,
+                color: 'bg-rose-50',
+                iconColor: 'text-rose-600'
+              },
+              { 
+                id: 'family', 
+                title: 'Family Members', 
+                desc: 'Manage dependents', 
+                to: '/patient/profile',
+                Icon: IoPeopleOutline,
+                color: 'bg-indigo-50',
+                iconColor: 'text-indigo-600'
+              },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => navigate(item.to)}
+                className="group flex items-center gap-4 p-5 rounded-[32px] bg-white border border-slate-50 shadow-[0_8px_30px_rgb(0,0,0,0.03)] transition-all hover:shadow-xl hover:shadow-[#11496c]/5 active:scale-[0.98]"
+              >
+                <div className={`h-14 w-14 rounded-2xl ${item.color} flex items-center justify-center ${item.iconColor} transition-transform group-hover:scale-110`}>
+                  <item.Icon className="h-7 w-7" />
+                </div>
+                <div className="flex-1 flex flex-col items-start text-left">
+                  <h3 className="text-base font-black text-slate-900 leading-tight">{item.title}</h3>
+                  <p className="text-xs font-bold text-slate-400 mt-0.5">{item.desc}</p>
+                </div>
+                <IoChevronForwardOutline className="h-5 w-5 text-slate-200 group-hover:text-[#11496c] transition-colors" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Support & Legal */}
+        <div className="mt-4 pt-6 border-t border-slate-100 flex flex-col gap-3">
+          <button className="flex items-center gap-3 px-4 py-3 text-slate-600 font-bold hover:text-[#11496c] transition-colors">
+            <IoHelpCircleOutline className="h-5 w-5" />
+            <span className="text-sm">Help & Support</span>
+          </button>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-4 py-4 rounded-2xl bg-red-50 text-red-600 font-black transition hover:bg-red-100 active:scale-[0.98]"
+          >
+            <IoLogOutOutline className="h-5 w-5" />
+            Sign Out Account
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Original Edit Form View
   return (
     <section className="flex flex-col gap-4 pb-4">
       {/* Profile Header Card */}
@@ -423,77 +650,34 @@ const PatientProfile = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              {isEditing ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-white text-[#11496c] px-4 py-2.5 text-sm font-semibold shadow-lg transition-all hover:bg-white/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSaving ? (
-                      <>
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#11496c] border-r-transparent"></div>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <IoCheckmarkCircleOutline className="h-4 w-4" />
-                        Save
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="flex items-center justify-center gap-2 rounded-lg border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white px-4 py-2.5 text-sm font-semibold transition hover:bg-white/20 active:scale-95"
-                  >
-                    <IoCloseOutline className="h-4 w-4" />
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditing(true)
-                      setActiveSection('personal')
-                    }}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-white text-[#11496c] px-4 py-2.5 text-sm font-semibold shadow-lg transition-all hover:bg-white/90 active:scale-95"
-                  >
-                    <IoCreateOutline className="h-4 w-4" />
-                    Edit Profile
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (window.confirm('Are you sure you want to sign out?')) {
-                        try {
-                          // Import logout function from patientService
-                          const { logoutPatient } = await import('../patient-services/patientService')
-                          await logoutPatient()
-                          toast.success('Logged out successfully')
-                        } catch (error) {
-                          console.error('Error during logout:', error)
-                          // Clear tokens manually if API call fails
-                          const { clearPatientTokens } = await import('../patient-services/patientService')
-                          clearPatientTokens()
-                          toast.success('Logged out successfully')
-                        }
-                        // Navigate to login page
-                        setTimeout(() => {
-                          window.location.href = '/patient/login'
-                        }, 500)
-                      }
-                    }}
-                    className="flex items-center justify-center gap-2 rounded-lg border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white px-4 py-2.5 text-sm font-semibold transition hover:bg-white/20 active:scale-95"
-                  >
-                    <IoLogOutOutline className="h-4 w-4" />
-                    Sign Out
-                  </button>
-                </>
-              )}
+              <>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex items-center justify-center gap-2 rounded-lg bg-white text-[#11496c] px-4 py-2.5 text-sm font-semibold shadow-lg transition-all hover:bg-white/90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#11496c] border-r-transparent"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <IoCheckmarkCircleOutline className="h-4 w-4" />
+                      Save
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="flex items-center justify-center gap-2 rounded-lg border-2 border-white/30 bg-white/10 backdrop-blur-sm text-white px-4 py-2.5 text-sm font-semibold transition hover:bg-white/20 active:scale-95"
+                >
+                  <IoCloseOutline className="h-4 w-4" />
+                  Cancel
+                </button>
+              </>
             </div>
           </div>
         </div>
@@ -528,32 +712,24 @@ const PatientProfile = () => {
                   <label className="mb-2 block text-xs font-semibold text-slate-700">
                     First Name
                   </label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={formData.firstName}
-                      onChange={(e) => handleInputChange('firstName', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    />
-                  ) : (
-                    <p className="text-sm font-medium text-slate-900 py-2.5">{formData.firstName}</p>
-                  )}
+                  <input
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) => handleInputChange('firstName', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                  />
                 </div>
 
                 <div>
                   <label className="mb-2 block text-xs font-semibold text-slate-700">
                     Last Name
                   </label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={formData.lastName}
-                      onChange={(e) => handleInputChange('lastName', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    />
-                  ) : (
-                    <p className="text-sm font-medium text-slate-900 py-2.5">{formData.lastName}</p>
-                  )}
+                  <input
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) => handleInputChange('lastName', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                  />
                 </div>
               </div>
 
@@ -562,42 +738,29 @@ const PatientProfile = () => {
                   <label className="mb-2 block text-xs font-semibold text-slate-700">
                     Date of Birth
                   </label>
-                  {isEditing ? (
-                    <input
-                      type="date"
-                      value={formData.dateOfBirth}
-                      onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2 text-sm text-slate-600 py-2.5">
-                      <IoCalendarOutline className="h-4 w-4 text-slate-400" />
-                      <span>{formatDate(formData.dateOfBirth)}</span>
-                    </div>
-                  )}
+                  <input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                  />
                 </div>
 
                 <div>
                   <label className="mb-2 block text-xs font-semibold text-slate-700">
                     Gender
                   </label>
-                  {isEditing ? (
-                    <select
-                      value={formData.gender}
-                      onChange={(e) => handleInputChange('gender', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    >
-                      <option value="">Select Gender</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                      <option value="prefer_not_to_say">Prefer not to say</option>
-                    </select>
-                  ) : (
-                    <p className="text-sm font-medium text-slate-900 py-2.5">
-                      {formData.gender ? formData.gender.charAt(0).toUpperCase() + formData.gender.slice(1) : 'Not set'}
-                    </p>
-                  )}
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => handleInputChange('gender', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                    <option value="prefer_not_to_say">Prefer not to say</option>
+                  </select>
                 </div>
               </div>
 
@@ -605,28 +768,21 @@ const PatientProfile = () => {
                 <label className="mb-2 block text-xs font-semibold text-slate-700">
                   Blood Group
                 </label>
-                {isEditing ? (
-                  <select
-                    value={formData.bloodGroup}
-                    onChange={(e) => handleInputChange('bloodGroup', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                  >
-                    <option value="">Select Blood Group</option>
-                    <option value="A+">A+</option>
-                    <option value="A-">A-</option>
-                    <option value="B+">B+</option>
-                    <option value="B-">B-</option>
-                    <option value="AB+">AB+</option>
-                    <option value="AB-">AB-</option>
-                    <option value="O+">O+</option>
-                    <option value="O-">O-</option>
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-slate-600 py-2.5">
-                    <IoPulseOutline className="h-4 w-4 text-slate-400" />
-                    <span>{formData.bloodGroup || 'Not set'}</span>
-                  </div>
-                )}
+                <select
+                  value={formData.bloodGroup}
+                  onChange={(e) => handleInputChange('bloodGroup', e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                >
+                  <option value="">Select Blood Group</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                </select>
               </div>
             </div>
           )}
@@ -658,99 +814,78 @@ const PatientProfile = () => {
                 <label className="mb-2 block text-xs font-semibold text-slate-700">
                   Email
                 </label>
-                {isEditing ? (
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                  />
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-slate-600 py-2.5">
-                    <IoMailOutline className="h-4 w-4 text-slate-400" />
-                    <span>{formData.email}</span>
-                  </div>
-                )}
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                />
               </div>
 
               <div>
                 <label className="mb-2 block text-xs font-semibold text-slate-700">
                   Phone
                 </label>
-                {isEditing ? (
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                  />
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-slate-600 py-2.5">
-                    <IoCallOutline className="h-4 w-4 text-slate-400" />
-                    <span>{formData.phone}</span>
-                  </div>
-                )}
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                />
               </div>
 
               <div>
                 <label className="mb-2 block text-xs font-semibold text-slate-700">
                   Address
                 </label>
-                {isEditing ? (
-                  <div className="space-y-3">
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="Address Line 1"
+                    value={formData.address?.line1 || ''}
+                    onChange={(e) => handleInputChange('address.line1', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Address Line 2 (Optional)"
+                    value={formData.address?.line2 || ''}
+                    onChange={(e) => handleInputChange('address.line2', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                  />
+                  <div className="grid grid-cols-2 gap-3">
                     <input
                       type="text"
-                      placeholder="Address Line 1"
-                      value={formData.address?.line1 || ''}
-                      onChange={(e) => handleInputChange('address.line1', e.target.value)}
+                      placeholder="City"
+                      value={formData.address?.city || ''}
+                      onChange={(e) => handleInputChange('address.city', e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     />
                     <input
                       type="text"
-                      placeholder="Address Line 2 (Optional)"
-                      value={formData.address?.line2 || ''}
-                      onChange={(e) => handleInputChange('address.line2', e.target.value)}
+                      placeholder="State"
+                      value={formData.address?.state || ''}
+                      onChange={(e) => handleInputChange('address.state', e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
                     />
-                    <div className="grid grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        placeholder="City"
-                        value={formData.address?.city || ''}
-                        onChange={(e) => handleInputChange('address.city', e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                      />
-                      <input
-                        type="text"
-                        placeholder="State"
-                        value={formData.address?.state || ''}
-                        onChange={(e) => handleInputChange('address.state', e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        placeholder="Postal Code"
-                        value={formData.address?.postalCode || ''}
-                        onChange={(e) => handleInputChange('address.postalCode', e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Country"
-                        value={formData.address?.country || ''}
-                        onChange={(e) => handleInputChange('address.country', e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                      />
-                    </div>
                   </div>
-                ) : (
-                  <div className="flex items-start gap-2 text-sm text-slate-600 py-2.5">
-                    <IoLocationOutline className="h-4 w-4 shrink-0 mt-0.5 text-slate-400" />
-                    <span>{formatAddress(formData.address)}</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Postal Code"
+                      value={formData.address?.postalCode || ''}
+                      onChange={(e) => handleInputChange('address.postalCode', e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Country"
+                      value={formData.address?.country || ''}
+                      onChange={(e) => handleInputChange('address.country', e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                    />
                   </div>
-                )}
+                </div>
               </div>
             </div>
           )}
@@ -791,19 +926,17 @@ const PatientProfile = () => {
                       >
                         <IoWarningOutline className="h-3.5 w-3.5" />
                         {allergy}
-                        {isEditing && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updatedAllergies = formData.allergies.filter((_, i) => i !== index)
-                              setFormData({ ...formData, allergies: updatedAllergies })
-                            }}
-                            className="ml-1.5 hover:bg-red-100 rounded-full p-0.5 transition-colors"
-                            aria-label="Remove allergy"
-                          >
-                            <IoCloseOutline className="h-3 w-3" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updatedAllergies = formData.allergies.filter((_, i) => i !== index)
+                            setFormData({ ...formData, allergies: updatedAllergies })
+                          }}
+                          className="ml-1.5 hover:bg-red-100 rounded-full p-0.5 transition-colors"
+                          aria-label="Remove allergy"
+                        >
+                          <IoCloseOutline className="h-3 w-3" />
+                        </button>
                       </span>
                     ))}
                   </div>
@@ -811,56 +944,53 @@ const PatientProfile = () => {
                   !isEditing && <p className="text-sm text-slate-500 py-2.5 mb-3">No allergies recorded</p>
                 )}
                 
-                {isEditing && (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newAllergy}
-                      onChange={(e) => setNewAllergy(e.target.value)}
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter' && newAllergy.trim()) {
-                          e.preventDefault()
-                          const trimmedAllergy = newAllergy.trim()
-                          if (!formData.allergies.includes(trimmedAllergy)) {
-                            setFormData({
-                              ...formData,
-                              allergies: [...formData.allergies, trimmedAllergy]
-                            })
-                            setNewAllergy('')
-                          } else {
-                            toast.error('This allergy is already added')
-                            setNewAllergy('')
-                          }
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newAllergy}
+                    onChange={(e) => setNewAllergy(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && newAllergy.trim()) {
+                        e.preventDefault()
+                        const trimmedAllergy = newAllergy.trim()
+                        if (!formData.allergies.includes(trimmedAllergy)) {
+                          setFormData({
+                            ...formData,
+                            allergies: [...formData.allergies, trimmedAllergy]
+                          })
+                          setNewAllergy('')
+                        } else {
+                          toast.error('This allergy is already added')
+                          setNewAllergy('')
                         }
-                      }}
-                      placeholder="Add allergy (press Enter)"
-                      className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[#11496c]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (newAllergy.trim()) {
-                          const trimmedAllergy = newAllergy.trim()
-                          if (!formData.allergies.includes(trimmedAllergy)) {
-                            setFormData({
-                              ...formData,
-                              allergies: [...formData.allergies, trimmedAllergy]
-                            })
-                            setNewAllergy('')
-                          } else {
-                            toast.error('This allergy is already added')
-                            setNewAllergy('')
-                          }
+                      }
+                    }}
+                    placeholder="Add allergy (press Enter)"
+                    className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-1 focus:ring-[#11496c]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newAllergy.trim()) {
+                        const trimmedAllergy = newAllergy.trim()
+                        if (!formData.allergies.includes(trimmedAllergy)) {
+                          setFormData({
+                            ...formData,
+                            allergies: [...formData.allergies, trimmedAllergy]
+                          })
+                          setNewAllergy('')
+                        } else {
+                          toast.error('This allergy is already added')
+                          setNewAllergy('')
                         }
-                      }}
-                      className="px-4 py-2 bg-[#11496c] text-white rounded-lg text-sm font-semibold hover:bg-[#0d3a52] transition-colors active:scale-95"
-                    >
-                      Add
-                    </button>
-                          </div>
-                )}
+                      }
+                    }}
+                    className="px-4 py-2 bg-[#11496c] text-white rounded-lg text-sm font-semibold hover:bg-[#0d3a52] transition-colors active:scale-95"
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
-
             </div>
           )}
         </div>
@@ -892,36 +1022,24 @@ const PatientProfile = () => {
                   <label className="mb-2 block text-xs font-semibold text-slate-700">
                     Name
                   </label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={formData.emergencyContact?.name || ''}
-                      onChange={(e) => handleInputChange('emergencyContact.name', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    />
-                  ) : (
-                    <p className="text-sm font-medium text-slate-900 py-2.5">
-                      {formData.emergencyContact?.name || 'Not set'}
-                    </p>
-                  )}
+                  <input
+                    type="text"
+                    value={formData.emergencyContact?.name || ''}
+                    onChange={(e) => handleInputChange('emergencyContact.name', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                  />
                 </div>
 
                 <div>
                   <label className="mb-2 block text-xs font-semibold text-slate-700">
                     Relation
                   </label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={formData.emergencyContact?.relation || ''}
-                      onChange={(e) => handleInputChange('emergencyContact.relation', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    />
-                  ) : (
-                    <p className="text-sm font-medium text-slate-900 py-2.5">
-                      {formData.emergencyContact?.relation || 'Not set'}
-                    </p>
-                  )}
+                  <input
+                    type="text"
+                    value={formData.emergencyContact?.relation || ''}
+                    onChange={(e) => handleInputChange('emergencyContact.relation', e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                  />
                 </div>
               </div>
 
@@ -929,47 +1047,13 @@ const PatientProfile = () => {
                 <label className="mb-2 block text-xs font-semibold text-slate-700">
                   Phone
                 </label>
-                {isEditing ? (
-                  <input
-                    type="tel"
-                    value={formData.emergencyContact?.phone || ''}
-                    onChange={(e) => handleInputChange('emergencyContact.phone', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                  />
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-slate-600 py-2.5">
-                    <IoCallOutline className="h-4 w-4 text-slate-400" />
-                    <span>{formData.emergencyContact?.phone || 'Not set'}</span>
-                  </div>
-                )}
+                <input
+                  type="tel"
+                  value={formData.emergencyContact?.phone || ''}
+                  onChange={(e) => handleInputChange('emergencyContact.phone', e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 transition hover:border-slate-300 focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                />
               </div>
-            </div>
-          )}
-        </div>
-
-
-        {/* Support History */}
-        <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200">
-          <button
-            type="button"
-            onClick={() => setActiveSection(activeSection === 'support' ? null : 'support')}
-            className="w-full flex items-center justify-between px-4 sm:px-6 py-4 sm:py-5 hover:bg-slate-50/50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#11496c]/10">
-                <IoHelpCircleOutline className="h-5 w-5 text-[#11496c]" />
-              </div>
-              <h2 className="text-base sm:text-lg font-semibold text-slate-900">Support History</h2>
-            </div>
-            {activeSection === 'support' ? (
-              <IoChevronUpOutline className="h-5 w-5 text-slate-400" />
-            ) : (
-              <IoChevronDownOutline className="h-5 w-5 text-slate-400" />
-            )}
-          </button>
-          {activeSection === 'support' && (
-            <div className="px-4 sm:px-6 pb-4 sm:pb-5 border-t border-slate-100 pt-4 sm:pt-5">
-              <SupportHistory role="patient" />
             </div>
           )}
         </div>
@@ -1081,3 +1165,4 @@ const SupportHistory = ({ role }) => {
 }
 
 export default PatientProfile
+

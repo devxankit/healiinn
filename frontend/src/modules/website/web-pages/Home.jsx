@@ -289,7 +289,7 @@ const Home = () => {
                             <div className="relative bg-white rounded-lg p-2.5 shadow-lg">
                               <img
                                 src={healinnLogo}
-                                alt="Healiinn Logo"
+                                alt="Heallyn Logo"
                                 className="w-12 h-12 object-contain"
                               />
                             </div>
@@ -297,7 +297,7 @@ const Home = () => {
                           
                           {/* App name */}
                           <div className="text-center space-y-0.5">
-                            <h3 className="text-sm font-bold text-slate-900">Healiinn</h3>
+                            <h3 className="text-sm font-bold text-slate-900">Heallyn</h3>
                             <p className="text-[8px] text-slate-600">Your Health Companion</p>
                           </div>
 
@@ -503,7 +503,7 @@ const Home = () => {
               <FaUserMd className="text-4xl" />
             </div>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-              Join Healiinn as a Doctor
+              Join Heallyn as a Doctor
             </h2>
             <p className="text-xl text-white/90 max-w-2xl mx-auto">
               Expand your practice and reach more patients. Manage consultations, appointments, and earnings all in one platform.
@@ -614,7 +614,7 @@ const Home = () => {
               <FaFlask className="text-4xl text-amber-600" />
             </div>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-              Partner with Healiinn as a Laboratory
+              Partner with Heallyn as a Laboratory
             </h2>
             <p className="text-xl text-slate-600 max-w-2xl mx-auto">
               Expand your reach and streamline operations. Manage test orders, reports, and deliveries efficiently.
@@ -841,7 +841,7 @@ const Home = () => {
               <FaHeartbeat className="text-4xl" />
             </div>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-              Join Healiinn as a Nurse
+              Join Heallyn as a Nurse
             </h2>
             <p className="text-xl text-white/90 max-w-2xl mx-auto">
               Provide quality home care services and expand your nursing practice. Manage bookings, patients, and earnings all in one platform.
@@ -961,7 +961,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Why Choose Healiinn Section */}
+      {/* Why Choose Heallyn Section */}
       <section className="py-20 md:py-32 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 relative overflow-hidden">
         {/* Background decorative elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -978,7 +978,7 @@ const Home = () => {
             className="text-center mb-16"
           >
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-              Why Choose <span className="text-[#11496c]">Healiinn</span>?
+              Why Choose <span className="text-[#11496c]">Heallyn</span>?
             </h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
               We're committed to making healthcare accessible, convenient, and reliable for everyone.
@@ -1150,7 +1150,7 @@ const Home = () => {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-xl text-white/90 mb-8 max-w-2xl mx-auto"
             >
-              Join thousands of users who are taking control of their health with Healiinn.
+              Join thousands of users who are taking control of their health with Heallyn.
             </motion.p>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -1216,8 +1216,8 @@ const Home = () => {
               {
                 icon: IoMailOutline,
                 title: 'Email',
-                content: 'support@healiinn.com',
-                link: 'mailto:support@healiinn.com',
+                content: 'support@heallyn.com',
+                link: 'mailto:support@heallyn.com',
                 color: 'green',
               },
               {

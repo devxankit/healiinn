@@ -383,7 +383,7 @@ const WebOnBoarding = () => {
     }
   }, [selectedUserType])
 
-  const STORAGE_KEY = 'healiinn_onboarding_data'
+  const STORAGE_KEY = 'heallyn_onboarding_data'
 
   // Load saved data from localStorage on mount
   useEffect(() => {
@@ -1198,7 +1198,7 @@ const WebOnBoarding = () => {
         <div className="mb-8 md:mb-12">
           <img
             src={healinnLogo}
-            alt="Healiinn Logo"
+            alt="Heallyn Logo"
             className="h-12 md:h-16 w-auto object-contain"
           />
         </div>
@@ -1215,7 +1215,7 @@ const WebOnBoarding = () => {
           <div className="w-full max-w-2xl px-6 sm:px-8 lg:px-12 py-8">
           <div className="mb-10 text-center">
             <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-              Join Healiinn
+              Join Heallyn
             </h1>
             <p className="text-white/80 text-sm sm:text-base">
               Start your healthcare journey with us
@@ -1421,7 +1421,7 @@ const WebOnBoarding = () => {
                     className="mt-0.5 h-4 w-4 rounded border-white/30 bg-white/10 text-[#11496c] focus:ring-white/20 disabled:cursor-not-allowed"
                   />
                   <span>
-                    I have read and agree to Healiinn's{' '}
+                    I have read and agree to Heallyn's{' '}
                     <a href="/terms" className="font-semibold text-white underline hover:text-white/80">
                       terms of service
                     </a>{' '}
@@ -1979,7 +1979,7 @@ const WebOnBoarding = () => {
                     className="mt-0.5 h-4 w-4 rounded border-white/30 bg-white/10 text-[#11496c] focus:ring-white/20 disabled:cursor-not-allowed"
                   />
                   <span>
-                    I have read and agree to Healiinn's{' '}
+                    I have read and agree to Heallyn's{' '}
                     <a href="/terms" className="font-semibold text-white underline hover:text-white/80">
                       terms of service
                     </a>{' '}
@@ -2374,7 +2374,7 @@ const WebOnBoarding = () => {
                     className="mt-0.5 h-4 w-4 rounded border-white/30 bg-white/10 text-[#11496c] focus:ring-white/20 disabled:cursor-not-allowed"
                   />
                   <span>
-                    I have read and agree to Healiinn's{' '}
+                    I have read and agree to Heallyn's{' '}
                     <a href="/terms" className="font-semibold text-white underline hover:text-white/80">
                       terms of service
                     </a>{' '}
@@ -2838,7 +2838,7 @@ const WebOnBoarding = () => {
                     className="mt-0.5 h-4 w-4 rounded border-white/30 bg-white/10 text-[#11496c] focus:ring-white/20 disabled:cursor-not-allowed"
                   />
                   <span>
-                    I have read and agree to Healiinn's{' '}
+                    I have read and agree to Heallyn's{' '}
                     <a href="/terms" className="font-semibold text-white underline hover:text-white/80">
                       terms of service
                     </a>{' '}
@@ -3289,7 +3289,7 @@ const WebOnBoarding = () => {
                     className="mt-0.5 h-4 w-4 rounded border-white/30 bg-white/10 text-[#11496c] focus:ring-white/20 disabled:cursor-not-allowed"
                   />
                   <span>
-                    I have read and agree to Healiinn's{' '}
+                    I have read and agree to Heallyn's{' '}
                     <a href="/terms" className="font-semibold text-white underline hover:text-white/80">
                       terms of service
                     </a>{' '}

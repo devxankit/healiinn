@@ -11,13 +11,13 @@ const faqCategories = [
     questions: [
       {
         id: 'q1',
-        question: 'How do I get started with Healiinn?',
+        question: 'How do I get started with Heallyn?',
         answer: 'Getting started is easy! Simply register your account, complete your profile verification, and you can start managing your practice. Our onboarding process guides you through each step to ensure a smooth setup.',
       },
       {
         id: 'q2',
         question: 'What features are available for doctors?',
-        answer: 'Healiinn offers comprehensive features including patient management, appointment scheduling, consultation management, prescription generation, wallet management, and detailed analytics. All features are designed to streamline your practice operations.',
+        answer: 'Heallyn offers comprehensive features including patient management, appointment scheduling, consultation management, prescription generation, wallet management, and detailed analytics. All features are designed to streamline your practice operations.',
       },
       {
         id: 'q3',
@@ -129,7 +129,7 @@ const faqCategories = [
       {
         id: 'q18',
         question: 'Is there a mobile app?',
-        answer: 'Currently, Healiinn is available as a web application optimized for all devices. We are working on dedicated mobile apps for iOS and Android, which will be available soon.',
+        answer: 'Currently, Heallyn is available as a web application optimized for all devices. We are working on dedicated mobile apps for iOS and Android, which will be available soon.',
       },
       {
         id: 'q19',

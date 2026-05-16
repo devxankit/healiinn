@@ -59,7 +59,7 @@ const TermsOfService = () => {
               </div>
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border-l-4 border-[#11496c] shadow-sm">
                 <p className="text-slate-700 leading-relaxed text-lg">
-                  By accessing and using the <span className="font-semibold text-[#11496c]">Healiinn</span> platform, you agree to be bound by these Terms of Service. 
+                  By accessing and using the <span className="font-semibold text-[#11496c]">Heallyn</span> platform, you agree to be bound by these Terms of Service. 
                   If you do not agree with any part of these terms, you may not access or use our services.
                 </p>
               </div>
@@ -156,7 +156,7 @@ const TermsOfService = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-5 border border-blue-200 shadow-md hover:shadow-lg transition-all duration-300">
                   <h3 className="font-semibold text-slate-800 mb-2">Commission Structure</h3>
-                  <p className="text-sm text-slate-600">Healiinn charges a platform fee on consultations and services.</p>
+                  <p className="text-sm text-slate-600">Heallyn charges a platform fee on consultations and services.</p>
                 </div>
                 <div className="bg-gradient-to-br from-emerald-50 to-white rounded-xl p-5 border border-emerald-200 shadow-md hover:shadow-lg transition-all duration-300">
                   <h3 className="font-semibold text-slate-800 mb-2">Payment Processing</h3>
@@ -177,7 +177,7 @@ const TermsOfService = () => {
               </h2>
               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 border-l-4 border-indigo-500 shadow-sm">
                 <p className="text-slate-700 leading-relaxed text-lg">
-                  All content, features, and functionality of the Healiinn platform are owned by Healiinn and are protected by 
+                  All content, features, and functionality of the Heallyn platform are owned by Heallyn and are protected by 
                   international copyright, trademark, and other intellectual property laws. You may not reproduce, distribute, or 
                   create derivative works without our express written permission.
                 </p>
@@ -192,7 +192,7 @@ const TermsOfService = () => {
               </h2>
               <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-2xl p-6 border border-slate-200 shadow-sm">
                 <p className="text-slate-700 leading-relaxed text-lg">
-                  Healiinn provides the platform "as is" and does not guarantee uninterrupted or error-free service. 
+                  Heallyn provides the platform "as is" and does not guarantee uninterrupted or error-free service. 
                   We are not liable for any indirect, incidental, or consequential damages arising from your use of the platform.
                 </p>
               </div>
@@ -212,7 +212,7 @@ const TermsOfService = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
                   <p className="text-sm text-slate-300 mb-1">Email</p>
-                  <p className="font-semibold">legal@healiinn.com</p>
+                  <p className="font-semibold">legal@heallyn.com</p>
                 </div>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
                   <p className="text-sm text-slate-300 mb-1">Phone</p>

@@ -61,7 +61,7 @@ const LaboratoryPrivacyPolicy = () => {
               </div>
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border-l-4 border-[#11496c] shadow-sm">
                 <p className="text-slate-700 leading-relaxed text-lg">
-                  At <span className="font-semibold text-[#11496c]">Healiinn</span>, we are committed to protecting your privacy and ensuring the security of your personal and laboratory information. 
+                  At <span className="font-semibold text-[#11496c]">Heallyn</span>, we are committed to protecting your privacy and ensuring the security of your personal and laboratory information. 
                   This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform as a diagnostic laboratory professional.
                 </p>
               </div>
@@ -190,7 +190,7 @@ const LaboratoryPrivacyPolicy = () => {
                     If you have any questions or concerns about this Privacy Policy or our data practices, please contact us.
                   </p>
                   <div className="space-y-2 text-slate-200">
-                    <p><span className="font-semibold">Email:</span> privacy@healiinn.com</p>
+                    <p><span className="font-semibold">Email:</span> privacy@heallyn.com</p>
                     <p><span className="font-semibold">Phone:</span> +1 (555) 123-4567</p>
                   </div>
                 </div>

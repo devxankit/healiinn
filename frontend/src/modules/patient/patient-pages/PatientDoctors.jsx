@@ -15,7 +15,6 @@ import { getDiscoveryDoctors, getSpecialties, getPatientProfile } from '../patie
 import { useToast } from '../../../contexts/ToastContext'
 import Pagination from '../../../components/Pagination'
 import PatientSidebar from '../patient-components/PatientSidebar'
-import DashboardHeader from '../patient-components/dashboard-sections/DashboardHeader'
 
 // Default specialties (will be replaced by API data)
 const defaultSpecialties = [
@@ -279,14 +278,6 @@ const PatientDoctors = () => {
 
   return (
     <section className="bg-[#f8fafc] min-h-screen pb-32 overflow-x-hidden">
-      <DashboardHeader 
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        navigate={navigate}
-        profile={profile}
-        setIsSidebarOpen={setIsSidebarOpen}
-        location={location}
-      />
 
       {/* Hero Banner for Doctors */}
       <div className="w-full bg-[#11496c] relative overflow-hidden">

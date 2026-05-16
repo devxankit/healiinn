@@ -63,6 +63,10 @@ const adminSettingsSchema = new mongoose.Schema(
       prescriptionReady: { type: Boolean, default: true },
       reportReady: { type: Boolean, default: true },
     },
+    rewardsSettings: {
+      referralBonus: { type: Number, default: 200 },
+      loginBonus: { type: Number, default: 200 },
+    },
   },
   {
     timestamps: true,

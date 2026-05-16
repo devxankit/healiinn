@@ -176,7 +176,7 @@ const PatientSpecialties = () => {
         </button>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Doctor Specialities</h1>
-          <p className="text-sm text-slate-600">{specialties.length} specialities available</p>
+          <p className="text-sm text-slate-600">{specialtiesList.length} specialities available</p>
         </div>
       </div>
 

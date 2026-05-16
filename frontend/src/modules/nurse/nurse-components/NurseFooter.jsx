@@ -60,7 +60,7 @@ const NurseFooter = () => {
             <div className="mb-4">
               <img
                 src={healinnLogo}
-                alt="Healiinn"
+                alt="Heallyn"
                 className="h-10 w-auto object-contain brightness-0 invert mb-4"
                 loading="lazy"
               />
@@ -78,7 +78,7 @@ const NurseFooter = () => {
               </div>
               <div className="flex items-center gap-3 text-sm text-slate-200">
                 <IoMailOutline className="h-5 w-5 text-white flex-shrink-0" />
-                <span>support@healiinn.com</span>
+                <span>support@heallyn.com</span>
               </div>
               <div className="flex items-start gap-3 text-sm text-slate-200">
                 <IoLocationOutline className="h-5 w-5 text-white flex-shrink-0 mt-0.5" />
@@ -188,7 +188,7 @@ const NurseFooter = () => {
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             {/* Copyright */}
             <div className="flex items-center gap-2 text-sm text-slate-300">
-              <span>© {new Date().getFullYear()} Healiinn. All rights reserved.</span>
+              <span>© {new Date().getFullYear()} Heallyn. All rights reserved.</span>
             </div>
 
             {/* Additional Links */}

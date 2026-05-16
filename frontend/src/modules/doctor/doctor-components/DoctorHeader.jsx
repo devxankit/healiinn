@@ -53,7 +53,7 @@ const DoctorHeader = () => {
             <NavLink to="/doctor/dashboard" className="flex items-center">
               <img
                 src={healinnLogo}
-                alt="Healiinn"
+                alt="Heallyn"
                 className="h-10 w-auto object-contain"
                 loading="lazy"
               />

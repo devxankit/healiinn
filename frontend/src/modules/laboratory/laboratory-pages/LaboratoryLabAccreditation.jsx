@@ -61,7 +61,7 @@ const LaboratoryLabAccreditation = () => {
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900 mb-3">Accreditation Standards</h2>
                     <p className="text-slate-700 leading-relaxed text-lg">
-                      Healiinn requires all laboratories to maintain valid accreditation and certifications. 
+                      Heallyn requires all laboratories to maintain valid accreditation and certifications. 
                       This ensures quality standards, regulatory compliance, and patient safety across all test results.
                     </p>
                   </div>
@@ -194,7 +194,7 @@ const LaboratoryLabAccreditation = () => {
                   </p>
                   <div className="bg-white/10 rounded-xl p-4 border border-white/20">
                     <p className="text-sm text-purple-50">
-                      All accredited laboratories on Healiinn are verified and regularly audited to maintain quality standards.
+                      All accredited laboratories on Heallyn are verified and regularly audited to maintain quality standards.
                     </p>
                   </div>
                 </div>

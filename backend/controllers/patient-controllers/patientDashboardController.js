@@ -7,6 +7,7 @@ const Transaction = require('../../models/Transaction');
 const Request = require('../../models/Request');
 const Session = require('../../models/Session');
 const Doctor = require('../../models/Doctor');
+const AdminSettings = require('../../models/AdminSettings');
 const { calculateQueueETAs } = require('../../services/etaService');
 
 // GET /api/patients/dashboard
@@ -30,6 +31,7 @@ exports.getDashboard = asyncHandler(async (req, res) => {
     pendingRequests,
     recentOrders,
     recommendedDoctors,
+    settings,
   ] = await Promise.all([
     // Total appointments
     Appointment.countDocuments({ patientId: id }),
@@ -81,6 +83,8 @@ exports.getDashboard = asyncHandler(async (req, res) => {
       .select('firstName lastName specialization profileImage consultationFee rating clinicDetails reviewCount')
       .sort({ rating: -1 })
       .limit(5),
+    // Fetch rewards configs
+    AdminSettings.getSettings(),
   ]);
 
   // Transform upcoming appointments with full data including location
@@ -288,6 +292,7 @@ exports.getDashboard = asyncHandler(async (req, res) => {
       todayAppointments,
       todayOrders,
       recommendedDoctors: transformedDoctors,
+      rewardsConfig: settings?.rewardsSettings || { referralBonus: 200, loginBonus: 200 },
     },
   });
 });

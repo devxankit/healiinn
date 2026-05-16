@@ -9,13 +9,13 @@ const walletTransactionSchema = new mongoose.Schema(
     },
     userType: {
       type: String,
-      enum: ['doctor', 'pharmacy', 'laboratory', 'admin', 'nurse'],
+      enum: ['doctor', 'pharmacy', 'laboratory', 'admin', 'nurse', 'patient'],
       required: true,
       index: true,
     },
     type: {
       type: String,
-      enum: ['earning', 'withdrawal', 'commission_deduction', 'refund', 'commission'],
+      enum: ['earning', 'withdrawal', 'commission_deduction', 'refund', 'commission', 'referral_bonus', 'login_bonus'],
       required: true,
       index: true,
     },

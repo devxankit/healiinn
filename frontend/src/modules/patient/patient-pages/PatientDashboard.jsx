@@ -8,7 +8,6 @@ import { useToast } from '../../../contexts/ToastContext'
 import { getPatientDashboard, getPatientProfile } from '../patient-services/patientService'
 
 // Import Refactored Dashboard Sections
-import DashboardHeader from '../patient-components/dashboard-sections/DashboardHeader'
 import HeroBanner from '../patient-components/dashboard-sections/HeroBanner'
 import ServicesSlider from '../patient-components/dashboard-sections/ServicesSlider'
 import WelcomeSection from '../patient-components/dashboard-sections/WelcomeSection'
@@ -120,14 +119,6 @@ const PatientDashboard = () => {
 
   return (
     <section className="bg-[#f8fafc] min-h-screen pb-32 overflow-x-hidden">
-      <DashboardHeader 
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        navigate={navigate}
-        profile={profile}
-        setIsSidebarOpen={setIsSidebarOpen}
-        location={location}
-      />
 
       <HeroBanner navigate={navigate} />
 
@@ -148,7 +139,7 @@ const PatientDashboard = () => {
 
         <RadiologyTests />
 
-        <PromoBanners />
+        <PromoBanners rewardsConfig={dashboardData?.rewardsConfig} />
 
         <InteractiveCards />
 

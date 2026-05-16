@@ -111,7 +111,7 @@ const AdminLogin = () => {
             <div className="mb-4 flex justify-center">
               <img
                 src={healinnLogo}
-                alt="Healiinn"
+                alt="Heallyn"
                 className="h-12 w-auto object-contain"
                 loading="lazy"
               />
@@ -148,7 +148,7 @@ const AdminLogin = () => {
                   onChange={handleLoginChange}
                   autoComplete="email"
                   required
-                  placeholder="admin@healiinn.com"
+                  placeholder="admin@heallyn.com"
                   className={`w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 pl-10 text-sm text-slate-900 shadow-sm outline-none transition focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 ${
                     loginErrors.email
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20'

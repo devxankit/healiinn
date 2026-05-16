@@ -442,7 +442,7 @@ const PatientRequests = () => {
 <body>
   <div class="header">
     <h1>Booking Receipt</h1>
-    <div class="subtitle">Healiinn - Your Health Partner</div>
+    <div class="subtitle">Heallyn - Your Health Partner</div>
   </div>
 
   <div class="section">
@@ -610,7 +610,7 @@ const PatientRequests = () => {
         key: razorpayKeyId, // Use key ID from backend response
         amount: Math.round(amount * 100), // Convert to paise
         currency: currency || 'INR',
-        name: 'Healiinn',
+        name: 'Heallyn',
         description: requestDescription,
         order_id: orderId,
         handler: async (response) => {
@@ -1161,7 +1161,7 @@ const PatientRequests = () => {
           <div className="flex items-center justify-between bg-white border-b border-slate-200 px-4 py-3 sm:px-6">
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-[#11496c]">Booking Receipt</h2>
-              <p className="text-xs text-slate-600">Healiinn - Your Health Partner</p>
+              <p className="text-xs text-slate-600">Heallyn - Your Health Partner</p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1225,7 +1225,7 @@ const PatientRequests = () => {
                     <p className="text-sm font-semibold text-slate-900">
                       {selectedRequest.type === 'lab' ? selectedRequest.testName : selectedRequest.medicineName}
                     </p>
-                    <p className="text-xs text-slate-600">Healiinn</p>
+                    <p className="text-xs text-slate-600">Heallyn</p>
                   </div>
                   <span className="text-lg font-bold text-[#11496c]">
                     {formatCurrency(selectedRequest.totalAmount)}

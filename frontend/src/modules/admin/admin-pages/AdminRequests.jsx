@@ -350,7 +350,7 @@ const AdminRequests = () => {
             doctorSpecialty: getSpecialty(),
             doctorPhone: doc.phone || rawP.doctorPhone,
             doctorEmail: doc.email || rawP.doctorEmail,
-            clinicName: doc.clinicDetails?.name || doc.clinicDetails?.clinicName || rawP.clinicName || 'Healiinn Clinic',
+            clinicName: doc.clinicDetails?.name || doc.clinicDetails?.clinicName || rawP.clinicName || 'Heallyn Clinic',
             clinicAddress: doc.clinicDetails?.address || rawP.clinicAddress,
             doctorSignature: doc.digitalSignature || rawP.doctorSignature,
 
@@ -1188,7 +1188,7 @@ const AdminRequests = () => {
           },
           providerResponse: {
             message: adminResponse || `All prescribed tests are available. We can schedule your visit. Total amount: ₹${calculatedTotal}. Please confirm and proceed with payment.`,
-            responseBy: 'Healiinn Team',
+            responseBy: 'Heallyn Team',
             responseTime: new Date().toISOString(),
           },
           doctor: {
@@ -1434,7 +1434,7 @@ const AdminRequests = () => {
         name: request.prescription?.doctorName || 'Doctor',
         specialty: request.prescription?.doctorSpecialty || '',
         // Try to get clinic details from originalData
-        clinicName: request.prescription?.clinicName || request.originalData?.prescriptionId?.doctorId?.clinicDetails?.name || 'Healiinn Clinic',
+        clinicName: request.prescription?.clinicName || request.originalData?.prescriptionId?.doctorId?.clinicDetails?.name || 'Heallyn Clinic',
         clinicAddress: request.prescription?.clinicAddress || request.originalData?.prescriptionId?.doctorId?.clinicDetails?.address || null,
         phone: request.prescription?.doctorPhone || request.originalData?.prescriptionId?.doctorId?.phone || '',
         email: request.prescription?.doctorEmail || request.originalData?.prescriptionId?.doctorId?.email || '',
@@ -1469,14 +1469,14 @@ const AdminRequests = () => {
     const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
     let yPos = margin
 
-    // Header Section - Healiinn (Above Clinic Name) - Reduced size
+    // Header Section - Heallyn (Above Clinic Name) - Reduced size
     doc.setTextColor(...tealColor)
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
-    doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
+    doc.text('Heallyn', pageWidth / 2, yPos, { align: 'center' })
     yPos += 6
 
-    // Clinic Name in Teal (Below Healiinn) - Reduced size
+    // Clinic Name in Teal (Below Heallyn) - Reduced size
     doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
     const clinicName = prescriptionData.doctor.clinicName

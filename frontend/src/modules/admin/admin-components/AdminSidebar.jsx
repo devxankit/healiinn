@@ -66,7 +66,7 @@ const AdminSidebar = ({ isOpen, onClose, onLogout }) => {
         {/* Header - Fixed at top */}
         <div className="flex-shrink-0 flex items-center justify-between px-6 py-6 border-b border-white/20">
           <div className="flex flex-col">
-            <h1 className="text-2xl font-bold text-white">Healiinn</h1>
+            <h1 className="text-2xl font-bold text-white">Heallyn</h1>
             <p className="mt-1 text-sm text-white/70">Admin Dashboard</p>
           </div>
           {/* Close button for mobile */}

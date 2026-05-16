@@ -58,7 +58,7 @@ const LaboratoryLabGuidelines = () => {
                   <IoInformationCircleOutline className="h-8 w-8 text-blue-600 shrink-0 mt-1" />
                   <p className="text-slate-700 leading-relaxed text-lg">
                     These guidelines are designed to help diagnostic laboratories provide accurate and reliable test results 
-                    through the Healiinn platform while maintaining the highest standards of laboratory practice and quality assurance.
+                    through the Heallyn platform while maintaining the highest standards of laboratory practice and quality assurance.
                   </p>
                 </div>
               </div>

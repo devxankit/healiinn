@@ -5,6 +5,7 @@ import { getAuthToken } from './utils/apiClient'
 import { NotificationProvider } from './contexts/NotificationContext'
 import { CallProvider } from './contexts/CallContext'
 import PatientNavbar from './modules/patient/patient-components/PatientNavbar'
+import PatientFooter from './modules/patient/patient-components/PatientFooter'
 import PatientDashboard from './modules/patient/patient-pages/PatientDashboard'
 import PatientDoctors from './modules/patient/patient-pages/PatientDoctors'
 import PatientDoctorDetails from './modules/patient/patient-pages/PatientDoctorDetails'
@@ -25,6 +26,7 @@ import PatientOrders from './modules/patient/patient-pages/PatientOrders'
 import PatientOrderDetails from './modules/patient/patient-pages/PatientOrderDetails'
 import PatientSupport from './modules/patient/patient-pages/PatientSupport'
 import PatientHistory from './modules/patient/patient-pages/PatientHistory'
+import PatientCare from './modules/patient/patient-pages/PatientCare'
 import NotificationsPage from './modules/shared/NotificationsPage'
 import CallPopup from './modules/shared/CallPopup'
 import IncomingCallNotification from './modules/shared/IncomingCallNotification'
@@ -143,7 +145,8 @@ function PatientRoutes() {
     location.pathname === '/patient/dashboard' || 
     location.pathname === '/patient' || 
     location.pathname === '/patient/' ||
-    location.pathname === '/patient/doctors'
+    location.pathname === '/patient/doctors' ||
+    location.pathname === '/patient/care'
   const token = getAuthToken('patient')
 
   // If not authenticated and not on login page, force redirect to login
@@ -155,7 +158,7 @@ function PatientRoutes() {
     <NotificationProvider module="patient">
       {!isLoginPage && <PatientNavbar />}
       {!isLoginPage && <IncomingCallNotification />}
-      <main className={isLoginPage ? '' : `px-4 pb-32 ${isDashboardPage ? 'pt-0' : 'pt-20'} sm:px-6 overflow-x-hidden`}>
+      <main className={isLoginPage ? '' : `px-4 pb-32 ${isDashboardPage ? 'pt-0' : 'pt-6'} sm:px-6 overflow-x-hidden`}>
         <Routes>
           <Route path="/" element={
             token ? <ProtectedRoute module="patient"><Navigate to="/patient/dashboard" replace /></ProtectedRoute> : <Navigate to="/patient/login" replace />
@@ -163,6 +166,7 @@ function PatientRoutes() {
           <Route path="/login" element={<PatientLogin />} />
           <Route path="/dashboard" element={<ProtectedRoute module="patient"><PatientDashboard /></ProtectedRoute>} />
           <Route path="/doctors" element={<ProtectedRoute module="patient"><PatientDoctors /></ProtectedRoute>} />
+          <Route path="/care" element={<ProtectedRoute module="patient"><PatientCare /></ProtectedRoute>} />
           <Route path="/doctors/:id" element={<ProtectedRoute module="patient"><PatientDoctorDetails /></ProtectedRoute>} />
           <Route path="/nurses" element={<ProtectedRoute module="patient"><PatientNurses /></ProtectedRoute>} />
           <Route path="/nurses/:id" element={<ProtectedRoute module="patient"><PatientNurseDetails /></ProtectedRoute>} />
@@ -188,6 +192,7 @@ function PatientRoutes() {
         {/* Call Popup - Only for patients */}
         <CallPopup />
       </main>
+      {!isLoginPage && <PatientFooter />}
     </NotificationProvider>
   )
 }

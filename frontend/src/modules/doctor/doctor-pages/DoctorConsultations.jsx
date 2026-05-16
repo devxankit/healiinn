@@ -8,6 +8,7 @@ import { getSocket } from '../../../utils/socketClient'
 import {
   IoDocumentTextOutline,
   IoSearchOutline,
+  IoChevronDownOutline,
   IoPersonOutline,
   IoMedicalOutline,
   IoFlaskOutline,
@@ -2390,14 +2391,14 @@ const DoctorConsultations = () => {
     const lightYellowColor = [255, 255, 200] // Light yellow for follow-up
     let yPos = margin
 
-    // Header Section - Healiinn (Above Clinic Name) - Reduced size to match patient view
+    // Header Section - Heallyn (Above Clinic Name) - Reduced size to match patient view
     doc.setTextColor(...tealColor)
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
-    doc.text('Healiinn', pageWidth / 2, yPos, { align: 'center' })
+    doc.text('Heallyn', pageWidth / 2, yPos, { align: 'center' })
     yPos += 6
     
-    // Clinic Name in Teal (Below Healiinn) - Reduced size
+    // Clinic Name in Teal (Below Heallyn) - Reduced size
     doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
     doc.text(doctorInfo.clinicName || 'Medical Clinic', pageWidth / 2, yPos, { align: 'center' })
@@ -4409,23 +4410,55 @@ const DoctorConsultations = () => {
                     <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 lg:p-6 shadow-md shadow-slate-200/50">
                       <label className="mb-2 sm:mb-3 block text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wide">Follow-up Appointment (Optional)</label>
                       <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 sm:p-4">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-3">
                           <div className="h-4 w-4 rounded bg-yellow-400 flex items-center justify-center shrink-0">
                             <IoCalendarOutline className="h-3 w-3 text-yellow-900" />
                           </div>
                           <span className="text-xs sm:text-sm font-bold text-slate-900">Follow-up Appointment</span>
                         </div>
-                        <input
-                          type="date"
-                          value={followUpDate}
-                          onChange={(e) => setFollowUpDate(e.target.value)}
-                          min={new Date().toISOString().split('T')[0]}
-                          className="w-full bg-transparent border-none outline-none text-xs sm:text-sm font-semibold text-slate-900"
-                        />
+                        
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <div className="flex-1 relative">
+                             <select
+                               onChange={(e) => {
+                                 const days = parseInt(e.target.value);
+                                 if (!isNaN(days)) {
+                                   const date = new Date();
+                                   date.setDate(date.getDate() + days);
+                                   setFollowUpDate(date.toISOString().split('T')[0]);
+                                 } else {
+                                   setFollowUpDate('');
+                                 }
+                               }}
+                               className="w-full bg-white border border-yellow-300 rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:border-yellow-500 appearance-none shadow-sm"
+                             >
+                                <option value="">Select Duration...</option>
+                                {Array.from({ length: 30 }, (_, i) => i + 1).map(day => (
+                                  <option key={day} value={day}>
+                                    After {day} {day === 1 ? 'day' : 'days'}
+                                  </option>
+                                ))}
+                             </select>
+                             <IoChevronDownOutline className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none" />
+                          </div>
+                          <div className="flex-1">
+                            <input
+                              type="date"
+                              value={followUpDate}
+                              onChange={(e) => setFollowUpDate(e.target.value)}
+                              min={new Date().toISOString().split('T')[0]}
+                              className="w-full bg-white border border-yellow-300 rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:border-yellow-500 shadow-sm"
+                            />
+                          </div>
+                        </div>
+
                         {followUpDate && (
-                          <p className="text-xs sm:text-sm text-slate-700 mt-1">
-                            {new Date(followUpDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                          </p>
+                          <div className="mt-3 flex items-center gap-2 px-1">
+                            <IoCheckmarkCircleOutline className="h-4 w-4 text-emerald-500" />
+                            <p className="text-xs sm:text-sm text-slate-700 font-medium">
+                              Scheduled for: <span className="font-bold text-emerald-700">{new Date(followUpDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', weekday: 'short' })}</span>
+                            </p>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -5338,23 +5371,55 @@ const DoctorConsultations = () => {
               </div>
               <div>
                 <label className="mb-1.5 sm:mb-2 block text-xs sm:text-sm font-semibold text-slate-900">Frequency *</label>
-                <input
-                  type="text"
-                  value={newMedication.frequency}
-                  onChange={(e) => setNewMedication({ ...newMedication, frequency: e.target.value })}
-                  placeholder="e.g., Once daily"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
-                />
+                <div className="relative">
+                  <select
+                    value={newMedication.frequency}
+                    onChange={(e) => setNewMedication({ ...newMedication, frequency: e.target.value })}
+                    className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 pr-10 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:border-[#11496c]"
+                  >
+                    <option value="" disabled>Select frequency...</option>
+                    <option value="Once daily (OD)">Once daily (OD)</option>
+                    <option value="Twice daily (BD)">Twice daily (BD)</option>
+                    <option value="Thrice daily (TDS)">Thrice daily (TDS)</option>
+                    <option value="Four times daily (QID)">Four times daily (QID)</option>
+                    <option value="As needed (SOS)">As needed (SOS)</option>
+                    <option value="Every morning">Every morning</option>
+                    <option value="Every night">Every night</option>
+                    <option value="Every 4 hours">Every 4 hours</option>
+                    <option value="Every 6 hours">Every 6 hours</option>
+                    <option value="Every 8 hours">Every 8 hours</option>
+                    <option value="Every 12 hours">Every 12 hours</option>
+                    <option value="Alternate days">Alternate days</option>
+                    <option value="Once a week">Once a week</option>
+                  </select>
+                  <IoChevronDownOutline className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-slate-400 pointer-events-none" />
+                </div>
               </div>
               <div>
                 <label className="mb-1.5 sm:mb-2 block text-xs sm:text-sm font-semibold text-slate-900">Duration</label>
-                <input
-                  type="text"
-                  value={newMedication.duration}
-                  onChange={(e) => setNewMedication({ ...newMedication, duration: e.target.value })}
-                  placeholder="e.g., 30 days"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2"
-                />
+                <div className="relative">
+                  <select
+                    value={newMedication.duration}
+                    onChange={(e) => setNewMedication({ ...newMedication, duration: e.target.value })}
+                    className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-2.5 pr-10 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#11496c] focus:border-[#11496c]"
+                  >
+                    <option value="">Select duration (optional)...</option>
+                    <option value="1 day">1 day</option>
+                    <option value="2 days">2 days</option>
+                    <option value="3 days">3 days</option>
+                    <option value="5 days">5 days</option>
+                    <option value="1 week">1 week</option>
+                    <option value="10 days">10 days</option>
+                    <option value="2 weeks">2 weeks</option>
+                    <option value="3 weeks">3 weeks</option>
+                    <option value="1 month">1 month</option>
+                    <option value="2 months">2 months</option>
+                    <option value="3 months">3 months</option>
+                    <option value="Ongoing">Ongoing</option>
+                    <option value="Until finished">Until finished</option>
+                  </select>
+                  <IoChevronDownOutline className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-slate-400 pointer-events-none" />
+                </div>
               </div>
               <div>
                 <label className="mb-1.5 sm:mb-2 block text-xs sm:text-sm font-semibold text-slate-900">Instructions</label>

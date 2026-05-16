@@ -59,7 +59,7 @@ const LaboratoryTermsOfService = () => {
               </div>
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border-l-4 border-[#11496c] shadow-sm">
                 <p className="text-slate-700 leading-relaxed text-lg">
-                  By accessing and using the <span className="font-semibold text-[#11496c]">Healiinn</span> platform, you agree to be bound by these Terms of Service. 
+                  By accessing and using the <span className="font-semibold text-[#11496c]">Heallyn</span> platform, you agree to be bound by these Terms of Service. 
                   If you do not agree with any part of these terms, you may not access or use our services.
                 </p>
               </div>
@@ -179,7 +179,7 @@ const LaboratoryTermsOfService = () => {
                     If you have any questions about these Terms of Service, please contact us.
                   </p>
                   <div className="space-y-2 text-slate-200">
-                    <p><span className="font-semibold">Email:</span> legal@healiinn.com</p>
+                    <p><span className="font-semibold">Email:</span> legal@heallyn.com</p>
                     <p><span className="font-semibold">Phone:</span> +1 (555) 123-4567</p>
                   </div>
                 </div>

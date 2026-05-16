@@ -443,7 +443,7 @@ const PharmacyRequestOrders = () => {
     doc.setTextColor(...tealColor)
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
-    doc.text('Healiinn Prescription', pageWidth / 2, yPos, { align: 'center' })
+    doc.text('Heallyn Prescription', pageWidth / 2, yPos, { align: 'center' })
     yPos += 7
 
     // Doctor Name and Specialty

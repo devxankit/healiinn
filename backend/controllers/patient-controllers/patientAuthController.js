@@ -5,6 +5,18 @@ const { sendSignupAcknowledgementEmail } = require('../../services/emailService'
 const { requestLoginOtp, verifyLoginOtp } = require('../../services/loginOtpService');
 const { getProfileByRoleAndId, updateProfileByRoleAndId } = require('../../services/profileService');
 const { ROLES } = require('../../utils/constants');
+const crypto = require('crypto');
+
+const generateUniqueReferralCode = async () => {
+  let code;
+  let isUnique = false;
+  while (!isUnique) {
+    code = 'HLN-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+    const existing = await Patient.findOne({ referralCode: code });
+    if (!existing) isUnique = true;
+  }
+  return code;
+};
 
 const parseName = ({ firstName, lastName, name }) => {
   if (firstName) {
@@ -43,6 +55,7 @@ exports.registerPatient = asyncHandler(async (req, res) => {
     lastName,
     email,
     phone,
+    referralCode, // Extract referral code
   } = req.body;
 
   const resolvedName = parseName({ name, firstName, lastName });
@@ -72,12 +85,26 @@ exports.registerPatient = asyncHandler(async (req, res) => {
     });
   }
 
+  // Check if a referral code was used
+  let referredBy = null;
+  if (referralCode) {
+    const referrer = await Patient.findOne({ referralCode: referralCode.toUpperCase().trim() });
+    if (referrer) {
+      referredBy = referrer._id;
+    }
+  }
+
+  // Generate new unique referral code for this user
+  const newReferralCode = await generateUniqueReferralCode();
+
   // Create patient account with only basic info
   const patient = await Patient.create({
     firstName: resolvedName.firstName,
     lastName: resolvedName.lastName || '',
     email,
     phone,
+    referralCode: newReferralCode,
+    referredBy,
   });
 
   // Send OTP to phone for verification
@@ -93,6 +120,7 @@ exports.registerPatient = asyncHandler(async (req, res) => {
         lastName: patient.lastName,
         email: patient.email,
         phone: patient.phone,
+        referralCode: patient.referralCode,
       },
       phone: result.phone,
     },

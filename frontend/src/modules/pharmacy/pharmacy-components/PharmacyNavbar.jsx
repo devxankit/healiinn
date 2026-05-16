@@ -84,7 +84,7 @@ const PharmacyNavbar = () => {
           <div className="flex items-center">
             <img
               src={healinnLogo}
-              alt="Healiinn"
+              alt="Heallyn"
               className="h-8 w-auto object-contain"
               loading="lazy"
             />

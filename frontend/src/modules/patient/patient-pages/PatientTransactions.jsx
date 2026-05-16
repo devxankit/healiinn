@@ -266,19 +266,17 @@ const PatientTransactions = () => {
   return (
     <section className="flex flex-col gap-4 pb-4">
       {/* Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="flex items-center gap-2 p-1 bg-white rounded-2xl border border-slate-100 w-fit overflow-x-auto max-w-full no-scrollbar mb-2">
         {['all', 'completed', 'failed'].map((status) => (
           <button
             key={status}
             onClick={() => setFilter(status)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
-              filter === status
-                ? 'text-white shadow-sm'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}
-            style={filter === status ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
+            className={`shrink-0 px-5 py-2.5 text-xs font-black rounded-xl transition-all duration-300 ${filter === status
+              ? 'bg-[#11496c] text-white shadow-lg shadow-[#11496c]/20'
+              : 'text-slate-500 hover:text-[#11496c] hover:bg-slate-50'
+              }`}
           >
-            {status}
+            {status.charAt(0).toUpperCase() + status.slice(1)}
           </button>
         ))}
       </div>
@@ -288,80 +286,61 @@ const PatientTransactions = () => {
         {paginatedTransactions.map((transaction) => (
           <article
             key={transaction.id}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
+            className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-xl hover:shadow-[#11496c]/5"
           >
-            <div className="flex items-start gap-3">
-              {/* Icon */}
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${getTypeBgColor(transaction.category)}`}>
+            <div className="flex items-start gap-5">
+              {/* Category Icon */}
+              <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${getTypeBgColor(transaction.category)} transition-transform group-hover:scale-110`}>
                 {getTypeIcon(transaction.type, transaction.category)}
               </div>
 
-              {/* Main Content with Amount on Right */}
-              <div className="flex-1 flex items-start justify-between gap-3 min-w-0">
-                {/* Left Content */}
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  {/* Provider Name and Amount Row */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{transaction.providerName}</p>
-                        <span className="text-xs text-slate-400">•</span>
-                        <span className="text-xs text-slate-500 capitalize shrink-0">{transaction.category}</span>
-                      </div>
+              {/* Transaction Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-4 mb-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="text-base font-black text-slate-900 truncate leading-tight">
+                        {transaction.providerName}
+                      </h3>
+                      <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+                        {transaction.category}
+                      </span>
                     </div>
-                    <div className="shrink-0">
-                      <p className={`text-lg font-bold whitespace-nowrap ${transaction.status === 'completed' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                        {transaction.status === 'completed' ? '+' : ''}{formatCurrency(transaction.amount)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Description */}
-                  <div>
-                    <p className="text-xs text-slate-600">
-                      {transaction.category === 'laboratory' 
-                        ? `Payment for lab test order`
-                        : transaction.category === 'pharmacy'
-                        ? `Payment for medicine order`
-                        : transaction.category === 'appointment'
-                        ? `Appointment payment`
-                        : `Payment for ${transaction.type.toLowerCase()}`
-                      }
+                    <p className="text-xs font-bold text-slate-400 line-clamp-1 italic">
+                      {transaction.serviceName || `Payment for ${transaction.category}`}
                     </p>
-                    {transaction.serviceName && (
-                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{transaction.serviceName}</p>
-                    )}
                   </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-xl font-black leading-none ${transaction.status === 'completed' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                      {transaction.status === 'completed' ? '+' : ''}{formatCurrency(transaction.amount)}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-300 mt-1 uppercase tracking-widest">Amount</p>
+                  </div>
+                </div>
 
-                  {/* Status Badge and Type Badge */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(transaction.status)}`}>
+                {/* Badges & Meta */}
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-50">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${getStatusColor(transaction.status)}`}>
                       {getStatusIcon(transaction.status)}
                       <span className="capitalize">{transaction.status === 'paid' ? 'completed' : transaction.status === 'accepted' ? 'pending' : transaction.status}</span>
                     </span>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      transaction.category === 'laboratory' 
-                        ? 'bg-blue-100 text-blue-700' 
-                        : transaction.category === 'pharmacy'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'bg-slate-100 text-slate-700'
-                    }`}>
-                      {transaction.type}
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1.5 rounded-full">
+                      {transaction.paymentMethod}
                     </span>
                   </div>
-
-                  {/* Date and Time */}
-                  <div className="text-xs text-slate-500">
-                    <span>{formatDateTime(transaction.date, transaction.time)}</span>
+                  
+                  <div className="flex items-center gap-3 text-[11px] font-bold text-slate-400">
+                    <span className="flex items-center gap-1.5">
+                      <IoCalendarOutline className="h-3.5 w-3.5" />
+                      {formatDateTime(transaction.date, transaction.time)}
+                    </span>
                   </div>
+                </div>
 
-                  {/* Transaction ID and Order ID */}
-                  <div className="space-y-0.5 pt-0.5">
-                    <p className="text-xs text-slate-400">Transaction ID: {transaction.transactionId}</p>
-                    {transaction.requestId && (
-                      <p className="text-xs text-slate-400">Order: {transaction.requestId}</p>
-                    )}
-                  </div>
+                {/* Transaction ID Footer */}
+                <div className="mt-2 text-[9px] font-bold text-slate-300 uppercase tracking-widest">
+                  ID: {transaction.transactionId}
                 </div>
               </div>
             </div>

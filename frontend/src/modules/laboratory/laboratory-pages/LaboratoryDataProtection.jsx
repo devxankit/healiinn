@@ -61,7 +61,7 @@ const LaboratoryDataProtection = () => {
                   <div>
                     <h2 className="text-2xl font-bold mb-3">Our Data Protection Commitment</h2>
                     <p className="text-slate-200 leading-relaxed text-lg">
-                      At Healiinn, we take data protection seriously. We implement comprehensive security 
+                      At Heallyn, we take data protection seriously. We implement comprehensive security 
                       measures and follow industry best practices to ensure your laboratory information, 
                       test data, and patient information remains secure and confidential.
                     </p>

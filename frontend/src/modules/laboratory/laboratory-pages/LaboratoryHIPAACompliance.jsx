@@ -61,7 +61,7 @@ const LaboratoryHIPAACompliance = () => {
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900 mb-3">Our Commitment</h2>
                     <p className="text-slate-700 leading-relaxed text-lg">
-                      Healiinn is fully committed to HIPAA compliance and ensuring the highest standards of 
+                      Heallyn is fully committed to HIPAA compliance and ensuring the highest standards of 
                       patient data protection for diagnostic laboratories. We implement comprehensive security 
                       measures to safeguard Protected Health Information (PHI) in accordance with HIPAA regulations.
                     </p>
@@ -136,7 +136,7 @@ const LaboratoryHIPAACompliance = () => {
                 <div className="flex-1">
                   <h3 className="text-2xl font-bold mb-2">HIPAA Compliant Platform</h3>
                   <p className="text-emerald-50 mb-4">
-                    Healiinn maintains full HIPAA compliance and undergoes regular audits to ensure continued adherence to all regulations.
+                    Heallyn maintains full HIPAA compliance and undergoes regular audits to ensure continued adherence to all regulations.
                   </p>
                   <div className="flex items-center gap-3 bg-white/10 rounded-xl p-4 border border-white/20">
                     <IoCheckmarkCircleOutline className="h-6 w-6 text-white" />

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   IoHomeOutline,
@@ -16,12 +16,14 @@ import healinnLogo from '../../../assets/images/logo.png'
 import PatientSidebar from './PatientSidebar'
 import { useToast } from '../../../contexts/ToastContext'
 import NotificationBell from '../../../components/NotificationBell'
+import DashboardHeader from './dashboard-sections/DashboardHeader'
+import { getPatientProfile } from '../patient-services/patientService'
 
 // All nav items for sidebar and desktop navbar (includes Nurses and Support)
 // This is used for: Sidebar (mobile menu) and Desktop top navbar
 const allNavItems = [
   { id: 'home', label: 'Home', to: '/patient/dashboard', Icon: IoHomeOutline },
-  { id: 'care', label: 'Care', to: '/patient/doctors', Icon: IoHeartOutline },
+  { id: 'care', label: 'Care', to: '/patient/care', Icon: IoHeartOutline },
   { id: 'call', label: 'Call', to: '/patient/support', Icon: IoCallOutline },
   { id: 'vitals', label: 'Vitals', to: '/patient/prescriptions', Icon: IoPulseOutline },
   { id: 'profile', label: 'Profile', to: '/patient/profile', Icon: IoPersonCircleOutline },
@@ -35,15 +37,22 @@ const PatientNavbar = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const toast = useToast()
-
-  // Hide top header on dashboard and doctors pages (they use the new DashboardHeader)
-  const isNewThemePage = 
-    location.pathname === '/patient/dashboard' || 
-    location.pathname === '/patient/' || 
-    location.pathname === '/patient/doctors'
   
+  const [profile, setProfile] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
+
   // Hide navbar completely on login page
   const isLoginPage = location.pathname === '/patient/login'
+
+  useEffect(() => {
+    if (!isLoginPage) {
+      getPatientProfile().then(res => {
+        if (res.success && res.data) {
+          setProfile(res.data.patient || res.data)
+        }
+      }).catch(err => console.error('Error fetching profile for navbar:', err))
+    }
+  }, [isLoginPage])
 
   const mobileLinkBase =
     'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2'
@@ -51,10 +60,6 @@ const PatientNavbar = () => {
 
   const mobileIconWrapper =
     'flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all duration-200'
-
-  const desktopLinkBase =
-    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2'
-  const desktopLinkFocusStyle = { '--tw-ring-color': 'rgba(17, 73, 108, 0.7)' }
 
   const handleSidebarToggle = () => {
     if (isSidebarOpen) {
@@ -91,56 +96,16 @@ const PatientNavbar = () => {
 
   return (
     <>
-      {/* Top Header - Hidden on dashboard, doctors and login pages */}
-      {!isNewThemePage && !isLoginPage && (
-        <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/95 px-4 py-3 backdrop-blur shadow md:px-6">
-          <div className="flex items-center">
-            <img
-              src={healinnLogo}
-              alt="Healiinn"
-              className="h-8 w-auto object-contain"
-              loading="lazy"
-            />
-          </div>
-          <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg ring-1 ring-slate-200 md:flex" style={{ boxShadow: '0 10px 15px -3px rgba(17, 73, 108, 0.1), 0 4px 6px -2px rgba(17, 73, 108, 0.05)' }}>
-            {allNavItems.map(({ id, label, to, Icon }) => (
-              <NavLink
-                key={id}
-                to={to}
-                className={({ isActive }) =>
-                  `${desktopLinkBase} ${isActive ? 'text-white shadow-sm' : 'hover:bg-slate-100 hover:text-slate-900'
-                  }`
-                }
-                style={({ isActive }) => isActive ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
-                end={id === 'home'}
-              >
-                {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
-                <span>{label}</span>
-              </NavLink>
-            ))}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-red-500 transition-all duration-200 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-            >
-              Logout
-            </button>
-          </nav>
-          <div className="flex items-center gap-2">
-            <div className="md:hidden">
-              <NotificationBell />
-            </div>
-            <button
-              type="button"
-              ref={toggleButtonRef}
-              className="md:hidden"
-              aria-label="Toggle navigation menu"
-              onClick={handleSidebarToggle}
-            >
-              <IoMenuOutline className="text-2xl text-slate-600" aria-hidden="true" />
-            </button>
-          </div>
-        </header>
+      {/* Top Header - Used on all pages except login */}
+      {!isLoginPage && (
+        <DashboardHeader
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          navigate={navigate}
+          profile={profile}
+          setIsSidebarOpen={setIsSidebarOpen}
+          location={location}
+        />
       )}
 
       <PatientSidebar

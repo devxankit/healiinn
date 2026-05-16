@@ -102,7 +102,7 @@ const WebNavbar = () => {
           >
             <img
               src={healinnLogo}
-              alt="Healiinn"
+              alt="Heallyn"
               className="h-13 md:h-13 w-auto object-contain"
               loading="eager"
             />

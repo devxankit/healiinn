@@ -1,4 +1,7 @@
 const LoginOtpToken = require('../models/LoginOtpToken');
+const AdminSettings = require('../models/AdminSettings');
+const WalletTransaction = require('../models/WalletTransaction');
+const Patient = require('../models/Patient');
 const { getModelForRole, ROLES } = require('../utils/getModelForRole');
 const { PASSWORD_RESET_CONFIG, APPROVAL_STATUS } = require('../utils/constants');
 const {
@@ -150,6 +153,54 @@ const verifyLoginOtp = async ({ role, phone, otp }) => {
     const error = new Error('Account not found.');
     error.status = 404;
     throw error;
+  }
+
+  // Rewards Program: Credit first login/signup bonus & referral rewards
+  if (role === ROLES.PATIENT && !user.lastLoginAt) {
+    try {
+      const settings = await AdminSettings.getSettings();
+      const rewardsConfig = settings.rewardsSettings || { referralBonus: 200, loginBonus: 200 };
+      const loginBonus = Number(rewardsConfig.loginBonus) || 200;
+
+      // 1. Credit Login Bonus to the new user
+      user.walletBalance = (user.walletBalance || 0) + loginBonus;
+
+      // Create wallet transaction for the login bonus
+      await WalletTransaction.create({
+        userId: user._id,
+        userType: 'patient',
+        type: 'login_bonus',
+        amount: loginBonus,
+        balance: user.walletBalance,
+        status: 'completed',
+        description: 'Signup/First Login Bonus',
+        referenceId: `LGN-BONUS-${user._id.toString().slice(-6)}`
+      });
+
+      // 2. Credit Referral Bonus to Referrer if applicable
+      if (user.referredBy) {
+        const referralBonus = Number(rewardsConfig.referralBonus) || 200;
+        const referrer = await Patient.findById(user.referredBy);
+        if (referrer) {
+          referrer.walletBalance = (referrer.walletBalance || 0) + referralBonus;
+          await referrer.save({ validateBeforeSave: false });
+
+          // Create wallet transaction for the referral bonus
+          await WalletTransaction.create({
+            userId: referrer._id,
+            userType: 'patient',
+            type: 'referral_bonus',
+            amount: referralBonus,
+            balance: referrer.walletBalance,
+            status: 'completed',
+            description: `Referral Bonus for inviting ${user.firstName}`,
+            referenceId: `REF-BONUS-${user._id.toString().slice(-6)}`
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error processing signup rewards:', error.message);
+    }
   }
 
   // Update last login

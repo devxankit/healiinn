@@ -1009,7 +1009,7 @@ const PatientDoctorDetails = () => {
         key: razorpayKeyId, // Use key ID from backend response
         amount: Math.round(amount * 100), // Convert to paise
         currency: currency || 'INR',
-        name: 'Healiinn',
+        name: 'Heallyn',
         description: `Appointment with ${doctor.name}`,
         order_id: orderId,
         handler: async (response) => {
@@ -1323,7 +1323,7 @@ const PatientDoctorDetails = () => {
                              <IoLocationOutline className="h-6 w-6" />
                           </div>
                           <div>
-                             <p className="font-black text-slate-900">{doctor.clinicName || 'Healiinn Partner Clinic'}</p>
+                             <p className="font-black text-slate-900">{doctor.clinicName || 'Heallyn Partner Clinic'}</p>
                              <p className="text-sm text-slate-500 font-medium leading-relaxed mt-1">{doctor.location}</p>
                           </div>
                        </div>

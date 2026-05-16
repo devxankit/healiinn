@@ -1568,7 +1568,7 @@ const DoctorLogin = () => {
             <p className="text-sm text-slate-600 leading-relaxed">
               {isLogin
                 ? `Sign in to your ${selectedModule} account to continue.`
-                : `Join Healiinn as a ${selectedModule} to get started.`}
+                : `Join Heallyn as a ${selectedModule} to get started.`}
             </p>
           </div>
 
@@ -1830,7 +1830,7 @@ const DoctorLogin = () => {
                 </button>
 
                 <p className="text-center text-sm text-slate-600">
-                  New to Healiinn?{' '}
+                  New to Heallyn?{' '}
                   <button
                     type="button"
                     onClick={() => handleModeChange('signup')}
@@ -2568,7 +2568,7 @@ const DoctorLogin = () => {
                           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
                         />
                         <span>
-                          I have read and agree to Healiinn's{' '}
+                          I have read and agree to Heallyn's{' '}
                           <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
                             terms of service
                           </Link>{' '}
@@ -3122,7 +3122,7 @@ const DoctorLogin = () => {
                           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
                         />
                         <span>
-                          I have read and agree to Healiinn's{' '}
+                          I have read and agree to Heallyn's{' '}
                           <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
                             terms of service
                           </Link>{' '}
@@ -3731,7 +3731,7 @@ const DoctorLogin = () => {
                           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
                         />
                         <span>
-                          I have read and agree to Healiinn's{' '}
+                          I have read and agree to Heallyn's{' '}
                           <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
                             terms of service
                           </Link>{' '}
@@ -4245,7 +4245,7 @@ const DoctorLogin = () => {
                           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#11496c] focus:ring-[#11496c]"
                         />
                         <span>
-                          I have read and agree to Healiinn's{' '}
+                          I have read and agree to Heallyn's{' '}
                           <Link to="/terms" className="font-semibold text-[#11496c] hover:text-[#0d3a52]">
                             terms of service
                           </Link>{' '}
@@ -4329,7 +4329,7 @@ const DoctorLogin = () => {
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-100 bg-white/95 backdrop-blur mt-auto">
         <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-4 py-4 text-center text-xs text-slate-500">
-          <span>Secure access powered by Healiinn</span>
+          <span>Secure access powered by Heallyn</span>
           <span>
             Need help? Contact{' '}
             <Link to="/support" className="font-semibold text-[#11496c] hover:text-[#0d3a52] transition">

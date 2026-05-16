@@ -4,16 +4,14 @@ import { IoCloseOutline, IoLogOutOutline } from 'react-icons/io5'
 
 const DoctorSidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
   const closeButtonRef = useRef(null)
-  const overlayClasses = `fixed inset-0 z-40 bg-slate-900/40 transition-opacity duration-200 ${
+  
+  const overlayClasses = `fixed inset-0 z-[60] bg-[#11496c]/40 backdrop-blur-sm transition-opacity duration-500 ${
     isOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
   }`
 
-  const sidebarClasses = `fixed inset-y-0 right-0 z-50 flex w-4/5 max-w-xs transform flex-col bg-white p-5 shadow-xl transition-transform duration-200 ${
-    isOpen ? 'translate-x-0' : 'translate-x-full'
+  const sidebarClasses = `fixed inset-y-0 right-0 z-[70] flex w-[85%] max-w-xs transform flex-col bg-white shadow-[0_0_50px_rgba(0,0,0,0.1)] transition-all duration-500 ease-out ${
+    isOpen ? 'translate-x-0 rounded-l-[40px]' : 'translate-x-full rounded-l-none'
   }`
-
-  const linkBaseClasses =
-    'flex items-center gap-3 rounded-xl px-3 py-2 text-base font-medium text-slate-600 transition-colors duration-200'
 
   useEffect(() => {
     if (isOpen) {
@@ -32,50 +30,57 @@ const DoctorSidebar = ({ isOpen, onClose, navItems = [], onLogout }) => {
         role="dialog"
         inert={!isOpen}
       >
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Menu</h2>
+        {/* Header */}
+        <div className="p-8 flex items-center justify-between border-b border-slate-50">
+          <div>
+            <h2 className="text-2xl font-black text-[#11496c] tracking-tight">Menu</h2>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Navigation</p>
+          </div>
           <button
             type="button"
             ref={closeButtonRef}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-500 transition-colors hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2"
+            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 hover:bg-[#11496c] hover:text-white transition-all duration-300"
             aria-label="Close menu"
             onClick={onClose}
           >
-            <IoCloseOutline aria-hidden="true" />
+            <IoCloseOutline className="h-6 w-6" aria-hidden="true" />
           </button>
         </div>
 
-        <nav className="flex flex-col gap-2">
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
           {navItems.map(({ id, label, to, Icon }) => (
             <NavLink
               key={id}
               to={to}
               className={({ isActive }) =>
-                `${linkBaseClasses} ${
-                  isActive ? 'text-[#11496c]' : 'hover:bg-slate-100 hover:text-slate-900'
+                `flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 ${
+                  isActive 
+                    ? 'bg-[#11496c] text-white shadow-lg shadow-[#11496c]/20 translate-x-2' 
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                 }`
               }
-              style={({ isActive }) => isActive ? { backgroundColor: 'rgba(17, 73, 108, 0.1)' } : {}}
               onClick={onClose}
               end={id === 'home'}
             >
               {Icon ? <Icon className="h-5 w-5" aria-hidden="true" /> : null}
-              <span>{label}</span>
+              <span className="text-sm font-black uppercase tracking-widest">{label}</span>
             </NavLink>
           ))}
         </nav>
 
+        {/* Footer / Logout */}
         {onLogout ? (
-          <div className="mt-6 border-t border-slate-200 pt-4">
+          <div className="p-8 border-t border-slate-50">
             <button
               type="button"
-              className={`${linkBaseClasses} w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700`}
+              className="flex items-center gap-4 w-full px-5 py-4 rounded-2xl text-red-500 font-black uppercase tracking-widest bg-red-50 hover:bg-red-500 hover:text-white transition-all duration-300 shadow-sm"
               onClick={() => {
                 onClose?.()
                 onLogout()
               }}
             >
-              <IoLogOutOutline className="h-5 w-5" aria-hidden="true" />
+              <IoLogOutOutline className="h-6 w-6" aria-hidden="true" />
               <span>Logout</span>
             </button>
           </div>

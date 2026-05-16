@@ -61,7 +61,7 @@ const PrivacyPolicy = () => {
             </div>
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border-l-4 border-[#11496c] shadow-sm">
               <p className="text-slate-700 leading-relaxed text-lg">
-                At <span className="font-semibold text-[#11496c]">Healiinn</span>, we are committed to protecting your privacy and ensuring the security of your personal and medical information. 
+                At <span className="font-semibold text-[#11496c]">Heallyn</span>, we are committed to protecting your privacy and ensuring the security of your personal and medical information. 
                 This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform as a healthcare professional.
               </p>
             </div>
@@ -224,7 +224,7 @@ const PrivacyPolicy = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
                 <p className="text-sm text-slate-300 mb-1">Email</p>
-                <p className="font-semibold">privacy@healiinn.com</p>
+                <p className="font-semibold">privacy@heallyn.com</p>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all duration-300">
                 <p className="text-sm text-slate-300 mb-1">Phone</p>

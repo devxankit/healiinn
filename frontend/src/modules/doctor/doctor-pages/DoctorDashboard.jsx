@@ -708,385 +708,306 @@ const DoctorDashboard = () => {
         navItems={sidebarNavItems}
         onLogout={handleLogout}
       />
-      <section className="flex flex-col gap-4 pb-24 -mt-20 lg:mt-0 lg:pb-8">
-        {/* Top Header with Gradient Background - Hidden on Desktop */}
-        <header 
-          className="lg:hidden relative text-white -mx-4 mb-4 overflow-hidden"
-          style={{
-            background: 'linear-gradient(to right, #11496c 0%, #1a5f7a 50%, #2a8ba8 100%)'
-          }}
+      <section className="flex flex-col gap-6 pb-24 -mt-20 lg:mt-0 lg:pb-8">
+        {/* ── Mobile Hero Header ── */}
+        <header
+          className="lg:hidden relative overflow-hidden -mx-4 mb-2"
+          style={{ background: 'linear-gradient(135deg, #11496c 0%, #0d3a52 60%, #14B8A6 100%)' }}
         >
-          <div className="px-4 pt-5 pb-4">
-            {/* Top Section - Doctor Info */}
-            <div className="flex items-start justify-between mb-3.5">
-              <div className="flex-1">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight mb-0.5">
-                  {profile?.firstName || profile?.lastName
-                    ? `Dr. ${profile.firstName || ''} ${profile.lastName || ''}`.trim()
-                    : 'Doctor'}
+          <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute -left-12 bottom-0 h-32 w-32 rounded-full bg-white/5 blur-2xl" />
+          <div className="relative px-4 pt-16 pb-8">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/25 text-[10px] font-black text-white/80 uppercase tracking-widest mb-2">
+                  <div className={`h-1.5 w-1.5 rounded-full ${profile?.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
+                  {profile?.isActive ? 'Online' : 'Offline'}
+                </div>
+                <h1 className="text-3xl font-black text-white leading-none tracking-tight">
+                  {profile?.firstName ? `Dr. ${profile.firstName}${profile.lastName ? ` ${profile.lastName}` : ''}` : 'Doctor'}
                 </h1>
-                <p className="text-sm font-normal text-white/95 leading-tight">
-                  {profile?.clinicName || 'Clinic'} • <span className="text-white font-medium">{profile?.isActive ? 'Online' : 'Offline'}</span>
-                </p>
+                <p className="text-sm font-bold text-white/70 mt-1">{profile?.clinicName || 'Clinic'}</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 border border-white/25">
                   <NotificationBell className="text-white" />
                 </div>
                 <button
                   type="button"
                   onClick={handleSidebarToggle}
-                  className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
+                  className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 border border-white/25 text-white"
                   aria-label="Menu"
                 >
-                  <IoMenuOutline className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <IoMenuOutline className="h-5 w-5" />
                 </button>
               </div>
             </div>
-
-            {/* Queue Status Button */}
-            <div className="flex justify-center">
-              <div className="w-full max-w-xs sm:max-w-sm rounded-lg bg-white/20 backdrop-blur-sm px-4 sm:px-6 py-2.5 sm:py-3 border border-white/30">
-                <p className="text-center text-xs sm:text-sm font-semibold text-white uppercase tracking-wide">
-                  Queue Status: <span className="text-white font-bold">ACTIVE</span>
-                </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-white/60">{todayLabel}</p>
+              <div className="inline-flex items-center gap-2 bg-white/15 border border-white/25 rounded-full px-4 py-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs font-black text-white uppercase tracking-widest">Queue Active</span>
               </div>
             </div>
           </div>
         </header>
 
-        {/* Search Bar - Desktop Only */}
-        <div className="hidden lg:block mb-6">
+        {/* ── Desktop Search ── */}
+        <div className="hidden lg:block">
           <div className="relative w-full group">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 transition-all duration-300 group-hover:scale-110 group-focus-within:scale-110">
-              <IoSearchOutline className="h-5 w-5 text-slate-400 group-focus-within:text-[#11496c] transition-colors duration-300" />
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
+              <IoSearchOutline className="h-5 w-5 text-slate-400 group-focus-within:text-[#11496c] transition-colors" />
             </div>
             <input
               type="text"
               placeholder="Search patients, appointments, consultations..."
-              className="w-full pl-11 pr-20 py-2.5 text-sm rounded-xl border border-slate-300 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c] transition-all duration-300 shadow-sm hover:shadow-md hover:border-[#11496c]/50"
+              className="w-full pl-12 pr-20 py-3.5 text-sm rounded-2xl border border-slate-100 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c] transition-all shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300">
-              <kbd className="px-2 py-1 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-300 rounded">⌘K</kbd>
-            </div>
           </div>
         </div>
 
-        {/* Stats Cards Grid */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:gap-4">
-            {/* Total Patients */}
-            <article
-              onClick={() => navigate('/doctor/all-patients')}
-              className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-[rgba(17,73,108,0.2)] bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#11496c]/40 active:scale-[0.98] lg:hover:scale-105"
-            >
-              {/* Animated Background Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
-              
-              <div className="relative flex items-start justify-between mb-2 lg:mb-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1 lg:mb-2 group-hover:text-[#0d3a52] transition-colors">Total Patients</p>
-                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-[#11496c] transition-colors duration-300">{loading ? '...' : stats.totalPatients}</p>
-                </div>
-                <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-[#11496c] text-white group-hover:bg-[#0d3a52] group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
-                  <IoPeopleOutline className="text-base lg:text-2xl" aria-hidden="true" />
-                </div>
-              </div>
-              <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">Active patients</p>
-              <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-[#11496c]/20 transition-colors">
-                <p className="text-xs text-slate-500 group-hover:text-[#11496c] font-medium transition-colors">New this month: <span className="text-emerald-600 font-semibold">+12</span></p>
-              </div>
-            </article>
 
-            {/* Total Consultations */}
-            <article
-              onClick={() => navigate('/doctor/all-consultations')}
-              className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-emerald-100 bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-emerald-300 active:scale-[0.98] lg:hover:scale-105"
-            >
-              {/* Animated Background Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-emerald-500/0 group-hover:from-emerald-500/5 group-hover:to-emerald-500/10 transition-all duration-300"></div>
-              
-              <div className="relative flex items-start justify-between mb-2 lg:mb-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-emerald-700 leading-tight mb-1 lg:mb-2 group-hover:text-emerald-800 transition-colors">Total Consultations</p>
-                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-emerald-700 transition-colors duration-300">{loading ? '...' : stats.totalConsultations}</p>
-                </div>
-                <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-emerald-500 text-white group-hover:bg-emerald-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
-                  <IoDocumentTextOutline className="text-base lg:text-2xl" aria-hidden="true" />
-                </div>
-              </div>
-              <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">All time</p>
-              <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-emerald-200 transition-colors">
-                <p className="text-xs text-slate-500 group-hover:text-emerald-700 font-medium transition-colors">This month: <span className="text-emerald-600 font-semibold">{loading ? '...' : stats.thisMonthConsultations}</span></p>
-              </div>
-            </article>
+        {/* ── Stats Grid ── */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
 
-            {/* Appointments */}
-            <article
+          <article onClick={() => navigate('/doctor/all-patients')}
+            className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] cursor-pointer transition-all hover:shadow-xl hover:shadow-[#11496c]/5 active:scale-[0.98]">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110"
+                style={{ background: 'linear-gradient(135deg, #11496c 0%, #14B8A6 100%)' }}>
+                <IoPeopleOutline className="h-7 w-7" />
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Patients</p>
+                <p className="text-3xl font-black text-slate-900 leading-none group-hover:text-[#11496c] transition-colors">{loading ? '—' : stats.totalPatients}</p>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-50"><p className="text-xs font-bold text-slate-400">Active patients</p></div>
+          </article>
+
+          <article onClick={() => navigate('/doctor/all-consultations')}
+            className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] cursor-pointer transition-all hover:shadow-xl hover:shadow-emerald-500/10 active:scale-[0.98]">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110"
+                style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
+                <IoDocumentTextOutline className="h-7 w-7" />
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Consults</p>
+                <p className="text-3xl font-black text-slate-900 leading-none group-hover:text-emerald-600 transition-colors">{loading ? '—' : stats.totalConsultations}</p>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-50"><p className="text-xs font-bold text-slate-400">This month: <span className="text-emerald-600">{stats.thisMonthConsultations}</span></p></div>
+          </article>
+
+          <article onClick={() => navigate('/doctor/appointments')}
+            className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] cursor-pointer transition-all hover:shadow-xl hover:shadow-purple-500/10 active:scale-[0.98]">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110"
+                style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' }}>
+                <IoCalendarOutline className="h-7 w-7" />
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Today</p>
+                <p className="text-3xl font-black text-slate-900 leading-none group-hover:text-purple-600 transition-colors">{appointmentStats.todayCount ?? 0}</p>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-50"><p className="text-xs font-bold text-slate-400">Month: <span className="text-purple-600">{appointmentStats.monthCount ?? 0}</span> · Year: <span className="text-purple-600">{appointmentStats.yearCount ?? 0}</span></p></div>
+          </article>
+
+          <article onClick={() => navigate('/doctor/wallet')}
+            className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] cursor-pointer transition-all hover:shadow-xl hover:shadow-amber-500/10 active:scale-[0.98]">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110"
+                style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
+                <IoWalletOutline className="h-7 w-7" />
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Earnings</p>
+                <p className="text-xl font-black text-slate-900 leading-none group-hover:text-amber-600 transition-colors">{loading ? '—' : formatCurrency(stats.totalEarnings)}</p>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-50 flex items-center gap-1.5">
+              {earningsChange >= 0 ? <IoTrendingUpOutline className="h-3.5 w-3.5 text-emerald-500" /> : <IoTrendingDownOutline className="h-3.5 w-3.5 text-red-500" />}
+              <p className="text-xs font-bold text-slate-400"><span className={earningsChange >= 0 ? 'text-emerald-600' : 'text-red-500'}>{earningsChange >= 0 ? '+' : ''}{earningsChange.toFixed(1)}%</span> vs last month</p>
+            </div>
+          </article>
+
+        </div>
+
+        {/* ── Today's Schedule ── */}
+        <section aria-labelledby="schedule-title" className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-3">
+              <h2 id="schedule-title" className="text-xl font-black text-slate-900 tracking-tight">Today's Schedule</h2>
+              <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-[#11496c]/10 px-2.5 text-xs font-black text-[#11496c]">
+                {todayAppointments.length}
+              </span>
+            </div>
+            <button
+              type="button"
               onClick={() => navigate('/doctor/appointments')}
-              className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-purple-100 bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-purple-300 active:scale-[0.98] lg:hover:scale-105"
+              className="text-xs font-black text-[#11496c] hover:text-[#14B8A6] uppercase tracking-widest transition-colors"
             >
-              {/* Animated Background Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-purple-500/0 group-hover:from-purple-500/5 group-hover:to-purple-500/10 transition-all duration-300"></div>
-              
-              <div className="relative flex items-start justify-between mb-2 lg:mb-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-purple-700 leading-tight mb-1 lg:mb-2 group-hover:text-purple-800 transition-colors">Appointment</p>
-                  <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-purple-700 transition-colors duration-300">
-                    {appointmentStats.todayCount || ((appointmentStats.todayScheduled || 0) + (appointmentStats.todayRescheduled || 0))}
-                  </p>
-                </div>
-                <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-purple-500 text-white group-hover:bg-purple-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
-                  <IoCalendarOutline className="text-base lg:text-2xl" aria-hidden="true" />
-                </div>
-              </div>
-              <div className="relative space-y-0.5">
-                <p className="text-[10px] lg:text-xs text-slate-600 leading-tight font-medium group-hover:text-slate-700 transition-colors">Today</p>
-                <div className="flex items-center gap-1.5 text-[8px] lg:text-[9px] text-slate-500 group-hover:text-slate-600 transition-colors flex-wrap">
-                  <span>Scheduled: {appointmentStats.todayScheduled || 0}</span>
-                  <span>•</span>
-                  <span>Rescheduled: {appointmentStats.todayRescheduled || 0}</span>
-                </div>
-                <div className="flex items-center gap-2 text-[9px] lg:text-xs text-slate-500 group-hover:text-slate-600 transition-colors mt-0.5">
-                  <span>Month: {appointmentStats.monthCount || 0}</span>
-                  <span>•</span>
-                  <span>Year: {appointmentStats.yearCount || 0}</span>
-                </div>
-              </div>
-              <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-purple-200 transition-colors">
-                <p className="text-xs text-slate-500 group-hover:text-purple-700 font-medium transition-colors">Pending: <span className="text-amber-600 font-semibold">{loading ? '...' : stats.pendingConsultations}</span></p>
-              </div>
-            </article>
-
-            {/* Total Earnings */}
-            <article
-              onClick={() => navigate('/doctor/wallet')}
-              className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-amber-100 bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-amber-300 active:scale-[0.98] lg:hover:scale-105"
-            >
-              {/* Animated Background Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 to-amber-500/0 group-hover:from-amber-500/5 group-hover:to-amber-500/10 transition-all duration-300"></div>
-              
-              <div className="relative flex items-start justify-between mb-2 lg:mb-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-amber-700 leading-tight mb-1 lg:mb-2 group-hover:text-amber-800 transition-colors">Total Earnings</p>
-                  <p className="text-lg lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-amber-700 transition-colors duration-300">{loading ? '...' : formatCurrency(stats.totalEarnings)}</p>
-                  <div className="flex items-center gap-1 mt-1 lg:mt-2 text-[10px] lg:text-xs group-hover:scale-105 transition-transform">
-                    {earningsChange >= 0 ? (
-                      <>
-                        <IoTrendingUpOutline className="h-3 w-3 lg:h-4 lg:w-4 text-emerald-600 group-hover:scale-110 transition-transform" />
-                        <span className="text-emerald-600 font-semibold">+{earningsChange.toFixed(1)}%</span>
-                      </>
-                    ) : (
-                      <>
-                        <IoTrendingDownOutline className="h-3 w-3 lg:h-4 lg:w-4 text-red-600 group-hover:scale-110 transition-transform" />
-                        <span className="text-red-600 font-semibold">{earningsChange.toFixed(1)}%</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-amber-500 text-white group-hover:bg-amber-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
-                  <IoWalletOutline className="text-base lg:text-2xl" aria-hidden="true" />
-                </div>
-              </div>
-              <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">vs last month</p>
-              <div className="hidden lg:block mt-3 pt-3 border-t border-slate-100 group-hover:border-amber-200 transition-colors">
-                <p className="text-xs text-slate-500 group-hover:text-amber-700 font-medium transition-colors">This month: <span className="text-emerald-600 font-semibold">{loading ? '...' : formatCurrency(stats.thisMonthEarnings)}</span></p>
-              </div>
-            </article>
+              See all →
+            </button>
           </div>
 
-        {/* Today's Schedule */}
-        <section aria-labelledby="schedule-title" className="space-y-3">
-            <header className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h2 id="schedule-title" className="text-base lg:text-lg font-semibold text-slate-900">
-                  Today's Schedule
-                </h2>
-                <span className="flex h-6 min-w-7 items-center justify-center rounded-full bg-[rgba(17,73,108,0.15)] px-2 text-xs font-medium text-[#11496c]">
-                  {todayAppointments.length}
-                </span>
+          {todayAppointments.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 rounded-[32px] border border-dashed border-slate-200 bg-slate-50 text-center">
+              <div className="h-16 w-16 rounded-full bg-white flex items-center justify-center shadow-sm mb-4">
+                <IoCalendarOutline className="h-8 w-8 text-slate-300" />
               </div>
-              <button
-                type="button"
-                onClick={() => navigate('/doctor/appointments')}
-                className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
-              >
-                See all
-              </button>
-            </header>
-
-            <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
-              {todayAppointments.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                  <IoCalendarOutline className="mx-auto h-12 w-12 text-slate-300" />
-                  <p className="mt-4 text-sm font-medium text-slate-600">No appointments today</p>
-                  <p className="mt-1 text-xs text-slate-500">Your schedule is clear</p>
-                </div>
-              ) : (
-                todayAppointments.map((appointment) => {
+              <p className="text-base font-black text-slate-600">No appointments today</p>
+              <p className="text-xs font-bold text-slate-400 mt-1">Your schedule is clear</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-4 lg:gap-4">
+              {todayAppointments.map((appointment) => {
                 const TypeIcon = getTypeIcon(appointment.consultationMode)
                 return (
                   <article
                     key={appointment.id}
                     onClick={() => handleViewAppointment(appointment)}
-                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 lg:p-4 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#11496c]/30 cursor-pointer active:scale-[0.98] lg:hover:scale-[1.02]"
+                    className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-xl hover:shadow-[#11496c]/5 cursor-pointer active:scale-[0.98]"
                   >
-                    {/* Hover Background Effect */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
-                    <div className="relative flex items-start gap-3 lg:gap-3">
-                      <div className="relative shrink-0">
-                        <img
-                          src={appointment.patientImage}
-                          alt={appointment.patientName}
-                          className="h-12 w-12 lg:h-14 lg:w-14 rounded-full object-cover ring-2 ring-slate-100 group-hover:ring-[#11496c]/30 transition-all duration-300 group-hover:scale-110"
-                          onError={(e) => {
-                            e.target.onerror = null
-                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
-                          }}
-                        />
-                        {appointment.status === 'confirmed' && (
-                          <div className="absolute -bottom-1 -right-1 flex h-4 w-4 lg:h-5 lg:w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white group-hover:scale-110 group-hover:ring-emerald-400 transition-all duration-300">
-                            <IoCheckmarkCircleOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3 text-white" />
-                          </div>
-                        )}
+                    {/* Top row: patient info + status */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="relative shrink-0">
+                          <img
+                            src={appointment.patientImage}
+                            alt={appointment.patientName}
+                            className="h-12 w-12 rounded-2xl object-cover ring-4 ring-white shadow-sm bg-slate-100"
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(appointment.patientName)}&background=11496c&color=fff&size=128&bold=true`
+                            }}
+                          />
+                          {appointment.status === 'confirmed' && (
+                            <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 ring-2 ring-white flex items-center justify-center">
+                              <IoCheckmarkCircleOutline className="h-3 w-3 text-white" />
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black text-slate-900 leading-tight group-hover:text-[#11496c] transition-colors">
+                            {appointment.patientName}
+                          </h3>
+                          <p className="text-[11px] font-bold text-slate-400 mt-0.5 line-clamp-1">{appointment.reason}</p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm lg:text-sm font-semibold text-slate-900 group-hover:text-[#11496c] transition-colors duration-300">{appointment.patientName}</h3>
-                            <p className="mt-0.5 text-xs lg:text-xs text-slate-600 group-hover:text-slate-700 transition-colors line-clamp-1">{appointment.reason}</p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] lg:text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(appointment.status)} group-hover:scale-105 transition-transform duration-300`}>
-                              {appointment.status === 'confirmed' ? (
-                                <IoCheckmarkCircleOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
-                              ) : (
-                                <IoTimeOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
-                              )}
-                              {appointment.status}
-                            </span>
-                          </div>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider ${getStatusColor(appointment.status)}`}>
+                        <div className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {appointment.status}
+                      </span>
+                    </div>
+
+                    {/* Info chips */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <IoTimeOutline className="h-3 w-3 text-[#11496c]" />
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Time</span>
                         </div>
-                        <div className="mt-2 lg:mt-2.5 flex flex-wrap items-center gap-2 lg:gap-2.5 text-[10px] lg:text-xs text-slate-600 group-hover:text-slate-700 transition-colors">
-                          <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
-                            <IoTimeOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c] group-hover:text-[#11496c]" />
-                            <span className="font-medium">{appointment.time}</span>
-                          </div>
-                          <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
-                            <TypeIcon className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
-                            <span>{getModeLabel(appointment.consultationMode)}</span>
-                          </div>
-                          <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
-                            <IoCalendarOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
-                            <span>{appointment.duration}</span>
-                          </div>
+                        <p className="text-xs font-black text-slate-700">{appointment.time}</p>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <TypeIcon className="h-3 w-3 text-[#11496c]" />
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Mode</span>
                         </div>
-                        <div className="hidden lg:flex items-center gap-3 mt-2.5 pt-2.5 border-t border-slate-100 group-hover:border-[#11496c]/20 transition-colors">
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 group-hover:text-[#11496c] transition-colors">
-                            <IoPhonePortraitOutline className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
-                            <span className="font-medium">Contact</span>
-                          </div>
-                        </div>
+                        <p className="text-xs font-black text-slate-700 truncate">{getModeLabel(appointment.consultationMode)}</p>
                       </div>
                     </div>
                   </article>
                 )
-              })
-              )}
+              })}
             </div>
-          </section>
+          )}
+        </section>
 
-        {/* Recent Consultations */}
-        <section aria-labelledby="consultations-title" className="space-y-3">
-          <header className="flex items-center justify-between">
-            <h2 id="consultations-title" className="text-base lg:text-lg font-semibold text-slate-900">
-              Recent Consultations
-            </h2>
+        {/* ── Recent Consultations ── */}
+        <section aria-labelledby="consultations-title" className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h2 id="consultations-title" className="text-xl font-black text-slate-900 tracking-tight">Recent Consultations</h2>
             <button
               type="button"
               onClick={() => navigate('/doctor/all-consultations')}
-              className="text-sm font-medium text-[#11496c] hover:text-[#11496c] focus-visible:outline-none focus-visible:underline"
+              className="text-xs font-black text-[#11496c] hover:text-[#14B8A6] uppercase tracking-widest transition-colors"
             >
-              See all
+              See all →
             </button>
-          </header>
+          </div>
 
-          <div className="space-y-3 lg:grid lg:grid-cols-4 lg:gap-4 lg:space-y-0">
-            {recentConsultations.map((consultation) => {
-              const TypeIcon = getTypeIcon(consultation.consultationMode)
-              return (
-                <article
-                  key={consultation.id}
-                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 lg:p-4 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#11496c]/30 cursor-pointer active:scale-[0.98] lg:hover:scale-[1.02]"
-                >
-                  {/* Hover Background Effect */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
-                  
-                  <div className="relative flex items-start gap-3 lg:gap-3">
-                    <div className="relative shrink-0">
-                      <img
-                        src={consultation.patientImage}
-                        alt={consultation.patientName}
-                        className="h-10 w-10 lg:h-14 lg:w-14 shrink-0 rounded-full object-cover ring-2 ring-slate-100 group-hover:ring-[#11496c]/30 transition-all duration-300 group-hover:scale-110"
-                        onError={(e) => {
-                          e.target.onerror = null
-                          e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(consultation.patientName)}&background=3b82f6&color=fff&size=128&bold=true`
-                        }}
-                      />
-                      {consultation.status === 'completed' && (
-                        <div className="absolute -bottom-1 -right-1 flex h-4 w-4 lg:h-5 lg:w-5 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white group-hover:scale-110 group-hover:ring-emerald-400 transition-all duration-300">
-                          <IoCheckmarkCircleOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3 text-white" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm lg:text-sm font-semibold text-slate-900 group-hover:text-[#11496c] transition-colors duration-300">{consultation.patientName}</h3>
-                          <p className="mt-0.5 text-xs lg:text-xs text-slate-600 group-hover:text-slate-700 transition-colors line-clamp-1">{consultation.notes}</p>
-                        </div>
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] lg:text-[10px] font-semibold uppercase tracking-wide ${getStatusColor(consultation.status)} group-hover:scale-105 transition-transform duration-300 shrink-0`}>
-                          {consultation.status === 'completed' ? (
-                            <IoCheckmarkCircleOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
-                          ) : (
-                            <IoTimeOutline className="h-2.5 w-2.5 lg:h-3 lg:w-3" />
+          {recentConsultations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 rounded-[32px] border border-dashed border-slate-200 bg-slate-50 text-center">
+              <div className="h-16 w-16 rounded-full bg-white flex items-center justify-center shadow-sm mb-4">
+                <IoDocumentTextOutline className="h-8 w-8 text-slate-300" />
+              </div>
+              <p className="text-base font-black text-slate-600">No consultations yet</p>
+              <p className="text-xs font-bold text-slate-400 mt-1">Completed consultations will appear here</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-4 lg:gap-4">
+              {recentConsultations.map((consultation) => {
+                const TypeIcon = getTypeIcon(consultation.consultationMode)
+                return (
+                  <article
+                    key={consultation.id}
+                    className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-xl hover:shadow-[#11496c]/5 cursor-pointer active:scale-[0.98]"
+                  >
+                    {/* Top row: patient info + status */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="relative shrink-0">
+                          <img
+                            src={consultation.patientImage}
+                            alt={consultation.patientName}
+                            className="h-12 w-12 rounded-2xl object-cover ring-4 ring-white shadow-sm bg-slate-100"
+                            onError={(e) => {
+                              e.target.onerror = null
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(consultation.patientName)}&background=11496c&color=fff&size=128&bold=true`
+                            }}
+                          />
+                          {consultation.status === 'completed' && (
+                            <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 ring-2 ring-white flex items-center justify-center">
+                              <IoCheckmarkCircleOutline className="h-3 w-3 text-white" />
+                            </div>
                           )}
-                          {consultation.status}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black text-slate-900 leading-tight group-hover:text-[#11496c] transition-colors">
+                            {consultation.patientName}
+                          </h3>
+                          <p className="text-[11px] font-bold text-slate-400 mt-0.5 line-clamp-1">{consultation.notes || 'Consultation'}</p>
+                        </div>
+                      </div>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider ${getStatusColor(consultation.status)}`}>
+                        <div className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {consultation.status}
+                      </span>
+                    </div>
+
+                    {/* Info row */}
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-50">
+                      <div className="flex items-center gap-3 text-[11px] font-bold text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <IoCalendarOutline className="h-3.5 w-3.5 text-[#11496c]" />
+                          {formatDate(consultation.date)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <TypeIcon className="h-3.5 w-3.5 text-[#11496c]" />
+                          {getModeLabel(consultation.consultationMode)}
                         </span>
                       </div>
-                      <div className="mt-2 lg:mt-2.5 flex flex-wrap items-center gap-2 lg:gap-2.5 text-[10px] lg:text-xs text-slate-600 group-hover:text-slate-700 transition-colors">
-                        <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
-                          <IoCalendarOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
-                          <span className="font-medium">{formatDate(consultation.date)}</span>
-                        </div>
-                        <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
-                          <IoTimeOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
-                          <span>{consultation.time}</span>
-                        </div>
-                        <div className="flex items-center gap-1 group-hover/item:scale-105 transition-transform">
-                          <TypeIcon className="h-3 w-3 lg:h-3.5 lg:w-3.5 text-[#11496c]" />
-                          <span>{getModeLabel(consultation.consultationMode)}</span>
-                        </div>
-                        <div className="flex items-center gap-1 font-semibold text-emerald-600 group-hover:text-emerald-700 group-hover:scale-105 transition-all">
-                          <IoWalletOutline className="h-3 w-3 lg:h-3.5 lg:w-3.5" />
-                          <span>{formatCurrency(consultation.fee)}</span>
-                        </div>
-                      </div>
-                      <div className="hidden lg:flex items-center gap-3 mt-2.5 pt-2.5 border-t border-slate-100 group-hover:border-[#11496c]/20 transition-colors">
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 group-hover:text-[#11496c] transition-colors">
-                          <IoMailOutline className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
-                          <span className="font-medium">Report</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 group-hover:text-amber-600 transition-colors">
-                          <IoStarOutline className="h-3.5 w-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
-                          <span className="font-medium">4.8</span>
-                        </div>
-                      </div>
+                      <span className="text-sm font-black text-emerald-600">{formatCurrency(consultation.fee)}</span>
                     </div>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
         </section>
       </section>
     </>

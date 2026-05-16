@@ -1,7 +1,7 @@
 import React from 'react'
 import { IoCall, IoChatbubbleEllipsesOutline, IoFlashOutline, IoArrowForwardOutline } from 'react-icons/io5'
 
-const PromoBanners = () => (
+const PromoBanners = ({ rewardsConfig }) => (
   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
      <div className="bg-gradient-to-r from-[#11496c] to-[#0d3a52] rounded-[40px] p-8 md:p-10 text-white relative overflow-hidden shadow-xl shadow-[#11496c]/20">
         <div className="relative z-10">
@@ -32,15 +32,15 @@ const PromoBanners = () => (
                  <IoFlashOutline className="h-10 w-10 text-amber-400" />
               </div>
            </div>
-           <p className="text-sm text-slate-400 font-medium max-w-[250px]">
-              Win iPhone 16 Pro, Earbuds & Smart Watches Every Month. Join the league!
+           <p className="text-sm text-slate-400 font-medium max-w-[280px]">
+              Get ₹{rewardsConfig?.referralBonus || 200} Heallyn cash on each referral and ₹{rewardsConfig?.loginBonus || 200} on first login!
            </p>
            <button className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/20 hover:bg-white/20 transition-all hover:scale-110">
               <IoArrowForwardOutline className="h-6 w-6" />
            </button>
         </div>
         <img 
-           src="https://img.freepik.com/free-photo/apple-watch-iphone-white-background_23-2148866160.jpg" 
+           src="https://img.freepik.com/free-vector/cash-back-concept-illustration_114360-3209.jpg" 
            alt="" 
            className="absolute right-0 bottom-0 h-[130%] object-contain opacity-20 hidden md:block"
         />

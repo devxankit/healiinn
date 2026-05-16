@@ -104,130 +104,123 @@ const DoctorWallet = () => {
   return (
     <>
       <DoctorNavbar />
-      <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+      <section className={`flex flex-col gap-6 pb-24 px-4 ${isDashboardPage ? '-mt-20' : 'pt-4'}`}>
           {/* Header Section */}
-          <div className="space-y-2 mb-3 sm:mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Wallet</h1>
-                <p className="mt-1.5 text-sm text-slate-600">Manage your earnings and withdrawals</p>
-              </div>
-              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 border border-emerald-100">
-                <IoShieldCheckmarkOutline className="h-5 w-5 text-emerald-600" />
-                <span className="text-xs font-semibold text-emerald-700 hidden sm:inline">Secure</span>
-              </div>
+          <div className="flex items-center justify-between px-1">
+            <div>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Wallet</h1>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Earnings & Payouts</p>
+            </div>
+            <div className="flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-2 border border-emerald-100 shadow-sm">
+              <IoShieldCheckmarkOutline className="h-5 w-5 text-emerald-600" />
+              <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest hidden sm:inline">Secure Payouts</span>
             </div>
           </div>
 
           {/* Main Balance Card - Hero Section */}
-          <div className="relative overflow-hidden rounded-3xl border border-[rgba(17,73,108,0.15)] bg-gradient-to-br from-[#11496c] via-[#1a5f7a] to-[#2a8ba8] p-6 sm:p-8 text-white shadow-2xl shadow-[rgba(17,73,108,0.25)]">
-            {/* Animated Background Elements */}
-            <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />
-            <div className="absolute -left-20 bottom-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[40px] p-8 text-white shadow-2xl shadow-[#11496c]/20"
+            style={{ background: 'linear-gradient(135deg, #11496c 0%, #0d3a52 60%, #14B8A6 100%)' }}>
+            {/* Mesh Gradient Effect */}
+            <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl animate-pulse" />
+            <div className="absolute -left-20 bottom-0 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
             
-            {/* Content */}
-            <div className="relative z-10">
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white/80 mb-1">Total Balance</p>
-                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{loading ? '...' : formatCurrency(walletData.totalBalance)}</p>
-                  <div className="mt-4 flex flex-wrap items-center gap-3 text-xs sm:text-sm">
-                    <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
-                      <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="font-medium">Available: {loading ? '...' : formatCurrency(walletData.availableBalance)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 border border-white/30">
-                      <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                      <span className="font-medium">Pending: {loading ? '...' : formatCurrency(walletData.pendingBalance)}</span>
-                    </div>
+            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mb-3">Current Balance</p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-5xl font-black tracking-tight">{loading ? '—' : formatCurrency(walletData.totalBalance)}</span>
+                </div>
+                
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2.5 rounded-2xl bg-white/10 backdrop-blur-md px-4 py-2.5 border border-white/20">
+                    <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Available: {loading ? '—' : formatCurrency(walletData.availableBalance)}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 rounded-2xl bg-white/10 backdrop-blur-md px-4 py-2.5 border border-white/20">
+                    <div className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Pending: {loading ? '—' : formatCurrency(walletData.pendingBalance)}</span>
                   </div>
                 </div>
-                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
-                  <IoWalletOutline className="h-8 w-8 sm:h-10 sm:w-10" />
-                </div>
+              </div>
+
+              <div className="flex h-20 w-20 items-center justify-center rounded-[28px] bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl self-start sm:self-center">
+                <IoWalletOutline className="h-10 w-10 text-white" />
               </div>
             </div>
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            {/* Earning Card */}
+          <div className="grid grid-cols-2 gap-4">
             <button
               onClick={() => navigate('/doctor/wallet/earning')}
-              className="group relative overflow-hidden rounded-2xl border border-emerald-100/60 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 p-5 shadow-sm hover:shadow-lg transition-all active:scale-[0.98] hover:border-emerald-200"
+              className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] text-left transition-all hover:shadow-xl hover:shadow-emerald-500/5 active:scale-[0.98]"
             >
-              <div className="absolute top-0 right-0 h-20 w-20 rounded-full bg-emerald-100/50 blur-2xl" />
-              <div className="relative">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
-                    <IoArrowDownOutline className="h-5 w-5 text-emerald-600" />
-                  </div>
-                  <IoArrowForwardOutline className="h-4 w-4 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-1">Total Earnings</p>
-                <p className="text-xl sm:text-2xl font-bold text-slate-900">{loading ? '...' : formatCurrency(walletData.totalEarnings)}</p>
-                <p className="mt-1 text-[10px] text-slate-500">All time earnings</p>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 mb-4 transition-transform group-hover:scale-110">
+                <IoArrowDownOutline className="h-6 w-6" />
+              </div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Earnings</p>
+              <p className="text-2xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors">{loading ? '—' : formatCurrency(walletData.totalEarnings)}</p>
+              <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400">All time</span>
+                <IoArrowForwardOutline className="h-3.5 w-3.5 text-slate-300 group-hover:text-emerald-500 transition-colors" />
               </div>
             </button>
 
-            {/* Withdraw Card */}
             <button
               onClick={() => navigate('/doctor/wallet/withdraw')}
-              className="group relative overflow-hidden rounded-2xl border border-amber-100/60 bg-gradient-to-br from-amber-50 via-white to-amber-50/50 p-5 shadow-sm hover:shadow-lg transition-all active:scale-[0.98] hover:border-amber-200"
+              className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] text-left transition-all hover:shadow-xl hover:shadow-amber-500/5 active:scale-[0.98]"
             >
-              <div className="absolute top-0 right-0 h-20 w-20 rounded-full bg-amber-100/50 blur-2xl" />
-              <div className="relative">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100">
-                    <IoCashOutline className="h-5 w-5 text-amber-600" />
-                  </div>
-                  <IoArrowForwardOutline className="h-4 w-4 text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Total Withdrawals</p>
-                <p className="text-xl sm:text-2xl font-bold text-slate-900">{loading ? '...' : formatCurrency(walletData.totalWithdrawals)}</p>
-                <p className="mt-1 text-[10px] text-slate-500">All time withdrawals</p>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 mb-4 transition-transform group-hover:scale-110">
+                <IoCashOutline className="h-6 w-6" />
+              </div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Withdrawals</p>
+              <p className="text-2xl font-black text-slate-900 group-hover:text-amber-600 transition-colors">{loading ? '—' : formatCurrency(walletData.totalWithdrawals)}</p>
+              <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400">All time</span>
+                <IoArrowForwardOutline className="h-3.5 w-3.5 text-slate-300 group-hover:text-amber-500 transition-colors" />
               </div>
             </button>
           </div>
 
           {/* Action Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            {/* Balance Details Card */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <button
               onClick={() => navigate('/doctor/wallet/balance')}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-all active:scale-[0.98] hover:border-[rgba(17,73,108,0.3)]"
+              className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-xl active:scale-[0.98]"
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#11496c] to-[#1a5f7a]">
-                    <IoWalletOutline className="h-6 w-6 text-white" />
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-[#11496c] transition-colors group-hover:bg-[#11496c] group-hover:text-white shadow-sm">
+                    <IoWalletOutline className="h-7 w-7" />
                   </div>
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-slate-900">Balance Details</p>
-                    <p className="text-xs text-slate-500">View breakdown</p>
+                  <div>
+                    <p className="text-sm font-black text-slate-900 uppercase tracking-widest">Balance Details</p>
+                    <p className="text-xs font-bold text-slate-400 mt-0.5">View breakdown by category</p>
                   </div>
                 </div>
-                <IoArrowForwardOutline className="h-5 w-5 text-slate-400 group-hover:text-[#11496c] group-hover:translate-x-1 transition-all" />
+                <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-[#11496c]/10 transition-colors">
+                  <IoArrowForwardOutline className="h-5 w-5 text-slate-300 group-hover:text-[#11496c] transition-all group-hover:translate-x-0.5" />
+                </div>
               </div>
             </button>
 
-            {/* Transaction History Card */}
             <button
               onClick={() => navigate('/doctor/wallet/transaction')}
-              className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-all active:scale-[0.98] hover:border-[rgba(17,73,108,0.3)]"
+              className="group relative overflow-hidden rounded-[32px] border border-slate-50 bg-white p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all hover:shadow-xl active:scale-[0.98]"
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-purple-600">
-                    <IoReceiptOutline className="h-6 w-6 text-white" />
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-purple-600 transition-colors group-hover:bg-purple-600 group-hover:text-white shadow-sm">
+                    <IoReceiptOutline className="h-7 w-7" />
                   </div>
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-slate-900">Transaction History</p>
-                    <p className="text-xs text-slate-500">{loading ? '...' : walletData.totalTransactions} transactions</p>
+                  <div>
+                    <p className="text-sm font-black text-slate-900 uppercase tracking-widest">Transactions</p>
+                    <p className="text-xs font-bold text-slate-400 mt-0.5">{loading ? '—' : walletData.totalTransactions} total entries</p>
                   </div>
                 </div>
-                <IoArrowForwardOutline className="h-5 w-5 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+                <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-purple-600/10 transition-colors">
+                  <IoArrowForwardOutline className="h-5 w-5 text-slate-300 group-hover:text-purple-600 transition-all group-hover:translate-x-0.5" />
+                </div>
               </div>
             </button>
           </div>
