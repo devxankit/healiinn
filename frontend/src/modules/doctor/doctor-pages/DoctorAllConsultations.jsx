@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoDocumentTextOutline,
   IoSearchOutline,
@@ -236,9 +235,8 @@ const DoctorAllConsultations = () => {
   }
 
   return (
-    <>
-      <DoctorNavbar />
-      <section className="flex flex-col gap-4 pb-24">
+    <div className="flex flex-col gap-8 pb-12">
+      <section className="flex flex-col gap-6">
         {/* Statistics Cards - Clickable */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-6">
           <button
@@ -375,10 +373,12 @@ const DoctorAllConsultations = () => {
               <p className="mt-4 text-sm font-medium text-slate-600">Loading consultations...</p>
             </div>
           ) : filteredConsultations.length === 0 ? (
-            <div className="lg:col-span-6 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-              <IoDocumentTextOutline className="mx-auto h-12 w-12 text-slate-300" />
-              <p className="mt-4 text-sm font-medium text-slate-600">No consultations found</p>
-              <p className="mt-1 text-xs text-slate-500">Try adjusting your search or filters</p>
+            <div className="lg:col-span-6 rounded-[32px] border border-dashed border-slate-200 bg-slate-50/50 p-16 text-center shadow-sm">
+              <div className="mx-auto h-20 w-20 rounded-full bg-white flex items-center justify-center shadow-sm mb-6">
+                <IoDocumentTextOutline className="h-10 w-10 text-slate-300" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">No consultations found</h3>
+              <p className="mt-2 text-sm font-bold text-slate-400 max-w-xs mx-auto">Try adjusting your search or filters to find what you're looking for</p>
             </div>
           ) : (
             filteredConsultations.map((consultation) => {
@@ -476,7 +476,7 @@ const DoctorAllConsultations = () => {
           </div>
         )}
       </section>
-    </>
+    </div>
   )
 }
 

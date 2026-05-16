@@ -78,7 +78,7 @@ const PharmacyNavbar = () => {
     <>
       {/* Top Header - Hidden on dashboard page for a cleaner look as dashboard has its own header */}
       {!isDashboardPage && (
-        <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/90 px-4 py-4 backdrop-blur-xl border-b border-slate-100 shadow-sm md:px-8 lg:left-[260px]">
+        <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/90 px-4 py-4 backdrop-blur-xl border-b border-slate-100 shadow-sm md:px-8 lg:left-[280px]">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-[#11496c] flex items-center justify-center text-white shadow-lg shadow-[#11496c]/20 lg:hidden">
                <IoMedicalOutline className="h-6 w-6" />

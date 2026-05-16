@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   IoHomeOutline,
@@ -11,6 +11,7 @@ import {
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import DoctorSidebar from './DoctorSidebar'
+import { useDoctorSidebar } from './DoctorSidebarContext'
 import { useToast } from '../../../contexts/ToastContext'
 import NotificationBell from '../../../components/NotificationBell'
 
@@ -27,7 +28,7 @@ const allNavItems = [
 const navbarItems = allNavItems.filter((item) => item.id !== 'support')
 
 const DoctorNavbar = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const { isSidebarOpen, toggleSidebar, closeSidebar } = useDoctorSidebar()
   const toggleButtonRef = useRef(null)
   const navigate = useNavigate()
   const location = useLocation()
@@ -38,25 +39,18 @@ const DoctorNavbar = () => {
   const isLoginPage = location.pathname === '/login'
 
   const mobileLinkBase =
-    'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[rgba(17,73,108,0.7)] focus-visible:ring-offset-2'
+    'flex flex-1 items-center justify-center rounded-2xl px-1 py-1 transition-all duration-300 focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2'
 
   const mobileIconWrapper =
-    'flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all duration-200'
-
-  const desktopLinkBase =
-    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(17,73,108,0.7)] focus-visible:ring-offset-2'
+    'flex h-12 w-12 items-center justify-center rounded-2xl text-xl transition-all duration-300'
 
   const handleSidebarToggle = () => {
-    if (isSidebarOpen) {
-      handleSidebarClose()
-    } else {
-      setIsSidebarOpen(true)
-    }
+    toggleSidebar()
   }
 
   const handleSidebarClose = () => {
     toggleButtonRef.current?.focus({ preventScroll: true })
-    setIsSidebarOpen(false)
+    closeSidebar()
   }
 
   const handleLogout = async () => {
@@ -67,12 +61,10 @@ const DoctorNavbar = () => {
       toast.success('Logged out successfully')
     } catch (error) {
       console.error('Error during logout:', error)
-      // Clear tokens manually if API call fails
       const { clearDoctorTokens } = await import('../doctor-services/doctorService')
       clearDoctorTokens()
       toast.success('Logged out successfully')
     }
-    // Force navigation to login page - full page reload to clear all state
     setTimeout(() => {
       window.location.href = '/login?type=doctor'
     }, 500)
@@ -80,28 +72,34 @@ const DoctorNavbar = () => {
 
   return (
     <>
+      {/* Top Header - Hidden on dashboard page */}
       {!isDashboardPage && !isLoginPage && (
-        <header className="lg:hidden fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/80 px-4 py-3 backdrop-blur-xl border-b border-slate-100 md:px-6">
-          <div className="flex items-center">
+        <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/90 px-4 py-4 backdrop-blur-xl border-b border-slate-100 shadow-sm md:px-8 lg:left-[304px]">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-[#11496c] flex items-center justify-center text-white shadow-lg shadow-[#11496c]/20 lg:hidden">
+               <IoDocumentTextOutline className="h-6 w-6" />
+            </div>
             <img
               src={healinnLogo}
-              alt="Heallyn"
-              className="h-8 w-auto object-contain"
+              alt="Healinn"
+              className="h-7 w-auto object-contain hidden sm:block lg:hidden"
               loading="lazy"
             />
+            <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest hidden lg:block">
+               Doctor Portal
+            </h2>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 border border-slate-100">
-              <NotificationBell />
-            </div>
+          
+          <div className="flex items-center gap-3">
+            <NotificationBell />
             <button
               type="button"
               ref={toggleButtonRef}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-600"
+              className="lg:hidden h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600"
               aria-label="Toggle navigation menu"
               onClick={handleSidebarToggle}
             >
-              <IoMenuOutline className="h-6 w-6" />
+              <IoMenuOutline className="text-2xl" aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -109,44 +107,40 @@ const DoctorNavbar = () => {
 
       <DoctorSidebar
         isOpen={isSidebarOpen}
-        onClose={handleSidebarClose}
+        onClose={closeSidebar}
         navItems={allNavItems}
         onLogout={handleLogout}
       />
 
+      {/* Mobile Bottom Nav */}
       {!isLoginPage && (
-        <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around bg-white/90 px-4 py-3 backdrop-blur-xl border-t border-slate-100 pb-safe md:hidden shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+        <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around gap-2 border-t border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-xl lg:hidden pb-safe">
           {navbarItems.map(({ id, label, to, Icon }) => (
             <NavLink
               key={id}
               to={to}
               className={({ isActive }) =>
-                `relative flex flex-col items-center gap-1 transition-all duration-300 ${
-                  isActive ? 'text-[#11496c] scale-110' : 'text-slate-400 hover:text-slate-600'
+                `${mobileLinkBase} ${
+                  isActive ? 'scale-110' : 'text-slate-400 opacity-60'
                 }`
               }
               end={id === 'home'}
             >
               {({ isActive }) => (
-                <>
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-500 ${
+                <div className="flex flex-col items-center gap-1">
+                  <span
+                    className={`${mobileIconWrapper} ${
                       isActive
-                        ? 'bg-[#11496c] text-white shadow-xl shadow-[#11496c]/20 rotate-[-8deg]'
-                        : 'bg-transparent'
+                        ? 'bg-[#11496c] text-white shadow-xl shadow-[#11496c]/30'
+                        : 'bg-slate-50 text-slate-400'
                     }`}
                   >
                     <Icon className="h-6 w-6" aria-hidden="true" />
-                  </div>
-                  <span className={`text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
-                    isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-                  }`}>
+                  </span>
+                  <span className={`text-[10px] font-black uppercase tracking-tighter ${isActive ? 'text-[#11496c]' : 'text-slate-400'}`}>
                     {label}
                   </span>
-                  {isActive && (
-                    <div className="absolute -bottom-1 h-1 w-1 rounded-full bg-[#11496c]" />
-                  )}
-                </>
+                </div>
               )}
             </NavLink>
           ))}
@@ -157,4 +151,5 @@ const DoctorNavbar = () => {
 }
 
 export default DoctorNavbar
+
 

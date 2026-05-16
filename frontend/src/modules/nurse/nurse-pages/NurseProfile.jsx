@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import NurseNavbar from '../nurse-components/NurseNavbar'
-import NurseHeader from '../nurse-components/NurseHeader'
-import NurseFooter from '../nurse-components/NurseFooter'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
 import { getNurseProfile, updateNurseProfile } from '../nurse-services/nurseService'
@@ -332,31 +329,22 @@ const NurseProfile = () => {
 
   if (isLoading) {
     return (
-      <>
-        <NurseNavbar />
-        <NurseHeader />
-        <section className={`flex flex-col gap-4 pb-24 lg:pb-8 ${isDashboardPage ? '-mt-20' : ''} lg:mt-0`}>
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
-              <p className="mt-4 text-sm text-slate-600">Loading profile...</p>
-            </div>
+      <div className="flex flex-col gap-4 pb-24 lg:pb-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
+            <p className="mt-4 text-sm text-slate-600">Loading profile...</p>
           </div>
-        </section>
-        <NurseFooter />
-      </>
+        </div>
+      </div>
     )
   }
 
   return (
-    <>
-      <NurseNavbar />
-      <NurseHeader />
-      <section className={`flex flex-col gap-4 pb-24 lg:pb-8 ${isDashboardPage ? '-mt-20' : ''} lg:mt-0`}>
-        {/* Desktop Layout: Two Column Grid */}
-        <div className="lg:grid lg:grid-cols-3 lg:gap-4 lg:max-w-5xl lg:mx-auto lg:px-4">
-          {/* Left Column - Profile Header Card (Desktop) */}
-          <div className="lg:col-span-1">
+    <div className="flex flex-col gap-4 pb-24 lg:pb-8">
+      <div className="lg:grid lg:grid-cols-12 lg:gap-6 lg:mx-auto lg:px-4 w-full">
+        {/* Left Column - Profile Header Card (Desktop) */}
+        <div className="lg:col-span-5 xl:col-span-4">
             {/* Profile Header - Desktop Enhanced */}
             <div className="hidden lg:block relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#11496c] via-[#0d3a52] to-[#11496c] p-5 shadow-xl">
               {/* Background Pattern */}
@@ -671,8 +659,8 @@ const NurseProfile = () => {
             </div>
           </div>
 
-          {/* Right Column - Information Sections */}
-          <div className="lg:col-span-2 lg:space-y-4">
+        {/* Right Column - Information Sections */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-4">
 
             {/* Basic Details */}
             <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
@@ -1101,10 +1089,8 @@ const NurseProfile = () => {
               )}
             </div>
           </div>
-        </div>
-      </section>
-      <NurseFooter />
-    </>
+      </div>
+    </div>
   )
 }
 

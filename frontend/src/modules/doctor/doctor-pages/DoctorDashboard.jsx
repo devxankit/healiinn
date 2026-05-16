@@ -1,7 +1,5 @@
 import { useNavigate } from 'react-router-dom'
 import { useState, useMemo, useEffect } from 'react'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
-import DoctorSidebar from '../doctor-components/DoctorSidebar'
 import { useToast } from '../../../contexts/ToastContext'
 import { getDoctorDashboard, getDoctorAppointments, getDoctorQueue, getDoctorConsultations, getDoctorProfile, getDoctorWalletBalance, getPatientById, getConsultationById } from '../doctor-services/doctorService'
 import NotificationBell from '../../../components/NotificationBell'
@@ -701,14 +699,7 @@ const DoctorDashboard = () => {
 
   return (
     <>
-      <DoctorNavbar />
-      <DoctorSidebar
-        isOpen={isSidebarOpen}
-        onClose={handleSidebarClose}
-        navItems={sidebarNavItems}
-        onLogout={handleLogout}
-      />
-      <section className="flex flex-col gap-6 pb-24 -mt-20 lg:mt-0 lg:pb-8">
+      <section className="flex flex-col gap-6 pb-24 -mt-28 lg:mt-0 lg:pb-8">
         {/* ── Mobile Hero Header ── */}
         <header
           className="lg:hidden relative overflow-hidden -mx-4 mb-2"

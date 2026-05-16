@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoPeopleOutline,
   IoSearchOutline,
@@ -257,8 +256,7 @@ const DoctorAllPatients = () => {
 
   return (
     <>
-      <DoctorNavbar />
-      <section className="flex flex-col gap-4 pb-24">
+      <section className="flex flex-col gap-6 lg:gap-8 pb-12">
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-3 gap-3 sm:gap-4 lg:gap-5">

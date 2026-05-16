@@ -352,11 +352,11 @@ const PharmacyOrders = () => {
           <button
             key={status}
             onClick={() => setFilter(status)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${filter === status
+            className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold capitalize transition ${filter === status
                 ? 'text-white shadow-sm'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                : 'bg-white text-slate-500 border border-slate-100 hover:bg-slate-50'
               }`}
-            style={filter === status ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
+            style={filter === status ? { backgroundColor: '#11496c' } : {}}
           >
             {status === 'all' ? 'All Orders' : statusConfig[status]?.label || 'Completed'}
           </button>
@@ -456,98 +456,97 @@ const PharmacyOrders = () => {
                   <span className="line-clamp-2 lg:line-clamp-1">{order.address}</span>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="relative flex gap-2 flex-wrap lg:mt-auto lg:pt-2 lg:border-t lg:border-slate-200">
-                  {(() => {
-                    // Pharmacy order status flow - exactly as per timeline
-                    const statusFlowPharmacy = [
-                      'pending',
-                      'prescription_received',
-                      'medicine_collected',
-                      'packed',
-                      'ready_to_be_picked',
-                      'picked_up',
-                      'delivered',
-                      'completed'
-                    ]
+                    {/* Action Buttons */}
+                    <div className="relative flex gap-1.5 flex-wrap lg:mt-auto lg:pt-2 lg:border-t lg:border-slate-100">
+                      {(() => {
+                        // Pharmacy order status flow - exactly as per timeline
+                        const statusFlowPharmacy = [
+                          'pending',
+                          'prescription_received',
+                          'medicine_collected',
+                          'packed',
+                          'ready_to_be_picked',
+                          'picked_up',
+                          'delivered',
+                          'completed'
+                        ]
 
-                    // Get actual order status
-                    let currentStatus = (order.status || 'pending').toLowerCase().trim()
+                        // Get actual order status
+                        let currentStatus = (order.status || 'pending').toLowerCase().trim()
 
-                    // Map legacy statuses to new flow statuses
-                    const statusMapping = {
-                      'accepted': 'pending',
-                      'processing': 'prescription_received',
-                      'ready': 'ready_to_be_picked',
-                    }
+                        // Map legacy statuses to new flow statuses
+                        const statusMapping = {
+                          'accepted': 'pending',
+                          'processing': 'prescription_received',
+                          'ready': 'ready_to_be_picked',
+                        }
 
-                    // Apply mapping if needed
-                    if (statusMapping[currentStatus]) {
-                      currentStatus = statusMapping[currentStatus]
-                    }
+                        // Apply mapping if needed
+                        if (statusMapping[currentStatus]) {
+                          currentStatus = statusMapping[currentStatus]
+                        }
 
-                    // Find current status index in flow
-                    let currentIndex = statusFlowPharmacy.indexOf(currentStatus)
+                        // Find current status index in flow
+                        let currentIndex = statusFlowPharmacy.indexOf(currentStatus)
 
-                    // If status not found in flow, default to first status (pending)
-                    if (currentIndex === -1) {
-                      currentIndex = 0
-                      currentStatus = 'pending'
-                    }
+                        // If status not found in flow, default to first status (pending)
+                        if (currentIndex === -1) {
+                          currentIndex = 0
+                          currentStatus = 'pending'
+                        }
 
-                    // Calculate next status - must be the immediate next step
-                    const nextIndex = currentIndex + 1
-                    const nextStatus = nextIndex < statusFlowPharmacy.length
-                      ? statusFlowPharmacy[nextIndex]
-                      : null
+                        // Calculate next status - must be the immediate next step
+                        const nextIndex = currentIndex + 1
+                        const nextStatus = nextIndex < statusFlowPharmacy.length
+                          ? statusFlowPharmacy[nextIndex]
+                          : null
 
-                    // Don't show button if:
-                    // - Order is already completed
-                    // - Order is cancelled
-                    // - No next status available
-                    if (!nextStatus || currentStatus === 'completed' || currentStatus === 'cancelled') {
-                      return null
-                    }
+                        // Don't show button if:
+                        // - Order is already completed
+                        // - Order is cancelled
+                        // - No next status available
+                        if (!nextStatus || currentStatus === 'completed' || currentStatus === 'cancelled') {
+                          return null
+                        }
 
-                    // Get next status config
-                    const nextStatusConfig = statusConfig[nextStatus]
-                    if (!nextStatusConfig) {
-                      return null
-                    }
+                        // Get next status config
+                        const nextStatusConfig = statusConfig[nextStatus]
+                        if (!nextStatusConfig) {
+                          return null
+                        }
 
-                    // Return button for next status
-                    return (
+                        // Return button for next status
+                        return (
+                          <button
+                            onClick={() => handleStatusUpdate(orderId, nextStatus)}
+                            className="flex-1 rounded-md bg-[#11496c] px-2 py-1 text-[10px] font-bold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
+                          >
+                            {nextStatusConfig.label}
+                          </button>
+                        )
+                      })()}
                       <button
-                        onClick={() => handleStatusUpdate(orderId, nextStatus)}
-                        className="flex-1 rounded-lg bg-[#11496c] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#0d3a52] hover:shadow-md active:scale-95 group-hover:scale-105 lg:px-2 lg:py-1.5 lg:text-[10px]"
+                        onClick={() => setSelectedOrder(order)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-[#11496c] hover:text-[#11496c] active:scale-95"
+                        aria-label="View Details"
                       >
-                        <span className="lg:hidden">Next: {nextStatusConfig.label}</span>
-                        <span className="hidden lg:inline">{nextStatusConfig.label}</span>
+                        <IoDocumentTextOutline className="h-3.5 w-3.5" />
                       </button>
-                    )
-                  })()}
-                  <button
-                    onClick={() => setSelectedOrder(order)}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-[#11496c] hover:bg-[#11496c] hover:text-white active:scale-95 group-hover:scale-110 lg:h-8 lg:w-8"
-                    aria-label="View Details"
-                  >
-                    <IoDocumentTextOutline className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
-                  </button>
-                  <a
-                    href={`tel:${order.patientPhone}`}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-emerald-500 hover:bg-emerald-500 hover:text-white active:scale-95 group-hover:scale-110 lg:h-8 lg:w-8"
-                    aria-label="Call Patient"
-                  >
-                    <IoCallOutline className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
-                  </a>
-                  <a
-                    href={`mailto:${order.patientEmail}`}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-blue-500 hover:bg-blue-500 hover:text-white active:scale-95 group-hover:scale-110 lg:h-8 lg:w-8"
-                    aria-label="Email Patient"
-                  >
-                    <IoMailOutline className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
-                  </a>
-                </div>
+                      <a
+                        href={`tel:${order.patientPhone}`}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-emerald-500 hover:text-emerald-500 active:scale-95"
+                        aria-label="Call Patient"
+                      >
+                        <IoCallOutline className="h-3.5 w-3.5" />
+                      </a>
+                      <a
+                        href={`mailto:${order.patientEmail}`}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-all hover:border-blue-500 hover:text-blue-500 active:scale-95"
+                        aria-label="Email Patient"
+                      >
+                        <IoMailOutline className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
               </article>
             )
           })

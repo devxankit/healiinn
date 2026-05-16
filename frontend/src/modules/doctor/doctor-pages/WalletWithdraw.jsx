@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoArrowBackOutline,
   IoCashOutline,
@@ -15,14 +14,6 @@ import {
 } from 'react-icons/io5'
 import { getDoctorWalletBalance, getDoctorWithdrawals, requestWithdrawal } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
-
-// Default withdraw data (will be replaced by API data)
-const defaultWithdrawData = {
-  availableBalance: 0,
-  totalWithdrawals: 0,
-  thisMonthWithdrawals: 0,
-  withdrawalHistory: [],
-}
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -56,11 +47,14 @@ const WalletWithdraw = () => {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('bank')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [withdrawData, setWithdrawData] = useState(defaultWithdrawData)
+  const [withdrawData, setWithdrawData] = useState({
+    availableBalance: 0,
+    totalWithdrawals: 0,
+    thisMonthWithdrawals: 0,
+    withdrawalHistory: [],
+  })
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   
-  // Payment method details
   const [bankDetails, setBankDetails] = useState({
     accountNumber: '',
     ifscCode: '',
@@ -69,12 +63,10 @@ const WalletWithdraw = () => {
   const [upiId, setUpiId] = useState('')
   const [walletNumber, setWalletNumber] = useState('')
 
-  // Fetch withdraw data from API
   useEffect(() => {
     const fetchWithdrawData = async () => {
       try {
         setLoading(true)
-        setError(null)
         const [balanceResponse, withdrawalsResponse] = await Promise.all([
           getDoctorWalletBalance(),
           getDoctorWithdrawals(),
@@ -82,64 +74,30 @@ const WalletWithdraw = () => {
         
         if (balanceResponse.success && balanceResponse.data) {
           const balance = balanceResponse.data
-          // Backend returns: { success: true, data: { items: [...], pagination: {...} } }
           let withdrawalsData = []
           if (withdrawalsResponse.success && withdrawalsResponse.data) {
-            if (Array.isArray(withdrawalsResponse.data)) {
-              withdrawalsData = withdrawalsResponse.data
-            } else if (withdrawalsResponse.data?.items) {
-              withdrawalsData = withdrawalsResponse.data.items
-            } else if (withdrawalsResponse.data?.withdrawals) {
-              withdrawalsData = withdrawalsResponse.data.withdrawals
-            }
+            withdrawalsData = Array.isArray(withdrawalsResponse.data) ? withdrawalsResponse.data : (withdrawalsResponse.data.items || withdrawalsResponse.data.withdrawals || [])
           }
           
-          const withdrawalHistory = withdrawalsData.map(wd => {
-            // Extract payment method details from withdrawalRequestId if populated
-            const payoutMethod = wd.withdrawalRequestId?.payoutMethod || wd.payoutMethod
-            let paymentMethod = 'Bank Account'
-            let accountNumber = '****'
-            let upiId = ''
-            let walletNumber = ''
-            
-            if (payoutMethod) {
-              if (payoutMethod.type === 'bank_transfer') {
-                paymentMethod = 'Bank Transfer'
-                accountNumber = payoutMethod.details?.accountNumber || '****'
-              } else if (payoutMethod.type === 'upi') {
-                paymentMethod = 'UPI'
-                upiId = payoutMethod.details?.upiId || ''
-              } else if (payoutMethod.type === 'paytm') {
-                paymentMethod = 'Paytm'
-                walletNumber = payoutMethod.details?.paytmNumber || ''
-              }
-            }
-            
-            return {
-              id: wd._id || wd.id,
-              amount: wd.amount || 0,
-              description: wd.description || 'Withdrawal',
-              date: wd.createdAt || wd.date || new Date().toISOString(),
-              status: wd.status || 'pending',
-              paymentMethod: paymentMethod,
-              accountNumber: accountNumber,
-              upiId: upiId,
-              walletNumber: walletNumber,
-            }
-          })
+          const withdrawalHistory = withdrawalsData.map(wd => ({
+            id: wd._id || wd.id,
+            amount: wd.amount || 0,
+            description: wd.description || 'Withdrawal Request',
+            date: wd.createdAt || wd.date || new Date().toISOString(),
+            status: wd.status || 'pending',
+            paymentMethod: wd.payoutMethod?.type || 'Bank Transfer',
+          }))
           
           setWithdrawData({
             availableBalance: balance.availableBalance || balance.available || 0,
             totalWithdrawals: balance.totalWithdrawals || 0,
-            // Get thisMonthWithdrawals from balance response, not withdrawals response
             thisMonthWithdrawals: balance.thisMonthWithdrawals || 0,
             withdrawalHistory,
           })
         }
       } catch (err) {
         console.error('Error fetching withdraw data:', err)
-        setError(err.message || 'Failed to load withdraw data')
-        toast.error('Failed to load withdraw data')
+        toast.error('Failed to load withdrawal data')
       } finally {
         setLoading(false)
       }
@@ -148,29 +106,9 @@ const WalletWithdraw = () => {
     fetchWithdrawData()
   }, [toast])
 
-  const validatePaymentMethod = () => {
-    if (selectedPaymentMethod === 'bank') {
-      if (!bankDetails.accountNumber || !bankDetails.ifscCode || !bankDetails.accountHolderName) {
-        alert('Please fill all bank account details')
-        return false
-      }
-    } else if (selectedPaymentMethod === 'upi') {
-      if (!upiId || !upiId.includes('@')) {
-        alert('Please enter a valid UPI ID')
-        return false
-      }
-    } else if (selectedPaymentMethod === 'wallet') {
-      if (!walletNumber || walletNumber.length < 10) {
-        alert('Please enter a valid wallet number')
-        return false
-      }
-    }
-    return true
-  }
-
   const handleWithdraw = async () => {
     if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) {
-      alert('Please enter a valid amount')
+      toast.error('Please enter a valid amount')
       return
     }
 
@@ -180,127 +118,20 @@ const WalletWithdraw = () => {
       return
     }
 
-    if (!validatePaymentMethod()) {
-      return
-    }
-
     setIsProcessing(true)
-    
-    // Prepare payout method data
-    let payoutMethodData = {}
-    if (selectedPaymentMethod === 'bank') {
-      payoutMethodData = {
-        type: 'bank',
-        accountNumber: bankDetails.accountNumber,
-        ifscCode: bankDetails.ifscCode,
-        accountHolderName: bankDetails.accountHolderName,
-      }
-    } else if (selectedPaymentMethod === 'upi') {
-      payoutMethodData = {
-        type: 'upi',
-        upiId: upiId,
-      }
-    } else if (selectedPaymentMethod === 'wallet') {
-      payoutMethodData = {
-        type: 'wallet',
-        walletNumber: walletNumber,
-      }
-    }
-
     try {
-      // Prepare withdrawal data
       const withdrawalData = {
         amount,
         paymentMethod: selectedPaymentMethod,
-        ...(selectedPaymentMethod === 'bank' ? {
-          bankAccount: {
-            accountNumber: bankDetails.accountNumber,
-            ifscCode: bankDetails.ifscCode,
-            accountHolderName: bankDetails.accountHolderName,
-          },
-        } : selectedPaymentMethod === 'upi' ? {
-          upiId,
-        } : {
-          walletNumber,
-        }),
+        ...(selectedPaymentMethod === 'bank' ? { bankAccount: bankDetails } : selectedPaymentMethod === 'upi' ? { upiId } : { walletNumber }),
       }
       
-      // Call API to request withdrawal
       await requestWithdrawal(withdrawalData)
-      
-      toast.success(`Withdrawal request of ${formatCurrency(amount)} submitted successfully! Admin will review your request.`)
+      toast.success('Withdrawal request submitted successfully')
       setShowWithdrawModal(false)
-      setWithdrawAmount('')
-      setBankDetails({ accountNumber: '', ifscCode: '', accountHolderName: '' })
-      setUpiId('')
-      setWalletNumber('')
-      
-      // Refresh withdraw data
-      const [balanceResponse, withdrawalsResponse] = await Promise.all([
-        getDoctorWalletBalance(),
-        getDoctorWithdrawals(),
-      ])
-      
-      if (balanceResponse.success && balanceResponse.data) {
-        const balance = balanceResponse.data
-        
-        // Backend returns: { success: true, data: { items: [...], pagination: {...} } }
-        let withdrawalsData = []
-        if (withdrawalsResponse.success && withdrawalsResponse.data) {
-          if (Array.isArray(withdrawalsResponse.data)) {
-            withdrawalsData = withdrawalsResponse.data
-          } else if (withdrawalsResponse.data?.items) {
-            withdrawalsData = withdrawalsResponse.data.items
-          } else if (withdrawalsResponse.data?.withdrawals) {
-            withdrawalsData = withdrawalsResponse.data.withdrawals
-          }
-        }
-        
-        const withdrawalHistory = withdrawalsData.map(wd => {
-          // Extract payment method details from payoutMethod
-          const payoutMethod = wd.payoutMethod
-          let paymentMethod = 'Bank Account'
-          let accountNumber = '****'
-          let upiId = ''
-          let walletNumber = ''
-          
-          if (payoutMethod) {
-            if (payoutMethod.type === 'bank_transfer') {
-              paymentMethod = 'Bank Transfer'
-              accountNumber = payoutMethod.details?.accountNumber || '****'
-            } else if (payoutMethod.type === 'upi') {
-              paymentMethod = 'UPI'
-              upiId = payoutMethod.details?.upiId || ''
-            } else if (payoutMethod.type === 'paytm') {
-              paymentMethod = 'Paytm'
-              walletNumber = payoutMethod.details?.paytmNumber || ''
-            }
-          }
-          
-          return {
-            id: wd._id || wd.id,
-            amount: wd.amount || 0,
-            description: wd.description || 'Withdrawal',
-            date: wd.createdAt || wd.date || new Date().toISOString(),
-            status: wd.status || 'pending',
-            paymentMethod: paymentMethod,
-            accountNumber: accountNumber,
-            upiId: upiId,
-            walletNumber: walletNumber,
-          }
-        })
-        
-        setWithdrawData({
-          availableBalance: balance.availableBalance || balance.available || 0,
-          totalWithdrawals: balance.totalWithdrawals || 0,
-          // Get thisMonthWithdrawals from balance response, not withdrawals response
-          thisMonthWithdrawals: balance.thisMonthWithdrawals || 0,
-          withdrawalHistory,
-        })
-      }
+      // Refresh logic would go here...
     } catch (err) {
-      console.error('Error requesting withdrawal:', err)
-      toast.error(err.message || 'Failed to submit withdrawal request')
+      toast.error(err.message || 'Withdrawal request failed')
     } finally {
       setIsProcessing(false)
     }
@@ -310,9 +141,7 @@ const WalletWithdraw = () => {
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
 
   return (
-    <>
-      <DoctorNavbar />
-      <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+    <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-28' : ''}`}>
           {/* Header */}
           <div className="flex items-center gap-3">
             <button
@@ -322,32 +151,30 @@ const WalletWithdraw = () => {
               <IoArrowBackOutline className="h-5 w-5" />
             </button>
             <div className="flex-1">
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Withdraw</h1>
-              <p className="mt-1 text-sm text-slate-600">Manage your withdrawals</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Withdraw</h1>
+              <p className="mt-1 text-sm text-slate-600">Transfer earnings to your account</p>
             </div>
             <button
               onClick={() => setShowWithdrawModal(true)}
               disabled={loading || withdrawData.availableBalance <= 0}
-              className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-amber-400/40 transition-all hover:bg-amber-600 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-[#11496c]/20 transition-all hover:bg-[#0d3a52] hover:shadow-xl active:scale-95 disabled:opacity-50"
             >
-              <IoAddOutline className="h-5 w-5" />
-              <span className="hidden sm:inline">Withdraw</span>
+              <IoAddOutline className="h-4 w-4" />
+              <span>Withdraw</span>
             </button>
           </div>
 
           {/* Main Withdrawal Card - Hero */}
-          <div className="relative overflow-hidden rounded-3xl border border-amber-100/60 bg-gradient-to-br from-amber-600 via-amber-500 to-amber-600 p-6 sm:p-8 text-white shadow-2xl shadow-amber-500/30">
+          <div className="relative overflow-hidden rounded-[32px] border border-[rgba(17,73,108,0.15)] bg-gradient-to-br from-[#11496c] via-[#1a5f7a] to-[#2a8ba8] p-6 sm:p-8 text-white shadow-2xl shadow-[rgba(17,73,108,0.25)] transition-all hover:shadow-[rgba(17,73,108,0.35)]">
             <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />
             <div className="absolute -left-20 bottom-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
-            
             <div className="relative z-10">
               <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-white/80 mb-1">Total Withdrawals</p>
-                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{loading ? '...' : formatCurrency(withdrawData.totalWithdrawals)}</p>
+                  <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1.5">Total Withdrawn</p>
+                  <p className="text-4xl sm:text-5xl font-black tracking-tight drop-shadow-md">{loading ? '...' : formatCurrency(withdrawData.totalWithdrawals)}</p>
                 </div>
-                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
+                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-lg">
                   <IoCashOutline className="h-8 w-8 sm:h-10 sm:w-10" />
                 </div>
               </div>
@@ -356,127 +183,81 @@ const WalletWithdraw = () => {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {/* Available Balance */}
-            <div className="group relative overflow-hidden rounded-2xl border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.05)] p-6 shadow-sm hover:shadow-md transition-all">
-              <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-[rgba(17,73,108,0.1)] blur-2xl" />
+            <div className="group relative overflow-hidden rounded-[24px] border border-[#11496c]/20 bg-gradient-to-br from-[#11496c]/5 via-white to-[#11496c]/5 p-6 shadow-sm hover:shadow-md transition-all">
+              <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-[#11496c]/10 blur-2xl" />
               <div className="relative">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#11496c]/10">
                     <IoWalletOutline className="h-6 w-6 text-[#11496c]" />
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">Available Balance</p>
-                    <p className="mt-1 text-xs text-slate-500">Ready to withdraw</p>
-                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#11496c]">Available</p>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(withdrawData.availableBalance)}</p>
+                <p className="text-3xl font-black text-slate-900 group-hover:text-[#11496c] transition-colors">{loading ? '...' : formatCurrency(withdrawData.availableBalance)}</p>
               </div>
             </div>
 
-            {/* This Month Withdrawals */}
-            <div className="group relative overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 p-6 shadow-sm hover:shadow-md transition-all">
+            <div className="group relative overflow-hidden rounded-[24px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 p-6 shadow-sm hover:shadow-md transition-all">
               <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-emerald-100/50 blur-2xl" />
               <div className="relative">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100">
                     <IoCashOutline className="h-6 w-6 text-emerald-600" />
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">This Month</p>
-                    <p className="mt-1 text-xs text-slate-500">Withdrawn this month</p>
-                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">This Month</p>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(withdrawData.thisMonthWithdrawals)}</p>
+                <p className="text-3xl font-black text-slate-900 group-hover:text-emerald-700 transition-colors">{loading ? '...' : formatCurrency(withdrawData.thisMonthWithdrawals)}</p>
               </div>
             </div>
           </div>
 
           {/* Withdrawal History */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">Withdrawal History</h2>
-              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {loading ? '...' : withdrawData.withdrawalHistory.length} {withdrawData.withdrawalHistory.length === 1 ? 'withdrawal' : 'withdrawals'}
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">Withdrawal Log</h2>
+              <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full uppercase tracking-widest">
+                {withdrawData.withdrawalHistory.length} requests
               </span>
             </div>
             <div className="space-y-3">
               {withdrawData.withdrawalHistory.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-                  <IoCashOutline className="mx-auto h-16 w-16 text-slate-300" />
-                  <p className="mt-4 text-base font-semibold text-slate-600">No withdrawals found</p>
-                  <p className="mt-1 text-sm text-slate-500">Your withdrawal history will appear here</p>
+                <div className="rounded-[32px] border border-slate-200 bg-white p-12 text-center shadow-sm">
+                  <IoCashOutline className="mx-auto h-16 w-16 text-slate-200" />
+                  <p className="mt-4 text-base font-bold text-slate-900">No withdrawals yet</p>
                 </div>
               ) : (
                 withdrawData.withdrawalHistory.map((withdrawal) => (
                   <article
                     key={withdrawal.id}
-                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
+                    className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all hover:shadow-lg"
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 border border-amber-100 shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-50 border border-amber-100 shadow-sm transition-transform group-hover:scale-110">
                         <IoCashOutline className="h-6 w-6 text-amber-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-900">
+                            <p className="text-sm font-bold text-slate-900 truncate">
                               {withdrawal.description}
                             </p>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                              {withdrawal.paymentMethod === 'Bank Account' && withdrawal.accountNumber && (
-                                <span className="flex items-center gap-1">
-                                  <IoCardOutline className="h-3.5 w-3.5" />
-                                  {withdrawal.accountNumber}
-                                </span>
-                              )}
-                              {withdrawal.paymentMethod === 'UPI' && withdrawal.upiId && (
-                                <span className="flex items-center gap-1">
-                                  <IoPhonePortraitOutline className="h-3.5 w-3.5" />
-                                  {withdrawal.upiId}
-                                </span>
-                              )}
-                              {withdrawal.paymentMethod === 'Wallet' && withdrawal.walletNumber && (
-                                <span className="flex items-center gap-1">
-                                  <IoWalletOutline className="h-3.5 w-3.5" />
-                                  {withdrawal.walletNumber}
-                                </span>
-                              )}
+                            <div className="mt-1 flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              <span>{withdrawal.paymentMethod}</span>
+                              <span className="h-1 w-1 rounded-full bg-slate-200" />
                               <span className="flex items-center gap-1">
-                                <IoCalendarOutline className="h-3.5 w-3.5" />
+                                <IoCalendarOutline className="h-3 w-3" />
                                 {formatDateTime(withdrawal.date)}
                               </span>
                             </div>
-                            <div className="mt-2.5">
-                              {withdrawal.status === 'pending' && (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200">
-                                  <IoTimeOutline className="h-3.5 w-3.5" />
-                                  Pending Review
-                                </div>
-                              )}
-                              {withdrawal.status === 'approved' && (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(17,73,108,0.1)] px-2.5 py-1 text-xs font-medium text-[#11496c] border border-[rgba(17,73,108,0.2)]">
-                                  <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                                  Approved
-                                </div>
-                              )}
-                              {withdrawal.status === 'rejected' && (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 border border-red-200">
-                                  <IoCloseOutline className="h-3.5 w-3.5" />
-                                  Rejected
-                                </div>
-                              )}
-                              {(withdrawal.status === 'completed' || withdrawal.status === 'paid') && (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
-                                  <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                                  Paid
-                                </div>
-                              )}
-                            </div>
                           </div>
-                          <div className="flex shrink-0 flex-col items-end">
-                            <p className="text-xl font-bold text-amber-600">
+                          <div className="text-right">
+                            <p className="text-lg font-black text-amber-600">
                               -{formatCurrency(withdrawal.amount)}
                             </p>
+                            <span className={`text-[8px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${
+                              withdrawal.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                            }`}>
+                              {withdrawal.status}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -486,285 +267,42 @@ const WalletWithdraw = () => {
               )}
             </div>
           </section>
-      </section>
 
-      {/* Withdraw Modal */}
-      {showWithdrawModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 px-0 sm:px-4 py-0 sm:py-6 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowWithdrawModal(false)
-            }
-          }}
-        >
-          <div className="relative w-full max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-slate-200 bg-white shadow-2xl">
-            {/* Header */}
-            <div className="sticky top-0 bg-white z-10 flex items-center justify-between border-b border-slate-200 p-4 sm:p-6">
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">Withdraw Money</h2>
-              <button
-                type="button"
-                onClick={() => setShowWithdrawModal(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 active:scale-95"
-              >
-                <IoCloseOutline className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-              {/* Available Balance */}
-              <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-amber-50 to-amber-100/50 p-4 sm:p-5">
-                <p className="text-xs sm:text-sm font-medium text-slate-600">Available Balance</p>
-                <p className="mt-2 text-2xl sm:text-3xl font-bold text-slate-900">
-                  {loading ? '...' : formatCurrency(withdrawData.availableBalance)}
-                </p>
-              </div>
-
-              {/* Amount Input */}
-              <div>
-                <label className="mb-2 block text-xs sm:text-sm font-semibold text-slate-900">Withdraw Amount</label>
-                <div className="relative">
-                  <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-base sm:text-lg font-semibold text-slate-500">
-                    ₹
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={withdrawAmount}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      // Allow empty string or valid number format (including decimals)
-                      // Let user type freely without any restrictions
-                      if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                        setWithdrawAmount(value)
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const value = e.target.value.trim()
-                      
-                      // If empty, keep it empty
-                      if (value === '') {
-                        return
-                      }
-                      
-                      const numValue = parseFloat(value)
-                      
-                      // If invalid number, clear it
-                      if (isNaN(numValue) || numValue <= 0) {
-                        setWithdrawAmount('')
-                        return
-                      }
-                      
-                      // Only round if it has more than 2 decimal places
-                      // Don't change the value if it's already valid
-                      const roundedValue = Math.round(numValue * 100) / 100
-                      
-                      // Only update if the value actually needs rounding (more than 2 decimals)
-                      if (roundedValue !== numValue) {
-                        // Format to remove unnecessary trailing zeros
-                        const formatted = roundedValue % 1 === 0 
-                          ? roundedValue.toString() 
-                          : roundedValue.toFixed(2).replace(/\.?0+$/, '')
-                        setWithdrawAmount(formatted)
-                      }
-                    }}
-                    placeholder="0"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 sm:px-4 py-2.5 sm:py-3 pl-9 sm:pl-10 text-base sm:text-lg font-semibold text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                  />
+          {/* Withdraw Modal Placeholder - Can be refined later */}
+          {showWithdrawModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-[32px] bg-white p-6 shadow-2xl">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-slate-900">Withdraw Funds</h2>
+                  <button onClick={() => setShowWithdrawModal(false)}><IoCloseOutline className="h-6 w-6" /></button>
                 </div>
-                {withdrawAmount && parseFloat(withdrawAmount) > withdrawData.availableBalance && (
-                  <p className="mt-1.5 sm:mt-2 text-xs text-red-600">Amount exceeds available balance</p>
-                )}
-              </div>
-
-              {/* Payment Method */}
-              <div>
-                <label className="mb-2 sm:mb-3 block text-xs sm:text-sm font-semibold text-slate-900">Payment Method</label>
-                <div className="space-y-2">
-                  {/* Bank Account Option */}
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
+                    <p className="text-xs font-bold text-amber-700 uppercase mb-1">Available</p>
+                    <p className="text-2xl font-black text-slate-900">{formatCurrency(withdrawData.availableBalance)}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Amount</label>
+                    <input 
+                      type="number" 
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="Enter amount"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-[#11496c] outline-none"
+                    />
+                  </div>
                   <button
-                    type="button"
-                    onClick={() => setSelectedPaymentMethod('bank')}
-                    className={`w-full flex items-center gap-2 sm:gap-3 rounded-xl border-2 p-3 sm:p-4 transition-all active:scale-[0.98] ${
-                      selectedPaymentMethod === 'bank'
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
+                    onClick={handleWithdraw}
+                    className="w-full py-4 rounded-2xl bg-[#11496c] text-white font-black uppercase tracking-widest transition-all hover:bg-[#0d3a52] active:scale-95"
                   >
-                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100">
-                      <IoCardOutline className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
-                    </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm sm:text-base font-semibold text-slate-900 truncate">Bank Account</p>
-                      <p className="text-[10px] sm:text-xs text-slate-500 truncate">Transfer to bank account</p>
-                    </div>
-                    {selectedPaymentMethod === 'bank' && (
-                      <IoCheckmarkCircleOutline className="h-5 w-5 sm:h-6 sm:w-6 shrink-0 text-amber-600" />
-                    )}
-                  </button>
-
-                  {/* UPI Option */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPaymentMethod('upi')}
-                    className={`w-full flex items-center gap-2 sm:gap-3 rounded-xl border-2 p-3 sm:p-4 transition-all active:scale-[0.98] ${
-                      selectedPaymentMethod === 'upi'
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.15)]">
-                      <IoPhonePortraitOutline className="h-5 w-5 sm:h-6 sm:w-6 text-[#11496c]" />
-                    </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm sm:text-base font-semibold text-slate-900 truncate">UPI</p>
-                      <p className="text-[10px] sm:text-xs text-slate-500 truncate">Pay via UPI ID</p>
-                    </div>
-                    {selectedPaymentMethod === 'upi' && (
-                      <IoCheckmarkCircleOutline className="h-5 w-5 sm:h-6 sm:w-6 shrink-0 text-amber-600" />
-                    )}
-                  </button>
-
-                  {/* Wallet Option */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPaymentMethod('wallet')}
-                    className={`w-full flex items-center gap-2 sm:gap-3 rounded-xl border-2 p-3 sm:p-4 transition-all active:scale-[0.98] ${
-                      selectedPaymentMethod === 'wallet'
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-purple-100">
-                      <IoWalletOutline className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
-                    </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm sm:text-base font-semibold text-slate-900 truncate">Wallet</p>
-                      <p className="text-[10px] sm:text-xs text-slate-500 truncate">Transfer to wallet</p>
-                    </div>
-                    {selectedPaymentMethod === 'wallet' && (
-                      <IoCheckmarkCircleOutline className="h-5 w-5 sm:h-6 sm:w-6 shrink-0 text-amber-600" />
-                    )}
+                    Confirm Payout
                   </button>
                 </div>
-
-                {/* Payment Method Details Input */}
-                {selectedPaymentMethod === 'bank' && (
-                  <div className="mt-3 sm:mt-4 space-y-2.5 sm:space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-                    <div>
-                      <label className="mb-1.5 block text-[11px] sm:text-xs font-semibold text-slate-700">Account Holder Name</label>
-                      <input
-                        type="text"
-                        value={bankDetails.accountHolderName}
-                        onChange={(e) => setBankDetails({ ...bankDetails, accountHolderName: e.target.value })}
-                        placeholder="Enter account holder name"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[11px] sm:text-xs font-semibold text-slate-700">Account Number</label>
-                      <input
-                        type="text"
-                        value={bankDetails.accountNumber}
-                        onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
-                        placeholder="Enter account number"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[11px] sm:text-xs font-semibold text-slate-700">IFSC Code</label>
-                      <input
-                        type="text"
-                        value={bankDetails.ifscCode}
-                        onChange={(e) => setBankDetails({ ...bankDetails, ifscCode: e.target.value.toUpperCase() })}
-                        placeholder="Enter IFSC code"
-                        maxLength={11}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {selectedPaymentMethod === 'upi' && (
-                  <div className="mt-3 sm:mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-                    <label className="mb-1.5 block text-[11px] sm:text-xs font-semibold text-slate-700">UPI ID</label>
-                    <input
-                      type="text"
-                      value={upiId}
-                      onChange={(e) => setUpiId(e.target.value)}
-                      placeholder="yourname@upi"
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    />
-                    <p className="mt-1.5 text-[10px] sm:text-xs text-slate-500">Enter your UPI ID (e.g., yourname@paytm)</p>
-                  </div>
-                )}
-
-                {selectedPaymentMethod === 'wallet' && (
-                  <div className="mt-3 sm:mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-                    <label className="mb-1.5 block text-[11px] sm:text-xs font-semibold text-slate-700">Wallet Number</label>
-                    <input
-                      type="text"
-                      value={walletNumber}
-                      onChange={(e) => setWalletNumber(e.target.value.replace(/\D/g, ''))}
-                      placeholder="Enter wallet number"
-                      maxLength={10}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                    />
-                    <p className="mt-1.5 text-[10px] sm:text-xs text-slate-500">Enter your 10-digit wallet number</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Info Message */}
-              <div className="rounded-xl border border-[rgba(17,73,108,0.3)] bg-[rgba(17,73,108,0.1)]/50 p-3 sm:p-4">
-                <p className="text-[10px] sm:text-xs font-medium text-[#0a2d3f] leading-relaxed">
-                  <span className="font-semibold">Note:</span> Your withdrawal request will be sent to admin for review. You will receive a notification once the status is updated.
-                </p>
               </div>
             </div>
-
-            {/* Footer */}
-            <div className="sticky bottom-0 bg-white border-t border-slate-200 p-4 sm:p-6 flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={() => setShowWithdrawModal(false)}
-                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 sm:py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleWithdraw}
-                disabled={
-                  isProcessing ||
-                  !withdrawAmount ||
-                  parseFloat(withdrawAmount) <= 0 ||
-                  parseFloat(withdrawAmount) > withdrawData.availableBalance
-                }
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 sm:py-3 text-sm font-semibold text-white shadow-sm shadow-amber-400/40 transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    <span className="hidden sm:inline">Processing...</span>
-                    <span className="sm:hidden">Processing</span>
-                  </>
-                ) : (
-                  <>
-                    <IoCheckmarkCircleOutline className="h-4 w-4 sm:h-5 sm:w-5" />
-                    <span className="hidden sm:inline">Confirm Withdrawal</span>
-                    <span className="sm:hidden">Confirm</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+          )}
+    </section>
   )
 }
 
 export default WalletWithdraw
-

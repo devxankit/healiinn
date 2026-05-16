@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import NurseNavbar from '../nurse-components/NurseNavbar'
+import { useNavigate } from 'react-router-dom'
 import Pagination from '../../../components/Pagination'
 import {
   IoArrowBackOutline,
@@ -52,9 +51,7 @@ const formatDateTime = (dateString) => {
 
 const NurseWalletWithdraw = () => {
   const navigate = useNavigate()
-  const location = useLocation()
   const toast = useToast()
-  const isDashboardPage = location.pathname === '/nurse/dashboard' || location.pathname === '/nurse/'
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('bank')
@@ -245,8 +242,7 @@ const NurseWalletWithdraw = () => {
 
   return (
     <>
-      <NurseNavbar />
-      <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+    <section className="flex flex-col gap-6 pb-24">
           {/* Header */}
           <div className="flex items-center gap-3">
             <button
@@ -553,8 +549,8 @@ const NurseWalletWithdraw = () => {
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-purple-100">
-                      <IoWalletOutline className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
+                    <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-[#11496c]/10">
+                      <IoWalletOutline className="h-5 w-5 sm:h-6 sm:w-6 text-[#11496c]" />
                     </div>
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm sm:text-base font-semibold text-slate-900 truncate">Wallet</p>

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import NurseNavbar from '../nurse-components/NurseNavbar'
 import Pagination from '../../../components/Pagination'
 import {
   IoWalletOutline,
@@ -117,9 +116,7 @@ const NurseWalletBalance = () => {
   }, [toast, currentPage])
 
   return (
-    <>
-      <NurseNavbar />
-      <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+    <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
           {/* Header */}
           <div className="flex items-center gap-3">
             <button
@@ -293,7 +290,6 @@ const NurseWalletBalance = () => {
             )}
           </section>
       </section>
-    </>
   )
 }
 

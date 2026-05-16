@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import { getDoctorProfile, updateDoctorProfile, getSupportHistory, uploadProfileImage, uploadSignature } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 import { getAuthToken } from '../../../utils/apiClient'
@@ -654,8 +653,7 @@ const DoctorProfile = () => {
   if (isLoading) {
     return (
       <>
-        <DoctorNavbar />
-        <section className={`flex flex-col gap-4 pb-24 lg:pb-8 ${isDashboardPage ? '-mt-20' : ''} lg:mt-0`}>
+        <section className={`flex flex-col gap-4 pb-24 lg:pb-8 ${isDashboardPage ? '-mt-28' : ''} lg:mt-0`}>
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
@@ -669,8 +667,7 @@ const DoctorProfile = () => {
 
   return (
     <>
-      <DoctorNavbar />
-      <section className={`flex flex-col gap-6 pb-24 px-4 lg:pb-8 ${isDashboardPage ? '-mt-20' : 'pt-4'} lg:mt-0`}>
+      <section className={`flex flex-col gap-6 pb-24 px-4 lg:pb-8 ${isDashboardPage ? '-mt-28' : 'pt-4'} lg:mt-0`}>
         {/* Header Section (Mobile) */}
         <div className="lg:hidden flex items-center justify-between px-1">
           <div>

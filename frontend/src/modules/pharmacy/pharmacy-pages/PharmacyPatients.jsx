@@ -279,17 +279,17 @@ const PharmacyPatients = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 justify-end mt-2">
                 <button
                   onClick={() => setSelectedPatient(patient)}
-                  className="flex-1 rounded-lg border border-[rgba(17,73,108,0.2)] bg-white px-3 py-2.5 text-xs font-semibold text-[#11496c] transition-all hover:border-[rgba(17,73,108,0.3)] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
+                  className="rounded-lg border border-[rgba(17,73,108,0.2)] bg-white px-3 py-1.5 text-[10px] font-bold text-[#11496c] transition-all hover:border-[rgba(17,73,108,0.3)] hover:bg-[rgba(17,73,108,0.05)] active:scale-95"
                 >
-                  <IoDocumentTextOutline className="mr-1 inline h-4 w-4" />
+                  <IoDocumentTextOutline className="mr-1 inline h-3.5 w-3.5" />
                   View Details
                 </button>
                 <button
                   onClick={() => navigate(`/pharmacy/orders?patientId=${patient.id}`)}
-                  className="flex-1 rounded-lg bg-gradient-to-r from-[#11496c] to-[#0d3a52] px-3 py-2.5 text-xs font-semibold text-white shadow-sm shadow-[rgba(17,73,108,0.2)] transition-all hover:shadow-md hover:scale-[1.02] active:scale-95"
+                  className="rounded-lg bg-[#11496c] px-3 py-1.5 text-[10px] font-bold text-white shadow-sm transition-all hover:bg-[#0d3a52] active:scale-95"
                 >
                   View Orders
                 </button>

@@ -32,6 +32,7 @@ import CallPopup from './modules/shared/CallPopup'
 import IncomingCallNotification from './modules/shared/IncomingCallNotification'
 import DoctorCallStatus from './modules/shared/DoctorCallStatus'
 import DoctorNavbar from './modules/doctor/doctor-components/DoctorNavbar'
+import { DoctorSidebarProvider } from './modules/doctor/doctor-components/DoctorSidebarContext'
 import DoctorHeader from './modules/doctor/doctor-components/DoctorHeader'
 import DoctorFooter from './modules/doctor/doctor-components/DoctorFooter'
 import DoctorLogin from './modules/doctor/doctor-pages/DoctorLogin'
@@ -71,6 +72,7 @@ import PharmacyWalletTransaction from './modules/pharmacy/pharmacy-pages/WalletT
 import PharmacySupport from './modules/pharmacy/pharmacy-pages/PharmacySupport'
 import PharmacyRequestOrders from './modules/pharmacy/pharmacy-pages/PharmacyRequestOrders'
 import LaboratoryNavbar from './modules/laboratory/laboratory-components/LaboratoryNavbar'
+import { LaboratorySidebarProvider } from './modules/laboratory/laboratory-components/LaboratorySidebarContext'
 import LaboratoryHeader from './modules/laboratory/laboratory-components/LaboratoryHeader'
 import LaboratoryFooter from './modules/laboratory/laboratory-components/LaboratoryFooter'
 import LaboratoryDashboard from './modules/laboratory/laboratory-pages/LaboratoryDashboard'
@@ -100,6 +102,7 @@ import LaboratoryFAQ from './modules/laboratory/laboratory-pages/LaboratoryFAQ'
 import LaboratoryHIPAACompliance from './modules/laboratory/laboratory-pages/LaboratoryHIPAACompliance'
 import LaboratoryDataProtection from './modules/laboratory/laboratory-pages/LaboratoryDataProtection'
 import LaboratoryLabAccreditation from './modules/laboratory/laboratory-pages/LaboratoryLabAccreditation'
+import { NurseSidebarProvider } from './modules/nurse/nurse-components/NurseSidebarContext'
 import NurseNavbar from './modules/nurse/nurse-components/NurseNavbar'
 import NurseHeader from './modules/nurse/nurse-components/NurseHeader'
 import NurseFooter from './modules/nurse/nurse-components/NurseFooter'
@@ -275,20 +278,18 @@ function DoctorRoutes() {
 
   return (
     <NotificationProvider module="doctor">
-      {/* Mobile Navbar - Only visible on mobile/tablet */}
-      {!isLoginPage && <DoctorNavbar />}
+      <DoctorSidebarProvider>
+        {/* Mobile Navbar - Only visible on mobile/tablet */}
+        {!isLoginPage && <DoctorNavbar />}
 
-      {/* Desktop Header - Only visible on desktop */}
-      {!isLoginPage && <DoctorHeader />}
+        {/* Doctor Call Status Indicator */}
+        {!isLoginPage && <DoctorCallStatus />}
 
-      {/* Doctor Call Status Indicator */}
-      {!isLoginPage && <DoctorCallStatus />}
+        {/* Call Popup - For doctors to join WebRTC */}
+        {!isLoginPage && <CallPopup />}
 
-      {/* Call Popup - For doctors to join WebRTC */}
-      {!isLoginPage && <CallPopup />}
-
-      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
-        <div className="max-w-7xl mx-auto w-full lg:flex-1">
+        <main className={isLoginPage ? '' : 'px-4 pb-24 pt-28 sm:px-6 lg:pl-[304px] lg:pr-8 transition-all duration-300'}>
+          <div className="max-w-7xl mx-auto w-full lg:flex-1">
           <Routes>
             <Route
               path="/"
@@ -471,10 +472,9 @@ function DoctorRoutes() {
             />
           </Routes>
         </div>
+        {!isLoginPage && <DoctorFooter />}
       </main>
-
-      {/* Desktop Footer - Only visible on desktop */}
-      {!isLoginPage && <DoctorFooter />}
+      </DoctorSidebarProvider>
     </NotificationProvider>
   )
 }
@@ -505,8 +505,10 @@ function PharmacyRoutes() {
 
   return (
     <NotificationProvider module="pharmacy">
-      {!isLoginPage && <PharmacyNavbar />}
-      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:pl-[260px] transition-all duration-300'}>
+      <PharmacySidebarProvider>
+        {/* Mobile & Desktop Navigation */}
+        {!isLoginPage && <PharmacyNavbar />}
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-28 sm:px-6 lg:pl-[280px] transition-all duration-300'}>
         <Routes>
           <Route
             path="/"
@@ -638,9 +640,9 @@ function PharmacyRoutes() {
             element={
               <ProtectedRoute module="pharmacy">
                 <NotificationsPage />
-              </ProtectedRoute>
-            }
-          />
+                </ProtectedRoute>
+              }
+            />
           <Route
             path="*"
             element={
@@ -649,6 +651,7 @@ function PharmacyRoutes() {
           />
         </Routes>
       </main>
+      </PharmacySidebarProvider>
     </NotificationProvider>
   )
 }
@@ -679,27 +682,13 @@ function LaboratoryRoutes() {
 
   return (
     <NotificationProvider module="laboratory">
-      {/* Mobile Navbar - Only visible on mobile/tablet */}
-      {!isLoginPage && <LaboratoryNavbar />}
+      <LaboratorySidebarProvider>
+        {/* Mobile Navbar - Only visible on mobile/tablet */}
+        {!isLoginPage && <LaboratoryNavbar />}
 
-      {/* Desktop Header - Only visible on desktop */}
-      {!isLoginPage && <LaboratoryHeader />}
-
-      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
-        <div className="max-w-7xl mx-auto w-full lg:flex-1">
+        <main className={isLoginPage ? '' : 'px-4 pb-24 pt-28 sm:px-6 lg:pl-[304px] lg:pr-8 transition-all duration-300'}>
+          <div className="max-w-7xl mx-auto w-full lg:flex-1">
           <Routes>
-            <Route
-              path="/"
-              element={
-                token ? (
-                  <ProtectedRoute module="laboratory">
-                    <Navigate to="/laboratory/dashboard" replace />
-                  </ProtectedRoute>
-                ) : (
-                  <Navigate to="/login?type=laboratory" replace />
-                )
-              }
-            />
             <Route path="/login" element={<Navigate to="/login?type=laboratory" replace />} />
             <Route
               path="/dashboard"
@@ -941,14 +930,12 @@ function LaboratoryRoutes() {
             />
           </Routes>
         </div>
+        {!isLoginPage && <LaboratoryFooter />}
       </main>
-
-      {/* Desktop Footer - Only visible on desktop */}
-      {!isLoginPage && <LaboratoryFooter />}
+      </LaboratorySidebarProvider>
     </NotificationProvider>
   )
 }
-
 function NurseRoutes() {
   const location = useLocation()
   const isLoginPage = location.pathname === '/login' || location.pathname === '/nurse/signup'
@@ -975,13 +962,11 @@ function NurseRoutes() {
 
   return (
     <NotificationProvider module="nurse">
-      {/* Mobile Navbar - Only visible on mobile/tablet */}
-      {!isLoginPage && <NurseNavbar />}
+      <NurseSidebarProvider>
+        {/* Mobile & Desktop Navigation (Handles Sidebar, Header, and Bottom Nav) */}
+        {!isLoginPage && <NurseNavbar />}
 
-      {/* Desktop Header - Only visible on desktop */}
-      {!isLoginPage && <NurseHeader />}
-
-      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-8 lg:min-h-screen lg:flex lg:flex-col'}>
+      <main className={isLoginPage ? '' : 'px-4 pb-24 pt-28 sm:px-6 lg:pl-[280px] transition-all duration-300'}>
         <div className="max-w-7xl mx-auto w-full lg:flex-1">
           <Routes>
             <Route
@@ -1050,10 +1035,9 @@ function NurseRoutes() {
             />
           </Routes>
         </div>
+        {!isLoginPage && <NurseFooter />}
       </main>
-
-      {/* Desktop Footer - Only visible on desktop */}
-      {!isLoginPage && <NurseFooter />}
+      </NurseSidebarProvider>
     </NotificationProvider>
   )
 }
@@ -1111,6 +1095,7 @@ function DefaultRedirect() {
   )
 }
 
+
 function App() {
   return (
     <CallProvider>
@@ -1125,14 +1110,7 @@ function App() {
             <Route path="/nurse/*" element={<NurseRoutes />} />
 
             {/* Pharmacy Routes */}
-            <Route
-              path="/pharmacy/*"
-              element={
-                <PharmacySidebarProvider>
-                  <PharmacyRoutes />
-                </PharmacySidebarProvider>
-              }
-            />
+            <Route path="/pharmacy/*" element={<PharmacyRoutes />} />
 
             {/* Laboratory Routes */}
             <Route path="/laboratory/*" element={<LaboratoryRoutes />} />

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import jsPDF from 'jspdf'
 import { useToast } from '../../../contexts/ToastContext'
 import { getDoctorConsultations, getAllDoctorConsultations, getConsultationById, createConsultation, updateConsultation, getPatientById, getPatientHistory, createPrescription, getPrescriptions, getPatientQueue, getAllMedicines, getAllTests } from '../doctor-services/doctorService'
@@ -3360,8 +3359,7 @@ const DoctorConsultations = () => {
 
   return (
     <>
-      <DoctorNavbar />
-      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-28' : ''}`}>
         {/* Filter Header */}
         {filterParam !== 'all' && (
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

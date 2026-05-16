@@ -300,15 +300,14 @@ const WalletWithdraw = () => {
 
   return (
     <section className="flex flex-col gap-6 pb-4">
-      {/* Withdraw Button */}
       <div className="flex justify-end">
         <button
           onClick={() => setShowWithdrawModal(true)}
           disabled={withdrawData.availableBalance <= 0}
-          className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-amber-400/40 transition-all hover:bg-amber-600 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <IoAddOutline className="h-5 w-5" />
-          <span className="hidden sm:inline">Withdraw</span>
+          <IoAddOutline className="h-4 w-4" />
+          Withdraw
         </button>
       </div>
 
@@ -684,11 +683,11 @@ const WalletWithdraw = () => {
             </div>
 
             {/* Footer */}
-            <div className="sticky bottom-0 bg-white border-t border-slate-200 p-4 sm:p-6 flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <div className="sticky bottom-0 bg-white border-t border-slate-200 p-4 flex gap-2">
               <button
                 type="button"
                 onClick={() => setShowWithdrawModal(false)}
-                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 sm:py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-95"
               >
                 Cancel
               </button>
@@ -701,19 +700,17 @@ const WalletWithdraw = () => {
                   parseFloat(withdrawAmount) <= 0 ||
                   parseFloat(withdrawAmount) > withdrawData.availableBalance
                 }
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 sm:py-3 text-sm font-semibold text-white shadow-sm shadow-amber-400/40 transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isProcessing ? (
                   <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    <span className="hidden sm:inline">Processing...</span>
-                    <span className="sm:hidden">Processing</span>
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Processing...</span>
                   </>
                 ) : (
                   <>
-                    <IoCheckmarkCircleOutline className="h-4 w-4 sm:h-5 sm:w-5" />
-                    <span className="hidden sm:inline">Confirm Withdrawal</span>
-                    <span className="sm:hidden">Confirm</span>
+                    <IoCheckmarkCircleOutline className="h-4 w-4" />
+                    <span>Confirm</span>
                   </>
                 )}
               </button>

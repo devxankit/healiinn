@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import { 
   getPatientQueue, 
   getPatientById, 
@@ -1966,8 +1965,8 @@ const DoctorPatients = () => {
   if (loadingAppointments && appointments.length === 0 && !appointmentsError) {
     return (
       <>
-        <DoctorNavbar />
-        <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+  
+        <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-28' : ''}`}>
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
             <IoPeopleOutline className="mx-auto h-12 w-12 text-slate-300 animate-pulse" />
             <p className="mt-4 text-sm font-medium text-slate-600">Loading patients...</p>
@@ -1981,8 +1980,8 @@ const DoctorPatients = () => {
   if (appointmentsError && appointments.length === 0) {
     return (
       <>
-        <DoctorNavbar />
-        <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+  
+        <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-28' : ''}`}>
           <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center shadow-sm">
             <IoCloseCircleOutline className="mx-auto h-12 w-12 text-red-300" />
             <p className="mt-4 text-sm font-medium text-red-600">Error loading patients</p>
@@ -2001,8 +2000,8 @@ const DoctorPatients = () => {
 
   return (
     <>
-      <DoctorNavbar />
-      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+
+      <section className={`flex flex-col gap-4 pb-24 ${isDashboardPage ? '-mt-28' : ''}`}>
           {/* Session Status Card */}
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

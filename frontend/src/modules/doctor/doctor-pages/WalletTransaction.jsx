@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoArrowBackOutline,
   IoReceiptOutline,
@@ -14,9 +13,6 @@ import {
 import { getDoctorWalletTransactions } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 import Pagination from '../../../components/Pagination'
-
-// Default transactions (will be replaced by API data)
-const defaultTransactions = []
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -46,20 +42,18 @@ const formatDateTime = (dateString) => {
 const WalletTransaction = () => {
   const navigate = useNavigate()
   const toast = useToast()
-  const [filterType, setFilterType] = useState('all') // all, earnings, withdrawals
-  const [transactions, setTransactions] = useState(defaultTransactions)
+  const [filterType, setFilterType] = useState('all')
+  const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [page, setPage] = useState(1)
   const [limit] = useState(20)
   const [pagination, setPagination] = useState(null)
 
-  // Reset page when filter changes
   useEffect(() => {
     setPage(1)
   }, [filterType])
 
-  // Fetch transactions from API
   useEffect(() => {
     const fetchTransactions = async () => {
       try {
@@ -72,28 +66,13 @@ const WalletTransaction = () => {
         }
         const response = await getDoctorWalletTransactions(params)
         
-        console.log('🔍 Full transactions API response:', response) // Debug log
-        
         if (response && response.success && response.data) {
           const data = response.data
-          console.log('✅ Transactions data received:', data) // Debug log
+          if (data.pagination) setPagination(data.pagination)
           
-          // Set pagination data
-          if (data.pagination) {
-            setPagination(data.pagination)
-          }
+          const transactionsData = Array.isArray(data) ? data : (data.items || data.transactions || [])
           
-          // Handle both array and object with items property
-          const transactionsData = Array.isArray(data) 
-            ? data 
-            : (data.items || data.transactions || [])
-          
-          console.log('📊 Transactions list:', {
-            count: transactionsData.length,
-            firstTransaction: transactionsData[0],
-          }) // Debug log
-          
-          const transformed = transactionsData.map(txn => ({
+          setTransactions(transactionsData.map(txn => ({
             id: txn._id || txn.id,
             type: txn.type || 'earning',
             amount: Number(txn.amount || 0),
@@ -101,17 +80,7 @@ const WalletTransaction = () => {
             date: txn.createdAt || txn.date || new Date().toISOString(),
             status: txn.status || 'completed',
             category: txn.category || 'Transaction',
-            originalData: txn,
-          }))
-          
-          console.log('💰 Setting transactions:', {
-            count: transformed.length,
-            types: transformed.map(t => t.type),
-          }) // Debug log
-          
-          setTransactions(transformed)
-        } else {
-          console.error('❌ Transactions API response error:', response) // Debug log
+          })))
         }
       } catch (err) {
         console.error('Error fetching transactions:', err)
@@ -129,9 +98,7 @@ const WalletTransaction = () => {
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
 
   return (
-    <>
-      <DoctorNavbar />
-      <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+    <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-28' : ''}`}>
           {/* Header */}
           <div className="flex items-center gap-3">
             <button
@@ -141,23 +108,23 @@ const WalletTransaction = () => {
               <IoArrowBackOutline className="h-5 w-5" />
             </button>
             <div className="flex-1">
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Transactions</h1>
-              <p className="mt-1 text-sm text-slate-600">View all your transaction history</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Transactions</h1>
+              <p className="mt-1 text-sm text-slate-600">Complete history of your wallet activities</p>
             </div>
           </div>
 
           {/* Main Transaction Card - Hero */}
-          <div className="relative overflow-hidden rounded-3xl border border-purple-100/60 bg-gradient-to-br from-purple-600 via-purple-500 to-purple-600 p-6 sm:p-8 text-white shadow-2xl shadow-purple-500/30">
+          <div className="relative overflow-hidden rounded-[32px] border border-[rgba(17,73,108,0.15)] bg-gradient-to-br from-[#11496c] via-[#1a5f7a] to-[#2a8ba8] p-6 sm:p-8 text-white shadow-2xl shadow-[rgba(17,73,108,0.25)] transition-all hover:shadow-[rgba(17,73,108,0.35)]">
             <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />
             <div className="absolute -left-20 bottom-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
             <div className="relative z-10">
               <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-white/80 mb-1">Total Transactions</p>
-                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{loading ? '...' : transactions.length}</p>
+                  <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1.5">Total Transactions</p>
+                  <p className="text-4xl sm:text-5xl font-black tracking-tight drop-shadow-md">{loading ? '...' : (pagination?.total || transactions.length)}</p>
                 </div>
-                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
+                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-lg transition-transform hover:scale-105">
                   <IoReceiptOutline className="h-8 w-8 sm:h-10 sm:w-10" />
                 </div>
               </div>
@@ -165,67 +132,51 @@ const WalletTransaction = () => {
           </div>
 
           {/* Filter Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch]">
-            <IoFilterOutline className="h-5 w-5 shrink-0 text-slate-500" />
-            <button
-              type="button"
-              onClick={() => setFilterType('all')}
-              className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-                filterType === 'all'
-                  ? 'bg-purple-500 text-white shadow-sm shadow-purple-400/40'
-                  : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50 border border-slate-200'
-              }`}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('earnings')}
-              className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-                filterType === 'earnings'
-                  ? 'bg-purple-500 text-white shadow-sm shadow-purple-400/40'
-                  : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50 border border-slate-200'
-              }`}
-            >
-              Earnings
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('withdrawals')}
-              className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-                filterType === 'withdrawals'
-                  ? 'bg-purple-500 text-white shadow-sm shadow-purple-400/40'
-                  : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50 border border-slate-200'
-              }`}
-            >
-              Withdrawals
-            </button>
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 mr-1">
+               <IoFilterOutline className="h-5 w-5" />
+            </div>
+            {['all', 'earnings', 'withdrawals'].map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setFilterType(type)}
+                className={`shrink-0 rounded-xl px-5 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                  filterType === type
+                    ? 'text-white shadow-md'
+                    : 'bg-white text-slate-500 shadow-sm hover:bg-slate-50 border border-slate-200'
+                }`}
+                style={filterType === type ? { backgroundColor: '#11496c' } : {}}
+              >
+                {type}
+              </button>
+            ))}
           </div>
 
           {/* Transactions List */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">Transaction History</h2>
-              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {pagination?.total || transactions.length} {(pagination?.total || transactions.length) === 1 ? 'transaction' : 'transactions'}
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">Activity Log</h2>
+              <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full uppercase tracking-widest">
+                {pagination?.total || transactions.length} transactions
               </span>
             </div>
             <div className="space-y-3">
               {transactions.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-                  <IoReceiptOutline className="mx-auto h-16 w-16 text-slate-300" />
-                  <p className="mt-4 text-base font-semibold text-slate-600">No transactions found</p>
-                  <p className="mt-1 text-sm text-slate-500">Your transaction history will appear here</p>
+                <div className="rounded-[32px] border border-slate-200 bg-white p-12 text-center shadow-sm">
+                  <IoReceiptOutline className="mx-auto h-16 w-16 text-slate-200" />
+                  <p className="mt-4 text-base font-bold text-slate-900">No transactions found</p>
+                  <p className="mt-1 text-xs font-medium text-slate-400">Your transaction history will appear here</p>
                 </div>
               ) : (
                 transactions.map((transaction) => (
                   <article
                     key={transaction.id}
-                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
+                    className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all hover:shadow-lg"
                   >
-                    <div className="flex items-start gap-4">
+                    <div className="flex items-center gap-4">
                       <div
-                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm ${
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm transition-transform group-hover:scale-110 ${
                           transaction.type === 'earning' 
                             ? 'bg-emerald-50 border border-emerald-100' 
                             : 'bg-amber-50 border border-amber-100'
@@ -238,44 +189,36 @@ const WalletTransaction = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-900">
+                            <p className="text-sm font-bold text-slate-900 truncate group-hover:text-[#11496c] transition-colors">
                               {transaction.description}
                             </p>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium border border-slate-200">
+                            <div className="mt-1.5 flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              <span className={transaction.type === 'earning' ? 'text-emerald-600/80' : 'text-amber-600/80'}>
                                 {transaction.category}
                               </span>
+                              <span className="h-1 w-1 rounded-full bg-slate-200" />
                               <span className="flex items-center gap-1">
-                                <IoCalendarOutline className="h-3.5 w-3.5" />
+                                <IoCalendarOutline className="h-3 w-3" />
                                 {formatDateTime(transaction.date)}
                               </span>
                             </div>
-                            <div className="mt-2.5">
-                              {transaction.status === 'pending' && (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200">
-                                  <IoTimeOutline className="h-3.5 w-3.5" />
-                                  Processing
-                                </div>
-                              )}
-                              {transaction.status === 'completed' && (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
-                                  <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                                  Completed
-                                </div>
-                              )}
-                            </div>
                           </div>
-                          <div className="flex shrink-0 flex-col items-end">
+                          <div className="text-right">
                             <p
-                              className={`text-xl font-bold ${
+                              className={`text-lg font-black ${
                                 transaction.type === 'earning' ? 'text-emerald-600' : 'text-amber-600'
                               }`}
                             >
                               {transaction.type === 'earning' ? '+' : '-'}
                               {formatCurrency(transaction.amount)}
                             </p>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter mt-1 ${
+                              transaction.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                            }`}>
+                              {transaction.status}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -287,7 +230,7 @@ const WalletTransaction = () => {
 
             {/* Pagination */}
             {pagination && pagination.totalPages > 1 && (
-              <div className="mt-4">
+              <div className="mt-8 flex justify-center">
                 <Pagination
                   currentPage={pagination.page || page}
                   totalPages={pagination.totalPages}
@@ -302,10 +245,8 @@ const WalletTransaction = () => {
               </div>
             )}
           </section>
-      </section>
-    </>
+    </section>
   )
 }
 
 export default WalletTransaction
-

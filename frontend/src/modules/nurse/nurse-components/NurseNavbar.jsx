@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   IoHomeOutline,
@@ -11,69 +11,58 @@ import {
 } from 'react-icons/io5'
 import healinnLogo from '../../../assets/images/logo.png'
 import NurseSidebar from './NurseSidebar'
+import { useNurseSidebar } from './NurseSidebarContext'
 import { useToast } from '../../../contexts/ToastContext'
 import NotificationBell from '../../../components/NotificationBell'
 
-const allNavItems = [
-  { id: 'home', label: 'Dashboard', to: '/nurse/dashboard', Icon: IoHomeOutline },
-  { id: 'bookings', label: 'Booking', to: '/nurse/booking', Icon: IoCalendarOutline },
-  { id: 'transactions', label: 'Transactions', to: '/nurse/transactions', Icon: IoReceiptOutline },
+const sidebarNavItems = [
+  { id: 'home', label: 'Home', to: '/nurse/dashboard', Icon: IoHomeOutline },
+  { id: 'bookings', label: 'Bookings', to: '/nurse/booking', Icon: IoCalendarOutline },
+  { id: 'transactions', label: 'History', to: '/nurse/transactions', Icon: IoReceiptOutline },
   { id: 'wallet', label: 'Wallet', to: '/nurse/wallet', Icon: IoWalletOutline },
   { id: 'support', label: 'Support', to: '/nurse/support', Icon: IoHelpCircleOutline },
   { id: 'profile', label: 'Profile', to: '/nurse/profile', Icon: IoPersonCircleOutline },
 ]
 
-// Navbar items for mobile bottom nav (without Support)
-const navbarItems = allNavItems.filter((item) => item.id !== 'support')
+// Bottom nav items (without Support)
+const navItems = sidebarNavItems.filter((item) => item.id !== 'support')
 
 const NurseNavbar = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const { isSidebarOpen, toggleSidebar, closeSidebar } = useNurseSidebar()
   const toggleButtonRef = useRef(null)
   const navigate = useNavigate()
   const location = useLocation()
   const toast = useToast()
   
-  // Hide header on dashboard and login pages
+  // Hide top header only on dashboard page
   const isDashboardPage = location.pathname === '/nurse/dashboard' || location.pathname === '/nurse/'
   const isLoginPage = location.pathname === '/login'
 
   const mobileLinkBase =
-    'flex flex-1 items-center justify-center rounded-full px-1 py-1 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[rgba(17,73,108,0.7)] focus-visible:ring-offset-2'
+    'flex flex-1 items-center justify-center rounded-2xl px-1 py-1 transition-all duration-300 focus-visible:ring-2 focus-visible:ring-[#11496c] focus-visible:ring-offset-2'
 
   const mobileIconWrapper =
-    'flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all duration-200'
-
-  const desktopLinkBase =
-    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(17,73,108,0.7)] focus-visible:ring-offset-2'
+    'flex h-12 w-12 items-center justify-center rounded-2xl text-xl transition-all duration-300'
 
   const handleSidebarToggle = () => {
-    if (isSidebarOpen) {
-      handleSidebarClose()
-    } else {
-      setIsSidebarOpen(true)
-    }
+    toggleSidebar()
   }
 
   const handleSidebarClose = () => {
     toggleButtonRef.current?.focus({ preventScroll: true })
-    setIsSidebarOpen(false)
+    closeSidebar()
   }
 
   const handleLogout = async () => {
     handleSidebarClose()
     try {
-      // TODO: Import nurse logout service when available
-      // const { logoutNurse } = await import('../nurse-services/nurseService')
-      // await logoutNurse()
+      const { logoutNurse } = await import('../nurse-services/nurseService')
+      await logoutNurse()
       toast.success('Logged out successfully')
     } catch (error) {
       console.error('Error during logout:', error)
-      // Clear tokens manually if API call fails
-      // const { clearNurseTokens } = await import('../nurse-services/nurseService')
-      // clearNurseTokens()
       toast.success('Logged out successfully')
     }
-    // Force navigation to login page - full page reload to clear all state
     setTimeout(() => {
       window.location.href = '/login?type=nurse'
     }, 500)
@@ -81,53 +70,34 @@ const NurseNavbar = () => {
 
   return (
     <>
+      {/* Top Header - Hidden on dashboard page */}
       {!isDashboardPage && !isLoginPage && (
-        <header className="lg:hidden fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/95 px-4 py-3 backdrop-blur shadow md:px-6">
-          <div className="flex items-center">
+        <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-white/90 px-4 py-4 backdrop-blur-xl border-b border-slate-100 shadow-sm md:px-8 lg:left-[280px]">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-[#11496c] flex items-center justify-center text-white shadow-lg shadow-[#11496c]/20 lg:hidden">
+               <IoCalendarOutline className="h-6 w-6" />
+            </div>
             <img
               src={healinnLogo}
-              alt="Heallyn"
-              className="h-8 w-auto object-contain"
+              alt="Healinn"
+              className="h-7 w-auto object-contain hidden sm:block lg:hidden"
               loading="lazy"
             />
+            <h2 className="text-sm font-black text-slate-900 uppercase tracking-widest hidden lg:block">
+               Nurse Portal
+            </h2>
           </div>
-          <nav className="hidden items-center gap-2 rounded-full bg-white/90 px-2 py-1 shadow-lg shadow-[rgba(17,73,108,0.1)] ring-1 ring-slate-200 md:flex lg:hidden">
-            {navbarItems.map(({ id, label, to, Icon }) => (
-              <NavLink
-                key={id}
-                to={to}
-                className={({ isActive }) =>
-                  `${desktopLinkBase} ${
-                    isActive ? 'text-white shadow-sm' : 'hover:bg-slate-100 hover:text-slate-900'
-                  }`
-                }
-                style={({ isActive }) => isActive ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
-                end={id === 'home'}
-              >
-                {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
-                <span>{label}</span>
-              </NavLink>
-            ))}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-red-500 transition-all duration-200 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
-            >
-              Logout
-            </button>
-          </nav>
-          <div className="flex items-center gap-2">
-            <div className="md:hidden">
-              <NotificationBell />
-            </div>
+          
+          <div className="flex items-center gap-3">
+            <NotificationBell />
             <button
               type="button"
               ref={toggleButtonRef}
-              className="md:hidden"
+              className="lg:hidden h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600"
               aria-label="Toggle navigation menu"
               onClick={handleSidebarToggle}
             >
-              <IoMenuOutline className="text-2xl text-slate-600" aria-hidden="true" />
+              <IoMenuOutline className="text-2xl" aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -135,47 +105,47 @@ const NurseNavbar = () => {
 
       <NurseSidebar
         isOpen={isSidebarOpen}
-        onClose={handleSidebarClose}
-        navItems={allNavItems}
+        onClose={closeSidebar}
+        navItems={sidebarNavItems}
         onLogout={handleLogout}
       />
 
+      {/* Mobile Bottom Nav */}
       {!isLoginPage && (
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around gap-1 border-t border-slate-200 bg-white/95 px-3 py-2 backdrop-blur md:hidden">
-        {navbarItems.map(({ id, label, to, Icon }) => (
-          <NavLink
-            key={id}
-            to={to}
-            className={({ isActive }) =>
-              `${mobileLinkBase} ${
-                isActive ? '' : 'text-slate-400 hover:text-slate-600'
-              }`
-            }
-            style={({ isActive }) => isActive ? { color: '#11496c' } : {}}
-            end={id === 'home'}
-          >
-            {({ isActive }) => (
-              <>
-                <span
-                  className={`${mobileIconWrapper} ${
-                    isActive
-                      ? 'text-white shadow-md'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                  style={isActive ? { backgroundColor: '#11496c', boxShadow: '0 4px 6px -1px rgba(17, 73, 108, 0.2)' } : {}}
-                >
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <span className="sr-only">{label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
+        <nav className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around gap-2 border-t border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-xl lg:hidden pb-safe">
+          {navItems.map(({ id, label, to, Icon }) => (
+            <NavLink
+              key={id}
+              to={to}
+              className={({ isActive }) =>
+                `${mobileLinkBase} ${
+                  isActive ? 'scale-110' : 'text-slate-400 opacity-60'
+                }`
+              }
+              end={id === 'home'}
+            >
+              {({ isActive }) => (
+                <div className="flex flex-col items-center gap-1">
+                  <span
+                    className={`${mobileIconWrapper} ${
+                      isActive
+                        ? 'bg-[#11496c] text-white shadow-xl shadow-[#11496c]/30'
+                        : 'bg-slate-50 text-slate-400'
+                    }`}
+                  >
+                    <Icon className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <span className={`text-[10px] font-black uppercase tracking-tighter ${isActive ? 'text-[#11496c]' : 'text-slate-400'}`}>
+                    {label}
+                  </span>
+                </div>
+              )}
+            </NavLink>
+          ))}
+        </nav>
       )}
     </>
   )
 }
 
 export default NurseNavbar
-

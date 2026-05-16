@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import { useToast } from '../../../contexts/ToastContext'
 import {
   IoCalendarOutline,
@@ -548,8 +547,7 @@ const DoctorAppointments = () => {
 
   return (
     <>
-      <DoctorNavbar />
-      <section className="flex flex-col gap-4 pb-24">
+      <section className="flex flex-col gap-6 lg:gap-8 pb-12">
 
         {/* Statistics Cards - Clickable */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">

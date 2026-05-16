@@ -1,6 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import NurseNavbar from '../nurse-components/NurseNavbar'
 import {
   IoWalletOutline,
   IoArrowDownOutline,
@@ -75,9 +74,7 @@ const NurseWallet = () => {
   }, [toast])
 
   return (
-    <>
-      <NurseNavbar />
-      <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+    <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
           {/* Header Section */}
           <div className="space-y-2 mb-3 sm:mb-6">
             <div className="flex items-center justify-between">
@@ -192,7 +189,7 @@ const NurseWallet = () => {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-purple-600">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#11496c] to-[#1a5f7a]">
                     <IoReceiptOutline className="h-6 w-6 text-white" />
                   </div>
                   <div className="text-left">
@@ -200,12 +197,11 @@ const NurseWallet = () => {
                     <p className="text-xs text-slate-500">{loading ? '...' : walletData.totalTransactions} transactions</p>
                   </div>
                 </div>
-                <IoArrowForwardOutline className="h-5 w-5 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" />
+                <IoArrowForwardOutline className="h-5 w-5 text-slate-400 group-hover:text-[#11496c] group-hover:translate-x-1 transition-all" />
               </div>
             </button>
           </div>
-      </section>
-    </>
+    </section>
   )
 }
 

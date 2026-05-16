@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import LaboratoryNavbar from '../laboratory-components/LaboratoryNavbar'
-import LaboratorySidebar from '../laboratory-components/LaboratorySidebar'
 import { useToast } from '../../../contexts/ToastContext'
 import { getLaboratoryDashboard, getLaboratoryOrders, getLaboratoryTests, getLaboratoryPatients, getLaboratoryReports, getLaboratoryProfile } from '../laboratory-services/laboratoryService'
 import NotificationBell from '../../../components/NotificationBell'
@@ -510,14 +508,7 @@ const LaboratoryDashboard = () => {
 
   return (
     <>
-      <LaboratoryNavbar />
-      <LaboratorySidebar
-        isOpen={isSidebarOpen}
-        onClose={handleSidebarClose}
-        navItems={sidebarNavItems}
-        onLogout={handleLogout}
-      />
-      <section className="flex flex-col gap-4 pb-24 -mt-20 lg:mt-0 lg:pb-8">
+      <section className="flex flex-col gap-6 pb-24 -mt-28 lg:-mt-28 lg:pb-8">
         {/* Top Header with Gradient Background - Hidden on Desktop */}
         <header 
           className="lg:hidden relative text-white -mx-4 mb-4 overflow-hidden"

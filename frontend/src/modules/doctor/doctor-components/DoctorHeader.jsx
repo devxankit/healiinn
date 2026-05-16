@@ -45,7 +45,7 @@ const DoctorHeader = () => {
   }
 
   return (
-    <header className="hidden lg:block fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+    <header className="hidden lg:block fixed top-0 left-0 lg:left-[280px] right-0 z-50 bg-white border-b border-slate-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}

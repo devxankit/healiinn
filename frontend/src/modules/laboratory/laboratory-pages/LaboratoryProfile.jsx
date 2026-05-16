@@ -693,283 +693,131 @@ const LaboratoryProfile = () => {
 
   // Always render - ensure component never returns undefined
   return (
-    <>
-      <LaboratoryNavbar />
-      <section className={`flex flex-col gap-4 pb-24 lg:pb-8 ${isDashboardPage ? '-mt-20' : ''} lg:mt-0`}>
-        {/* Desktop Layout: Two Column Grid */}
-        <div className="lg:grid lg:grid-cols-3 lg:gap-4 lg:max-w-5xl lg:mx-auto lg:px-4">
-          {/* Left Column - Profile Header Card (Desktop) */}
-          <div className="lg:col-span-1">
-            {/* Profile Header - Desktop Enhanced */}
-            <div className="hidden lg:block relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#11496c] via-[#0d3a52] to-[#11496c] p-5 shadow-xl">
-              {/* Background Pattern */}
-              <div className="absolute inset-0 opacity-10" style={{
-                backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)',
-                backgroundSize: '20px 20px'
-              }} />
+    <section className="flex flex-col gap-6 pb-24 lg:pb-12">
+      {/* Responsive Layout Container */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto w-full px-4">
+        
+        {/* Left Column - Profile Header Card (Responsive) */}
+        <div className="lg:col-span-1">
+          <div className="relative overflow-hidden rounded-[32px] border border-slate-200/80 bg-gradient-to-br from-[#11496c] via-[#0d3a52] to-[#11496c] p-6 sm:p-8 shadow-2xl transition-all duration-300 hover:shadow-[#11496c]/20">
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-10" style={{
+              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)',
+              backgroundSize: '24px 24px'
+            }} />
 
-              <div className="relative flex flex-col items-center gap-4">
-                {/* Profile Picture */}
-                <div className="relative">
-                  <div className="relative h-24 w-24">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleProfileImageChange}
-                      className="hidden"
-                      id="laboratory-profile-image-input"
-                    />
-                    <img
-                      src={safeFormData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(safeFormData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`}
-                      alt={safeFormData.labName || 'Laboratory'}
-                      className="h-full w-full rounded-full object-cover ring-4 ring-white/50 shadow-2xl bg-slate-100"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(safeFormData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`
-                      }}
-                    />
-                    {isEditing && (
-                      <label
-                        htmlFor="laboratory-profile-image-input"
-                        className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#11496c] shadow-xl transition hover:bg-slate-50 hover:scale-110 cursor-pointer"
-                      >
-                        <IoCameraOutline className="h-5 w-5" />
-                      </label>
-                    )}
-                  </div>
-                </div>
-
-                {/* Name */}
-                <div className="text-center">
-                  <h1 className="text-xl font-bold text-white mb-1.5">
-                    {safeFormData.labName || 'Laboratory'}
-                  </h1>
-                  <p className="text-sm text-white/90 mb-3">
-                    {safeFormData.email || ''}
-                  </p>
-                  
-                  {/* Tags */}
-                  <div className="flex flex-col items-center gap-2 mb-3">
-                    {safeFormData.licenseNumber && (
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-white border border-white/30">
-                        <IoFlaskOutline className="h-3.5 w-3.5" />
-                        {safeFormData.licenseNumber}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      {safeFormData.gender && (
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-white/20 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-white border border-white/30">
-                          <IoPersonOutline className="h-3 w-3" />
-                          {safeFormData.gender}
-                        </span>
-                      )}
-                      {safeFormData.rating > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-white/20 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-white border border-white/30">
-                          <IoStarOutline className="h-3 w-3" />
-                          {safeFormData.rating}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="w-full flex flex-col gap-2 mt-1">
-                  {isEditing ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isSaving ? (
-                          <>
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <IoCheckmarkCircleOutline className="h-4 w-4" />
-                            Save Changes
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCancel}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 hover:scale-105"
-                      >
-                        <IoCloseOutline className="h-4 w-4" />
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          try {
-                          setIsEditing(true)
-                          setActiveSection('basic')
-                          } catch (error) {
-                            console.error('Error setting edit mode:', error)
-                            toast.error('Failed to enter edit mode')
-                          }
-                        }}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95"
-                      >
-                        <IoCreateOutline className="h-3.5 w-3.5" />
-                        Edit Profile
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-white/10 backdrop-blur-sm px-3 py-2 text-xs font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 active:scale-95"
-                      >
-                        <IoLogOutOutline className="h-3.5 w-3.5" />
-                        Sign Out
-                      </button>
-                    </>
+            <div className="relative flex flex-col items-center text-center gap-6">
+              {/* Profile Picture */}
+              <div className="relative group">
+                <div className="relative h-32 w-32 sm:h-40 sm:w-40 transition-transform duration-500 group-hover:rotate-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProfileImageChange}
+                    className="hidden"
+                    id="laboratory-profile-image-input"
+                  />
+                  <img
+                    src={safeFormData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(safeFormData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`}
+                    alt={safeFormData.labName || 'Laboratory'}
+                    className="h-full w-full rounded-full object-cover ring-8 ring-white/20 shadow-2xl bg-white/10 backdrop-blur-md"
+                    onError={(e) => {
+                      e.target.onerror = null
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(safeFormData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`
+                    }}
+                  />
+                  {isEditing && (
+                    <label
+                      htmlFor="laboratory-profile-image-input"
+                      className="absolute bottom-1 right-1 flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#11496c] shadow-2xl transition-all hover:bg-slate-50 hover:scale-110 cursor-pointer border-4 border-[#11496c]"
+                    >
+                      <IoCameraOutline className="h-6 w-6" />
+                    </label>
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Profile Header - Mobile (Unchanged) */}
-            <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-gradient-to-br from-[#11496c] via-[#0d3a52] to-[#11496c] p-6 sm:p-8 shadow-lg lg:hidden">
-              {/* Background Pattern */}
-              <div className="absolute inset-0 opacity-10" style={{
-                backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)',
-                backgroundSize: '20px 20px'
-              }} />
-              
-              <div className="relative flex flex-col items-center gap-4 sm:gap-5">
-                {/* Profile Picture - Centered */}
-                <div className="relative">
-                  <div className="relative h-24 w-24 sm:h-28 sm:w-28">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleProfileImageChange}
-                      className="hidden"
-                      id="laboratory-profile-image-input-mobile"
-                    />
-                    <img
-                      src={safeFormData.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(safeFormData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`}
-                      alt={safeFormData.labName || 'Laboratory'}
-                      className="h-full w-full rounded-full object-cover ring-2 ring-white/50 shadow-lg bg-slate-100"
-                      onError={(e) => {
-                        e.target.onerror = null
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(safeFormData.labName || 'Laboratory')}&background=ffffff&color=11496c&size=128&bold=true`
-                      }}
-                    />
-                    {isEditing && (
-                      <label
-                        htmlFor="laboratory-profile-image-input-mobile"
-                        className="absolute -bottom-1 -right-1 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white text-[#11496c] shadow-lg transition hover:bg-slate-50 cursor-pointer"
-                      >
-                        <IoCameraOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      </label>
-                    )}
-                  </div>
-                </div>
-
-                {/* Name - Centered */}
-                <h1 className="text-xl sm:text-2xl font-bold text-white text-center">
+              {/* Lab Identity */}
+              <div className="space-y-2">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
                   {safeFormData.labName || 'Laboratory'}
                 </h1>
-
-                {/* Email - Centered */}
-                <p className="text-sm sm:text-base text-white/90 text-center truncate max-w-full">
+                <p className="text-sm sm:text-base text-white/80 font-medium truncate max-w-[250px] mx-auto">
                   {safeFormData.email || ''}
                 </p>
+              </div>
 
-                {/* Demographic/Status Info - Small Rounded Buttons */}
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
-                  {safeFormData.licenseNumber && (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs sm:text-sm font-semibold text-white border border-white/30">
-                      <IoFlaskOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      {safeFormData.licenseNumber}
-                    </span>
-                  )}
-                  {safeFormData.gender && (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs sm:text-sm font-semibold text-white border border-white/30">
-                      <IoPersonOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      {safeFormData.gender}
-                    </span>
-                  )}
-                  {safeFormData.rating > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs sm:text-sm font-semibold text-white border border-white/30">
-                      <IoStarOutline className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      {safeFormData.rating}
-                    </span>
-                  )}
-                </div>
+              {/* Meta Badges */}
+              <div className="flex flex-wrap justify-center gap-2">
+                {safeFormData.licenseNumber && (
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-md px-4 py-2 text-xs font-bold text-white border border-white/20">
+                    <IoFlaskOutline className="h-4 w-4" />
+                    {safeFormData.licenseNumber}
+                  </div>
+                )}
+                {safeFormData.gender && (
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-md px-4 py-2 text-xs font-bold text-white border border-white/20">
+                    <IoPersonOutline className="h-4 w-4" />
+                    {safeFormData.gender}
+                  </div>
+                )}
+              </div>
 
-                {/* Action Buttons - Full Width, Stacked */}
-                <div className="w-full flex flex-col gap-2.5 sm:gap-3 mt-2">
-                  {isEditing ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/20 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isSaving ? (
-                          <>
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent"></div>
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <IoCheckmarkCircleOutline className="h-4 w-4" />
-                            Save
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCancel}
-                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 active:scale-95"
-                      >
-                        <IoCloseOutline className="h-4 w-4" />
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          try {
-                          setIsEditing(true)
-                          setActiveSection('basic')
-                          } catch (error) {
-                            console.error('Error setting edit mode:', error)
-                            toast.error('Failed to enter edit mode')
-                          }
-                        }}
-                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/20 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white border border-white/30 transition-all hover:bg-white/30 active:scale-95"
-                      >
-                        <IoCreateOutline className="h-4 w-4" />
-                        Edit Profile
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-sm px-4 py-3 text-sm font-semibold text-white/90 border border-white/20 transition-all hover:bg-white/20 active:scale-95"
-                      >
-                        <IoLogOutOutline className="h-4 w-4" />
-                        Sign Out
-                      </button>
-                    </>
-                  )}
-                </div>
+              {/* Action Buttons */}
+              <div className="w-full grid grid-cols-1 gap-3 pt-4 border-t border-white/10">
+                {isEditing ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-bold text-[#11496c] shadow-xl transition-all hover:bg-slate-100 hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+                    >
+                      {isSaving ? (
+                        <div className="h-5 w-5 animate-spin rounded-full border-3 border-[#11496c] border-t-transparent" />
+                      ) : (
+                        <>
+                          <IoCheckmarkCircleOutline className="h-5 w-5" />
+                          Save Profile
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-white/10 backdrop-blur-md px-6 py-3.5 text-sm font-bold text-white border border-white/20 transition-all hover:bg-white/20 active:scale-95"
+                    >
+                      <IoCloseOutline className="h-5 w-5" />
+                      Discard Changes
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(true)
+                        setActiveSection('basic')
+                      }}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-white/15 backdrop-blur-md px-6 py-3.5 text-sm font-bold text-white border border-white/20 transition-all hover:bg-white/25 active:scale-95"
+                    >
+                      <IoCreateOutline className="h-5 w-5" />
+                      Edit Details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-red-500/10 backdrop-blur-md px-6 py-3.5 text-sm font-bold text-red-200 border border-red-500/20 transition-all hover:bg-red-500/20 active:scale-95"
+                    >
+                      <IoLogOutOutline className="h-5 w-5" />
+                      Sign Out
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
+        </div>
 
           {/* Right Column - Information Sections (Desktop) */}
           <div className="lg:col-span-2 lg:space-y-4">
@@ -1090,78 +938,71 @@ const LaboratoryProfile = () => {
                 )}
               </button>
               {(activeSection === 'contact' || isEditing) && (
-                <div className="px-3 sm:px-5 lg:px-4 pb-4 sm:pb-5 lg:pb-4 border-t border-slate-100">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4 lg:pt-3">
-                    <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Email
+                <div className="px-6 pb-6 border-t border-slate-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                        Email Address
                       </label>
                       {isEditing ? (
                         <input
                           type="email"
                           value={safeFormData.email}
                           onChange={(e) => handleInputChange('email', e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#11496c]/10 transition-all"
                         />
                       ) : (
-                        <p className="text-sm text-slate-900">{safeFormData.email || ''}</p>
+                        <p className="px-1 text-sm font-semibold text-slate-900">{safeFormData.email || '—'}</p>
                       )}
                     </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Phone
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                        Phone Number
                       </label>
                       {isEditing ? (
                         <input
                           type="tel"
                           value={safeFormData.phone}
                           onChange={(e) => handleInputChange('phone', e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#11496c]/10 transition-all"
                         />
                       ) : (
-                        <p className="text-sm text-slate-900">{safeFormData.phone || ''}</p>
+                        <p className="px-1 text-sm font-semibold text-slate-900">{safeFormData.phone || '—'}</p>
                       )}
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        Address
+                    <div className="md:col-span-2 space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                        Laboratory Address
                       </label>
-                {isEditing ? (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={safeFormData.address.line1}
-                      onChange={(e) => handleInputChange('address.line1', e.target.value)}
-                      placeholder="Address Line 1"
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    />
-                    <input
-                      type="text"
-                      value={safeFormData.address.line2}
-                      onChange={(e) => handleInputChange('address.line2', e.target.value)}
-                      placeholder="Address Line 2"
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={safeFormData.address.city}
-                        onChange={(e) => handleInputChange('address.city', e.target.value)}
-                        placeholder="City"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                      />
-                      <input
-                        type="text"
-                        value={safeFormData.address.state}
-                        onChange={(e) => handleInputChange('address.state', e.target.value)}
-                        placeholder="State"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-900">{formatAddress(safeFormData.address)}</p>
-                )}
+                      {isEditing ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <input
+                            type="text"
+                            value={safeFormData.address.line1}
+                            onChange={(e) => handleInputChange('address.line1', e.target.value)}
+                            placeholder="Street Address"
+                            className="sm:col-span-2 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#11496c]/10 transition-all"
+                          />
+                          <input
+                            type="text"
+                            value={safeFormData.address.city}
+                            onChange={(e) => handleInputChange('address.city', e.target.value)}
+                            placeholder="City"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#11496c]/10 transition-all"
+                          />
+                          <input
+                            type="text"
+                            value={safeFormData.address.state}
+                            onChange={(e) => handleInputChange('address.state', e.target.value)}
+                            placeholder="State"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium focus:border-[#11496c] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#11496c]/10 transition-all"
+                          />
+                        </div>
+                      ) : (
+                        <p className="px-1 text-sm font-semibold text-slate-900 leading-relaxed">
+                          {formatAddress(safeFormData.address)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1169,123 +1010,132 @@ const LaboratoryProfile = () => {
             </div>
 
             {/* Operating Hours */}
-            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
+            <div className="rounded-[32px] border border-slate-200/80 bg-white shadow-xl shadow-slate-200/40 overflow-hidden transition-all duration-300 hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => toggleSection('hours')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-6 py-5 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Operating Hours</h2>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-600">
+                    <IoTimeOutline className="h-5 w-5" />
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-900">Operating Hours</h2>
+                </div>
                 {(activeSection === 'hours' || isEditing) ? (
-                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                  <IoChevronUpOutline className="h-5 w-5 text-slate-400" />
                 ) : (
-                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                  <IoChevronDownOutline className="h-5 w-5 text-slate-400" />
                 )}
               </button>
               {(activeSection === 'hours' || isEditing) && (
-                <div className="px-3 sm:px-5 lg:px-4 pb-4 sm:pb-5 lg:pb-4 border-t border-slate-100">
-                  <div className="pt-3 sm:pt-4 lg:pt-3 space-y-2">
+                <div className="px-6 pb-6 border-t border-slate-100">
+                  <div className="pt-6 space-y-3">
                     {Array.isArray(safeFormData.timings) && safeFormData.timings.length > 0 ? (
                       safeFormData.timings.map((timing, index) => {
-                        // Handle both string and object formats
                         const timingObj = typeof timing === 'string' 
                           ? { day: timing, startTime: '', endTime: '', isOpen: true }
                           : (timing || { day: 'Day', startTime: '', endTime: '', isOpen: true })
                         
                         return (
-                          <div key={timingObj?.day || index} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-                        <div className="flex-1">
-                              <p className="text-sm font-semibold text-slate-900">{timingObj.day || 'Day'}</p>
-                          {isEditing ? (
-                            <div className="mt-1 flex items-center gap-2">
-                              <input
-                                type="time"
-                                    value={timingObj.startTime || ''}
-                                onChange={(e) => handleTimingChange(index, 'startTime', e.target.value)}
-                                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                              />
-                              <span className="text-xs text-slate-500">to</span>
-                              <input
-                                type="time"
-                                    value={timingObj.endTime || ''}
-                                onChange={(e) => handleTimingChange(index, 'endTime', e.target.value)}
-                                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs focus:border-[#11496c] focus:outline-none focus:ring-2 focus:ring-[rgba(17,73,108,0.2)]"
-                              />
-                              <label className="flex items-center gap-1 text-xs">
+                          <div key={timingObj?.day || index} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4 border border-slate-100 transition-all hover:bg-white hover:shadow-md">
+                            <p className="text-sm font-bold text-slate-800 w-24">{timingObj.day || 'Day'}</p>
+                            {isEditing ? (
+                              <div className="flex flex-wrap items-center gap-2">
                                 <input
-                                  type="checkbox"
-                                      checked={timingObj.isOpen || false}
-                                  onChange={(e) => handleTimingChange(index, 'isOpen', e.target.checked)}
-                                  className="h-3 w-3 rounded border-slate-300 text-[#11496c]"
+                                  type="time"
+                                  value={timingObj.startTime || ''}
+                                  onChange={(e) => handleTimingChange(index, 'startTime', e.target.value)}
+                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-[#11496c]/10 transition-all"
                                 />
-                                Open
-                              </label>
-                            </div>
-                          ) : (
-                            <p className="text-xs text-slate-600">
-                                  {timingObj.isOpen && timingObj.startTime && timingObj.endTime 
-                                    ? `${formatTimeTo12Hour(timingObj.startTime)} - ${formatTimeTo12Hour(timingObj.endTime)}`
-                                    : timingObj.isOpen 
-                                      ? 'Open'
-                                      : 'Closed'}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">to</span>
+                                <input
+                                  type="time"
+                                  value={timingObj.endTime || ''}
+                                  onChange={(e) => handleTimingChange(index, 'endTime', e.target.value)}
+                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium focus:ring-2 focus:ring-[#11496c]/10 transition-all"
+                                />
+                                <label className="ml-2 flex items-center gap-2 cursor-pointer group">
+                                  <input
+                                    type="checkbox"
+                                    checked={timingObj.isOpen || false}
+                                    onChange={(e) => handleTimingChange(index, 'isOpen', e.target.checked)}
+                                    className="h-4 w-4 rounded-lg border-slate-300 text-[#11496c] focus:ring-[#11496c]/20"
+                                  />
+                                  <span className="text-xs font-bold text-slate-600 group-hover:text-[#11496c]">Open</span>
+                                </label>
+                              </div>
+                            ) : (
+                              <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${timingObj.isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                                {timingObj.isOpen && timingObj.startTime && timingObj.endTime 
+                                  ? `${formatTimeTo12Hour(timingObj.startTime)} - ${formatTimeTo12Hour(timingObj.endTime)}`
+                                  : timingObj.isOpen ? 'Open' : 'Closed'}
+                              </div>
+                            )}
+                          </div>
                         )
                       })
                     ) : (
-                      <p className="text-sm text-slate-500 text-center py-4">No operating hours set</p>
-                      )}
+                      <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <p className="text-sm font-medium text-slate-400">No operating hours configured</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
             </div>
 
             {/* Uploaded Documents */}
-            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
+            <div className="rounded-[32px] border border-slate-200/80 bg-white shadow-xl shadow-slate-200/40 overflow-hidden transition-all duration-300 hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => toggleSection('documents')}
-                className="w-full flex items-center justify-between px-3 sm:px-5 lg:px-4 py-3 sm:py-4 lg:py-3 hover:bg-slate-50/50 transition-colors"
+                className="w-full flex items-center justify-between px-6 py-5 hover:bg-slate-50/50 transition-colors"
               >
-                <h2 className="text-sm sm:text-base lg:text-base font-bold text-slate-900">Uploaded Documents</h2>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600">
+                    <IoDocumentTextOutline className="h-5 w-5" />
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-900">Digital Vault</h2>
+                </div>
                 {activeSection === 'documents' ? (
-                  <IoChevronUpOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                  <IoChevronUpOutline className="h-5 w-5 text-slate-400" />
                 ) : (
-                  <IoChevronDownOutline className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500 shrink-0" />
+                  <IoChevronDownOutline className="h-5 w-5 text-slate-400" />
                 )}
               </button>
               {activeSection === 'documents' && (
-                <div className="px-3 sm:px-5 lg:px-4 pb-4 sm:pb-5 lg:pb-4 border-t border-slate-100">
-                  <div className="pt-3 sm:pt-4 lg:pt-3 space-y-2">
+                <div className="px-6 pb-6 border-t border-slate-100">
+                  <div className="pt-6 space-y-3">
                     {formData.documents && Array.isArray(formData.documents) && formData.documents.length > 0 ? (
                       formData.documents.map((doc, index) => {
                         const normalizedUrl = normalizeDocumentUrl(doc.fileUrl || '')
                         return (
                           <div
                             key={index}
-                            className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition-all hover:bg-white hover:shadow-lg"
                           >
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <IoDocumentTextOutline className="h-5 w-5 text-[#11496c] flex-shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <span className="text-sm font-medium text-slate-700 block truncate">{doc.name || 'Document'}</span>
+                            <div className="flex items-center gap-4 min-w-0">
+                              <div className="h-12 w-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#11496c]">
+                                <IoDocumentTextOutline className="h-6 w-6" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-slate-900 truncate">{doc.name || 'Digital Document'}</p>
                                 {doc.uploadedAt && (
-                                  <span className="text-xs text-slate-500">
-                                    Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
-                                  </span>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                                    Vaulted on {new Date(doc.uploadedAt).toLocaleDateString()}
+                                  </p>
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-2">
                               {normalizedUrl && (
                                 <>
                                   <a
                                     href={normalizedUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-xs font-medium text-[#11496c] hover:underline flex items-center gap-1"
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-[#11496c] shadow-sm border border-slate-100 transition-all hover:bg-slate-50"
                                   >
                                     <IoEyeOutline className="h-4 w-4" />
                                     View
@@ -1293,10 +1143,10 @@ const LaboratoryProfile = () => {
                                   <a
                                     href={normalizedUrl}
                                     download
-                                    className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1"
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-[#11496c] px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-[#11496c]/20 transition-all hover:scale-[1.02]"
                                   >
                                     <IoDownloadOutline className="h-4 w-4" />
-                                    Download
+                                    Fetch
                                   </a>
                                 </>
                               )}
@@ -1305,7 +1155,10 @@ const LaboratoryProfile = () => {
                         )
                       })
                     ) : (
-                      <p className="text-sm text-slate-500 italic">No documents uploaded</p>
+                      <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                        <IoDocumentTextOutline className="h-12 w-12 text-slate-200 mx-auto mb-3" />
+                        <p className="text-sm font-medium text-slate-400">Vault is currently empty</p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1313,7 +1166,7 @@ const LaboratoryProfile = () => {
             </div>
 
             {/* Support History */}
-            <div className="rounded-xl sm:rounded-2xl lg:rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden hover:shadow-lg hover:shadow-slate-200/60 transition-shadow duration-200 lg:shadow-xl lg:hover:shadow-2xl">
+            <div className="rounded-[32px] border border-slate-200/80 bg-white shadow-xl shadow-slate-200/40 overflow-hidden transition-all duration-300 hover:shadow-2xl">
               <button
                 type="button"
                 onClick={() => toggleSection('support')}
@@ -1335,9 +1188,8 @@ const LaboratoryProfile = () => {
               )}
             </div>
           </div>
-        </div>
-      </section>
-    </>
+      </div>
+    </section>
   )
 }
 
@@ -1356,7 +1208,6 @@ const SupportHistory = ({ role }) => {
       const { getSupportTickets } = await import('../laboratory-services/laboratoryService')
       const response = await getSupportTickets()
       
-      // Backend returns: { success: true, data: { items: [...], pagination: {...} } }
       let tickets = []
       if (Array.isArray(response)) {
         tickets = response
@@ -1382,12 +1233,12 @@ const SupportHistory = ({ role }) => {
       open: { label: 'Open', color: 'bg-blue-100 text-blue-800' },
       pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
       in_progress: { label: 'In Progress', color: 'bg-blue-100 text-blue-800' },
-      resolved: { label: 'Resolved', color: 'bg-green-100 text-green-800' },
-      closed: { label: 'Closed', color: 'bg-slate-100 text-slate-800' },
+      resolved: { label: 'Resolved', color: 'bg-emerald-100 text-emerald-800' },
+      closed: { label: 'Closed', color: 'bg-slate-200 text-slate-700' },
     }
     const config = statusConfig[status?.toLowerCase()] || statusConfig.open
     return (
-      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${config.color}`}>
+      <span className={`inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${config.color}`}>
         {config.label}
       </span>
     )
@@ -1396,66 +1247,80 @@ const SupportHistory = ({ role }) => {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'
     try {
-    const date = new Date(dateString)
+      const date = new Date(dateString)
       if (isNaN(date.getTime())) return 'Invalid Date'
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
     } catch (error) {
-      console.error('Error formatting date:', error)
       return 'Invalid Date'
     }
   }
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-        <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-[#11496c] border-r-transparent"></div>
-        <p className="mt-2 text-sm font-medium text-slate-600">Loading support history...</p>
+      <div className="flex flex-col items-center justify-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+        <div className="h-8 w-8 animate-spin rounded-full border-3 border-[#11496c] border-t-transparent mb-3" />
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Accessing Records...</p>
       </div>
     )
   }
 
   if (supportRequests.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-        <p className="text-sm font-medium text-slate-600">No support requests yet</p>
-        <p className="mt-1 text-xs text-slate-500">Your support request history will appear here</p>
+      <div className="flex flex-col items-center justify-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+        <IoHelpCircleOutline className="h-12 w-12 text-slate-200 mb-3" />
+        <p className="text-sm font-bold text-slate-400">No support history found</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {supportRequests.map((request, index) => {
         if (!request) return null
         
         return (
-          <div key={request?.id || request?._id || `ticket-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4">
-          <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-900 mb-1">{request?.subject || 'Support Request'}</p>
-                <p className="text-sm font-medium text-slate-900">{request?.message || request?.note || 'No message'}</p>
-          </div>
+          <div key={request?.id || request?._id || `ticket-${index}`} className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-slate-50/50 p-5 transition-all hover:bg-white hover:shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-2 w-2 rounded-full bg-[#11496c]" />
+                  <p className="text-xs font-bold text-[#11496c] uppercase tracking-widest">Case #{index + 1}</p>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 group-hover:text-[#11496c] transition-colors">{request?.subject || 'General Inquiry'}</h3>
+                <p className="text-sm font-medium text-slate-600 line-clamp-2">{request?.message || request?.note || 'No description provided'}</p>
+              </div>
               {getStatusBadge(request?.status || 'open')}
             </div>
+
             {request?.adminNote && (
-            <div className="mt-2 rounded bg-blue-50 p-2">
-              <p className="text-xs font-semibold text-blue-900">Admin Response:</p>
-              <p className="mt-1 text-xs text-blue-800">{request.adminNote}</p>
-            </div>
-          )}
-          <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
-              <span>Submitted: {formatDate(request?.createdAt)}</span>
-              {request?.updatedAt && request.updatedAt !== request.createdAt && (
-              <span>Updated: {formatDate(request.updatedAt)}</span>
+              <div className="mb-4 rounded-xl bg-blue-50/50 border border-blue-100/50 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <IoShieldCheckmarkOutline className="h-4 w-4 text-blue-600" />
+                  <p className="text-xs font-bold text-blue-900 uppercase tracking-widest">Resolution Note</p>
+                </div>
+                <p className="text-sm font-medium text-blue-800">{request.adminNote}</p>
+              </div>
             )}
+
+            <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                <IoCalendarOutline className="h-3.5 w-3.5" />
+                <span>Logged: {formatDate(request?.createdAt)}</span>
+              </div>
+              {request?.updatedAt && request.updatedAt !== request.createdAt && (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 uppercase tracking-tight">
+                  <IoPulseOutline className="h-3.5 w-3.5" />
+                  <span>Activity: {formatDate(request.updatedAt)}</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
         )
       })}
     </div>

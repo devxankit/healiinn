@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import NurseNavbar from '../nurse-components/NurseNavbar'
 import Pagination from '../../../components/Pagination'
 import {
   IoArrowBackOutline,
@@ -115,9 +114,7 @@ const NurseWalletEarning = () => {
   const earnings = earningData.earnings || []
 
   return (
-    <>
-      <NurseNavbar />
-      <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+    <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
           {/* Header */}
           <div className="flex items-center gap-3">
             <button
@@ -196,14 +193,14 @@ const NurseWalletEarning = () => {
             </div>
 
             {/* Year Earnings */}
-            <div className="group relative overflow-hidden rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 via-white to-purple-50/30 p-6 shadow-sm hover:shadow-md transition-all">
-              <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-purple-100/50 blur-2xl" />
+            <div className="group relative overflow-hidden rounded-2xl border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.05)] p-6 shadow-sm hover:shadow-md transition-all">
+              <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-[rgba(17,73,108,0.1)] blur-2xl" />
               <div className="relative">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100">
-                    <IoCalendarOutline className="h-5 w-5 text-purple-600" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
+                    <IoCalendarOutline className="h-5 w-5 text-[#11496c]" />
                   </div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">This Year</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">This Year</p>
                 </div>
                 <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(earningData.thisYearEarnings)}</p>
               </div>
@@ -347,7 +344,6 @@ const NurseWalletEarning = () => {
             )}
           </section>
       </section>
-    </>
   )
 }
 

@@ -1,35 +1,27 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
-import NurseNavbar from '../nurse-components/NurseNavbar'
-import NurseHeader from '../nurse-components/NurseHeader'
-import NurseFooter from '../nurse-components/NurseFooter'
-import NurseSidebar from '../nurse-components/NurseSidebar'
-import { useToast } from '../../../contexts/ToastContext'
-import NotificationBell from '../../../components/NotificationBell'
 import {
-  IoHomeOutline,
   IoCalendarOutline,
-  IoReceiptOutline,
   IoWalletOutline,
+  IoReceiptOutline,
   IoPersonCircleOutline,
   IoTimeOutline,
   IoCheckmarkCircleOutline,
-  IoTrendingUpOutline,
-  IoTrendingDownOutline,
-  IoMenuOutline,
+  IoCloseCircleOutline,
+  IoLocationOutline,
   IoSearchOutline,
-  IoHelpCircleOutline,
+  IoNotificationsOutline,
+  IoTrendingUpOutline,
 } from 'react-icons/io5'
-
-// Default stats (will be replaced by API data)
-const defaultStats = {
-  totalBookings: 0,
-  todayBookings: 0,
-  totalEarnings: 0,
-  thisMonthEarnings: 0,
-  lastMonthEarnings: 0,
-  totalTransactions: 0,
-}
+import { useNurseSidebar } from '../nurse-components/NurseSidebarContext'
+import {
+  getNurseBookings,
+  getNurseTransactions,
+  getNurseWalletBalance,
+  getNurseProfile
+} from '../nurse-services/nurseService'
+import { useToast } from '../../../contexts/ToastContext'
+import NotificationBell from '../../../components/NotificationBell'
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -40,253 +32,350 @@ const formatCurrency = (amount) => {
   }).format(amount)
 }
 
-const formatDate = (dateString) => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+const getStatusColor = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'completed':
+    case 'success':
+    case 'paid':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    case 'pending':
+    case 'processing':
+      return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'cancelled':
+    case 'failed':
+      return 'bg-red-50 text-red-700 border-red-200'
+    default:
+      return 'bg-slate-50 text-slate-700 border-slate-200'
+  }
 }
-
-const allNavItems = [
-  { id: 'home', label: 'Dashboard', to: '/nurse/dashboard', Icon: IoHomeOutline },
-  { id: 'bookings', label: 'Booking', to: '/nurse/booking', Icon: IoCalendarOutline },
-  { id: 'transactions', label: 'Transactions', to: '/nurse/transactions', Icon: IoReceiptOutline },
-  { id: 'wallet', label: 'Wallet', to: '/nurse/wallet', Icon: IoWalletOutline },
-  { id: 'support', label: 'Support', to: '/nurse/support', Icon: IoHelpCircleOutline },
-  { id: 'profile', label: 'Profile', to: '/nurse/profile', Icon: IoPersonCircleOutline },
-]
 
 const NurseDashboard = () => {
   const navigate = useNavigate()
+  const { toggleSidebar } = useNurseSidebar()
   const toast = useToast()
-  const [stats, setStats] = useState(defaultStats)
-  const [loading, setLoading] = useState(false) // Start with false to show content immediately
-  const [error, setError] = useState(null)
+  
+  const [stats, setStats] = useState({
+    totalBookings: 0,
+    walletBalance: 0,
+    todayBookingsCount: 0,
+    monthlyEarnings: 0
+  })
+  
+  const [todayBookings, setTodayBookings] = useState([])
+  const [recentTransactions, setRecentTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const toggleButtonRef = useRef(null)
 
-  const todayLabel = new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date())
-
-  // Sidebar toggle functions
-  const handleSidebarToggle = () => {
-    setIsSidebarOpen(!isSidebarOpen)
-  }
-
-  const handleSidebarClose = () => {
-    toggleButtonRef.current?.focus({ preventScroll: true })
-    setIsSidebarOpen(false)
-  }
-
-  const handleLogout = async () => {
-    handleSidebarClose()
-    try {
-      // TODO: Import nurse logout service when available
-      toast.success('Logged out successfully')
-    } catch (error) {
-      console.error('Error during logout:', error)
-      toast.success('Logged out successfully')
-    }
-    setTimeout(() => {
-      window.location.href = '/nurse/login'
-    }, 500)
-  }
-
-  // Fetch profile data
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        // TODO: Import nurse profile service when available
-        // const response = await getNurseProfile()
-        // if (response.success && response.data) {
-        //   const nurse = response.data.nurse || response.data
-        //   setProfile({
-        //     firstName: nurse.firstName || '',
-        //     lastName: nurse.lastName || '',
-        //     isActive: nurse.isActive !== undefined ? nurse.isActive : true,
-        //   })
-        // }
-        setProfile({
-          firstName: 'Nurse',
-          lastName: 'User',
-          isActive: true,
-        })
-      } catch (err) {
-        console.error('Error fetching profile:', err)
-      }
-    }
-    fetchProfile()
-  }, [])
-
-  // Fetch dashboard data from API
-  useEffect(() => {
-    const fetchDashboardData = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true)
-        setError(null)
-        // TODO: Import nurse dashboard service when available
-        // const response = await getNurseDashboard()
-        // if (response && response.success && response.data) {
-        //   const data = response.data
-          //   const statsUpdate = {
-          //     totalBookings: Number(data.totalBookings || 0),
-          //     todayBookings: Number(data.todayBookings || 0),
-          //     totalEarnings: Number(data.totalEarnings || 0),
-          //     thisMonthEarnings: Number(data.thisMonthEarnings || 0),
-          //     lastMonthEarnings: Number(data.lastMonthEarnings || 0),
-          //     totalTransactions: Number(data.totalTransactions || 0),
-          //   }
-        //   setStats(statsUpdate)
-        // }
-        setLoading(false)
+        
+        // Fetch profile, bookings, transactions, and wallet in parallel
+        const [profileRes, bookingsRes, transactionsRes, walletRes] = await Promise.allSettled([
+          getNurseProfile(),
+          getNurseBookings({ limit: 10 }),
+          getNurseTransactions({ limit: 5 }),
+          getNurseWalletBalance()
+        ])
+
+        // Handle Profile
+        if (profileRes.status === 'fulfilled' && profileRes.value.success) {
+          const data = profileRes.value.data
+          setProfile({
+            name: `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Nurse',
+            city: data.city || 'Location',
+            isActive: data.isActive ?? true
+          })
+        }
+
+        // Handle Bookings
+        if (bookingsRes.status === 'fulfilled' && bookingsRes.value.success) {
+          const bookingsData = Array.isArray(bookingsRes.value.data) 
+            ? bookingsRes.value.data 
+            : bookingsRes.value.data?.items || []
+          
+          const today = new Date().toLocaleDateString()
+          const todayFiltered = bookingsData.filter(b => new Date(b.createdAt).toLocaleDateString() === today)
+          
+          setTodayBookings(bookingsData.slice(0, 5).map(b => ({
+            id: b._id || b.id,
+            patientName: b.patientName || 'Unknown Patient',
+            patientImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(b.patientName || 'P')}&background=3b82f6&color=fff`,
+            service: b.serviceName || 'Nursing Care',
+            time: new Date(b.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            status: b.status || 'pending'
+          })))
+          
+          setStats(prev => ({
+            ...prev,
+            totalBookings: bookingsRes.value.data?.pagination?.total || bookingsData.length,
+            todayBookingsCount: todayFiltered.length
+          }))
+        }
+
+        // Handle Transactions
+        if (transactionsRes.status === 'fulfilled' && transactionsRes.value.success) {
+          const txData = Array.isArray(transactionsRes.value.data)
+            ? transactionsRes.value.data
+            : transactionsRes.value.data?.items || []
+            
+          setRecentTransactions(txData.slice(0, 5).map(t => ({
+            id: t._id || t.id,
+            amount: t.amount || 0,
+            type: t.type || 'earning',
+            date: new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            status: t.status || 'completed'
+          })))
+        }
+
+        // Handle Wallet
+        if (walletRes.status === 'fulfilled' && walletRes.value.success) {
+          const wData = walletRes.value.data
+          setStats(prev => ({
+            ...prev,
+            walletBalance: wData.availableBalance || wData.balance || 0,
+            monthlyEarnings: wData.thisMonthEarnings || 0
+          }))
+        }
+
       } catch (err) {
         console.error('Error fetching dashboard data:', err)
-        setError(err.message || 'Failed to load dashboard data')
         toast.error('Failed to load dashboard data')
+      } finally {
         setLoading(false)
       }
     }
 
-    fetchDashboardData()
+    fetchData()
   }, [toast])
 
-  const earningsChange = stats.lastMonthEarnings > 0 
-    ? ((stats.thisMonthEarnings - stats.lastMonthEarnings) / stats.lastMonthEarnings) * 100 
-    : 0
-
   return (
-    <>
-      <NurseNavbar />
-      <NurseHeader />
-      <NurseSidebar
-        isOpen={isSidebarOpen}
-        onClose={handleSidebarClose}
-        navItems={allNavItems}
-        onLogout={handleLogout}
-      />
-      <section className="flex flex-col gap-4 pb-24 -mt-20 lg:mt-0 lg:pb-8">
-        {/* Top Header with Gradient Background - Hidden on Desktop */}
-        <header 
-          className="lg:hidden relative text-white -mx-4 mb-4 overflow-hidden"
+    <section className="flex flex-col gap-6 pb-24 -mt-28">
+      {/* Professional Header - Cover Style */}
+      <header className="relative -mx-4 sm:-mx-6 mb-2 overflow-hidden bg-slate-50">
+        <div 
+          className="h-28 sm:h-36 w-full relative"
           style={{
-            background: 'linear-gradient(to right, #11496c 0%, #1a5f7a 50%, #2a8ba8 100%)'
+            background: 'linear-gradient(135deg, #11496c 0%, #1a5f7a 50%, #14B8A6 100%)'
           }}
         >
-          <div className="px-4 pt-5 pb-4">
-            {/* Top Section - Nurse Info */}
-            <div className="flex items-start justify-between mb-3.5">
-              <div className="flex-1">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight mb-0.5">
-                  {profile?.firstName || profile?.lastName
-                    ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
-                    : 'Nurse'}
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '20px 20px' }}></div>
+        </div>
+
+        {/* Profile Info Bar */}
+        <div className="px-4 sm:px-6 -mt-8 relative z-10">
+          <div className="bg-white rounded-[24px] p-4 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 rounded-2xl bg-[#11496c] flex items-center justify-center text-white shadow-lg shadow-[#11496c]/20 shrink-0">
+                 <IoPersonCircleOutline className="h-8 w-8" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900 truncate tracking-tight">
+                  {profile?.name || 'Nurse'}
                 </h1>
-                <p className="text-sm font-normal text-white/95 leading-tight">
-                  <span className="text-white font-medium">{profile?.isActive ? 'Online' : 'Offline'}</span>
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
-                  <NotificationBell className="text-white" />
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+                  <div className="flex items-center gap-1 text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-tight">
+                    <IoLocationOutline className="h-3 w-3" />
+                    {profile?.city || 'Location'}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`h-1.5 w-1.5 rounded-full ${profile?.isActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                      {profile?.isActive ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  ref={toggleButtonRef}
-                  onClick={handleSidebarToggle}
-                  className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors text-white"
-                  aria-label="Menu"
-                >
-                  <IoMenuOutline className="h-5 w-5 sm:h-6 sm:w-6" />
-                </button>
               </div>
             </div>
-          </div>
-        </header>
 
-        {/* Search Bar - Desktop Only */}
-        <div className="hidden lg:block mb-6">
-          <div className="relative w-full group">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 transition-all duration-300 group-hover:scale-110 group-focus-within:scale-110">
-              <IoSearchOutline className="h-5 w-5 text-slate-400 group-focus-within:text-[#11496c] transition-colors duration-300" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search bookings, transactions..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-20 py-2.5 text-sm rounded-xl border border-slate-300 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#11496c]/20 focus:border-[#11496c] transition-all duration-300 shadow-sm hover:shadow-md hover:border-[#11496c]/50"
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300">
-              <kbd className="px-2 py-1 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-300 rounded">⌘K</kbd>
+            <div className="flex items-center gap-2 self-end md:self-center">
+              <NotificationBell />
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Stats Cards Grid */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-2 lg:gap-4">
-          {/* Total Bookings */}
-          <article
+      {/* Main Content Area */}
+      <div className="px-0 sm:px-2 space-y-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+          <div 
             onClick={() => navigate('/nurse/booking')}
-            className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-[rgba(17,73,108,0.2)] bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-[#11496c]/40 active:scale-[0.98] lg:hover:scale-105"
+            className="group relative bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/5 group-hover:to-[#11496c]/10 transition-all duration-300"></div>
-            
-            <div className="relative flex items-start justify-between mb-2 lg:mb-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-[#11496c] leading-tight mb-1 lg:mb-2 group-hover:text-[#0d3a52] transition-colors">Total Bookings</p>
-                <p className="text-xl lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-[#11496c] transition-colors duration-300">{loading ? '...' : stats.totalBookings}</p>
-              </div>
-              <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-[#11496c] text-white group-hover:bg-[#0d3a52] group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
-                <IoCalendarOutline className="text-base lg:text-2xl" aria-hidden="true" />
-              </div>
+            <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <IoCalendarOutline className="h-4 w-4" />
             </div>
-            <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">All time</p>
-          </article>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Total Bookings</p>
+            <div className="flex items-baseline gap-1.5">
+               <h3 className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : stats.totalBookings}</h3>
+               <span className="text-[9px] font-bold text-emerald-600">+8%</span>
+            </div>
+            <p className="text-[9px] font-medium text-slate-400 mt-1.5 uppercase tracking-tighter">Lifetime care</p>
+          </div>
 
-          {/* Total Earnings */}
-          <article
+          <div 
             onClick={() => navigate('/nurse/wallet')}
-            className="group relative overflow-hidden rounded-xl lg:rounded-2xl border border-amber-100 bg-white p-3 lg:p-6 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-amber-300 active:scale-[0.98] lg:hover:scale-105"
+            className="group relative bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/0 to-amber-500/0 group-hover:from-amber-500/5 group-hover:to-amber-500/10 transition-all duration-300"></div>
-            
-            <div className="relative flex items-start justify-between mb-2 lg:mb-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] lg:text-xs font-semibold uppercase tracking-wide text-amber-700 leading-tight mb-1 lg:mb-2 group-hover:text-amber-800 transition-colors">Total Earnings</p>
-                <p className="text-lg lg:text-3xl font-bold text-slate-900 leading-none group-hover:text-amber-700 transition-colors duration-300">{loading ? '...' : formatCurrency(stats.totalEarnings)}</p>
-                <div className="flex items-center gap-1 mt-1 lg:mt-2 text-[10px] lg:text-xs group-hover:scale-105 transition-transform">
-                  {earningsChange >= 0 ? (
-                    <>
-                      <IoTrendingUpOutline className="h-3 w-3 lg:h-4 lg:w-4 text-emerald-600 group-hover:scale-110 transition-transform" />
-                      <span className="text-emerald-600 font-semibold">+{earningsChange.toFixed(1)}%</span>
-                    </>
-                  ) : (
-                    <>
-                      <IoTrendingDownOutline className="h-3 w-3 lg:h-4 lg:w-4 text-red-600 group-hover:scale-110 transition-transform" />
-                      <span className="text-red-600 font-semibold">{earningsChange.toFixed(1)}%</span>
-                    </>
-                  )}
+            <div className="h-8 w-8 rounded-lg bg-blue-50 text-[#11496c] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <IoWalletOutline className="h-4 w-4" />
+            </div>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Wallet Balance</p>
+            <h3 className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : formatCurrency(stats.walletBalance)}</h3>
+            <p className="text-[9px] font-medium text-[#11496c] mt-1.5 uppercase tracking-tighter">Available now</p>
+          </div>
+
+          <div className="group relative bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden">
+            <div className="h-8 w-8 rounded-lg bg-[#11496c]/10 text-[#11496c] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <IoCalendarOutline className="h-4 w-4" />
+            </div>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Visits</p>
+            <h3 className="text-xl font-bold text-slate-900 leading-none">{stats.todayBookingsCount}</h3>
+            <p className="text-[9px] font-medium text-[#11496c] mt-1.5 uppercase tracking-tighter">Pending visits</p>
+          </div>
+
+          <div className="group relative bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer overflow-hidden">
+            <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+               <IoReceiptOutline className="h-4 w-4" />
+            </div>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">This Month</p>
+            <h3 className="text-xl font-bold text-slate-900 leading-none">{loading ? '...' : formatCurrency(stats.monthlyEarnings)}</h3>
+            <p className="text-[9px] font-medium text-amber-600 mt-1.5 uppercase tracking-tighter">Net earnings</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Today's Bookings Section */}
+          <div className="space-y-5">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-0.5 rounded-full bg-[#11496c]"></div>
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Recent Bookings</h2>
+                <div className="bg-slate-100 px-2 py-0.5 rounded-md text-[9px] font-bold text-slate-500">
+                  {todayBookings.length}
                 </div>
               </div>
-              <div className="flex h-8 w-8 lg:h-14 lg:w-14 items-center justify-center rounded-lg lg:rounded-xl bg-amber-500 text-white group-hover:bg-amber-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg group-hover:shadow-xl">
-                <IoWalletOutline className="text-base lg:text-2xl" aria-hidden="true" />
+              <button 
+                onClick={() => navigate('/nurse/booking')}
+                className="text-[10px] font-bold text-[#11496c] uppercase tracking-widest hover:underline"
+              >
+                View All
+              </button>
+            </div>
+
+            <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Patient</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Service</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {todayBookings.length === 0 ? (
+                      <tr>
+                        <td colSpan="3" className="px-4 py-12 text-center">
+                          <IoCalendarOutline className="h-8 w-8 text-slate-100 mx-auto mb-2" />
+                          <p className="text-[11px] text-slate-400 font-bold uppercase tracking-tight">No bookings found</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      todayBookings.map((booking) => (
+                        <tr key={booking.id} className="hover:bg-slate-50/50 transition-colors group cursor-pointer" onClick={() => navigate('/nurse/booking')}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <img src={booking.patientImage} alt="" className="h-8 w-8 rounded-lg object-cover ring-2 ring-white shadow-sm" />
+                              <div>
+                                <p className="text-xs font-bold text-slate-800 leading-none">{booking.patientName}</p>
+                                <p className="text-[9px] font-medium text-slate-400 mt-1 uppercase tracking-tighter">{booking.time}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-xs font-bold text-slate-600">{booking.service}</p>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-widest ${getStatusColor(booking.status)}`}>
+                              {booking.status}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-            <p className="relative text-[10px] lg:text-xs text-slate-600 leading-tight group-hover:text-slate-700 transition-colors">vs last month</p>
-          </article>
+          </div>
+
+          {/* Transactions Section */}
+          <div className="space-y-5">
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-0.5 rounded-full bg-teal-500"></div>
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Recent Transactions</h2>
+                <div className="bg-slate-100 px-2 py-0.5 rounded-md text-[9px] font-bold text-slate-500">
+                  {recentTransactions.length}
+                </div>
+              </div>
+              <button 
+                onClick={() => navigate('/nurse/wallet')}
+                className="text-[10px] font-bold text-[#11496c] uppercase tracking-widest hover:underline"
+              >
+                Wallet
+              </button>
+            </div>
+
+            <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Amount</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</th>
+                      <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {recentTransactions.length === 0 ? (
+                      <tr>
+                        <td colSpan="3" className="px-4 py-12 text-center">
+                          <IoReceiptOutline className="h-8 w-8 text-slate-100 mx-auto mb-2" />
+                          <p className="text-[11px] text-slate-400 font-bold uppercase tracking-tight">No transactions</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      recentTransactions.map((tx) => (
+                        <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group cursor-pointer" onClick={() => navigate('/nurse/wallet')}>
+                          <td className="px-4 py-3">
+                            <p className={`text-xs font-bold ${tx.type === 'earning' ? 'text-emerald-600' : 'text-slate-700'}`}>
+                              {tx.type === 'earning' ? '+' : '-'}{formatCurrency(tx.amount)}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-xs font-bold text-slate-600">{tx.date}</p>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-widest ${getStatusColor(tx.status)}`}>
+                              {tx.status}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
-      </section>
-      <NurseFooter />
-    </>
+      </div>
+    </section>
   )
 }
 
 export default NurseDashboard
-

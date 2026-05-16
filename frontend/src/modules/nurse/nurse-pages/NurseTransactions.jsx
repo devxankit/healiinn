@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import NurseNavbar from '../nurse-components/NurseNavbar'
 import { useToast } from '../../../contexts/ToastContext'
 import { getNurseWalletTransactions } from '../nurse-services/nurseService'
 import Pagination from '../../../components/Pagination'
@@ -112,9 +111,7 @@ const NurseTransactions = () => {
   })
 
   return (
-    <>
-      <NurseNavbar />
-      <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+    <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
         {/* Header */}
         <div className="flex items-center gap-3">
           {isWalletTransaction && (
@@ -132,7 +129,7 @@ const NurseTransactions = () => {
         </div>
 
         {/* Total Transactions Card */}
-        <div className="relative overflow-hidden rounded-3xl border border-purple-100/60 bg-gradient-to-br from-purple-600 via-purple-500 to-purple-600 p-6 sm:p-8 text-white shadow-2xl shadow-purple-500/30">
+        <div className="relative overflow-hidden rounded-3xl border border-[rgba(17,73,108,0.15)] bg-gradient-to-br from-[#11496c] via-[#1a5f7a] to-[#2a8ba8] p-6 sm:p-8 text-white shadow-2xl shadow-[rgba(17,73,108,0.25)]">
           <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />
           <div className="absolute -left-20 bottom-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
           <div className="relative z-10">
@@ -296,8 +293,7 @@ const NurseTransactions = () => {
             />
           </div>
         )}
-      </section>
-    </>
+    </section>
   )
 }
 

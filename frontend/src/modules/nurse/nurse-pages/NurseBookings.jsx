@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import NurseNavbar from '../nurse-components/NurseNavbar'
 import { useToast } from '../../../contexts/ToastContext'
 import Pagination from '../../../components/Pagination'
 import {
@@ -233,9 +232,7 @@ const NurseBookings = () => {
   })
 
   return (
-    <>
-      <NurseNavbar />
-      <section className="flex flex-col gap-4 pb-24">
+    <section className="flex flex-col gap-4 pb-24">
         {/* Statistics Cards - Clickable */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <button
@@ -243,18 +240,18 @@ const NurseBookings = () => {
             onClick={() => setFilterPeriod('today')}
             className={`group relative overflow-hidden rounded-xl border p-3 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] ${
               filterPeriod === 'today'
-                ? 'border-purple-400 bg-purple-100 ring-2 ring-purple-200'
-                : 'border-purple-200 bg-purple-50 hover:bg-purple-100 hover:border-purple-300'
+                ? 'border-[#11496c]/40 bg-[#11496c]/10 ring-2 ring-[#11496c]/20'
+                : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
             }`}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-purple-500/0 group-hover:from-purple-500/10 group-hover:to-purple-500/20 transition-all duration-300"></div>
+            <div className="absolute inset-0 bg-gradient-to-br from-[#11496c]/0 to-[#11496c]/0 group-hover:from-[#11496c]/10 group-hover:to-[#11496c]/20 transition-all duration-300"></div>
             <div className="relative">
-              <p className="text-[10px] font-semibold uppercase text-purple-700 mb-1 group-hover:text-purple-900 transition-colors">Today</p>
-              <p className="text-xl font-bold text-purple-900 group-hover:text-purple-950 transition-colors duration-300">{stats.today?.total ?? 0}</p>
+              <p className="text-[10px] font-semibold uppercase text-[#11496c]/70 mb-1 group-hover:text-[#11496c] transition-colors">Today</p>
+              <p className="text-xl font-bold text-[#11496c] group-hover:text-[#0d3a52] transition-colors duration-300">{stats.today?.total ?? 0}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-[8px] text-purple-600">Scheduled: {stats.today?.scheduled ?? 0}</span>
-                <span className="text-[8px] text-purple-400">•</span>
-                <span className="text-[8px] text-purple-600">Rescheduled: {stats.today?.rescheduled ?? 0}</span>
+                <span className="text-[8px] text-[#11496c]/80">Scheduled: {stats.today?.scheduled ?? 0}</span>
+                <span className="text-[8px] text-[#11496c]/40">•</span>
+                <span className="text-[8px] text-[#11496c]/80">Rescheduled: {stats.today?.rescheduled ?? 0}</span>
               </div>
             </div>
           </button>
@@ -488,8 +485,7 @@ const NurseBookings = () => {
             />
           </div>
         )}
-      </section>
-    </>
+    </section>
   )
 }
 

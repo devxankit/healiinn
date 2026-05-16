@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import DoctorNavbar from '../doctor-components/DoctorNavbar'
 import {
   IoArrowBackOutline,
   IoArrowDownOutline,
@@ -13,57 +12,6 @@ import {
 import { getDoctorWalletEarnings } from '../doctor-services/doctorService'
 import { useToast } from '../../../contexts/ToastContext'
 import Pagination from '../../../components/Pagination'
-
-// Default earning data (will be replaced by API data)
-const defaultEarningData = {
-  totalEarnings: 156420.75,
-  thisMonthEarnings: 8250.00,
-  lastMonthEarnings: 6890.50,
-  thisYearEarnings: 156420.75,
-  todayEarnings: 500.00,
-  earnings: [
-    {
-      id: 'earn-1',
-      amount: 1500.00,
-      description: 'Consultation fee - Patient: John Doe',
-      date: '2025-01-15T10:30:00',
-      status: 'completed',
-      category: 'Consultation',
-    },
-    {
-      id: 'earn-2',
-      amount: 2500.00,
-      description: 'Consultation fee - Patient: Sarah Smith',
-      date: '2025-01-13T09:15:00',
-      status: 'completed',
-      category: 'Consultation',
-    },
-    {
-      id: 'earn-3',
-      amount: 1200.00,
-      description: 'Follow-up consultation - Patient: Mike Johnson',
-      date: '2025-01-12T16:45:00',
-      status: 'pending',
-      category: 'Follow-up',
-    },
-    {
-      id: 'earn-4',
-      amount: 1800.00,
-      description: 'Consultation fee - Patient: Emily Brown',
-      date: '2025-01-11T11:00:00',
-      status: 'completed',
-      category: 'Consultation',
-    },
-    {
-      id: 'earn-5',
-      amount: 1000.00,
-      description: 'In-person consultation - Patient: David Wilson',
-      date: '2025-01-10T14:20:00',
-      status: 'completed',
-      category: 'In-Person Consultation',
-    },
-  ],
-}
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -93,67 +41,47 @@ const formatDateTime = (dateString) => {
 const WalletEarning = () => {
   const navigate = useNavigate()
   const toast = useToast()
-  const [filterType, setFilterType] = useState('all') // all, today, year, month
-  const [earningData, setEarningData] = useState(defaultEarningData)
+  const [filterType, setFilterType] = useState('all')
+  const [earningData, setEarningData] = useState({
+    totalEarnings: 0,
+    thisMonthEarnings: 0,
+    lastMonthEarnings: 0,
+    thisYearEarnings: 0,
+    todayEarnings: 0,
+    earnings: [],
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [page, setPage] = useState(1)
   const [limit] = useState(20)
   const [pagination, setPagination] = useState(null)
 
-  // Reset page when filter changes
   useEffect(() => {
     setPage(1)
   }, [filterType])
 
-  // Fetch earnings from API
   useEffect(() => {
     const fetchEarnings = async () => {
       try {
         setLoading(true)
         setError(null)
-        const params = {
-          page,
-          limit,
-          // Note: Backend supports dateFrom/dateTo for date filtering
-          // filterType ('today', 'month', 'year') could be converted to date ranges in the future
-        }
+        const params = { page, limit }
         const response = await getDoctorWalletEarnings(params)
-        
-        console.log('🔍 Full earnings API response:', response) // Debug log
         
         if (response && response.success && response.data) {
           const data = response.data
-          console.log('✅ Earnings data received:', data) // Debug log
+          if (data.pagination) setPagination(data.pagination)
           
-          // Set pagination data
-          if (data.pagination) {
-            setPagination(data.pagination)
-          }
+          const earningsList = Array.isArray(data) ? data : (data.items || data.earnings || [])
           
-          // Handle both array and object with items property
-          const earningsList = Array.isArray(data) 
-            ? data 
-            : (data.items || data.earnings || [])
-          
-          // Generate description from transaction data
           const getDescription = (earn) => {
             if (earn.description) return earn.description
             if (earn.notes) return earn.notes
-            if (earn.appointmentId) {
-              const appointment = earn.appointmentId
-              if (appointment && typeof appointment === 'object') {
-                return `Consultation fee - Appointment on ${new Date(appointment.appointmentDate || earn.createdAt).toLocaleDateString()}`
-              }
-              return 'Consultation fee'
-            }
-            if (earn.orderId) {
-              return `Order payment - Order #${earn.orderId._id || earn.orderId}`
-            }
+            if (earn.appointmentId) return 'Consultation fee'
+            if (earn.orderId) return `Order payment #${earn.orderId._id || earn.orderId}`
             return 'Earning'
           }
           
-          // Get category from transaction
           const getCategory = (earn) => {
             if (earn.category) return earn.category
             if (earn.appointmentId) return 'Consultation'
@@ -176,13 +104,6 @@ const WalletEarning = () => {
               category: getCategory(earn),
             })),
           })
-          
-          console.log('💰 Setting earnings data:', {
-            totalEarnings: Number(data.totalEarnings || 0),
-            earningsCount: earningsList.length,
-          }) // Debug log
-        } else {
-          console.error('❌ Earnings API response error:', response) // Debug log
         }
       } catch (err) {
         console.error('Error fetching earnings:', err)
@@ -200,18 +121,11 @@ const WalletEarning = () => {
     ? ((earningData.thisMonthEarnings - earningData.lastMonthEarnings) / earningData.lastMonthEarnings) * 100
     : 0
 
-  // Note: filterType ('today', 'month', 'year') is not currently implemented
-  // The earnings data already includes totals for today, month, year from backend
-  // For now, we show all earnings and pagination works on all data
-  const filteredEarnings = earningData.earnings
-
   const location = useLocation()
   const isDashboardPage = location.pathname === '/doctor/dashboard' || location.pathname === '/doctor/'
 
   return (
-    <>
-      <DoctorNavbar />
-      <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-20' : ''}`}>
+    <section className={`flex flex-col gap-6 pb-24 ${isDashboardPage ? '-mt-28' : ''}`}>
           {/* Header */}
           <div className="flex items-center gap-3">
             <button
@@ -221,13 +135,13 @@ const WalletEarning = () => {
               <IoArrowBackOutline className="h-5 w-5" />
             </button>
             <div className="flex-1">
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Earnings</h1>
-              <p className="mt-1 text-sm text-slate-600">View your earnings and income details</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Earnings</h1>
+              <p className="mt-1 text-sm text-slate-600">View your income breakdown and history</p>
             </div>
           </div>
 
           {/* Main Earnings Card - Hero */}
-          <div className="relative overflow-hidden rounded-3xl border border-emerald-100/60 bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 p-6 sm:p-8 text-white shadow-2xl shadow-emerald-500/30">
+          <div className="relative overflow-hidden rounded-[32px] border border-[rgba(17,73,108,0.15)] bg-gradient-to-br from-[#11496c] via-[#1a5f7a] to-[#2a8ba8] p-6 sm:p-8 text-white shadow-2xl shadow-[rgba(17,73,108,0.25)] transition-all hover:shadow-[rgba(17,73,108,0.35)]">
             <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-white/10 blur-3xl animate-pulse" />
             <div className="absolute -left-20 bottom-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
@@ -235,10 +149,10 @@ const WalletEarning = () => {
             <div className="relative z-10">
               <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-white/80 mb-1">Total Earnings</p>
-                  <p className="text-4xl sm:text-5xl font-bold tracking-tight">{loading ? '...' : formatCurrency(earningData.totalEarnings)}</p>
+                  <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1.5">Total Earnings</p>
+                  <p className="text-4xl sm:text-5xl font-black tracking-tight drop-shadow-md">{loading ? '...' : formatCurrency(earningData.totalEarnings)}</p>
                 </div>
-                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-lg">
+                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-lg transition-transform hover:scale-105">
                   <IoArrowDownOutline className="h-8 w-8 sm:h-10 sm:w-10" />
                 </div>
               </div>
@@ -248,173 +162,130 @@ const WalletEarning = () => {
           {/* Earnings Breakdown Cards */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {/* Today Earnings */}
-            <div className="group relative overflow-hidden rounded-2xl border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.05)] p-6 shadow-sm hover:shadow-md transition-all">
+            <div className="group relative overflow-hidden rounded-[24px] border border-[rgba(17,73,108,0.2)] bg-gradient-to-br from-[rgba(17,73,108,0.05)] via-white to-[rgba(17,73,108,0.05)] p-6 shadow-sm hover:shadow-md transition-all">
               <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-[rgba(17,73,108,0.1)] blur-2xl" />
               <div className="relative">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(17,73,108,0.1)]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#11496c]/10 transition-transform group-hover:scale-110">
                     <IoCalendarOutline className="h-5 w-5 text-[#11496c]" />
                   </div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#11496c]">Today</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#11496c]">Today</p>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(earningData.todayEarnings)}</p>
+                <p className="text-3xl font-black text-slate-900 group-hover:text-[#11496c] transition-colors">{loading ? '...' : formatCurrency(earningData.todayEarnings)}</p>
               </div>
             </div>
 
             {/* Month Earnings */}
-            <div className="group relative overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 p-6 shadow-sm hover:shadow-md transition-all">
+            <div className="group relative overflow-hidden rounded-[24px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 p-6 shadow-sm hover:shadow-md transition-all">
               <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-emerald-100/50 blur-2xl" />
               <div className="relative">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 transition-transform group-hover:scale-110">
                     <IoTrendingUpOutline className="h-5 w-5 text-emerald-600" />
                   </div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">This Month</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">This Month</p>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(earningData.thisMonthEarnings)}</p>
-                <div className="mt-4 flex items-center gap-2 text-xs">
+                <p className="text-3xl font-black text-slate-900 group-hover:text-emerald-700 transition-colors">{loading ? '...' : formatCurrency(earningData.thisMonthEarnings)}</p>
+                <div className="mt-4 flex items-center gap-2 text-[10px] font-bold">
                   {earningsChange >= 0 ? (
                     <>
                       <IoTrendingUpOutline className="h-3.5 w-3.5 text-emerald-600" />
-                      <span className="text-emerald-600 font-semibold">+{earningsChange.toFixed(1)}%</span>
+                      <span className="text-emerald-600">+{earningsChange.toFixed(1)}%</span>
                     </>
                   ) : (
                     <>
                       <IoTrendingDownOutline className="h-3.5 w-3.5 text-red-600" />
-                      <span className="text-red-600 font-semibold">{earningsChange.toFixed(1)}%</span>
+                      <span className="text-red-600">{earningsChange.toFixed(1)}%</span>
                     </>
                   )}
-                  <span className="text-slate-500">vs last month</span>
+                  <span className="text-slate-400 uppercase tracking-tighter">vs last month</span>
                 </div>
               </div>
             </div>
 
             {/* Year Earnings */}
-            <div className="group relative overflow-hidden rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 via-white to-purple-50/30 p-6 shadow-sm hover:shadow-md transition-all">
-              <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-purple-100/50 blur-2xl" />
+            <div className="group relative overflow-hidden rounded-[24px] border border-[#11496c]/20 bg-gradient-to-br from-[#11496c]/5 via-white to-[#11496c]/5 p-6 shadow-sm hover:shadow-md transition-all">
+              <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-[#11496c]/10 blur-2xl" />
               <div className="relative">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100">
-                    <IoCalendarOutline className="h-5 w-5 text-purple-600" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#11496c]/10 transition-transform group-hover:scale-110">
+                    <IoCalendarOutline className="h-5 w-5 text-[#11496c]" />
                   </div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">This Year</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#11496c]">This Year</p>
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{loading ? '...' : formatCurrency(earningData.thisYearEarnings)}</p>
+                <p className="text-3xl font-black text-slate-900 group-hover:text-[#11496c] transition-colors">{loading ? '...' : formatCurrency(earningData.thisYearEarnings)}</p>
               </div>
             </div>
           </div>
 
           {/* Filter Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch]">
-            <button
-              type="button"
-              onClick={() => setFilterType('all')}
-              className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-                filterType === 'all'
-                  ? 'text-white shadow-sm'
-                  : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50 border border-slate-200'
-              }`}
-              style={filterType === 'all' ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('today')}
-              className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-                filterType === 'today'
-                  ? 'text-white shadow-sm'
-                  : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50 border border-slate-200'
-              }`}
-              style={filterType === 'today' ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('year')}
-              className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-                filterType === 'year'
-                  ? 'text-white shadow-sm'
-                  : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50 border border-slate-200'
-              }`}
-              style={filterType === 'year' ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
-            >
-              Year
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('month')}
-              className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-                filterType === 'month'
-                  ? 'text-white shadow-sm'
-                  : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50 border border-slate-200'
-              }`}
-              style={filterType === 'month' ? { backgroundColor: '#11496c', boxShadow: '0 1px 2px 0 rgba(17, 73, 108, 0.2)' } : {}}
-            >
-              Month
-            </button>
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {['all', 'today', 'month', 'year'].map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setFilterType(type)}
+                className={`shrink-0 rounded-xl px-5 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                  filterType === type
+                    ? 'text-white shadow-md'
+                    : 'bg-white text-slate-500 shadow-sm hover:bg-slate-50 border border-slate-200'
+                }`}
+                style={filterType === type ? { backgroundColor: '#11496c' } : {}}
+              >
+                {type}
+              </button>
+            ))}
           </div>
 
           {/* Earnings List */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900">Earning History</h2>
-              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-                {pagination?.total || filteredEarnings.length} {(pagination?.total || filteredEarnings.length) === 1 ? 'transaction' : 'transactions'}
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">Earning History</h2>
+              <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full uppercase tracking-widest">
+                {pagination?.total || earningData.earnings.length} entries
               </span>
             </div>
             <div className="space-y-3">
-              {filteredEarnings.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-                  <IoArrowDownOutline className="mx-auto h-16 w-16 text-slate-300" />
-                  <p className="mt-4 text-base font-semibold text-slate-600">No earnings found</p>
-                  <p className="mt-1 text-sm text-slate-500">Your earnings will appear here</p>
+              {earningData.earnings.length === 0 ? (
+                <div className="rounded-[32px] border border-slate-200 bg-white p-12 text-center shadow-sm">
+                  <IoArrowDownOutline className="mx-auto h-16 w-16 text-slate-200" />
+                  <p className="mt-4 text-base font-bold text-slate-900">No earnings found</p>
+                  <p className="mt-1 text-xs font-medium text-slate-400">Your earnings will appear here</p>
                 </div>
               ) : (
-                filteredEarnings.map((earning) => (
+                earningData.earnings.map((earning) => (
                   <article
                     key={earning.id}
-                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
+                    className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all hover:shadow-lg hover:border-emerald-100"
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100 shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100 shadow-sm transition-transform group-hover:scale-110">
                         <IoArrowDownOutline className="h-6 w-6 text-emerald-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-900">
+                            <p className="text-sm font-bold text-slate-900 truncate group-hover:text-emerald-700 transition-colors">
                               {earning.description}
                             </p>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium border border-slate-200">
-                                {earning.category}
-                              </span>
+                            <div className="mt-1.5 flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              <span className="text-emerald-600/80">{earning.category}</span>
+                              <span className="h-1 w-1 rounded-full bg-slate-200" />
                               <span className="flex items-center gap-1">
-                                <IoCalendarOutline className="h-3.5 w-3.5" />
+                                <IoCalendarOutline className="h-3 w-3" />
                                 {formatDateTime(earning.date)}
                               </span>
                             </div>
-                            <div className="mt-2.5">
-                              {earning.status === 'pending' && (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 border border-amber-200">
-                                  <IoTimeOutline className="h-3.5 w-3.5" />
-                                  Processing
-                                </div>
-                              )}
-                              {earning.status === 'completed' && (
-                                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 border border-emerald-200">
-                                  <IoCheckmarkCircleOutline className="h-3.5 w-3.5" />
-                                  Completed
-                                </div>
-                              )}
-                            </div>
                           </div>
-                          <div className="flex shrink-0 flex-col items-end">
-                            <p className="text-xl font-bold text-emerald-600">
+                          <div className="text-right">
+                            <p className="text-lg font-black text-emerald-600">
                               +{formatCurrency(earning.amount)}
                             </p>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter mt-1 ${
+                              earning.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                            }`}>
+                              {earning.status}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -426,7 +297,7 @@ const WalletEarning = () => {
 
             {/* Pagination */}
             {pagination && pagination.totalPages > 1 && (
-              <div className="mt-4">
+              <div className="mt-8 flex justify-center">
                 <Pagination
                   currentPage={pagination.page || page}
                   totalPages={pagination.totalPages}
@@ -441,10 +312,8 @@ const WalletEarning = () => {
               </div>
             )}
           </section>
-      </section>
-    </>
+    </section>
   )
 }
 
 export default WalletEarning
-

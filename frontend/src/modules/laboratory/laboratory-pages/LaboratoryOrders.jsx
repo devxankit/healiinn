@@ -275,20 +275,27 @@ const LaboratoryOrders = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {['all', 'completed'].map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilter(status)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold capitalize transition ${
-              filter === status
-                ? 'bg-[#11496c] text-white shadow-sm'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {status === 'all' ? 'All Orders' : statusConfig[status]?.label || status}
-          </button>
-        ))}
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {[
+          { key: 'all', label: 'All Orders', icon: IoBagHandleOutline },
+          { key: 'completed', label: 'Completed', icon: IoCheckmarkCircleOutline },
+        ].map((tab) => {
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setFilter(tab.key)}
+              className={`shrink-0 flex items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition-all duration-300 ${
+                filter === tab.key
+                  ? 'bg-[#11496c] text-white shadow-lg shadow-[#11496c]/20 scale-105'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:border-[#11496c]/30 hover:bg-slate-50 hover:text-[#11496c]'
+              }`}
+            >
+              <Icon className={`h-4 w-4 ${filter === tab.key ? 'animate-pulse' : ''}`} />
+              <span>{tab.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Orders List */}
